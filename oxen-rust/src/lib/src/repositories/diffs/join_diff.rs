@@ -18,7 +18,8 @@ use polars::datatypes::{AnyValue, StringChunked};
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
-use polars::prelude::ChunkCompare;
+use polars::prelude::SchemaExt;
+use polars::prelude::{ChunkCompare, PlSmallStr};
 use polars::prelude::{DataFrame, DataFrameJoinOps};
 use polars::series::IntoSeries;
 
@@ -287,13 +288,13 @@ fn join_hashed_dfs(
 
     for col in schema_diff.added_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, &format!("{}.right", col))?;
+            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.right", col)))?;
         }
     }
 
     for col in schema_diff.removed_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, &format!("{}.left", col))?;
+            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.left", col)))?;
         }
     }
 
@@ -305,10 +306,10 @@ fn join_hashed_dfs(
         let right_after = format!("{}.right", target);
         // Rename conditionally for asymetric targets
         if joined_df.schema().contains(&left_before) {
-            joined_df.rename(&left_before, &left_after)?;
+            joined_df.rename(&left_before, PlSmallStr::from_str(&left_after))?;
         }
         if joined_df.schema().contains(&right_before) {
-            joined_df.rename(&right_before, &right_after)?;
+            joined_df.rename(&right_before, PlSmallStr::from_str(&right_after))?;
         }
     }
 

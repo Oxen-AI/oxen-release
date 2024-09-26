@@ -129,6 +129,7 @@ impl RemoteStagedStatus {
 
                 MetadataEntry {
                     filename: path_str,
+                    hash: "".to_string(),
                     is_dir: false,
                     size: len,
                     latest_commit: None,

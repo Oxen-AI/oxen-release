@@ -2,9 +2,11 @@ use async_trait::async_trait;
 use clap::Arg;
 use clap::Command;
 
+use liboxen::api;
+use liboxen::constants::DEFAULT_PAGE_NUM;
+use liboxen::constants::DEFAULT_PAGE_SIZE;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::repositories;
 
 use crate::cmd::DiffCmd;
 use crate::cmd::RunCmd;
@@ -37,12 +39,21 @@ impl RunCmd for WorkspaceDiffCmd {
             return Err(OxenError::basic_str("Must supply a workspace id."));
         };
 
-        let repository = LocalRepository::from_current_dir()?;
-        check_repo_migration_needed(&repository)?;
+        let repo = LocalRepository::from_current_dir()?;
+        check_repo_migration_needed(&repo)?;
 
-        let remote_diff =
-            repositories::workspaces::diff(&repository, workspace_id, &opts.path_1).await?;
-        println!("{:?}", remote_diff);
+        let remote_repo = api::client::repositories::get_default_remote(&repo).await?;
+
+        let diff = api::client::workspaces::data_frames::diff(
+            &remote_repo,
+            workspace_id,
+            &opts.path_1,
+            DEFAULT_PAGE_NUM,
+            DEFAULT_PAGE_SIZE,
+        )
+        .await?;
+        let remote_df = diff.view.to_df();
+        println!("{:?}", remote_df);
 
         // TODO: Allow them to save a remote diff to disk
 

@@ -20,24 +20,15 @@ pub async fn list_diff_entries(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("list_page got body: {}", body);
-            let response: Result<CompareEntriesResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.compare),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::client::diff::list_diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err =
-                format!("api::client::diff::list_diff_entries Err {err:?} request failed: {url}");
-            Err(OxenError::basic_str(err))
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("list_page got body: {}", body);
+    let response: Result<CompareEntriesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.compare),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::diff::list_diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
@@ -54,23 +45,15 @@ pub async fn diff_entries(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("list_page got body: {}", body);
-            let response: Result<CompareEntryResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.compare),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::client::diff::diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err = format!("api::client::diff::diff_entries Err {err:?} request failed: {url}");
-            Err(OxenError::basic_str(err))
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("list_page got body: {}", body);
+    let response: Result<CompareEntryResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.compare),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::diff::diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
@@ -92,15 +75,11 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use image::imageops;
 
     // Test diff add image
     #[tokio::test]
     async fn test_diff_entries_add_image() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             util::fs::create_dir_all(&images_dir)?;
@@ -112,6 +91,9 @@ mod tests {
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat image")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -176,11 +158,8 @@ mod tests {
 
     // Test diff modify image
     #[tokio::test]
-    async fn test_diff_entries_modify_image() -> Result<(), OxenError> {
+    async fn test_diff_entries_modify_image_resize() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             util::fs::create_dir_all(&images_dir)?;
@@ -192,6 +171,9 @@ mod tests {
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat image")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -210,15 +192,8 @@ mod tests {
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
 
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
-
-            // Resize the image to the specified dimensions.
-            let dims: u32 = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(repo_filepath).unwrap();
+            let dims = 96;
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Modifying the cat")?;
@@ -276,9 +251,6 @@ mod tests {
     #[tokio::test]
     async fn test_diff_entries_modify_add_rows_csv() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Add and commit the initial data
             let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
             let repo_filepath = repo.path.join(test_file.file_name().unwrap());
@@ -287,7 +259,8 @@ mod tests {
             repositories::add(&repo, &repo_filepath)?;
             repositories::commit(&repo, "Adding initial csv")?;
 
-
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -392,9 +365,6 @@ mod tests {
     #[tokio::test]
     async fn test_diff_entries_modify_add_and_remove_rows_csv() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Add and commit the initial data
             let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
             let repo_filepath = repo.path.join(test_file.file_name().unwrap());
@@ -402,6 +372,9 @@ mod tests {
 
             repositories::add(&repo, &repo_filepath)?;
             repositories::commit(&repo, "Adding initial csv")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -530,9 +503,6 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
     #[tokio::test]
     async fn test_diff_entries_modify_remove_columns_csv() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Add and commit the initial data
             let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
             let repo_filepath = repo.path.join(test_file.file_name().unwrap());
@@ -540,6 +510,9 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
 
             repositories::add(&repo, &repo_filepath)?;
             repositories::commit(&repo, "Adding initial csv")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -696,15 +669,9 @@ who won the game?,The packers beat up on the bears,packers
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
 
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
-
-            // Resize the image to the specified dimensions.
-            let dims: u32 = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(repo_filepath).unwrap();
+            // Resize the image
+            let dims = 96;
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             repositories::add(&repo, &images_dir)?;
             let new_commit = repositories::commit(&repo, "Modifying the cat")?;
@@ -873,9 +840,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_added_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             util::fs::create_dir_all(&images_dir)?;
@@ -889,6 +853,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -935,6 +902,8 @@ who won the game?,The packers beat up on the bears,packers
             )
             .await?;
 
+            println!("COMPARE: {:#?}", compare);
+
             // Added 4 dogs, one dir
             assert_eq!(compare.entries.len(), 5);
 
@@ -962,9 +931,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_added_images_in_subdirs() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             let cats_dir = images_dir.join("cats");
@@ -979,6 +945,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &cats_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1009,15 +978,10 @@ who won the game?,The packers beat up on the bears,packers
             // Modify a cat
             let test_file = test::test_img_file_with_name("cat_1.jpg");
             let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
 
-            // Resize the image to the specified dimensions.
+            // Resize the image
             let dims = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(&repo_filepath).unwrap();
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             // Add the modification
             repositories::add(&repo, &repo_filepath)?;
@@ -1116,9 +1080,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_removing_images_in_subdir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images").join("cats");
             util::fs::create_dir_all(&images_dir)?;
@@ -1132,6 +1093,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1228,9 +1192,6 @@ who won the game?,The packers beat up on the bears,packers
     async fn test_list_diff_entries_removing_images_by_rming_parent_in_subdir(
     ) -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images").join("cats");
             util::fs::create_dir_all(&images_dir)?;
@@ -1244,6 +1205,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1341,9 +1305,6 @@ who won the game?,The packers beat up on the bears,packers
     async fn test_list_diff_entries_adding_images_in_one_subdir_two_levels() -> Result<(), OxenError>
     {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let cats_dir = repo.path.join("images").join("cats");
             util::fs::create_dir_all(&cats_dir)?;
@@ -1357,6 +1318,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &cats_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1472,9 +1436,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_adding_images_in_subdirs() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let cats_dir = repo.path.join("images").join("cats");
             util::fs::create_dir_all(&cats_dir)?;
@@ -1488,6 +1449,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &cats_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1611,9 +1575,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_modifying_images_in_subdir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images").join("cats");
             util::fs::create_dir_all(&images_dir)?;
@@ -1627,6 +1588,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1645,15 +1609,10 @@ who won the game?,The packers beat up on the bears,packers
             // Remove all the cat images
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
-                // Open the image file.
-                let img = image::open(&repo_filepath).unwrap();
 
-                // Resize the image to the specified dimensions.
+                // Resize the image
                 let dims = 96;
-                let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-                // Save the resized image.
-                new_img.save(repo_filepath).unwrap();
+                util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
             }
 
             // THIS IS THE CRUX of this test, do not modify images/cats, just modify images/
@@ -1729,9 +1688,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_removing_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             util::fs::create_dir_all(&images_dir)?;
@@ -1745,6 +1701,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1818,9 +1777,6 @@ who won the game?,The packers beat up on the bears,packers
     #[tokio::test]
     async fn test_list_diff_entries_changed_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // create the images directory
             let images_dir = repo.path.join("images");
             util::fs::create_dir_all(&images_dir)?;
@@ -1834,6 +1790,9 @@ who won the game?,The packers beat up on the bears,packers
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Add and commit the dogs
             for i in 1..=4 {
@@ -1863,15 +1822,9 @@ who won the game?,The packers beat up on the bears,packers
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
 
-                // Open the image file.
-                let img = image::open(&repo_filepath).unwrap();
-
-                // Resize the image to the specified dimensions.
+                // Resize the image
                 let dims = 96;
-                let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-                // Save the resized image.
-                new_img.save(repo_filepath).unwrap();
+                util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
             }
 
             repositories::add(&repo, &images_dir)?;

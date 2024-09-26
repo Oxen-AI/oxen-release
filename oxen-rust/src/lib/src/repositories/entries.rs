@@ -115,8 +115,26 @@ pub fn get_commit_entry(
     commit: &Commit,
     path: &Path,
 ) -> Result<Option<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.get_entry(path)
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            let reader = CommitEntryReader::new(repo, commit)?;
+            reader.get_entry(path)
+        }
+        MinOxenVersion::V0_19_0 => match core::v0_19_0::entries::get_file(repo, commit, path)? {
+            None => Ok(None),
+            Some(file) => {
+                let entry = CommitEntry {
+                    commit_id: commit.id.clone(),
+                    path: path.to_path_buf(),
+                    hash: file.hash.to_string(),
+                    num_bytes: file.num_bytes,
+                    last_modified_seconds: file.last_modified_seconds,
+                    last_modified_nanoseconds: file.last_modified_nanoseconds,
+                };
+                Ok(Some(entry))
+            }
+        },
+    }
 }
 
 pub fn list_for_commit(

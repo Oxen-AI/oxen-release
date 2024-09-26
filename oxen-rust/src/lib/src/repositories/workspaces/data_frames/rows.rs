@@ -8,9 +8,9 @@ use crate::view::data_frames::DataFrameRowChange;
 use polars::datatypes::AnyValue;
 
 use polars::frame::DataFrame;
+use polars::prelude::PlSmallStr;
 
 use crate::{core, repositories};
-use polars::prelude::NamedFrom;
 use rocksdb::DB;
 use sql_query_builder::Select;
 
@@ -157,7 +157,8 @@ pub fn get_by_id(
 }
 
 pub fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ID_COL) {
+    let oxen_id_col = PlSmallStr::from_str(OXEN_ID_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&oxen_id_col) {
         Ok(row_df
             .column(OXEN_ID_COL)
             .unwrap()
@@ -170,7 +171,8 @@ pub fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenError> {
 }
 
 pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&DIFF_STATUS_COL) {
+    let diff_status_col = PlSmallStr::from_str(DIFF_STATUS_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&diff_status_col) {
         let anyval_status = row_df.column(DIFF_STATUS_COL).unwrap().get(0)?;
         let str_status = anyval_status
             .get_str()
@@ -183,7 +185,8 @@ pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, Oxe
 }
 
 pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ROW_ID_COL) {
+    let oxen_row_id_col = PlSmallStr::from_str(OXEN_ROW_ID_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&oxen_row_id_col) {
         let row_df_anyval = row_df.column(OXEN_ROW_ID_COL).unwrap().get(0)?;
         match row_df_anyval {
             AnyValue::UInt16(val) => Ok(Some(val as usize)),

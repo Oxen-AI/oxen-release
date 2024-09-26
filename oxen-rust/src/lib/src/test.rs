@@ -458,6 +458,7 @@ where
     // Push data
     repositories::push(&local_repo).await?;
 
+    log::debug!("run_training_data_fully_sync_remote run test");
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
         Ok(_remote_repo) => true,
@@ -1118,7 +1119,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());

@@ -19,6 +19,7 @@ use liboxen::core::v0_10_0::commits::list_with_missing_dbs;
 use liboxen::core::v0_10_0::commits::merge_objects_dbs;
 use liboxen::core::v0_10_0::index::CommitReader;
 use liboxen::core::v0_10_0::index::CommitWriter;
+use liboxen::core::versions::MinOxenVersion;
 
 use liboxen::core::refs::RefWriter;
 use liboxen::error::OxenError;
@@ -244,10 +245,19 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let commit_id = path_param(&req, "commit_id")?;
 
     let commits = repositories::commits::list_from(&repository, &commit_id)?;
-
     log::debug!("latest_synced has commits {}", commits.len());
-    for commit in commits.iter() {
-        log::debug!("latest_synced has commit.... {}", commit);
+    // for commit in commits.iter() {
+    //     log::debug!("latest_synced has commit.... {}", commit);
+    // }
+
+    // If the repo is v0.19.0 we don't use this API anymore outside of tests,
+    // so we can just assume everything is synced
+    if repository.min_version() == MinOxenVersion::V0_19_0 {
+        return Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
+            status: StatusMessage::resource_found(),
+            latest_synced: commits.last().cloned(),
+            num_unsynced: 0,
+        }));
     }
 
     let mut latest_synced: Option<Commit> = None;
@@ -327,6 +337,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     }))
 }
 
+// TODO: Deprecate this after v0.19.0
 pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -338,9 +349,9 @@ pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         OxenError::revision_not_found(commit_or_branch.clone().into()),
     )?;
 
-    let response = match commit_cacher::get_status(&repository, &commit) {
+    let response = match repositories::commits::get_commit_status_tmp(&repository, &commit) {
         Ok(Some(CacherStatusType::Success)) => {
-            match content_validator::is_valid(&repository, &commit) {
+            match repositories::commits::is_commit_valid_tmp(&repository, &commit) {
                 Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
@@ -716,6 +727,11 @@ pub async fn upload_chunk(
                     // Successfully wrote chunk
                     log::debug!("upload_chunk successfully wrote chunk {:?}", chunk_file);
 
+                    // TODO: there is a race condition here when multiple chunks
+                    // are uploaded in parallel Currently doesn't hurt anything,
+                    // but we should find a more elegant solution because we're
+                    // doing a lot of extra work unpacking tarballs multiple
+                    // times.
                     check_if_upload_complete_and_unpack(
                         hidden_dir,
                         tmp_dir,

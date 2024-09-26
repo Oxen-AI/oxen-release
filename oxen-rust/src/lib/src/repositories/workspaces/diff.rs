@@ -1,32 +1,26 @@
 //! # oxen workspace diff
 //!
-//! Compare remote files and directories between versions
+//! Compare files and versions in workspaces
 //!
 
 use std::path::Path;
 
-use polars::frame::DataFrame;
-
-use crate::api;
-use crate::constants::DEFAULT_PAGE_NUM;
-use crate::constants::DEFAULT_PAGE_SIZE;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::diff::DiffResult;
 use crate::model::LocalRepository;
+use crate::model::Workspace;
 
-pub async fn diff(
+pub fn diff(
     repo: &LocalRepository,
-    workspace_id: &str,
-    path: &Path,
-) -> Result<DataFrame, OxenError> {
-    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
-    let diff = api::client::workspaces::data_frames::diff(
-        &remote_repo,
-        workspace_id,
-        path,
-        DEFAULT_PAGE_NUM,
-        DEFAULT_PAGE_SIZE,
-    )
-    .await?;
-    let df = diff.view.to_df();
-    Ok(df)
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+) -> Result<DiffResult, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::diff::diff(workspace, path),
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::index::workspaces::data_frames::diff(workspace, path)
+        }
+    }
 }
