@@ -543,7 +543,6 @@ mod tests {
         .await
     }
 
-    // TODO: Invalid for v0_19_0?
     #[tokio::test]
     async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
         test::run_no_commit_remote_repo_test(|remote_repo| async move {
@@ -695,11 +694,13 @@ mod tests {
             // Current local head
             let local_head = repositories::commits::head_commit(&local_repo)?;
 
-            // Nothing should be synced on remote and no commit objects created except root
+            // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
-            assert_eq!(history.len(), 1);
+            assert_eq!(history.len(), 0);
+            // TODO: v0_10_0 logic should have 1 commit on main
+            // assert_eq!(history.len(), 0);
 
             // Create new local branch
             let new_branch_name = "my-branch";
@@ -720,15 +721,18 @@ mod tests {
             )
             .await?;
 
-            // Should now have 26 commits on remote on new branch, 1 on main
+            // Should now have 26 commits on remote on new branch
             let history_new =
                 api::client::commits::list_commit_history(&remote_repo, new_branch_name).await?;
-            let history_main =
-                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
-                    .await?;
-
             assert_eq!(history_new.len(), 26);
-            assert_eq!(history_main.len(), 1);
+
+            // TODO: v0_10_0 logic should have 1 commit on main
+            // Should still have no commits on main
+            let history_main =
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await;
+            log::debug!("history_main: {:?}", history_main);
+            // assert_eq!(history_main.len(), 1);
+            assert!(history_main.is_err());
 
             // Back to main
             repositories::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
@@ -752,7 +756,6 @@ mod tests {
         .await
     }
 
-    // TODO: Invalid for v0_19_0?
     #[tokio::test]
     async fn test_cannot_push_while_another_user_is_pushing() -> Result<(), OxenError> {
         test::run_no_commit_remote_repo_test(|remote_repo| async move {
@@ -1474,7 +1477,7 @@ mod tests {
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
                     repositories::push(&user_a_repo).await?;
 
-                    // User B adds a different file and pushe
+                    // User B adds a different file and pushes
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
                     repositories::add(&user_b_repo, &modify_path_b)?;
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;

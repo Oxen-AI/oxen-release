@@ -246,9 +246,9 @@ mod tests {
     use crate::model::diff::DiffResult;
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
-    use crate::repositories;
     use crate::repositories::workspaces;
     use crate::test;
+    use crate::{repositories, util};
 
     #[test]
     fn test_add_row() -> Result<(), OxenError> {
@@ -344,6 +344,7 @@ mod tests {
 
             // List the files that are changed
             let status = workspaces::status::status(&workspace)?;
+            log::debug!("status is {:?}", status);
             assert_eq!(status.staged_files.len(), 1);
 
             // List the staged mods
@@ -522,16 +523,23 @@ mod tests {
             let file_1 = repositories::revisions::get_version_file_from_commit_id(
                 &repo, &commit.id, &file_path,
             )?;
+            // copy the file to the same path but with .csv as the extension
+            let file_1_csv = file_1.with_extension("csv");
+            util::fs::copy(&file_1, &file_1_csv)?;
+            log::debug!("copied file 1 to {:?}", file_1_csv);
 
             let file_2 = repositories::revisions::get_version_file_from_commit_id(
                 &repo,
                 commit_2.id,
                 &file_path,
             )?;
-
+            let file_2_csv = file_2.with_extension("csv");
+            util::fs::copy(&file_2, &file_2_csv)?;
+            log::debug!("copied file 2 to {:?}", file_2_csv);
             let diff_result =
-                repositories::diffs::diff_files(file_1, file_2, vec![], vec![], vec![])?;
+                repositories::diffs::diff_files(file_1_csv, file_2_csv, vec![], vec![], vec![])?;
 
+            log::debug!("diff result is {:?}", diff_result);
             match diff_result {
                 DiffResult::Tabular(tabular_diff) => {
                     let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
@@ -618,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_added_row() -> Result<(), OxenError> {
+    fn test_delete_added_single_row() -> Result<(), OxenError> {
         // Skip duckdb if on windows
         if std::env::consts::OS == "windows" {
             return Ok(());
@@ -769,7 +777,7 @@ mod tests {
         })
     }
     #[test]
-    fn test_restore_row() -> Result<(), OxenError> {
+    fn test_restore_row_after_modification() -> Result<(), OxenError> {
         if std::env::consts::OS == "windows" {
             return Ok(());
         }
@@ -811,6 +819,7 @@ mod tests {
 
             // List the files that are changed
             let status = workspaces::status::status(&workspace)?;
+            println!("status: {:?}", status);
             assert_eq!(status.staged_files.len(), 1);
 
             let diff = workspaces::diff(&repo, &workspace, &file_path)?;

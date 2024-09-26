@@ -176,22 +176,22 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
 
 pub fn version_path_from_hash_and_filename(
     repo: &LocalRepository,
-    hash: &str,
-    filename: &str,
+    hash: impl AsRef<str>,
+    filename: impl AsRef<Path>,
 ) -> PathBuf {
-    version_path_from_hash_and_file(&repo.path, hash.to_string(), PathBuf::from(filename))
+    version_path_from_hash_and_file(&repo.path, hash, filename)
 }
 
-pub fn version_path_from_node(repo: &LocalRepository, file_hash: &str, path: &Path) -> PathBuf {
-    version_path_from_hash_and_file(
-        &repo.path,
-        file_hash.to_string().clone(),
-        path.to_path_buf(),
-    )
+pub fn version_path_from_node(
+    repo: &LocalRepository,
+    file_hash: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> PathBuf {
+    version_path_from_hash_and_file(&repo.path, file_hash, path)
 }
 
-pub fn version_path_from_hash(repo: &LocalRepository, hash: &str) -> PathBuf {
-    version_path_from_hash_and_file(&repo.path, hash.to_string(), PathBuf::new())
+pub fn version_path_from_hash(repo: &LocalRepository, hash: impl AsRef<str>) -> PathBuf {
+    version_path_from_hash_and_file(&repo.path, hash, PathBuf::new())
 }
 
 pub fn version_path_for_entry(repo: &LocalRepository, entry: &Entry) -> PathBuf {
@@ -223,9 +223,11 @@ pub fn df_version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
 
 pub fn version_path_from_hash_and_file(
     dst: impl AsRef<Path>,
-    hash: String,
-    filename: PathBuf,
+    hash: impl AsRef<str>,
+    filename: impl AsRef<Path>,
 ) -> PathBuf {
+    let hash = hash.as_ref();
+    let filename = filename.as_ref();
     let version_dir = version_dir_from_hash(dst, hash);
     log::debug!(
         "version_path_from_hash_and_file version_dir {:?}",
@@ -266,7 +268,8 @@ pub fn extension_from_path(path: &Path) -> String {
     }
 }
 
-pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
+pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: impl AsRef<str>) -> PathBuf {
+    let hash = hash.as_ref();
     let topdir = &hash[..2];
     let subdir = &hash[2..];
     oxen_hidden_dir(dst.as_ref())

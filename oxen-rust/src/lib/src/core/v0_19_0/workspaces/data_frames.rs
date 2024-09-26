@@ -1,10 +1,11 @@
 use duckdb::Connection;
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
 use crate::core::db::data_frames::df_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
+use sql_query_builder::Delete;
 
-use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{Commit, EntryDataType, LocalRepository, Workspace};
 use crate::repositories;
@@ -158,5 +159,143 @@ fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
         TABLE_NAME, DIFF_HASH_COL
     );
     conn.execute(&query_hash, [])?;
+    Ok(())
+}
+
+pub fn extract_file_node_to_working_dir(
+    workspace: &Workspace,
+    dir_path: impl AsRef<Path>,
+    file_node: &FileNode,
+) -> Result<PathBuf, OxenError> {
+    let workspace_repo = &workspace.workspace_repo;
+    let dir_path = dir_path.as_ref();
+    let path = dir_path.join(file_node.name.clone());
+
+    let working_path = workspace_repo.path.join(&path);
+    log::debug!("extracting file node to working dir: {:?}", working_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let conn = df_db::get_connection(db_path)?;
+    // Match on the extension
+    if !working_path.exists() {
+        util::fs::create_dir_all(
+            working_path
+                .parent()
+                .expect("Failed to get parent directory"),
+        )?;
+    }
+
+    let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
+        "\"{}\" = '{}'",
+        DIFF_STATUS_COL,
+        StagedRowStatus::Removed
+    ));
+    let res = conn.execute(&delete.to_string(), [])?;
+    log::debug!("delete query result is: {:?}", res);
+
+    match path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") => export_csv(&working_path, &conn)?,
+            Some("tsv") => export_tsv(&working_path, &conn)?,
+            Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&working_path, &conn)?,
+            Some("parquet") => export_parquet(&working_path, &conn)?,
+            _ => {
+                return Err(OxenError::basic_str(
+                    "File format not supported, must be tabular.",
+                ))
+            }
+        },
+        None => {
+            return Err(OxenError::basic_str(
+                "File format not supported, must be tabular.",
+            ))
+        }
+    }
+
+    // let df_after = tabular::read_df(&working_path, DFOpts::empty())?;
+    // log::debug!("extract_to_working_dir() got df_after: {:?}", df_after);
+
+    Ok(working_path)
+}
+
+fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_rest() to {:?}", path);
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_rest() got df: {:?}", temp_res);
+
+    conn.execute(&query, [])?;
+    Ok(())
+}
+
+fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_csv() to {:?}", path);
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_csv() got df: {:?}", temp_res);
+
+    conn.execute(&query, [])?;
+
+    Ok(())
+}
+
+fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_tsv() to {:?}", path);
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    conn.execute(&query, [])?;
+    Ok(())
+}
+
+fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_parquet() to {:?}", path);
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+    conn.execute(&query, [])?;
+
     Ok(())
 }

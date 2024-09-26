@@ -52,7 +52,16 @@ impl EntryVNode {
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     let cfg = UserConfig::get()?;
-    commit_with_cfg(repo, message, &cfg)
+    commit_with_cfg(repo, message, &cfg, None)
+}
+
+pub fn commit_with_parent_ids(
+    repo: &LocalRepository,
+    message: impl AsRef<str>,
+    parent_ids: Vec<String>,
+) -> Result<Commit, OxenError> {
+    let cfg = UserConfig::get()?;
+    commit_with_cfg(repo, message, &cfg, Some(parent_ids))
 }
 
 pub fn commit_with_user(
@@ -63,13 +72,14 @@ pub fn commit_with_user(
     let mut cfg = UserConfig::get()?;
     cfg.name = user.name.clone();
     cfg.email = user.email.clone();
-    commit_with_cfg(repo, message, &cfg)
+    commit_with_cfg(repo, message, &cfg, None)
 }
 
 pub fn commit_with_cfg(
     repo: &LocalRepository,
     message: impl AsRef<str>,
     cfg: &UserConfig,
+    parent_ids: Option<Vec<String>>,
 ) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
@@ -103,13 +113,24 @@ pub fn commit_with_cfg(
     };
     let branch = repositories::branches::current_branch(repo)?;
     let maybe_branch_name = branch.map(|b| b.name);
-    let commit = commit_dir_entries_new(
-        repo,
-        dir_entries,
-        &new_commit,
-        staged_db,
-        &commit_progress_bar,
-    )?;
+    let commit = if let Some(parent_ids) = parent_ids {
+        commit_dir_entries_with_parents(
+            repo,
+            parent_ids,
+            dir_entries,
+            &new_commit,
+            staged_db,
+            &commit_progress_bar,
+        )?
+    } else {
+        commit_dir_entries_new(
+            repo,
+            dir_entries,
+            &new_commit,
+            staged_db,
+            &commit_progress_bar,
+        )?
+    };
 
     // Write HEAD file and update branch
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
@@ -134,6 +155,108 @@ pub fn commit_with_cfg(
     );
 
     Ok(commit)
+}
+
+pub fn commit_dir_entries_with_parents(
+    repo: &LocalRepository,
+    parent_commits: Vec<String>,
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+    new_commit: &NewCommitBody,
+    staged_db: DBWithThreadMode<SingleThreaded>,
+    commit_progress_bar: &ProgressBar,
+) -> Result<Commit, OxenError> {
+    let message = &new_commit.message;
+    // if the HEAD file exists, we have parents
+    // otherwise this is the first commit
+    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
+
+    let maybe_head_commit = if head_path.exists() {
+        let commit = repositories::commits::head_commit(repo)?;
+        Some(commit)
+    } else {
+        None
+    };
+
+    let directories = dir_entries
+        .keys()
+        .map(|path| path.to_path_buf())
+        .collect::<Vec<_>>();
+
+    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
+    if let Some(commit) = &maybe_head_commit {
+        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
+    }
+
+    // Sort children and split into VNodes
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
+
+    // Compute the commit hash
+    let timestamp = OffsetDateTime::now_utc();
+    let new_commit = NewCommit {
+        parent_ids: parent_commits,
+        message: message.to_string(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+    };
+    let commit_id = compute_commit_id(&new_commit)?;
+
+    let mut parent_hashes = Vec::new();
+    for parent_id in &new_commit.parent_ids {
+        if let Some(parent_commit) = repositories::commits::get_by_id(repo, parent_id)? {
+            let node = CommitMerkleTree::from_commit(repo, &parent_commit)?;
+            parent_hashes.push(node.root.hash);
+        }
+    }
+
+    let node = CommitNode {
+        hash: commit_id,
+        parent_ids: parent_hashes,
+        message: message.to_string(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+        ..Default::default()
+    };
+
+    let opts = db::key_val::opts::default();
+    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+
+    // Copy over the dir hashes from the previous commit
+    let mut parent_id: Option<MerkleHash> = None;
+    if let Some(commit) = &maybe_head_commit {
+        parent_id = Some(commit.hash()?);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        for (path, hash) in dir_hashes {
+            if let Some(path_str) = path.to_str() {
+                str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
+            } else {
+                log::error!("Failed to convert path to string: {:?}", path);
+            }
+        }
+    }
+
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+    write_commit_entries(
+        repo,
+        &maybe_head_commit,
+        commit_id,
+        &mut commit_db,
+        &dir_hash_db,
+        &vnode_entries,
+    )?;
+    commit_progress_bar.finish_and_clear();
+
+    // Clear the staged db
+    // Close the connection before removing the staged db
+    let staged_db_path = staged_db.path().to_owned();
+    drop(staged_db);
+
+    // Clear the staged db
+    util::fs::remove_dir_all(staged_db_path)?;
+    Ok(node.to_commit())
 }
 
 pub fn commit_dir_entries_new(
@@ -216,6 +339,9 @@ pub fn commit_dir_entries_new(
         &vnode_entries,
     )?;
     commit_progress_bar.finish_and_clear();
+
+    // Remove all the directories that are staged for removal
+    cleanup_rm_dirs(&dir_hash_db, &dir_entries)?;
 
     // Close the connection before removing the staged db
     let staged_db_path = staged_db.path().to_owned();
@@ -315,10 +441,34 @@ pub fn commit_dir_entries(
     )?;
     commit_progress_bar.finish_and_clear();
 
+    // Remove all the directories that are staged for removal
+    cleanup_rm_dirs(&dir_hash_db, &dir_entries)?;
+
     // Clear the staged db
     util::fs::remove_dir_all(staged_db_path)?;
 
     Ok(node.to_commit())
+}
+
+fn cleanup_rm_dirs(
+    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+) -> Result<(), OxenError> {
+    for (path, entries) in dir_entries.iter() {
+        for entry in entries.iter() {
+            match &entry.node.node {
+                EMerkleTreeNode::Directory(dir_node) => {
+                    if entry.status == StagedEntryStatus::Removed {
+                        let dir_path = path.join(&dir_node.name);
+                        let key = dir_path.to_str().unwrap();
+                        dir_hash_db.delete(key)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 
 fn node_data_to_staged_node(
@@ -692,12 +842,21 @@ fn r_create_dir_node(
                         dir_node
                     };
 
-                    // Always write the dir hash to the dir_hashes db
+                    // Write the dir hash to the dir_hashes db or delete it if it has children
+                    log::debug!(
+                        "dir entry has {} children {:?} ",
+                        entry.node.children.len(),
+                        dir_path
+                    );
+                    // if entry.node.children.is_empty() {
+                    //     str_val_db::delete(dir_hash_db, dir_path.to_str().unwrap())?;
+                    // } else {
                     str_val_db::put(
                         dir_hash_db,
                         dir_path.to_str().unwrap(),
                         &dir_node.hash.to_string(),
                     )?;
+                    // }
                 }
                 EMerkleTreeNode::File(file_node) => {
                     let mut file_node = file_node.clone();

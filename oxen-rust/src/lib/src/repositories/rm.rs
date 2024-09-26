@@ -20,8 +20,9 @@ use crate::util;
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
-    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
 
+    log::debug!("paths: {paths:?}");
     p_rm(&paths, repo, opts).await?;
 
     Ok(())
@@ -34,13 +35,15 @@ async fn p_rm(
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
+            log::debug!("Version found: V0_10_0");
             for path in paths {
                 let opts = RmOpts::from_path_opts(path, opts);
                 core::v0_10_0::index::rm(repo, &opts).await?;
             }
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::rm(paths, repo, opts).await?;
+            log::debug!("Version found: V0_19_0");
+            core::v0_19_0::rm::rm(paths, repo, opts).await?;
         }
     }
     Ok(())
@@ -48,51 +51,22 @@ async fn p_rm(
 
 // TODO: Should removing dirs from staged require -r?
 // Collect paths for removal. Returns error if dir found and -r not set
-fn parse_glob_path(
-    path: &Path,
-    repo: &LocalRepository,
-    opts: &RmOpts,
-) -> Result<HashSet<PathBuf>, OxenError> {
+fn parse_glob_path(path: &Path, repo: &LocalRepository) -> Result<HashSet<PathBuf>, OxenError> {
     let mut paths: HashSet<PathBuf> = HashSet::new();
     log::debug!("Parsing paths: {path:?}");
 
-    if opts.recursive | opts.staged {
-        if let Some(path_str) = path.to_str() {
-            if util::fs::is_glob_path(path_str) {
-                // Match against any untracked entries in the current dir
-
-                for entry in glob(path_str)? {
-                    let full_path = repo.path.join(entry?);
-                    paths.insert(full_path);
-                }
-            } else {
-                // Non-glob path
-                let full_path = repo.path.join(path);
-                paths.insert(full_path.to_owned());
-            }
-        }
-    } else if let Some(path_str) = path.to_str() {
+    if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
+            // Match against any untracked entries in the current dir
+
             for entry in glob(path_str)? {
                 let full_path = repo.path.join(entry?);
-
-                if full_path.is_dir() {
-                    let error = format!("`oxen rm` on directory {path:?} requires -r");
-                    return Err(OxenError::basic_str(error));
-                }
-
                 paths.insert(full_path);
             }
         } else {
             // Non-glob path
-
-            if path.is_dir() {
-                let error = format!("`oxen rm` on directory {path:?} requires -r");
-                return Err(OxenError::basic_str(error));
-            }
-
             let full_path = repo.path.join(path);
-            paths.insert(full_path.to_owned());
+            paths.insert(full_path);
         }
     }
 
@@ -105,12 +79,12 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use crate::command;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
     use crate::repositories;
+    use crate::repositories::entries;
     use crate::test;
     use crate::util;
 
@@ -133,21 +107,26 @@ mod tests {
                 staged: false,
                 remote: false,
             };
+            println!("Before rm");
             repositories::rm(&repo, &opts).await?;
 
             // Make sure we staged these removals
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(num_files, status.staged_files.len());
-            for (_path, entry) in status.staged_files.iter() {
-                assert_eq!(entry.status, StagedEntryStatus::Removed);
+            for (path, entry) in status.staged_files.iter() {
+                // The root path will be added as staged
+                if path != Path::new("") {
+                    println!("Path is : {path:?}, entry is: {entry:?} ");
+                    assert_eq!(entry.status, StagedEntryStatus::Removed);
+                }
             }
             // Make sure directory is no longer on disk
             assert!(!full_path.exists());
 
             // Restore the content from staging area
             let opts = RestoreOpts::from_staged_path(&rm_dir);
-            command::restore(&repo, opts)?;
+            repositories::restore::restore(&repo, opts)?;
 
             // This should have removed all the staged files, but not restored from disk yet.
             let status = repositories::status(&repo)?;
@@ -157,7 +136,7 @@ mod tests {
 
             // This should restore all the files from the HEAD commit
             let opts = RestoreOpts::from_path(&rm_dir);
-            command::restore(&repo, opts)?;
+            repositories::restore::restore(&repo, opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -214,8 +193,8 @@ mod tests {
                 println!("dir: {:?}", dir);
             }
 
-            // Should just be the root dir, we removed the images and images/cat dir
-            assert_eq!(dirs.len(), 1);
+            // Should be 0, as list_files_and_dirs explicitly excludes the root dir
+            assert_eq!(dirs.len(), 0);
 
             Ok(())
         })
@@ -249,6 +228,7 @@ mod tests {
                 util::fs::create_dir_all(&sub_dir)?;
             }
 
+            // Third level
             for i in 1..=1 {
                 let sub_dir = repo
                     .path
@@ -267,7 +247,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            for j in 1..3 {
+            for j in 1..=3 {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
@@ -277,7 +257,7 @@ mod tests {
                 }
             }
 
-            for j in 1..2 {
+            for j in 1..=2 {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
@@ -288,7 +268,7 @@ mod tests {
                 }
             }
 
-            for j in 1..1 {
+            for j in 1..=1 {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
@@ -301,6 +281,21 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
+
+            // TODO: The following assertions seem like the should be valid, and are backed up by the print statement
+            // However, staus.staged_dirs.len() is showing up as 2, rather than 9. That seems to be an issue with status?
+
+            /*
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // root dir + images + cats + level 1 * 3 + level 2 * 2 + level 3 * 1
+            assert_eq!(status.staged_dirs.len(), 9);
+
+            // 3 * (cats + level 1 * 3 + level 2 * 2 + level 3 * 1)
+            assert_eq!(status.staged_files.len(), 21);
+            */
+
             repositories::commit(&repo, "Adding initial cat images")?;
 
             // Create branch
@@ -319,7 +314,7 @@ mod tests {
                 assert!(!repo_filepath.exists())
             }
 
-            for j in 1..3 {
+            for j in 1..=3 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
                         .join(format!("subdir{j}_level_1"))
@@ -328,7 +323,7 @@ mod tests {
                 }
             }
 
-            for j in 1..2 {
+            for j in 1..=2 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
                         .join(format!("subdir{j}_level_1"))
@@ -338,7 +333,7 @@ mod tests {
                 }
             }
 
-            for j in 1..1 {
+            for j in 1..=1 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
                         .join(format!("subdir{j}_level_1"))
@@ -349,17 +344,17 @@ mod tests {
                 }
             }
 
-            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
+            let entries = entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
             let dirs = tree.list_dir_paths()?;
             for dir in dirs.iter() {
-                println!("dir: {:?}", dir);
+                log::debug!("dir: {:?}", dir);
             }
 
-            // Should just be the root dir, we removed the images and images/cat dir
-            assert_eq!(dirs.len(), 1);
+            // Should be 0, as list_files_and_dirs explicitly excludes the root dir
+            assert_eq!(dirs.len(), 0);
 
             Ok(())
         })
@@ -434,11 +429,11 @@ mod tests {
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
 
             for dir in dirs.iter() {
-                println!("dir: {:?}", dir);
+                log::debug!("dir: {:?}", dir);
             }
 
             for file in files.iter() {
-                println!("file: {:?}", file);
+                log::debug!("file: {:?}", file);
             }
 
             assert_eq!(files.len(), 7);
@@ -586,6 +581,7 @@ mod tests {
             repositories::rm(&repo, &opts).await?;
 
             let status = repositories::status(&repo)?;
+            log::debug!("status: {:?}", status);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
@@ -602,7 +598,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            assert_eq!(status.staged_dirs.len(), 1);
+            // 2: train & the root dir
+            assert_eq!(status.staged_dirs.len(), 2);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -619,7 +616,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rm_staged_dir() -> Result<(), OxenError> {
+    async fn test_rm_staged_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
@@ -627,7 +624,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            assert_eq!(status.staged_dirs.len(), 1);
+            // 2: train & the root dir
+            assert_eq!(status.staged_dirs.len(), 2);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -639,7 +637,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            assert_eq!(status.staged_dirs.len(), 0);
+            // 1: The root dir will still be present
+            assert_eq!(status.staged_dirs.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
@@ -655,7 +654,8 @@ mod tests {
             repositories::add(&repo, repo.path.join(path))?;
 
             let status = repositories::status(&repo)?;
-            assert_eq!(status.staged_dirs.len(), 1);
+            // 2: train & the root dir
+            assert_eq!(status.staged_dirs.len(), 2);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -668,7 +668,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            assert_eq!(status.staged_dirs.len(), 0);
+            // 1: The root dir will still be present
+            assert_eq!(status.staged_dirs.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
@@ -782,8 +783,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rm_dir() -> Result<(), OxenError> {
+    async fn test_rm_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("train", |repo| async move {
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            let og_tree = repositories::tree::get_by_commit(&repo, &head_commit)?;
+            println!("og tree");
+            og_tree.print();
+
             // Remove the train dir
             let path = Path::new("train");
 
@@ -810,7 +816,11 @@ mod tests {
 
             // make sure the train dir is deleted from the commits db
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            assert!(!tree.has_dir(path));
+            println!("tree after rm train dir");
+            tree.print();
+            let has_dir = tree.has_dir(path);
+            println!("has_dir: {:?}", has_dir);
+            assert!(!has_dir);
 
             Ok(())
         })

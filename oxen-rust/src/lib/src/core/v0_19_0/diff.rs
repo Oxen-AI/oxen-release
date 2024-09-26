@@ -270,9 +270,9 @@ pub fn list_diff_entries(
 }
 
 pub fn list_changed_dirs(
-    repo: &LocalRepository,
-    base_commit: &Commit,
-    head_commit: &Commit,
+    _repo: &LocalRepository,
+    _base_commit: &Commit,
+    _head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     todo!()
 }
@@ -575,10 +575,8 @@ fn subset_file_diffs_to_direct_children(
             dir
         );
 
-        if relevant_entry.is_some() {
-            if entry.path.parent() == Some(dir.as_path()) {
-                filtered_entries.push(entry);
-            }
+        if relevant_entry.is_some() && entry.path.parent() == Some(dir.as_path()) {
+            filtered_entries.push(entry);
         }
     }
 

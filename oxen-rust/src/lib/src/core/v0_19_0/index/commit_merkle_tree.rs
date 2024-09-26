@@ -259,7 +259,11 @@ impl CommitMerkleTree {
     }
 
     pub fn has_dir(&self, path: impl AsRef<Path>) -> bool {
+        log::debug!("has_dir path: {:?}", path.as_ref());
+        log::debug!("has_dir dir_hashes: {:?}", self.dir_hashes);
         let path = path.as_ref();
+        println!("Path for has_dir: {path:?}");
+        println!("Dir hashes: {:?}", self.dir_hashes);
         self.dir_hashes.contains_key(path)
     }
 
