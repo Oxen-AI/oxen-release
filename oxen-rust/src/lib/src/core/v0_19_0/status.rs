@@ -88,7 +88,7 @@ pub fn status_from_dir_entries(
             entries.len()
         );
         let stats = StagedDirStats {
-            path: dir,
+            path: dir.clone(),
             num_files_staged: 0,
             total_files: 0,
             status: StagedEntryStatus::Added,
@@ -119,7 +119,9 @@ pub fn status_from_dir_entries(
                 }
             }
         }
-        summarized_dir_stats.add_stats(&stats);
+        if dir != PathBuf::from("") {
+            summarized_dir_stats.add_stats(&stats);
+        }
     }
 
     staged_data.staged_dirs = summarized_dir_stats;

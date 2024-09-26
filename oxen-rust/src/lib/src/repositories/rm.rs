@@ -610,7 +610,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rm_staged_dir() -> Result<(), OxenError> {
+    async fn test_rm_staged_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
