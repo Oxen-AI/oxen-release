@@ -82,7 +82,7 @@ pub fn status_from_dir_entries(
 
     log::debug!("dir_entries.len(): {:?}", dir_entries.len());
     for (dir, entries) in dir_entries {
-        println!(
+        log::debug!(
             "dir_entries dir: {:?} entries.len(): {:?}",
             dir,
             entries.len()
@@ -104,7 +104,7 @@ pub fn status_from_dir_entries(
                     log::debug!("dir_entries file_node: {}", entry);
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
-                        status: StagedEntryStatus::Added,
+                        status: entry.status,
                     };
                     staged_data
                         .staged_files

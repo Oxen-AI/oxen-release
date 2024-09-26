@@ -260,6 +260,8 @@ impl CommitMerkleTree {
 
     pub fn has_dir(&self, path: impl AsRef<Path>) -> bool {
         let path = path.as_ref();
+        println!("Path for has_dir: {path:?}");
+        println!("Dir hashes: {:?}", self.dir_hashes);
         self.dir_hashes.contains_key(path)
     }
 
