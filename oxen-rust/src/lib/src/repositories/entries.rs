@@ -123,11 +123,11 @@ pub fn get_meta_entry(
 pub fn list_dir_paths(repo: &LocalRepository, commit: &Commit) -> Result<Vec<PathBuf>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
+            let dir_reader = CommitEntryReader::new(repo, commit)?;
             dir_reader.list_dirs()
         }
         MinOxenVersion::V0_19_0 => {
-            let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(&repo, &commit)?;
+            let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(repo, commit)?;
             tree.list_dir_paths()
         }
     }

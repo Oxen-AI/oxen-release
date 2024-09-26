@@ -76,12 +76,13 @@ pub fn get_entries(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Vec<FileNode>, OxenError> {
-    if let Some(dir_node) = CommitMerkleTree::dir_with_children(repo, commit, path)? {
+    if let Some(dir_node) = CommitMerkleTree::dir_with_children(repo, commit, &path)? {
         log::debug!("get_entries found dir node: {dir_node:?}");
         CommitMerkleTree::dir_entries(&dir_node)
     } else {
         return Err(OxenError::basic_str(format!(
-            "Error: path not found in tree"
+            "Error: path not found in tree: {:?}",
+            path.as_ref()
         )));
     }
 }
@@ -152,6 +153,7 @@ fn r_list_files_and_dirs(
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
     for child in &node.children {
+        log::debug!("Found child: {child:?}");
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
                 file_nodes.insert(FileNodeWithDir {

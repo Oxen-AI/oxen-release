@@ -119,9 +119,7 @@ pub fn status_from_dir_entries(
                 }
             }
         }
-        if dir != PathBuf::from("") {
-            summarized_dir_stats.add_stats(&stats);
-        }
+        summarized_dir_stats.add_stats(&stats);
     }
 
     staged_data.staged_dirs = summarized_dir_stats;

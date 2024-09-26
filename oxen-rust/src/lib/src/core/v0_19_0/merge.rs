@@ -527,8 +527,10 @@ fn create_merge_commit_on_branch(
     // The author in this case is the pusher - the author of the merge commit
 
     let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
-
-    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+    rm::remove_staged(
+        repo,
+        &HashSet::from([PathBuf::from("/")]),
+    )?;
 
     Ok(commit)
 }
