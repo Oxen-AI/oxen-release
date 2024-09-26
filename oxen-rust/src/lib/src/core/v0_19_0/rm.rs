@@ -49,7 +49,9 @@ pub async fn rm(
     */
 
     // TODO: Accurately calculate stats for remove_staged
-    if opts.staged {
+    if opts.staged && opts.recursive {
+        return remove_staged_recursively(repo, paths);
+    } else if opts.staged {
         return remove_staged(repo, paths);
     }
 
@@ -60,9 +62,8 @@ pub async fn rm(
 
 pub fn remove_staged_recursively(
     repo: &LocalRepository,
-    path: impl AsRef<Path>,
+    paths: &HashSet<PathBuf>,
 ) -> Result<(), OxenError> {
-    let path = path.as_ref();
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
@@ -73,9 +74,13 @@ pub fn remove_staged_recursively(
         match item {
             Ok((key, _)) => match str::from_utf8(&key) {
                 Ok(key) => {
-                    let db_path = PathBuf::from(key);
-                    if db_path.starts_with(path) {
-                        remove_staged_entry(&db_path, &staged_db)?;
+                    for path in paths {
+                        let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+                        let db_path = PathBuf::from(key);
+                        log::debug!("considering rm db_path: {:?} for path: {:?}", db_path, path);
+                        if db_path.starts_with(&path) && path != PathBuf::from("") {
+                            remove_staged_entry(&db_path, &staged_db)?;
+                        }
                     }
                 }
                 _ => {
