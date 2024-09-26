@@ -494,7 +494,9 @@ fn create_merge_commit(
         merge_commits.merge.id.to_owned(),
     ];
     let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
-    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+
+    // Removing dirs assumed to be allowed
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]), true)?;
 
     Ok(commit)
 }
@@ -538,7 +540,8 @@ fn create_merge_commit_on_branch(
         cfg,
     )?;
 
-    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+    // Removing dirs assumed to be allowed
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]), true)?;
 
     Ok(commit)
 }
