@@ -1,4 +1,3 @@
-use crate::config::UserConfig;
 use crate::core::db;
 pub use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDBReader;
 pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBReader;
@@ -7,11 +6,11 @@ use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::commits::{get_commit_or_head, list_between};
 use crate::core::v0_19_0::index::commit_writer;
-use crate::core::v0_19_0::{add, rm, status};
+use crate::core::v0_19_0::{add, rm};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
-use crate::model::{Branch, Commit, LocalRepository, StagedData};
+use crate::model::{Branch, Commit, LocalRepository};
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
@@ -353,9 +352,9 @@ pub fn lowest_common_ancestor(
 
     let base_commit =
         repositories::commits::get_commit_or_head(repo, Some(current_branch.name.clone()))?;
-    let merge_commit = repositories::commits::get_commit_or_head(repo, Some(branch_name.clone()))?;
+    let merge_commit = repositories::commits::get_commit_or_head(repo, Some(branch_name))?;
 
-    lowest_common_ancestor_from_commits(&repo, &base_commit, &merge_commit)
+    lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)
 }
 
 fn fast_forward_merge(

@@ -81,8 +81,8 @@ pub fn diff(
         joined_df = joined_df
             .lazy()
             .with_columns([coalesce(&[
-                col(&format!("{}.right", key)),
-                col(&format!("{}.left", key)),
+                col(format!("{}.right", key)),
+                col(format!("{}.left", key)),
             ])
             .alias(key)])
             .collect()?;
