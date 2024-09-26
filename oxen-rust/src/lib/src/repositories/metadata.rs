@@ -6,6 +6,7 @@ use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
+use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
@@ -31,6 +32,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: "".to_string(),
         is_dir: path.is_dir(),
         latest_commit: None,
         resource: None,
@@ -56,6 +58,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     // TODO: how do we get the cached dir info if the entry is a dir?
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: "".to_string(),
         is_dir: path.is_dir(),
         latest_commit: None,
         resource: None,
@@ -86,6 +89,7 @@ pub fn from_commit_entry(
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: entry.hash.to_string(),
         is_dir: path.is_dir(),
         latest_commit: Some(commit.to_owned()),
         resource: None,
@@ -94,6 +98,46 @@ pub fn from_commit_entry(
         mime_type,
         extension,
         metadata,
+        is_queryable: None,
+    })
+}
+
+pub fn from_file_node(
+    _repo: &LocalRepository,
+    node: &FileNode,
+    commit: &Commit,
+) -> Result<MetadataEntry, OxenError> {
+    Ok(MetadataEntry {
+        filename: node.name.clone(),
+        hash: node.hash.to_string(),
+        is_dir: false,
+        latest_commit: Some(commit.to_owned()),
+        resource: None,
+        size: node.num_bytes,
+        data_type: node.data_type.clone(),
+        mime_type: node.mime_type.clone(),
+        extension: node.extension.clone(),
+        metadata: node.metadata.clone(),
+        is_queryable: None,
+    })
+}
+
+pub fn from_dir_node(
+    _repo: &LocalRepository,
+    node: &DirNode,
+    commit: &Commit,
+) -> Result<MetadataEntry, OxenError> {
+    Ok(MetadataEntry {
+        filename: node.name.clone(),
+        hash: node.hash.to_string(),
+        is_dir: true,
+        latest_commit: Some(commit.to_owned()),
+        resource: None,
+        size: node.num_bytes,
+        data_type: EntryDataType::Dir,
+        mime_type: "inode/directory".to_string(),
+        extension: "".to_string(),
+        metadata: None,
         is_queryable: None,
     })
 }

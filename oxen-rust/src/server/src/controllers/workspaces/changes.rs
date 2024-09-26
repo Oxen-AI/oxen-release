@@ -26,7 +26,7 @@ pub async fn list(
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
-    let staged = repositories::workspaces::status::status(&workspace, &path)?;
+    let staged = repositories::workspaces::status::status_from_dir(&workspace, &path)?;
 
     staged.print();
 

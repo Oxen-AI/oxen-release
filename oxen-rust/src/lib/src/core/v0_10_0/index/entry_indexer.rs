@@ -806,13 +806,20 @@ impl EntryIndexer {
                 }
 
                 if let Entry::CommitEntry(file) = entry {
-                    CommitEntryWriter::set_file_timestamps(
+                    match CommitEntryWriter::set_file_timestamps(
                         &self.repository,
                         &file.path,
                         file,
                         &files_db,
-                    )
-                    .unwrap();
+                    ) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!(
+                                "unpack_version_files_to_working_dir set_file_timestamps error: {}",
+                                err
+                            );
+                        }
+                    }
                 }
                 bar.inc(1);
             });

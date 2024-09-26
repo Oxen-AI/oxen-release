@@ -197,8 +197,6 @@ impl CommitMerkleTree {
     }
 
     /// The dir hashes allow you to skip to a directory in the tree
-    ///
-    /// HERE HERE
     pub fn dir_hashes(
         repo: &LocalRepository,
         commit: &Commit,
@@ -233,6 +231,14 @@ impl CommitMerkleTree {
         paths: &[PathBuf],
     ) -> Result<HashMap<PathBuf, MerkleTreeNode>, OxenError> {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        log::debug!(
+            "load_nodes dir_hashes from commit: {} count: {}",
+            commit,
+            dir_hashes.len()
+        );
+        for (path, hash) in &dir_hashes {
+            log::debug!("load_nodes dir_hashes path: {:?} hash: {:?}", path, hash);
+        }
 
         let mut nodes = HashMap::new();
         for path in paths.iter() {
@@ -250,6 +256,11 @@ impl CommitMerkleTree {
             nodes.insert(path.clone(), node);
         }
         Ok(nodes)
+    }
+
+    pub fn has_dir(&self, path: impl AsRef<Path>) -> bool {
+        let path = path.as_ref();
+        self.dir_hashes.contains_key(path)
     }
 
     pub fn has_path(&self, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -514,6 +525,10 @@ impl CommitMerkleTree {
         }
 
         Ok(())
+    }
+
+    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
+        self.root.walk_tree(f);
     }
 
     fn read_children_from_node(

@@ -9,6 +9,14 @@ pub struct RepositoryView {
     pub namespace: String,
     pub name: String,
     pub min_version: Option<String>,
+    pub is_empty: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RepositoryListView {
+    pub namespace: String,
+    pub name: String,
+    pub min_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -16,6 +24,7 @@ pub struct RepositoryCreationView {
     pub namespace: String,
     pub name: String,
     pub latest_commit: Option<Commit>,
+    pub min_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -25,6 +34,7 @@ pub struct RepositoryDataTypesView {
     pub size: u64,
     pub data_types: Vec<DataTypeCount>,
     pub min_version: Option<String>,
+    pub is_empty: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,7 +62,7 @@ pub struct RepositoryDataTypesResponse {
 pub struct ListRepositoryResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub repositories: Vec<RepositoryView>,
+    pub repositories: Vec<RepositoryListView>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,6 +98,7 @@ impl RepositoryView {
             namespace: repository.namespace.clone(),
             name: repository.name,
             min_version: repository.min_version,
+            is_empty: repository.is_empty,
         }
     }
 }

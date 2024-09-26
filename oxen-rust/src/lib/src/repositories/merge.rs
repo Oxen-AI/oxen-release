@@ -388,8 +388,8 @@ mod tests {
             // Remove the file
             let world_file = repo.path.join("world.txt");
             util::fs::remove_file(&world_file)?;
-            // Commit the removal
 
+            // Commit the removal
             repositories::add(&repo, &world_file)?;
             repositories::commit(&repo, "Removing world file")?;
 
@@ -413,7 +413,6 @@ mod tests {
         })
         .await
     }
-
     #[tokio::test]
     async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
         test::run_one_commit_local_repo_test_async(|repo| async move {
