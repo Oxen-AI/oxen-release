@@ -270,9 +270,9 @@ pub fn list_diff_entries(
 }
 
 pub fn list_changed_dirs(
-    repo: &LocalRepository,
-    base_commit: &Commit,
-    head_commit: &Commit,
+    _repo: &LocalRepository,
+    _base_commit: &Commit,
+    _head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     todo!()
 }

@@ -261,9 +261,9 @@ pub fn lowest_common_ancestor_from_commits(
 
 #[cfg(test)]
 mod tests {
-    
+
     use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
-    
+
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository};
     use crate::repositories;
