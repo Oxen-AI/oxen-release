@@ -72,8 +72,7 @@ fn parse_glob_path(
             let full_path = repo.path.join(path);
             paths.insert(path.to_owned());
         }
-    
-    } 
+    }
 
     log::debug!("parse_glob_paths: {paths:?}");
     Ok(paths)
@@ -83,9 +82,7 @@ fn parse_glob_path(
 mod tests {
     use std::path::Path;
     use std::path::PathBuf;
-    use crate::repositories::entries;
-    use crate::repositories::restore;
-    use crate::command;
+
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
@@ -293,7 +290,7 @@ mod tests {
             // TODO: The following assertions seem like the should be valid, and are backed up by the print statement
             // However, staus.staged_dirs.len() is showing up as 2, rather than 9. That seems to be an issue with status?
 
-            /* 
+            /*
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -435,7 +432,6 @@ mod tests {
 
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
 
-                
             for dir in dirs.iter() {
                 log::debug!("dir: {:?}", dir);
             }

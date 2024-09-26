@@ -352,9 +352,9 @@ pub fn lowest_common_ancestor(
 
     let base_commit =
         repositories::commits::get_commit_or_head(repo, Some(current_branch.name.clone()))?;
-    let merge_commit = repositories::commits::get_commit_or_head(repo, Some(branch_name.clone()))?;
+    let merge_commit = repositories::commits::get_commit_or_head(repo, Some(branch_name))?;
 
-    lowest_common_ancestor_from_commits(&repo, &base_commit, &merge_commit)
+    lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)
 }
 
 fn fast_forward_merge(

@@ -11,7 +11,7 @@ use crate::core::v0_19_0::index::MerkleNodeDB;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 
-use crate::model::merkle_tree::node::{FileNode, DirNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 
 use crate::error::OxenError;
 use crate::model::Commit;
