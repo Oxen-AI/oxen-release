@@ -20,7 +20,7 @@ use crate::util;
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
-    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
 
     log::debug!("paths: {paths:?}");
     p_rm(&paths, repo, opts).await?;
@@ -51,11 +51,7 @@ async fn p_rm(
 
 // TODO: Should removing dirs from staged require -r?
 // Collect paths for removal. Returns error if dir found and -r not set
-fn parse_glob_path(
-    path: &Path,
-    repo: &LocalRepository,
-    opts: &RmOpts,
-) -> Result<HashSet<PathBuf>, OxenError> {
+fn parse_glob_path(path: &Path, repo: &LocalRepository) -> Result<HashSet<PathBuf>, OxenError> {
     let mut paths: HashSet<PathBuf> = HashSet::new();
     log::debug!("Parsing paths: {path:?}");
 

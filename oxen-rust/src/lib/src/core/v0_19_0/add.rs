@@ -128,20 +128,18 @@ fn add_files(
             );
             let opts = RmOpts::from_path(path);
 
-            // TODO: Currently, this function's error isn't handled. But, handling it would require making add_files async
-            repositories::rm(repo, &opts);
-
-            /*
-            match repositories::rm(repo, &opts) {
+            // block on the rm call to avoid async/await issues.
+            match tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(repositories::rm(repo, &opts))
+            }) {
                 Ok(()) => {
                     log::debug!("Sucessfully removed non-existant path {path:?}");
                 }
                 Err(err) => {
-                    log::debug!("Err removing non-existant path {path:?}: {err:?}");
+                    let err = format!("Err removing non-existant path {path:?}: {err}");
                     return Err(OxenError::basic_str(err));
                 }
             }
-            */
         }
     }
 

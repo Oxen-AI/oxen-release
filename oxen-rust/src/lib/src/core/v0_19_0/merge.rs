@@ -379,7 +379,7 @@ fn fast_forward_merge(
             log::debug!("Merge entry: {:?}", merge_path);
             // Only copy over if hash is different or it doesn't exist for performance
             if let Some(base_entry) = base_entries.get(merge_entry) {
-                let (base_file_node, base_path) = base_entry;
+                let (base_file_node, _base_path) = base_entry;
                 if base_file_node.hash != merge_file_node.hash {
                     log::debug!("Merge entry has changed, restore: {:?}", merge_path);
                     update_entry(repo, merge_entry)?;
@@ -392,7 +392,7 @@ fn fast_forward_merge(
 
         // Remove all entries that are in HEAD but not in merge entries
         for base_entry in base_entries.iter() {
-            let (base_file_node, base_path) = base_entry;
+            let (_base_file_node, base_path) = base_entry;
             log::debug!("Base entry: {:?}", base_path);
             if !merge_entries.iter().any(|entry| entry.1 == base_entry.1) {
                 log::debug!("Removing Base Entry: {:?}", base_path);
@@ -527,10 +527,7 @@ fn create_merge_commit_on_branch(
     // The author in this case is the pusher - the author of the merge commit
 
     let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
-    rm::remove_staged(
-        repo,
-        &HashSet::from([PathBuf::from("/")]),
-    )?;
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
 
     Ok(commit)
 }
