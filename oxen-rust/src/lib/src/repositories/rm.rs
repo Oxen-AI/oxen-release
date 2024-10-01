@@ -56,8 +56,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository) -> Result<HashSet<PathBu
             // Match against any untracked entries in the current dir
 
             for entry in glob(path_str)? {
-                let full_path = repo.path.join(entry?);
-                paths.insert(full_path);
+                paths.insert(entry?.to_path_buf());
             }
 
             if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
@@ -68,8 +67,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository) -> Result<HashSet<PathBu
             }
         } else {
             // Non-glob path
-            let full_path = repo.path.join(path);
-            paths.insert(full_path);
+            paths.insert(path.to_path_buf());
         }
     }
 

@@ -180,42 +180,60 @@ fn r_list_files_and_dirs(
     Ok(())
 }
 
-/*
+pub fn list_tabular_files_in_repo(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<HashSet<FileNode>, OxenError> {
+    let entries = list_files_by_type(repo, commit, &EntryDataType::Tabular)?;
+    Ok(entries)
+}
+
 pub fn list_files_by_type(
     repo: &LocalRepository,
     commit: &Commit,
     data_type: &EntryDataType,
 ) -> Result<HashSet<FileNode>, OxenError> {
     let mut file_nodes = HashSet::new();
-    r_list_files_and_dirs(&tree.root, PathBuf::new(), &mut file_nodes, &mut dir_nodes)?;
-    Ok((file_nodes, dir_nodes))
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    r_list_files_by_type(&tree.root, data_type, &mut file_nodes, PathBuf::new())?;
+    Ok(file_nodes)
 }
 
-pub fn list_tabular_files_in_repo(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<Vec<FileNode>, OxenError> {
-    let entries = get_entries(repo, commit, "")?;
-    Ok(entries)
+fn r_list_files_by_type(
+    node: &MerkleTreeNode,
+    data_type: &EntryDataType,
+    file_nodes: &mut HashSet<FileNode>,
+    traversed_path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let traversed_path = traversed_path.as_ref();
+    for child in &node.children {
+        match &child.node {
+            EMerkleTreeNode::File(file_node) => {
+                if file_node.data_type == *data_type {
+                    file_nodes.insert(file_node.to_owned());
+                }
+            }
+            EMerkleTreeNode::Directory(_) => {
+                r_list_files_by_type(child, data_type, file_nodes, traversed_path)?;
+            }
+            EMerkleTreeNode::VNode(_) => {
+                r_list_files_by_type(child, data_type, file_nodes, traversed_path)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use std::path::PathBuf;
-
-    use uuid::Uuid;
-
-    use crate::core::v0_10_0::cache;
-    use crate::core::v0_10_0::index;
     use crate::error::OxenError;
-    use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
 
     #[test]
-    fn test_list_tabular() -> Result<(), OxenError> {
+    fn test_list_tabular_files_in_repo() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Create a deeply nested directory
             let dir_path = repo
@@ -255,9 +273,9 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // List files
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+            let files = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;
 
-            assert_eq!(entries.len(), 3);
+            assert_eq!(files.len(), 3);
 
             // Add another tabular file
             let filename = "dogs.tsv";
@@ -268,9 +286,9 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding additional file")?;
 
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+            let files = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;
 
-            assert_eq!(entries.len(), 4);
+            assert_eq!(files.len(), 4);
 
             // Remove the deeply nested dir
             util::fs::remove_dir_all(&dir_path)?;
@@ -278,11 +296,10 @@ mod tests {
             repositories::add(&repo, dir_path)?;
             let commit = repositories::commit(&repo, "Removing dir")?;
 
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
-            assert_eq!(entries.len(), 2);
+            let files = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;
+            assert_eq!(files.len(), 2);
 
             Ok(())
         })
     }
 }
-*/
