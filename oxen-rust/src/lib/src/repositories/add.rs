@@ -74,7 +74,9 @@ mod tests {
             repositories::add(&repo, &hello_file)?;
             // Get status and make sure it is removed from the untracked, and added to the tracked
             let repo_status = repositories::status(&repo)?;
-            assert_eq!(repo_status.staged_dirs.len(), 0);
+            // TODO: v0_10_0 logic should have 0 staged_dirs
+            // We stage the parent dir, so should have 1 staged_dir
+            assert_eq!(repo_status.staged_dirs.len(), 1);
             assert_eq!(repo_status.staged_files.len(), 1);
             assert_eq!(repo_status.untracked_files.len(), 0);
             assert_eq!(repo_status.untracked_dirs.len(), 0);

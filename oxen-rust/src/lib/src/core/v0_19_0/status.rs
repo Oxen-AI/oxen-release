@@ -64,6 +64,7 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &db, &dir, &read_progress)?;
+    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -160,7 +161,6 @@ pub fn read_staged_entries_below_path(
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
-    let start_path = start_path.as_ref();
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
@@ -173,39 +173,29 @@ pub fn read_staged_entries_below_path(
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
-                // log::debug!("read_staged_entries key {} entry: {}", key, entry);
-                let key_path = PathBuf::from(key);
-                dir_entries.insert(key_path, vec![]);
+                log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
+                let full_path = repo.path.join(path);
 
-                if let Some(parent) = path.parent() {
-                    let relative_start_path =
-                        util::fs::path_relative_to_dir(&start_path, &repo.path)?;
-                    log::debug!(
-                        "read_staged_entries parent {:?} start_path {:?} relative {:?}",
-                        parent,
-                        start_path,
-                        relative_start_path
-                    );
-
-                    if relative_start_path == PathBuf::from("")
-                        || parent.starts_with(&relative_start_path)
-                    {
+                if full_path.is_dir() {
+                    // add the dir as a key in dir_entries
+                    log::debug!("read_staged_entries adding dir {:?}", path);
+                    dir_entries
+                        .entry(path.to_path_buf())
+                        .or_default()
+                        .push(entry);
+                } else {
+                    // add the file as an entry under the parent dir
+                    if let Some(parent) = path.parent() {
                         log::debug!(
-                            "read_staged_entries adding to parent {:?} entry {}",
-                            parent,
-                            entry
+                            "read_staged_entries adding file {:?} to parent {:?}",
+                            path,
+                            parent
                         );
                         dir_entries
                             .entry(parent.to_path_buf())
                             .or_default()
                             .push(entry);
                     }
-                } else {
-                    log::debug!("read_staged_entries root {:?}", path);
-                    dir_entries
-                        .entry(PathBuf::from(""))
-                        .or_default()
-                        .push(entry);
                 }
 
                 total_entries += 1;
@@ -216,9 +206,6 @@ pub fn read_staged_entries_below_path(
             }
         }
     }
-
-    // Filter out any dir entries with no children
-    dir_entries.retain(|_, entries| !entries.is_empty());
 
     log::debug!(
         "read_staged_entries dir_entries.len(): {:?}",
