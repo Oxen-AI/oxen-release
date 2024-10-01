@@ -156,17 +156,20 @@ pub fn read_staged_entries_below_path(
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
+    let start_path = util::fs::path_relative_to_dir(start_path.as_ref(), &repo.path)?;
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
     for item in iter {
         match item {
-            // key = file path
-            // value = EntryMetaData
+            // key = file path, value = EntryMetaData
             Ok((key, value)) => {
                 // log::debug!("Key is {key:?}, value is {value:?}");
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
+                if !path.starts_with(&start_path) {
+                    continue;
+                }
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
                 log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
                 let full_path = repo.path.join(path);
