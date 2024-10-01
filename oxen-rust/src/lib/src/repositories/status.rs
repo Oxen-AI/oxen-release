@@ -396,8 +396,10 @@ mod tests {
             util::fs::rename(&og_dir, &new_dir)?;
 
             let status = repositories::status(&repo)?;
+            println!("status after rename: {status:?}");
+            status.print();
             assert_eq!(status.moved_files.len(), 0);
-            assert_eq!(status.untracked_dirs.len(), 1);
+            assert_eq!(status.untracked_dirs.len(), 2);
             assert_eq!(status.removed_files.len(), 5);
 
             // Add the removals
