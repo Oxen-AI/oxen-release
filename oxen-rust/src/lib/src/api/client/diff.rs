@@ -992,7 +992,7 @@ who won the game?,The packers beat up on the bears,packers
             util::fs::remove_file(&repo_filepath)?;
 
             let rm_opts = RmOpts::from_path(Path::new("images").join("cats").join("cat_2.jpg"));
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             repositories::commit(&repo, "Remove and modify some cats")?;
 
             // Set the proper remote
@@ -1119,7 +1119,7 @@ who won the game?,The packers beat up on the bears,packers
 
             let mut rm_opts = RmOpts::from_path(Path::new("images").join("cats"));
             rm_opts.recursive = true;
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             repositories::commit(&repo, "Removing cat images")?;
 
             // Set the proper remote
@@ -1232,7 +1232,7 @@ who won the game?,The packers beat up on the bears,packers
             // THIS IS THE CRUX of this test, do not remove images/cats, just remove images/
             let mut rm_opts = RmOpts::from_path(Path::new("images"));
             rm_opts.recursive = true;
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             repositories::commit(&repo, "Removing cat images")?;
 
             // Set the proper remote
@@ -1727,7 +1727,7 @@ who won the game?,The packers beat up on the bears,packers
 
             let mut rm_opts = RmOpts::from_path("images");
             rm_opts.recursive = true;
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             repositories::commit(&repo, "Removing cat images")?;
 
             // Set the proper remote
@@ -1834,7 +1834,7 @@ who won the game?,The packers beat up on the bears,packers
             let repo_filepath = PathBuf::from("images").join("dog_1.jpg");
 
             let rm_opts = RmOpts::from_path(repo_filepath);
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             repositories::commit(&repo, "Removing dog")?;
 
             // Add dwight howard and vince carter

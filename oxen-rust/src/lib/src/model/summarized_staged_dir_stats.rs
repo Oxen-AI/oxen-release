@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 /// Would have:
 ///     annotations/train/ -> num_staged: 2, total: 3
 ///     annotations/test/ -> num_staged: 1, total: 1
-///     
+///
 /// Rolled up to:
 ///     annotations/ -> num_staged: 3, total: 4
 
@@ -49,7 +49,11 @@ impl SummarizedStagedDirStats {
     }
 
     pub fn len(&self) -> usize {
-        self.paths.len()
+        let mut total = 0;
+        for stats in self.paths.values() {
+            total += stats.len();
+        }
+        total
     }
 
     pub fn contains_key(&self, path: &Path) -> bool {

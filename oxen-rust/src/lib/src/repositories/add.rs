@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wildcard_remove_nested_nlp_dir() -> Result<(), OxenError> {
+    fn test_wildcard_add_remove_nested_nlp_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let dir = Path::new("nlp");
             let repo_dir = repo.path.join(dir);

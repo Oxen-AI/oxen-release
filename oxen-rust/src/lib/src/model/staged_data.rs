@@ -65,7 +65,7 @@ pub struct StagedData {
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
     pub moved_files: Vec<(PathBuf, PathBuf, String)>,
-    pub removed_files: Vec<PathBuf>,
+    pub removed_files: HashSet<PathBuf>,
     pub merge_conflicts: Vec<EntryMergeConflict>,
 }
 
@@ -78,7 +78,7 @@ impl StagedData {
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
-            removed_files: vec![],
+            removed_files: HashSet::new(),
             moved_files: vec![],
             merge_conflicts: vec![],
         }
@@ -433,7 +433,7 @@ impl StagedData {
         outputs.push("Removed Files\n".to_string().normal());
         outputs.push(MSG_OXEN_RM_FILE_EXAMPLE.to_string().normal());
 
-        let mut files = self.removed_files.clone();
+        let mut files: Vec<PathBuf> = self.removed_files.iter().cloned().collect();
         files.sort();
 
         self.__collapse_outputs(
@@ -748,7 +748,7 @@ mod tests {
     #[test]
     fn test_staged_data_remove_file() {
         let mut staged_data = StagedData::empty();
-        staged_data.removed_files.push(PathBuf::from("README.md"));
+        staged_data.removed_files.insert(PathBuf::from("README.md"));
 
         let opts = StagedDataOpts::default();
         let outputs = staged_data.__collect_outputs(&opts);

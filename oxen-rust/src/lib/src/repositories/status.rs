@@ -294,7 +294,7 @@ mod tests {
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -323,7 +323,7 @@ mod tests {
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
             let status = repositories::status(&repo)?;
             status.print();
 

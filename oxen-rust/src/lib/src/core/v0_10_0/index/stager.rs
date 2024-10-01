@@ -463,7 +463,9 @@ impl Stager {
                         staged_data.modified_files.push(relative_path.to_path_buf());
                     }
                     EntryStatus::Removed => {
-                        staged_data.removed_files.push(relative_path.to_path_buf());
+                        staged_data
+                            .removed_files
+                            .insert(relative_path.to_path_buf());
                     }
                 }
             }
@@ -585,7 +587,9 @@ impl Stager {
                                     .push(relative.to_path_buf());
                             }
                             EntryStatus::Removed => {
-                                local_staged_data.removed_files.push(relative.to_path_buf());
+                                local_staged_data
+                                    .removed_files
+                                    .insert(relative.to_path_buf());
                             }
                         }
                     }
@@ -2316,7 +2320,7 @@ mod tests {
 
             // And it is
             let relative_path = util::fs::path_relative_to_dir(&file_to_rm, repo_path)?;
-            assert_eq!(files[0], relative_path);
+            assert_eq!(files.contains(&relative_path), true);
 
             Ok(())
         })
@@ -2349,7 +2353,7 @@ mod tests {
 
             // And it is
             let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
-            assert_eq!(files[0], relative_path);
+            assert_eq!(files.contains(&relative_path), true);
 
             Ok(())
         })

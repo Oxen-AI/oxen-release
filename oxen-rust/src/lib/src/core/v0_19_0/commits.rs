@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use glob::Pattern;
+
 use crate::core::refs::RefReader;
 use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
@@ -291,11 +293,23 @@ pub fn list_between(
 
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
-    _repo: &LocalRepository,
-    _commit: &Commit,
-    _pattern: impl AsRef<str>,
+    repo: &LocalRepository,
+    commit: &Commit,
+    pattern: impl AsRef<str>,
 ) -> Result<HashSet<PathBuf>, OxenError> {
-    todo!()
+    let pattern = pattern.as_ref();
+    let pattern = Pattern::new(pattern)?;
+
+    let mut results = HashSet::new();
+    let tree = repositories::tree::get_by_commit(repo, commit)?;
+    let (files, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    for file in files {
+        let path = file.dir.join(file.file_node.name);
+        if pattern.matches_path(&path) {
+            results.insert(path);
+        }
+    }
+    Ok(results)
 }
 
 /// Get paginated list of commits by path (directory or file)
