@@ -20,17 +20,13 @@ use pluralizer::pluralize;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    if opts.remote {
-        return remove_remote(repo, opts).await;
-    }
-
+pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     // Check if it is a directory and -r was provided
     let path = &opts.path;
     let dir_exists = dir_is_staged_or_committed(repo, path)?;
 
     if dir_exists && opts.recursive {
-        return rm_dir(repo, opts).await;
+        return rm_dir(repo, opts);
     }
 
     // Error if is a directory and -r was not provided
@@ -42,7 +38,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     rm_file(repo, opts)
 }
 
-async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     let path = opts.path.as_ref();
     if opts.staged {
         return remove_staged(repo, opts);
@@ -136,7 +132,7 @@ fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+pub async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     let path = opts.path.as_ref();
 
     if opts.recursive {

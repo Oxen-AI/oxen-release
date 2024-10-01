@@ -1412,7 +1412,7 @@ mod tests {
 
             repositories::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit = repositories::commit(&local_repo, "Moved the readme")?;
 
             // All remote entries should by synced
@@ -1457,7 +1457,7 @@ mod tests {
             repositories::add(&local_repo, new_path)?;
             let mut rm_opts = RmOpts::from_path("train");
             rm_opts.recursive = true;
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit =
                 repositories::commit(&local_repo, "Moved all the train image files to images/")?;
 

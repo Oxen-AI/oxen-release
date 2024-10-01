@@ -442,10 +442,9 @@ where
         path: PathBuf::from("test"),
         recursive: true,
         staged: false,
-        remote: false,
     };
 
-    repositories::rm(&local_repo, &rm_opts).await?;
+    repositories::rm(&local_repo, &rm_opts)?;
     repositories::commit(&local_repo, "Removing test/")?;
 
     // Add all the files

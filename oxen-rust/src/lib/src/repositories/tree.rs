@@ -153,7 +153,7 @@ fn r_list_files_and_dirs(
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
     for child in &node.children {
-        log::debug!("Found child: {child:?}");
+        log::debug!("Found child: {child}");
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
                 file_nodes.insert(FileNodeWithDir {
