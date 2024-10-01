@@ -7,7 +7,7 @@ use crate::error::OxenError;
 use crate::model::merkle_tree::node::{
     DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
 };
-use crate::model::{Commit, LocalRepository, MerkleHash};
+use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash};
 
 pub fn get_by_commit(
     repo: &LocalRepository,
@@ -179,3 +179,110 @@ fn r_list_files_and_dirs(
     }
     Ok(())
 }
+
+/*
+pub fn list_files_by_type(
+    repo: &LocalRepository,
+    commit: &Commit,
+    data_type: &EntryDataType,
+) -> Result<HashSet<FileNode>, OxenError> {
+    let mut file_nodes = HashSet::new();
+    r_list_files_and_dirs(&tree.root, PathBuf::new(), &mut file_nodes, &mut dir_nodes)?;
+    Ok((file_nodes, dir_nodes))
+}
+
+pub fn list_tabular_files_in_repo(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<FileNode>, OxenError> {
+    let entries = get_entries(repo, commit, "")?;
+    Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+
+    use uuid::Uuid;
+
+    use crate::core::v0_10_0::cache;
+    use crate::core::v0_10_0::index;
+    use crate::error::OxenError;
+    use crate::opts::PaginateOpts;
+    use crate::repositories;
+    use crate::test;
+    use crate::util;
+
+    #[test]
+    fn test_list_tabular() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create a deeply nested directory
+            let dir_path = repo
+                .path
+                .join("data")
+                .join("train")
+                .join("images")
+                .join("cats");
+            util::fs::create_dir_all(&dir_path)?;
+
+            // Add two tabular files to it
+            let filename = "cats.tsv";
+            let filepath = dir_path.join(filename);
+            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
+
+            let filename = "dogs.csv";
+            let filepath = dir_path.join(filename);
+            util::fs::write(filepath, "1,2,3\nhello,world,sup\n")?;
+
+            // And write a file in the same dir that is not tabular
+            let filename = "README.md";
+            let filepath = dir_path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // And write a tabular file to the root dir
+            let filename = "labels.tsv";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
+
+            // And write a non tabular file to the root dir
+            let filename = "labels.txt";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
+
+            // Add and commit all
+            repositories::add(&repo, &repo.path)?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
+
+            // List files
+            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+
+            assert_eq!(entries.len(), 3);
+
+            // Add another tabular file
+            let filename = "dogs.tsv";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
+
+            // Add and commit all
+            repositories::add(&repo, &repo.path)?;
+            let commit = repositories::commit(&repo, "Adding additional file")?;
+
+            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+
+            assert_eq!(entries.len(), 4);
+
+            // Remove the deeply nested dir
+            util::fs::remove_dir_all(&dir_path)?;
+
+            repositories::add(&repo, dir_path)?;
+            let commit = repositories::commit(&repo, "Removing dir")?;
+
+            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+            assert_eq!(entries.len(), 2);
+
+            Ok(())
+        })
+    }
+}
+*/
