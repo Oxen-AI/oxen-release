@@ -21,6 +21,7 @@ use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub mod columns;
@@ -439,18 +440,29 @@ pub fn restore(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), Oxen
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest()");
+
+    let existing_columns = get_existing_columns(conn, TABLE_NAME)?;
     let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
+        .filter(|&col| existing_columns.contains(*col))
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
         .join(", ");
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
 
+    let query = if excluded_cols.is_empty() {
+        format!(
+            "COPY (SELECT * FROM '{}') to '{}';",
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    } else {
+        format!(
+            "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
+            excluded_cols,
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    };
     // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
     // let temp_res = df_db::select(conn, &temp_select_query)?;
     // log::debug!("export_rest() got df: {:?}", temp_res);
@@ -461,17 +473,29 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv()");
+
+    let existing_columns = get_existing_columns(conn, TABLE_NAME)?;
     let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
+        .filter(|&col| existing_columns.contains(*col))
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
         .join(", ");
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
+
+    let query = if excluded_cols.is_empty() {
+        format!(
+            "COPY (SELECT * FROM '{}') to '{}' (HEADER, DELIMITER ',');",
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    } else {
+        format!(
+            "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
+            excluded_cols,
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    };
 
     // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
 
@@ -485,17 +509,29 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv()");
+
+    let existing_columns = get_existing_columns(conn, TABLE_NAME)?;
     let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
+        .filter(|&col| existing_columns.contains(*col))
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
         .join(", ");
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
+
+    let query = if excluded_cols.is_empty() {
+        format!(
+            "COPY (SELECT * FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    } else {
+        format!(
+            "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
+            excluded_cols,
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    };
 
     conn.execute(&query, [])?;
     Ok(())
@@ -503,21 +539,47 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet()");
+
+    let existing_columns = get_existing_columns(conn, TABLE_NAME)?;
     let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
+        .filter(|&col| existing_columns.contains(*col))
         .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+        .collect::<Vec<String>>();
 
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
+    let excluded_cols_str = excluded_cols.join(", ");
+
+    let query = if excluded_cols.is_empty() {
+        format!(
+            "COPY (SELECT * FROM '{}') to '{}' (FORMAT PARQUET);",
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    } else {
+        format!(
+            "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
+            excluded_cols_str,
+            TABLE_NAME,
+            path.to_string_lossy()
+        )
+    };
     conn.execute(&query, [])?;
 
     Ok(())
+}
+
+fn get_existing_columns(conn: &Connection, table_name: &str) -> Result<HashSet<String>, OxenError> {
+    let query = format!("PRAGMA table_info('{}')", table_name);
+    let mut stmt = conn.prepare(&query)?;
+    let columns: HashSet<String> = stmt
+        .query_map([], |row| {
+            let column_name: String = row.get(1)?;
+            Ok(column_name)
+        })?
+        .filter_map(Result::ok)
+        .collect();
+
+    Ok(columns)
 }
 
 #[cfg(test)]
