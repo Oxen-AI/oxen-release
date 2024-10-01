@@ -181,21 +181,20 @@ pub fn read_staged_entries_below_path(
                     log::debug!("read_staged_entries adding dir {:?}", path);
                     dir_entries
                         .entry(path.to_path_buf())
+                        .or_default();
+                }
+
+                // add the file as an entry under the parent dir
+                if let Some(parent) = path.parent() {
+                    log::debug!(
+                        "read_staged_entries adding file {:?} to parent {:?}",
+                        path,
+                        parent
+                    );
+                    dir_entries
+                        .entry(parent.to_path_buf())
                         .or_default()
                         .push(entry);
-                } else {
-                    // add the file as an entry under the parent dir
-                    if let Some(parent) = path.parent() {
-                        log::debug!(
-                            "read_staged_entries adding file {:?} to parent {:?}",
-                            path,
-                            parent
-                        );
-                        dir_entries
-                            .entry(parent.to_path_buf())
-                            .or_default()
-                            .push(entry);
-                    }
                 }
 
                 total_entries += 1;
