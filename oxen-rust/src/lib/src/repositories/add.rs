@@ -436,4 +436,28 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_cannot_add_if_not_modified() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make sure we have a valid file
+            let repo_path = &repo.path;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
+
+            // Add it
+            repositories::add(&repo, &hello_file)?;
+
+            // Commit it
+            repositories::commit(&repo, "Add Hello World")?;
+
+            // try to add it again
+            repositories::add(&repo, &hello_file)?;
+
+            // make sure we don't have it added again, because the hash hadn't changed since last commit
+            let status = repositories::status(&repo)?;
+            assert_eq!(status.staged_files.len(), 0);
+
+            Ok(())
+        })
+    }
 }

@@ -422,4 +422,212 @@ mod tests {
         })
         .await
     }
+
+    #[test]
+    fn test_status_list_added_directories() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Write two files to a sub directory
+            let repo_path = &repo.path;
+            let training_data_dir = PathBuf::from("training_data");
+            let sub_dir = repo_path.join(&training_data_dir);
+            std::fs::create_dir_all(&sub_dir)?;
+
+            let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+            let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
+
+            repositories::add(&repo, &sub_dir)?;
+
+            // List files
+            let status = repositories::status(&repo)?;
+            println!("status: {status:?}");
+            status.print();
+            let dirs = status.staged_dirs;
+
+            // There are two directories, root and training_data
+            assert_eq!(dirs.len(), 2);
+            let added_dir = dirs.get(&training_data_dir).unwrap();
+            assert_eq!(added_dir.path, training_data_dir);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_status_remove_file_top_level() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Get head commit
+            // List all entries in that commit
+            let repo_path = &repo.path;
+            let file_to_rm = repo_path.join("labels.txt");
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Remove a committed file
+            util::fs::remove_file(&file_to_rm)?;
+
+            // List removed
+            let status = repositories::status(&repo)?;
+            status.print();
+            let files = status.removed_files;
+
+            // There is one removed file, and nothing else
+            assert_eq!(files.len(), 1);
+            assert_eq!(status.staged_dirs.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
+            assert_eq!(status.untracked_dirs.len(), 0);
+            assert_eq!(status.untracked_files.len(), 0);
+            assert_eq!(status.modified_files.len(), 0);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(&file_to_rm, repo_path)?;
+            assert_eq!(files.contains(&relative_path), true);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_status_remove_file_in_subdirectory() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let repo_path = &repo.path;
+            let one_shot_file = repo_path
+                .join("annotations")
+                .join("train")
+                .join("one_shot.csv");
+
+            // Remove a committed file
+            util::fs::remove_file(&one_shot_file)?;
+
+            // List removed
+            let status = repositories::status(&repo)?;
+            status.print();
+            let files = status.removed_files;
+
+            // There is one removed file
+            assert_eq!(files.len(), 1);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
+            assert_eq!(files.contains(&relative_path), true);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_status_modify_file_in_subdirectory() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let repo_path = &repo.path;
+            let one_shot_file = repo_path
+                .join("annotations")
+                .join("train")
+                .join("one_shot.csv");
+
+            // Modify the committed file
+            let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
+
+            // List modified
+            let status = repositories::status(&repo)?;
+            status.print();
+            let files = status.modified_files;
+
+            // There is one modified file
+            assert_eq!(files.len(), 1);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(one_shot_file, repo_path)?;
+            assert_eq!(files[0], relative_path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_status_list_untracked_directories_after_add() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create 2 sub directories, one with  Write two files to a sub directory
+            let repo_path = &repo.path;
+            let train_dir = repo_path.join("train");
+            std::fs::create_dir_all(&train_dir)?;
+            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_1.jpg"))?;
+            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_1.jpg"))?;
+            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_2.jpg"))?;
+            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_2.jpg"))?;
+
+            let test_dir = repo_path.join("test");
+            std::fs::create_dir_all(&test_dir)?;
+            let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/cat_3.jpg"))?;
+            let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/dog_3.jpg"))?;
+
+            let valid_dir = repo_path.join("valid");
+            std::fs::create_dir_all(&valid_dir)?;
+            let _ = test::add_img_file_to_dir(&valid_dir, Path::new("data/test/images/dog_4.jpg"))?;
+
+            let base_file_1 = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
+            let _base_file_2 = test::add_txt_file_to_dir(repo_path, "Hello 2")?;
+            let _base_file_3 = test::add_txt_file_to_dir(repo_path, "Hello 3")?;
+
+            // At first there should be 3 untracked
+            let untracked_dirs = repositories::status(&repo)?.untracked_dirs;
+            assert_eq!(untracked_dirs.len(), 3);
+
+            // Add the directory
+            repositories::add(&repo, &train_dir)?;
+            // Add one file
+            repositories::add(&repo, &base_file_1)?;
+
+            // List the files
+            let status = repositories::status(&repo)?;
+            println!("status: {status:?}");
+            status.print();
+            let staged_files = status.staged_files;
+            let staged_dirs = status.staged_dirs;
+            let untracked_files = status.untracked_files;
+            let untracked_dirs = status.untracked_dirs;
+
+            // There is 5 added file and 2 added dirs (root + train)
+            assert_eq!(staged_files.len(), 5);
+            assert_eq!(staged_dirs.len(), 2);
+
+            // There are 5 untracked files
+            assert_eq!(untracked_files.len(), 5);
+            // There are 2 untracked dirs at the top level
+            assert_eq!(untracked_dirs.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_status_list_modified_files() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create entry_reader with no commits
+            let repo_path = &repo.path;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
+
+            // add the file
+            repositories::add(&repo, &hello_file)?;
+
+            // commit the file
+            repositories::commit(&repo, "added hello 1")?;
+
+            let status = repositories::status(&repo)?;
+            let mod_files = status.modified_files;
+            assert_eq!(mod_files.len(), 0);
+
+            // modify the file
+            let hello_file = test::modify_txt_file(hello_file, "Hello 2")?;
+
+            // List files
+            let status = repositories::status(&repo)?;
+            status.print();
+            let mod_files = status.modified_files;
+            assert_eq!(mod_files.len(), 1);
+            let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
+            assert_eq!(mod_files[0], relative_path);
+
+            Ok(())
+        })
+    }
 }

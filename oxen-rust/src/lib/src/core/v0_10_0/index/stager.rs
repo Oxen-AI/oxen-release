@@ -1652,7 +1652,7 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
     where
@@ -1720,7 +1720,7 @@ mod tests {
             // Make sure the counts start properly
             let status = stager.status(&entry_reader)?;
             assert_eq!(status.staged_files.len(), 3);
-            assert_eq!(status.staged_dirs.paths.len(), 1);
+            assert_eq!(status.staged_dirs.paths.len(), 2);
 
             // Unstage
             stager.unstage()?;
@@ -1753,39 +1753,6 @@ mod tests {
             // Make sure we still only have it once
             let status = stager.status(&entry_reader)?;
             assert_eq!(status.staged_files.len(), 1);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_cannot_add_if_not_modified() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, repo| {
-            // Create entry_reader with no commits
-            let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
-            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id)?;
-            // Make sure we have a valid file
-            let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
-
-            // Add it
-            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
-
-            // Commit it
-            let commit_writer = CommitWriter::new(&repo)?;
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, "Add Hello World")?;
-            stager.unstage()?;
-
-            // try to add it again
-            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
-
-            // make sure we don't have it added again, because the hash hadn't changed since last commit
-            let status = stager.status(&entry_reader)?;
-            assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
         })
@@ -1976,38 +1943,6 @@ mod tests {
     }
 
     #[test]
-    fn test_stager_list_directories() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, _repo| {
-            // Create entry_reader with no commits
-            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
-            // Write two files to a sub directory
-            let repo_path = &stager.repository.path;
-            let training_data_dir = PathBuf::from("training_data");
-            let sub_dir = repo_path.join(&training_data_dir);
-            std::fs::create_dir_all(&sub_dir)?;
-
-            let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
-            let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
-
-            stager.add_dir(&sub_dir, &entry_reader)?;
-
-            // List files
-            let dirs = stager.status(&entry_reader)?.staged_dirs;
-
-            // There is one directory
-            assert_eq!(dirs.len(), 1);
-            let added_dir = dirs.get(&training_data_dir).unwrap();
-            assert_eq!(added_dir.path, training_data_dir);
-
-            // With two files
-            assert_eq!(added_dir.num_files_staged, 2);
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_stager_list_untracked_files() -> Result<(), OxenError> {
         run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
@@ -2023,43 +1958,6 @@ mod tests {
             assert_eq!(files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
             assert_eq!(files[0], relative_path);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_list_modified_files() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, repo| {
-            // Create entry_reader with no commits
-            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
-            let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
-
-            // add the file
-            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
-
-            // commit the file
-            let status = stager.status(&entry_reader)?;
-            let commit_writer = CommitWriter::new(&repo)?;
-            let commit = commit_writer.commit(&status, "added hello 1")?;
-            stager.unstage()?;
-
-            let mod_files = stager.status(&entry_reader)?.modified_files;
-            assert_eq!(mod_files.len(), 0);
-
-            // modify the file
-            let hello_file = test::modify_txt_file(hello_file, "Hello 2")?;
-
-            // List files
-            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
-            let status = stager.status(&entry_reader)?;
-            status.print();
-            let mod_files = status.modified_files;
-            assert_eq!(mod_files.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
-            assert_eq!(mod_files[0], relative_path);
 
             Ok(())
         })
@@ -2112,172 +2010,6 @@ mod tests {
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_modify_file_recursive() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let stager = Stager::new(&repo)?;
-            let commit_reader = CommitReader::new(&repo)?;
-            let commit = commit_reader.head_commit()?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-
-            let repo_path = &stager.repository.path;
-            let one_shot_file = repo_path
-                .join("annotations")
-                .join("train")
-                .join("one_shot.csv");
-
-            // Modify the committed file
-            let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
-
-            // List modified
-            let status = stager.status(&entry_reader)?;
-            status.print();
-            let files = status.modified_files;
-
-            // There is one modified file
-            assert_eq!(files.len(), 1);
-
-            // And it is
-            let relative_path = util::fs::path_relative_to_dir(one_shot_file, repo_path)?;
-            assert_eq!(files[0], relative_path);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_remove_file_top_level() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            // Get head commit
-            // List all entries in that commit
-
-            let stager = Stager::new(&repo)?;
-            let commit_reader = CommitReader::new(&repo)?;
-            let commit = commit_reader.head_commit()?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-
-            let repo_path = &stager.repository.path;
-            let file_to_rm = repo_path.join("labels.txt");
-
-            let status = stager.status(&entry_reader)?;
-            status.print();
-
-            // Remove a committed file
-            util::fs::remove_file(&file_to_rm)?;
-
-            // List removed
-            let status = stager.status(&entry_reader)?;
-            status.print();
-            let files = status.removed_files;
-
-            // There is one removed file, and nothing else
-            assert_eq!(files.len(), 1);
-            assert_eq!(status.staged_dirs.len(), 0);
-            assert_eq!(status.staged_files.len(), 0);
-            assert_eq!(status.untracked_dirs.len(), 0);
-            assert_eq!(status.untracked_files.len(), 0);
-            assert_eq!(status.modified_files.len(), 0);
-
-            // And it is
-            let relative_path = util::fs::path_relative_to_dir(&file_to_rm, repo_path)?;
-            assert_eq!(files.contains(&relative_path), true);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_remove_file_recursive() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let stager = Stager::new(&repo)?;
-            let commit_reader = CommitReader::new(&repo)?;
-            let commit = commit_reader.head_commit()?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-
-            let repo_path = &stager.repository.path;
-            let one_shot_file = repo_path
-                .join("annotations")
-                .join("train")
-                .join("one_shot.csv");
-
-            // Remove a committed file
-            util::fs::remove_file(&one_shot_file)?;
-
-            // List removed
-            let status = stager.status(&entry_reader)?;
-            status.print();
-            let files = status.removed_files;
-
-            // There is one removed file
-            assert_eq!(files.len(), 1);
-
-            // And it is
-            let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
-            assert_eq!(files.contains(&relative_path), true);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_list_untracked_directories_after_add() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, repo| {
-            // Create entry_reader with no commits
-            let commit_reader = CommitReader::new(&repo)?;
-            let commit = commit_reader.head_commit()?;
-            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
-
-            // Create 2 sub directories, one with  Write two files to a sub directory
-            let repo_path = &stager.repository.path;
-            let train_dir = repo_path.join("train");
-            std::fs::create_dir_all(&train_dir)?;
-            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_1.jpg"))?;
-            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_1.jpg"))?;
-            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_2.jpg"))?;
-            let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_2.jpg"))?;
-
-            let test_dir = repo_path.join("test");
-            std::fs::create_dir_all(&test_dir)?;
-            let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/cat_3.jpg"))?;
-            let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/dog_3.jpg"))?;
-
-            let valid_dir = repo_path.join("valid");
-            std::fs::create_dir_all(&valid_dir)?;
-            let _ = test::add_img_file_to_dir(&valid_dir, Path::new("data/test/images/dog_4.jpg"))?;
-
-            let base_file_1 = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
-            let _base_file_2 = test::add_txt_file_to_dir(repo_path, "Hello 2")?;
-            let _base_file_3 = test::add_txt_file_to_dir(repo_path, "Hello 3")?;
-
-            // At first there should be 3 untracked
-            let untracked_dirs = stager.status(&entry_reader)?.untracked_dirs;
-            assert_eq!(untracked_dirs.len(), 3);
-
-            // Add the directory
-            stager.add_dir(&train_dir, &entry_reader)?;
-            // Add one file
-            let _ = stager.add_file(&base_file_1, &entry_reader, &schema_reader)?;
-
-            // List the files
-            let staged_files = stager.status(&entry_reader)?.staged_files;
-            let staged_dirs = stager.status(&entry_reader)?.staged_dirs;
-            let untracked_files = stager.list_untracked_files(&entry_reader)?;
-            let untracked_dirs = stager.status(&entry_reader)?.untracked_dirs;
-
-            // There is 5 added file and 1 added dir
-            assert_eq!(staged_files.len(), 5);
-            assert_eq!(staged_dirs.len(), 1);
-
-            // There are 2 untracked files at the top level
-            assert_eq!(untracked_files.len(), 2);
-            // There are 2 untracked dirs at the top level
-            assert_eq!(untracked_dirs.len(), 2);
 
             Ok(())
         })
