@@ -611,4 +611,43 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_commit_file_and_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create committer with no commits
+            let repo_path = &repo.path;
+            let train_dir = repo_path.join("training_data");
+            std::fs::create_dir_all(&train_dir)?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
+            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
+
+            let test_dir = repo_path.join("test_data");
+            std::fs::create_dir_all(&test_dir)?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
+
+            // Add a file and a directory
+            repositories::add(&repo, &annotation_file)?;
+            repositories::add(&repo, &train_dir)?;
+
+            let message = "Adding training data to 🐂";
+            repositories::commit(&repo, message)?;
+
+            // should be one commit now
+            let commit_history = repositories::commits::list(&repo)?;
+            assert_eq!(commit_history.len(), 1);
+
+            // Check that the files are no longer staged
+            let status = repositories::status(&repo)?;
+            let files = status.staged_files;
+            let dirs = status.staged_dirs;
+            assert_eq!(files.len(), 0);
+            assert_eq!(dirs.len(), 0);
+
+            Ok(())
+        })
+    }
 }

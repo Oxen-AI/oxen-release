@@ -214,7 +214,7 @@ where
 
 pub fn run_empty_local_repo_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(LocalRepository) -> Result<(), OxenError>,
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
     log::info!("<<<<< run_empty_local_repo_test start");
@@ -222,19 +222,18 @@ where
     let repo = repositories::init(&repo_dir)?;
 
     log::info!(">>>>> run_empty_local_repo_test running test");
-    let result = match test(repo) {
-        Ok(_) => true,
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {err}");
-            false
+            panic!("Error running test. Err: {}", err);
         }
-    };
+    });
 
     // Remove repo dir
     util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result);
+    assert!(result.is_ok());
     Ok(())
 }
 

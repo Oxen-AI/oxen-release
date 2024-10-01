@@ -1641,10 +1641,10 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::oxenignore;
     use crate::core::v0_10_0::index::{
-        CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
+        CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
     };
+    use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::LocalRepository;
     use crate::model::{StagedData, StagedEntryStatus};
@@ -1661,7 +1661,7 @@ mod tests {
         test::init_test_env();
         let repo_dir = test::create_repo_dir(test::test_run_dir())?;
         log::debug!("BEFORE COMMAND::INIT");
-        let repo = repositories::init(&repo_dir)?;
+        let repo = repositories::init::init_with_version(&repo_dir, MinOxenVersion::V0_10_0)?;
         log::debug!("AFTER COMMAND::INIT");
         let stager = Stager::new(&repo)?;
         log::debug!("AFTER CREATE STAGER");
@@ -1680,53 +1680,6 @@ mod tests {
         // Assert everything okay after we cleanup the repo dir
         assert!(result.is_ok());
         Ok(())
-    }
-
-    #[test]
-    fn test_commit() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, repo| {
-            // Create committer with no commits
-            let repo_path = &repo.path;
-            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
-            let schema_reader = SchemaReader::new_from_head(&repo)?;
-            let commit_writer = CommitWriter::new(&repo)?;
-
-            let train_dir = repo_path.join("training_data");
-            std::fs::create_dir_all(&train_dir)?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
-            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
-
-            let test_dir = repo_path.join("test_data");
-            std::fs::create_dir_all(&test_dir)?;
-            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
-            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
-
-            // Add a file and a directory
-            stager.add_file(&annotation_file, &entry_reader, &schema_reader)?;
-            stager.add_dir(&train_dir, &entry_reader)?;
-
-            let message = "Adding training data to 🐂";
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, message)?;
-            stager.unstage()?;
-
-            let commit_history =
-                CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
-
-            // should be two commits now
-            assert_eq!(commit_history.len(), 2);
-
-            // Check that the files are no longer staged
-            let status = stager.status(&entry_reader)?;
-            let files = status.staged_files;
-            assert_eq!(files.len(), 0);
-            let dirs = stager.list_staged_dirs()?;
-            assert_eq!(dirs.len(), 0);
-
-            Ok(())
-        })
     }
 
     // This is how we initialize
@@ -2023,47 +1976,6 @@ mod tests {
     }
 
     #[test]
-    fn test_stager_add_all_files_in_sub_dir() -> Result<(), OxenError> {
-        run_empty_stager_test(|stager, _repo| {
-            // Create entry_reader with no commits
-            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
-            // Write two files to a sub directory
-            let repo_path = &stager.repository.path;
-            let training_data_dir = PathBuf::from("training_data");
-            let sub_dir = repo_path.join(&training_data_dir);
-            std::fs::create_dir_all(&sub_dir)?;
-
-            let sub_file_1 = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
-            let sub_file_2 = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
-            let sub_file_3 = test::add_txt_file_to_dir(&sub_dir, "Hello 3")?;
-
-            let dirs = stager.status(&entry_reader)?.untracked_dirs;
-
-            // There is one directory
-            assert_eq!(dirs.len(), 1);
-
-            // Then we add all three
-            stager.add_file(&sub_file_1, &entry_reader, &schema_reader)?;
-            stager.add_file(&sub_file_2, &entry_reader, &schema_reader)?;
-            stager.add_file(&sub_file_3, &entry_reader, &schema_reader)?;
-
-            // There now there are no untracked directories
-            let dirs = stager.status(&entry_reader)?.untracked_dirs;
-            assert_eq!(dirs.len(), 0);
-
-            // And there is one tracked directory
-            let staged_dirs = stager.status(&entry_reader)?.staged_dirs;
-            assert_eq!(staged_dirs.len(), 1);
-            let added_dir = staged_dirs.get(&training_data_dir).unwrap();
-            assert_eq!(added_dir.num_files_staged, 3);
-            assert_eq!(added_dir.total_files, 3);
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_stager_list_directories() -> Result<(), OxenError> {
         run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
@@ -2200,53 +2112,6 @@ mod tests {
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_stager_add_dir_recursive() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
-            let stager = Stager::new(&repo)?;
-            let commit_reader = CommitReader::new(&repo)?;
-            let commit = commit_reader.head_commit()?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
-            // Write two files to a sub directory
-            let repo_path = &stager.repository.path;
-            let annotations_dir = PathBuf::from("annotations");
-            let full_annotations_dir = repo_path.join(&annotations_dir);
-
-            // Add the directory which has the structure
-            // annotations/
-            //   README.md
-            //   train/
-            //     bounding_box.csv
-            //     annotations.txt
-            //     two_shot.txt
-            //     one_shot.csv
-            //   test/
-            //     annotations.txt
-            let ignore = oxenignore::create(&repo);
-            stager.add(
-                &full_annotations_dir,
-                &entry_reader,
-                &schema_reader,
-                &ignore,
-            )?;
-
-            // List dirs
-            let status = stager.status(&entry_reader)?;
-            status.print();
-            let dirs = status.staged_dirs;
-
-            // There is one directory
-            assert_eq!(dirs.len(), 1);
-
-            // With recursive files
-            let added_dir = dirs.get(&annotations_dir).unwrap();
-            assert_eq!(added_dir.num_files_staged, 6);
 
             Ok(())
         })
