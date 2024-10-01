@@ -16,12 +16,9 @@ use rayon::prelude::*;
 use crate::constants::ROOT_PATH;
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
-use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::SchemaReader;
-use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::model::{
-    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
-};
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
+use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -388,44 +385,14 @@ pub fn list_tabular_files_in_repo(
     local_repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<MetadataEntry>, OxenError> {
-    let schema_reader = index::SchemaReader::new(local_repo, &commit.id)?;
-    let schemas = schema_reader.list_schemas()?;
-
-    let mut meta_entries: Vec<MetadataEntry> = vec![];
-    let entry_reader = CommitEntryReader::new(local_repo, commit)?;
-    let commit_reader = CommitReader::new(local_repo)?;
-    let commits = commit_reader.list_all()?;
-
-    for (path, _schema) in schemas.iter() {
-        let entry = entry_reader.get_entry(path)?;
-
-        if entry.is_some() {
-            let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
-            let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-            for commit in &commits {
-                let object_reader = get_object_reader(local_repo, &commit.id)?;
-                let reader = CommitDirEntryReader::new(
-                    local_repo,
-                    &commit.id,
-                    parent,
-                    object_reader.clone(),
-                )?;
-                commit_entry_readers.push((commit.clone(), reader));
-            }
-
-            let metadata = core::v0_10_0::entries::meta_entry_from_commit_entry(
-                local_repo,
-                &entry.unwrap(),
-                &commit_entry_readers,
-                &commit.id,
-            )?;
-            if metadata.data_type == EntryDataType::Tabular {
-                meta_entries.push(metadata);
-            }
+    match local_repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::entries::list_tabular_files_in_repo(local_repo, commit)
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::entries::list_tabular_files_in_repo(local_repo, commit)
         }
     }
-
-    Ok(meta_entries)
 }
 
 #[cfg(test)]
@@ -435,7 +402,6 @@ mod tests {
 
     use uuid::Uuid;
 
-    use crate::core::v0_10_0::cache;
     use crate::core::v0_10_0::index;
     use crate::error::OxenError;
     use crate::opts::PaginateOpts;
@@ -690,10 +656,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -730,10 +692,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 2;
             let page_size = 10;
@@ -779,10 +737,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 11;
             let page_size = 10;
@@ -837,10 +791,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 2;
             let page_size = 10;
 
@@ -886,10 +836,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -934,10 +880,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 1;
             let page_size = 10;
@@ -985,10 +927,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -1030,10 +968,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 2;
             let page_size = 10;
@@ -1081,10 +1015,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 2;
             let page_size = 10;
