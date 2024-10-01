@@ -179,9 +179,7 @@ pub fn read_staged_entries_below_path(
                 if full_path.is_dir() {
                     // add the dir as a key in dir_entries
                     log::debug!("read_staged_entries adding dir {:?}", path);
-                    dir_entries
-                        .entry(path.to_path_buf())
-                        .or_default();
+                    dir_entries.entry(path.to_path_buf()).or_default();
                 }
 
                 // add the file as an entry under the parent dir

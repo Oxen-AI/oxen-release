@@ -134,7 +134,8 @@ fn add_files(
             log::debug!(
                 "Found nonexistant path {path:?}. Staging for removal. Recursive flag not set"
             );
-            let opts = RmOpts::from_path(path);
+            let mut opts = RmOpts::from_path(path);
+            opts.recursive = true;
             repositories::rm(repo, &opts)?;
         }
     }
