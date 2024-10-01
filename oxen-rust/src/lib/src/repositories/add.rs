@@ -366,4 +366,74 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_add_all_files_in_sub_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Write two files to a sub directory
+            let repo_path = &repo.path;
+            let training_data_dir = PathBuf::from("training_data");
+            let sub_dir = repo_path.join(&training_data_dir);
+            std::fs::create_dir_all(&sub_dir)?;
+
+            let sub_file_1 = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+            let sub_file_2 = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
+            let sub_file_3 = test::add_txt_file_to_dir(&sub_dir, "Hello 3")?;
+
+            let status = repositories::status(&repo)?;
+            let dirs = status.untracked_dirs;
+
+            // There is one directory
+            assert_eq!(dirs.len(), 1);
+
+            // Then we add all three
+            repositories::add(&repo, &sub_file_1)?;
+            repositories::add(&repo, &sub_file_2)?;
+            repositories::add(&repo, &sub_file_3)?;
+
+            // There now there are no untracked directories
+            let status = repositories::status(&repo)?;
+            println!("status after add: {:?}", status);
+            status.print();
+            let dirs = status.untracked_dirs;
+            assert_eq!(dirs.len(), 0);
+
+            // And there is one tracked directory
+            let staged_dirs = status.staged_dirs;
+
+            assert_eq!(staged_dirs.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_add_dir_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Write two files to a sub directory
+            let annotations_dir = repo.path.join("annotations");
+
+            // Add the directory which has the structure
+            // annotations/
+            //   README.md
+            //   train/
+            //     bounding_box.csv
+            //     annotations.txt
+            //     two_shot.txt
+            //     one_shot.csv
+            //   test/
+            //     annotations.txt
+            repositories::add(&repo, &annotations_dir)?;
+
+            // List dirs
+            let status = repositories::status(&repo)?;
+            status.print();
+            let dirs = status.staged_dirs;
+
+            // There are 3 staged directories
+            assert_eq!(dirs.len(), 4);
+
+            Ok(())
+        })
+    }
 }
