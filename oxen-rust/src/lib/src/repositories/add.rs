@@ -93,6 +93,8 @@ mod tests {
             let file_contents = "file,label\ntrain/cat_1.jpg,0";
             test::modify_txt_file(one_shot_path, file_contents)?;
             let status = repositories::status(&repo)?;
+            println!("status: {:?}", status);
+            status.print();
             assert_eq!(status.modified_files.len(), 1);
             // Add the top level directory, and make sure the modified file gets added
             let annotation_dir_path = repo.path.join("annotations");
