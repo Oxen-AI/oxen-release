@@ -101,6 +101,12 @@ pub fn commit_with_cfg(
         status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
     commit_progress_bar.set_message(format!("Committing {} changes", total_changes));
 
+    log::debug!("got dir entries: {:?}", dir_entries.len());
+
+    if dir_entries.is_empty() {
+        return Err(OxenError::basic_str("No changes to commit"));
+    }
+
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
 

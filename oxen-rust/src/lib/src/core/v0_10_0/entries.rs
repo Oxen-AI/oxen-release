@@ -622,3 +622,16 @@ pub fn list_tabular_files_in_repo(
 
     Ok(meta_entries)
 }
+
+pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.num_entries()
+}
+
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.list_entries()
+}
