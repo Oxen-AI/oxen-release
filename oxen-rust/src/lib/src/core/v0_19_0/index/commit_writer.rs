@@ -336,6 +336,7 @@ pub fn commit_dir_entries_new(
     }
 
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+
     write_commit_entries(
         repo,
         &maybe_head_commit,
@@ -344,6 +345,7 @@ pub fn commit_dir_entries_new(
         &dir_hash_db,
         &vnode_entries,
     )?;
+
     commit_progress_bar.finish_and_clear();
 
     // Remove all the directories that are staged for removal
@@ -561,6 +563,7 @@ fn split_into_vnodes(
                 child.node.node.dtype(),
                 child.node.maybe_path().unwrap()
             );
+
             // Overwrite the existing child
             // if add or modify, replace the child
             // if remove, remove the child
@@ -748,8 +751,6 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
-    log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
-
     let Some(vnodes) = entries.get(&path) else {
         log::debug!(
             "r_create_dir_node No entries found for directory {:?}",
@@ -768,6 +769,8 @@ fn r_create_dir_node(
             dir_db.add_child(&vnode_obj)?;
             *total_written += 1;
         }
+
+        let node = maybe_dir_db.as_ref().unwrap().data();
         log::debug!(
             "Processing vnode {} with {} entries",
             vnode.id,
