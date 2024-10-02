@@ -24,6 +24,14 @@ pub fn get_node_by_id(
     CommitMerkleTree::read_node(repo, hash, load_recursive)
 }
 
+pub fn get_node_by_id_recursive(
+    repo: &LocalRepository,
+    hash: &MerkleHash,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    let load_recursive = true;
+    CommitMerkleTree::read_node(repo, hash, load_recursive)
+}
+
 pub fn get_node_by_path(
     repo: &LocalRepository,
     commit: &Commit,
