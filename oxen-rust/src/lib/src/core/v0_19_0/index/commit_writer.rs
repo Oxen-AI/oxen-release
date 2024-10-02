@@ -481,7 +481,7 @@ fn node_data_to_staged_node(
     match node.node.dtype() {
         MerkleTreeNodeType::Dir => {
             let mut dir_node = node.dir()?;
-            let path = PathBuf::from(dir_node.name);
+            let path = base_dir.join(dir_node.name);
             dir_node.name = path.to_str().unwrap().to_string();
             Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
