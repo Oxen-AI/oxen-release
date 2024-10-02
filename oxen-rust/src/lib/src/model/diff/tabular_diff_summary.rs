@@ -303,7 +303,7 @@ impl TabularDiffWrapper {
     ) -> Option<DataFrame> {
         match node {
             Some(node) => {
-                let version_path = util::fs::version_path_from_hash(repo, &node.hash.to_string());
+                let version_path = util::fs::version_path_from_hash(repo, node.hash.to_string());
                 match tabular::read_df_with_extension(
                     version_path,
                     node.extension.clone(),

@@ -106,7 +106,7 @@ pub fn resized_path_for_file_node(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    let path = version_path_from_hash(repo, &file_node.hash.to_string());
+    let path = version_path_from_hash(repo, file_node.hash.to_string());
     let extension = file_node.extension.clone();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
@@ -127,7 +127,7 @@ pub fn resized_path_for_staged_entry(
 ) -> Result<PathBuf, OxenError> {
     let img_hash = util::hasher::hash_file_contents(img_path)?;
     let img_version_path =
-        version_path_from_hash_and_file(branch_repo.path, img_hash, img_path.to_path_buf());
+        version_path_from_hash_and_file(branch_repo.path, img_hash, img_path);
     let extension = img_version_path.extension().unwrap().to_str().unwrap();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
@@ -233,7 +233,7 @@ pub fn version_path_from_hash_and_file(
         "version_path_from_hash_and_file version_dir {:?}",
         version_dir
     );
-    let extension = extension_from_path(&filename);
+    let extension = extension_from_path(filename);
     if extension.is_empty() {
         version_dir.join(VERSION_FILE_NAME)
     } else {

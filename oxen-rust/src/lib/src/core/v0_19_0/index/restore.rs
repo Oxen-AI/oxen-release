@@ -185,7 +185,7 @@ pub fn restore_file(
     let last_modified_seconds = file_node.last_modified_seconds;
     log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
-    let version_path = util::fs::version_path_from_node(repo, &file_hash.to_string(), path);
+    let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
     log::debug!("restore::restore_regular: calculated version path");
 
     let working_path = repo.path.join(path);

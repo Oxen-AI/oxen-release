@@ -75,7 +75,7 @@ pub fn remove_staged_recursively(
             Ok((key, _)) => match str::from_utf8(&key) {
                 Ok(key) => {
                     for path in paths {
-                        let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+                        let path = util::fs::path_relative_to_dir(path, &repo.path)?;
                         let db_path = PathBuf::from(key);
                         log::debug!("considering rm db_path: {:?} for path: {:?}", db_path, path);
                         if db_path.starts_with(&path) && path != PathBuf::from("") {
@@ -104,7 +104,7 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+        let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
         remove_staged_entry(&relative_path, &staged_db)?;
     }
 
