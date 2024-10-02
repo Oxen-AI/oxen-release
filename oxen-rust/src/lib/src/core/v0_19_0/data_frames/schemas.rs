@@ -246,11 +246,6 @@ pub fn add_schema_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    let repo_path = &repo.path;
-
-    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
-    let mime_type = util::fs::file_mime_type(&full_path);
     let oxen_metadata = &file_node.metadata;
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
@@ -261,9 +256,6 @@ pub fn add_schema_metadata(
     file_node.name = path.to_str().unwrap().to_string();
     file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
     file_node.combined_hash = MerkleHash::new(combined_hash);
-    println!("FILE NODE HASH {:?}", &file_node.hash.to_string());
-    println!("HASHASHASHASH {:?}", combined_hash);
-    println!("add_schema_metadata: file_node  1: {file_node:?}");
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 
@@ -359,12 +351,6 @@ pub fn add_column_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    let repo_path = &repo.path;
-    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
-    let metadata = std::fs::metadata(&full_path)?;
-    let mime_type = util::fs::file_mime_type(&full_path);
-    let data_type = util::fs::datatype_from_mimetype(&full_path, &mime_type);
     let oxen_metadata = &file_node.metadata;
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
@@ -377,8 +363,6 @@ pub fn add_column_metadata(
     file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
-
-    //
 
     let mut buf = Vec::new();
     staged_entry
