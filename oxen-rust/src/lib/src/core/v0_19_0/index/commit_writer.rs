@@ -761,7 +761,6 @@ fn r_create_dir_node(
             *total_written += 1;
         }
 
-        let node = maybe_dir_db.as_ref().unwrap().data();
         log::debug!(
             "Processing vnode {} with {} entries",
             vnode.id,
