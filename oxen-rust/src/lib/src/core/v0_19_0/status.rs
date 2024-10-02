@@ -174,7 +174,7 @@ pub fn read_staged_entries_below_path(
 
                 if let Some(parent) = path.parent() {
                     let relative_start_path =
-                        util::fs::path_relative_to_dir(&start_path, &repo.path)?;
+                        util::fs::path_relative_to_dir(start_path, &repo.path)?;
                     log::debug!(
                         "read_staged_entries parent {:?} start_path {:?} relative {:?}",
                         parent,
@@ -393,20 +393,17 @@ fn find_untracked_and_modified_paths(
                     "find_untracked_and_modified_paths checking if child {} is removed",
                     child
                 );
-                match &child.node {
-                    EMerkleTreeNode::File(file) => {
-                        if is_removed(file, &full_dir) {
-                            log::debug!(
-                                "find_untracked_and_modified_paths is removed! dir {:?} child {}",
-                                full_dir,
-                                child
-                            );
-                            staged_data
-                                .removed_files
-                                .push(relative_dir.join(&file.name));
-                        }
+                if let EMerkleTreeNode::File(file) = &child.node {
+                    if is_removed(file, &full_dir) {
+                        log::debug!(
+                            "find_untracked_and_modified_paths is removed! dir {:?} child {}",
+                            full_dir,
+                            child
+                        );
+                        staged_data
+                            .removed_files
+                            .push(relative_dir.join(&file.name));
                     }
-                    _ => {}
                 }
             }
         }

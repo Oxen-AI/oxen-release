@@ -76,27 +76,24 @@ fn export_tabular_data_frames(
             );
             match &dir_entry.node.node {
                 EMerkleTreeNode::File(file_node) => {
-                    match file_node.data_type {
-                        EntryDataType::Tabular => {
-                            log::debug!(
-                                "Exporting tabular data frame: {:?} -> {:?}",
-                                path,
-                                file_node.name
-                            );
-                            let exported_path =
-                                workspaces::data_frames::extract_file_node_to_working_dir(
-                                    workspace, &path, &file_node,
-                                )?;
+                    if file_node.data_type == EntryDataType::Tabular {
+                        log::debug!(
+                            "Exporting tabular data frame: {:?} -> {:?}",
+                            path,
+                            file_node.name
+                        );
+                        let exported_path =
+                            workspaces::data_frames::extract_file_node_to_working_dir(
+                                workspace, &path, file_node,
+                            )?;
 
-                            // Update the metadata in the new staged merkle tree node
-                            let new_staged_merkle_tree_node =
-                                compute_staged_merkle_tree_node(workspace, &exported_path)?;
-                            new_dir_entries
-                                .entry(path.to_path_buf())
-                                .or_default()
-                                .push(new_staged_merkle_tree_node);
-                        }
-                        _ => {}
+                        // Update the metadata in the new staged merkle tree node
+                        let new_staged_merkle_tree_node =
+                            compute_staged_merkle_tree_node(workspace, &exported_path)?;
+                        new_dir_entries
+                            .entry(path.to_path_buf())
+                            .or_default()
+                            .push(new_staged_merkle_tree_node);
                     }
                 }
                 _ => {
@@ -118,14 +115,14 @@ fn compute_staged_merkle_tree_node(
     // This logic is copied from add.rs but add has some optimizations that make it hard to be reused here
     let metadata = std::fs::metadata(path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
-    let hash = util::hasher::get_hash_given_metadata(&path, &metadata)?;
+    let hash = util::hasher::get_hash_given_metadata(path, &metadata)?;
     let num_bytes = metadata.len();
     let hash = MerkleHash::new(hash);
 
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata(&path, &data_type)?;
+    let metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
 
     // Copy the file to the versioned directory
     let dst_dir = util::fs::version_dir_from_hash(&workspace.base_repo.path, hash.to_string());
@@ -138,7 +135,7 @@ fn compute_staged_merkle_tree_node(
 
     log::debug!("Copying file to {:?}", dst);
 
-    util::fs::copy(&path, &dst).unwrap();
+    util::fs::copy(path, &dst).unwrap();
     let file_extension = path.extension().unwrap_or_default().to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
     let file_node = FileNode {

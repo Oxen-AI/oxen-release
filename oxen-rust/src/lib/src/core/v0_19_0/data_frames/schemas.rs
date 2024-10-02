@@ -14,11 +14,8 @@ use serde::Serialize;
 use std::str;
 
 use crate::constants;
-use crate::constants::FILES_DIR;
-use crate::constants::VERSIONS_DIR;
 use crate::core::db;
 
-use crate::core::v0_19_0::add;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
@@ -221,7 +218,7 @@ pub fn add_schema_metadata(
     };
 
     let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
-    let mut parent_id = node.parent_id.clone();
+    let mut parent_id = node.parent_id;
     let mut staged_nodes = vec![];
 
     while let Some(current_parent_id) = parent_id {
@@ -229,7 +226,7 @@ pub fn add_schema_metadata(
             break;
         }
         let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
-        parent_id = parent_node.parent_id.clone();
+        parent_id = parent_node.parent_id;
         let staged_parent_node = StagedMerkleTreeNode {
             status: StagedEntryStatus::Unmodified,
             node: parent_node,
@@ -326,7 +323,7 @@ pub fn add_column_metadata(
     };
 
     let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
-    let mut parent_id = node.parent_id.clone();
+    let mut parent_id = node.parent_id;
     let mut staged_nodes = vec![];
 
     while let Some(current_parent_id) = parent_id {
@@ -334,7 +331,7 @@ pub fn add_column_metadata(
             break;
         }
         let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
-        parent_id = parent_node.parent_id.clone();
+        parent_id = parent_node.parent_id;
         let staged_parent_node = StagedMerkleTreeNode {
             status: StagedEntryStatus::Unmodified,
             node: parent_node,
