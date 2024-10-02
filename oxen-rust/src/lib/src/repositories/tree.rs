@@ -17,52 +17,6 @@ pub fn get_by_commit(
     CommitMerkleTree::from_commit(repo, commit)
 }
 
-pub fn print_tree(node: &MerkleTreeNode, depth: usize) {
-    let indent = "  ".repeat(depth);
-    println!("{}Node: {:?}", indent, node.hash);
-
-    match &node.node {
-        EMerkleTreeNode::Directory(dir) => {
-            println!("{}  Type: Directory", indent);
-            println!("{}  Name: {}", indent, dir.name);
-        }
-        EMerkleTreeNode::File(file) => {
-            println!("{}  Type: File", indent);
-            println!("{}  Name: {}", indent, file.name);
-            println!("{}  Size: {}", indent, file.num_bytes);
-            match &file.metadata {
-                Some(metadata) => match metadata {
-                    GenericMetadata::MetadataTabular(tabular) => {
-                        for field in tabular.tabular.schema.fields.clone() {
-                            println!("{}  Field name : {:?}", indent, field.name);
-                            println!("{}  Field dtype : {:?}", indent, field.metadata);
-                        }
-                    }
-                    _ => println!("{}  Metadata: None", indent),
-                },
-                None => println!("{}  Metadata: None", indent),
-            }
-        }
-        EMerkleTreeNode::VNode(_) => {
-            println!("{}  Type: VNode", indent);
-        }
-        EMerkleTreeNode::Schema(_) => {
-            println!("{}  Type: Schema", indent);
-        }
-        EMerkleTreeNode::FileChunk(_) => {
-            println!("{}  Type: FileChunk", indent);
-        }
-        EMerkleTreeNode::Commit(commit) => {
-            println!("{}  Type: Commit", indent);
-            println!("{}  Commit: {}", indent, commit.hash);
-        }
-    }
-
-    for child in &node.children {
-        print_tree(child, depth + 1);
-    }
-}
-
 pub fn get_node_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,

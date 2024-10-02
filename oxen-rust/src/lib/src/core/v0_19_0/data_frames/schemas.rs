@@ -179,7 +179,6 @@ pub fn add_schema_metadata(
     path: impl AsRef<Path>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    println!("add schema here");
     let path = path.as_ref();
     let db = get_staged_db(repo)?;
 
@@ -221,20 +220,15 @@ pub fn add_schema_metadata(
         node: staged_entry_node.clone(),
     };
 
-    println!("before new fixes");
     let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
-    println!("node: {:?}", node);
     let mut parent_id = node.parent_id.clone();
-    println!("parent_id: {:?}", parent_id);
     let mut staged_nodes = vec![];
 
     while let Some(current_parent_id) = parent_id {
         if current_parent_id == MerkleHash::new(0) {
             break;
         }
-        println!("current_parent_id: {:?}", current_parent_id);
         let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
-        println!("parent_node: {:?}", parent_node);
         parent_id = parent_node.parent_id.clone();
         let staged_parent_node = StagedMerkleTreeNode {
             status: StagedEntryStatus::Unmodified,
@@ -242,8 +236,6 @@ pub fn add_schema_metadata(
         };
         staged_nodes.push(staged_parent_node);
     }
-
-    println!("staged_nodes: {:?}", staged_nodes);
 
     for staged_node in staged_nodes.iter() {
         let key = staged_node.node.hash.to_string();
@@ -258,9 +250,7 @@ pub fn add_schema_metadata(
 
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
-    let metadata = std::fs::metadata(&full_path)?;
     let mime_type = util::fs::file_mime_type(&full_path);
-    let data_type = util::fs::datatype_from_mimetype(&full_path, &mime_type);
     let oxen_metadata = &file_node.metadata;
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
@@ -295,7 +285,6 @@ pub fn add_column_metadata(
     let db = get_staged_db(repo)?;
     let path = path.as_ref();
     let column = column.as_ref();
-    println!("add_column_metadata here");
     // Get the FileNode from the CommitMerkleTree
     let Some(commit) = repositories::commits::head_commit_maybe(repo)? else {
         return Err(OxenError::basic_str(
@@ -339,27 +328,20 @@ pub fn add_column_metadata(
         }
     }
 
-    println!("opin debug {:?}", file_node);
-
     let mut staged_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Modified,
         node: MerkleTreeNode::from_file(file_node.clone()),
     };
 
-    println!("before new fixes");
     let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
-    println!("node: {:?}", node);
     let mut parent_id = node.parent_id.clone();
-    println!("parent_id: {:?}", parent_id);
     let mut staged_nodes = vec![];
 
     while let Some(current_parent_id) = parent_id {
         if current_parent_id == MerkleHash::new(0) {
             break;
         }
-        println!("current_parent_id: {:?}", current_parent_id);
         let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
-        println!("parent_node: {:?}", parent_node);
         parent_id = parent_node.parent_id.clone();
         let staged_parent_node = StagedMerkleTreeNode {
             status: StagedEntryStatus::Unmodified,
@@ -367,8 +349,6 @@ pub fn add_column_metadata(
         };
         staged_nodes.push(staged_parent_node);
     }
-
-    println!("staged_nodes: {:?}", staged_nodes);
 
     for staged_node in staged_nodes.iter() {
         let key = staged_node.node.hash.to_string();
@@ -379,22 +359,13 @@ pub fn add_column_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    println!("debug 1");
     let repo_path = &repo.path;
-    println!("debug 2");
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    println!("debug 3");
     let full_path = repo_path.join(&relative_path);
-    println!("debug 4 {:?}", full_path);
     let metadata = std::fs::metadata(&full_path)?;
-    println!("debug 5");
     let mime_type = util::fs::file_mime_type(&full_path);
-    println!("debug 6");
     let data_type = util::fs::datatype_from_mimetype(&full_path, &mime_type);
-    println!("debug 7");
     let oxen_metadata = &file_node.metadata;
-    println!("oxen_metadata {:?}", oxen_metadata);
-    println!("debug 8");
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
         util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
@@ -404,8 +375,6 @@ pub fn add_column_metadata(
     file_node.name = path.to_str().unwrap().to_string();
     file_node.combined_hash = MerkleHash::new(combined_hash);
     file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
-
-    println!("add_column_metadata: file_node 2: {file_node:?}");
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 

@@ -168,7 +168,6 @@ pub fn read_staged_entries_below_path(
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
-                println!("eloy this is the entry {:?}", entry);
                 // log::debug!("read_staged_entries key {} entry: {}", key, entry);
                 let key_path = PathBuf::from(key);
                 dir_entries.insert(key_path, vec![]);
