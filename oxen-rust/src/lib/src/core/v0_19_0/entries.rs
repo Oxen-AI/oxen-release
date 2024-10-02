@@ -3,7 +3,7 @@ use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, Merkle
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{
-    Commit, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+    Commit, CommitEntry, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
 };
 use crate::opts::PaginateOpts;
 use crate::repositories;
@@ -356,4 +356,22 @@ pub fn list_tabular_files_in_repo(
         .map(|node| MetadataEntry::from_file_node(&repo, Some(node), &commit).unwrap())
         .collect();
     Ok(entries)
+}
+
+pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    Ok(entries.len())
+}
+
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    Ok(entries
+        .into_iter()
+        .map(|entry| CommitEntry::from_file_node(&entry.file_node))
+        .collect())
 }

@@ -8,6 +8,7 @@ use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::refs::RefWriter;
 
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::RepoNew;
@@ -231,6 +232,34 @@ where
 
     // Remove repo dir
     util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
+pub fn run_empty_local_repo_test_w_version<T>(
+    version: MinOxenVersion,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    log::info!("<<<<< run_empty_local_repo_test start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init::init_with_version(&repo_dir, version)?;
+
+    log::info!(">>>>> run_empty_local_repo_test running test");
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -1141,6 +1170,49 @@ where
     let tree = repositories::tree::get_by_commit(&repo, &commit)?;
     println!("setup tree after commit:");
     tree.print();
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_training_data_repo_test_fully_committed running test");
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
+/// Run a test on a repo with a bunch of files
+pub fn run_training_data_repo_test_fully_committed_w_version<T>(
+    version: MinOxenVersion,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    log::info!("<<<<< run_training_data_repo_test_fully_committed start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init::init_with_version(&repo_dir, version)?;
+    // Write all the files
+    populate_dir_with_training_data(&repo_dir)?;
+
+    // Add all the files
+    repositories::add(&repo, &repo.path)?;
+
+    // Get the status and print it
+    let status = repositories::status(&repo)?;
+    println!("setup status: {status:?}");
+    status.print();
+
+    // Commit the data
+    repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_repo_test_fully_committed running test");

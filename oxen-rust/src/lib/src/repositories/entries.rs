@@ -162,13 +162,17 @@ pub fn list_for_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.list_entries()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::list_for_commit(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::list_for_commit(repo, commit),
+    }
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.num_entries()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::count_for_commit(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::count_for_commit(repo, commit),
+    }
 }
 
 pub fn list_page(
