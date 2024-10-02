@@ -352,7 +352,6 @@ pub fn process_add_file(
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
         // first check if the file timestamp is different
-        println!("pathpathpath {:?}", path);
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         if has_different_modification_time(&file_node, &mtime) {
@@ -381,7 +380,6 @@ pub fn process_add_file(
             )
         }
     } else {
-        println!("pathpathpath {:?}", path);
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;

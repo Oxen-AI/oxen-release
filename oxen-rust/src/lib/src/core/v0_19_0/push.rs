@@ -149,16 +149,13 @@ async fn r_push_node(
     log::debug!("r_push_node: {}", node);
 
     // Check if the node exists on the remote
-    println!("r_push_node: {:?}", node);
     let has_node = api::client::tree::has_node(remote_repo, node.hash).await?;
-    println!("has_node: {:?}", has_node);
     log::debug!("has_node: {:?}", has_node);
 
     // If not exists, create it
     if !has_node {
         // Create the node on the server
         log::debug!("Creating node on the server: {}", node);
-        println!("Creating node on the server: {}", node);
 
         // If node is a commit, we need to push the dir hashes too
         if let EMerkleTreeNode::Commit(_) = &node.node {
@@ -168,8 +165,6 @@ async fn r_push_node(
 
         api::client::tree::create_node(repo, remote_repo, node).await?;
     }
-
-    println!("created node on the server");
 
     // If the node is not a VNode, it does not have file children, so we can return
     if MerkleTreeNodeType::VNode != node.node.dtype() {
@@ -206,7 +201,6 @@ async fn push_files(
     hashes: &HashSet<MerkleHash>,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
-    println!("push_files");
     // Get all the entries
     let mut entries: Vec<Entry> = Vec::new();
     for child in &node.children {
@@ -226,9 +220,6 @@ async fn push_files(
     }
 
     log::debug!("pushing {} entries", entries.len());
-    for entry in &entries {
-        println!("pushing entry: {}", entry.path().to_string_lossy());
-    }
     core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &entries, commit, progress)
         .await?;
     Ok(())
