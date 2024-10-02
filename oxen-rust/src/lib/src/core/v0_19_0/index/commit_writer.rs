@@ -101,6 +101,13 @@ pub fn commit_with_cfg(
         status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
     commit_progress_bar.set_message(format!("Committing {} changes", total_changes));
 
+    for (path, entries) in dir_entries.iter() {
+        println!("this is path {:?}", path);
+        for entry in entries.iter() {
+            println!("this is entry {:?}", entry.node.maybe_path());
+        }
+    }
+
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
 
@@ -286,8 +293,48 @@ pub fn commit_dir_entries_new(
         existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
 
+    println!(
+        "
+
+
+    "
+    );
+    println!("dir_entries {:?}", dir_entries);
+
     // Sort children and split into VNodes
     let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
+
+    println!(
+        "
+
+        aaaaaa bbbbb
+     {:?}",
+        vnode_entries.len()
+    );
+    // Log all vnode EntryVNodes
+    for (dir, vnodes) in &vnode_entries {
+        println!("Directory: {:?}", dir);
+        for (index, vnode) in vnodes.iter().enumerate() {
+            println!("  VNode {}: ID: {}", index, vnode.id);
+            for entry in &vnode.entries {
+                println!(
+                    "    Entry: {:?} - Status: {:?}",
+                    entry.node.maybe_path(),
+                    entry.node.hash
+                );
+
+                let file_node = &entry.node;
+                println!("    Entry: {:?}", file_node);
+            }
+        }
+    }
+
+    println!(
+        "
+
+
+    "
+    );
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
@@ -330,6 +377,17 @@ pub fn commit_dir_entries_new(
     }
 
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+
+    println!("Printing all vnode entries:");
+    for (dir, vnodes) in &vnode_entries {
+        println!("Directory: {:?}", dir);
+        for vnode in vnodes {
+            println!("  VNode ID: {}", vnode.id);
+            for entry in &vnode.entries {
+                println!("    Entry: {:?} - Status: {:?}", entry.node, entry.status);
+            }
+        }
+    }
     write_commit_entries(
         repo,
         &maybe_head_commit,
@@ -338,6 +396,20 @@ pub fn commit_dir_entries_new(
         &dir_hash_db,
         &vnode_entries,
     )?;
+
+    let commit_node: Option<MerkleTreeNode> =
+        repositories::tree::get_node_by_id_recursive(repo, &commit_id)?;
+    println!("commit_node {:?}", commit_node);
+    for child in commit_node.unwrap().children.iter() {
+        println!("child {:?}", child.hash);
+        for child2 in child.children.iter() {
+            println!("child2 {:?}", child2.hash);
+            for child3 in child2.children.iter() {
+                println!("child3 {:?}", child3.hash);
+            }
+        }
+    }
+
     commit_progress_bar.finish_and_clear();
 
     // Remove all the directories that are staged for removal
@@ -479,7 +551,8 @@ fn node_data_to_staged_node(
     match node.node.dtype() {
         MerkleTreeNodeType::Dir => {
             let mut dir_node = node.dir()?;
-            let path = base_dir.join(dir_node.name);
+            //
+            let path = PathBuf::from(dir_node.name);
             dir_node.name = path.to_str().unwrap().to_string();
             Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
@@ -550,11 +623,35 @@ fn split_into_vnodes(
 
         // Update the children with the new entries from status
         for child in new_children.iter() {
+            println!("new_child {:?}", child.node.node);
             log::debug!(
                 "new_child {:?} {:?}",
                 child.node.node.dtype(),
                 child.node.maybe_path().unwrap()
             );
+
+            println!(
+                "
+
+            "
+            );
+            println!(
+                "this is child.node.maybe_path() {:?}",
+                child.node.maybe_path()
+            );
+
+            for child2 in children.iter() {
+                println!(
+                    "this is child2.node.maybe_path() {:?}",
+                    child2.node.maybe_path()
+                );
+            }
+            println!(
+                "
+
+            "
+            );
+
             // Overwrite the existing child
             // if add or modify, replace the child
             // if remove, remove the child
@@ -671,7 +768,28 @@ fn split_into_vnodes(
         for vnode in vnodes.iter_mut() {
             log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
-                log::debug!(
+                println!(
+                    "
+
+
+
+
+
+                    elllloooy
+
+
+
+
+
+
+
+
+
+
+
+                "
+                );
+                println!(
                     "    entry {:?} {} with status {:?}",
                     entry.node.node.dtype(),
                     entry.node.maybe_path().unwrap().to_str().unwrap(),
@@ -716,6 +834,7 @@ fn write_commit_entries(
         &dir_node.hash.to_string(),
     )?;
     let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
+    /// DEBUGGIN HERE
     r_create_dir_node(
         repo,
         maybe_head_commit,
@@ -742,15 +861,31 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
-    log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
+    println!("r_create_dir_node entries.len() {:?}", entries.len());
+
+    println!("Entries ss ");
+    for (path, vnodes) in entries {
+        println!("  Path: {:?}", path);
+        for vnode in vnodes {
+            println!("    VNode ID: {}", vnode.id);
+            for entry in &vnode.entries {
+                println!("      Entry: {:?} - Status: {:?}", entry.node, entry.status);
+            }
+        }
+    }
+
+    println!("Path: {:?}", path);
 
     let Some(vnodes) = entries.get(&path) else {
+        println!("No entries found for directory {:?}", path);
         log::debug!(
             "r_create_dir_node No entries found for directory {:?}",
             path
         );
         return Ok(());
     };
+
+    println!("entries found");
 
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
@@ -762,6 +897,9 @@ fn r_create_dir_node(
             dir_db.add_child(&vnode_obj)?;
             *total_written += 1;
         }
+
+        let node = maybe_dir_db.as_ref().unwrap().data();
+        println!("THIS IS HAPPENING {:?}", node);
         log::debug!(
             "Processing vnode {} with {} entries",
             vnode.id,

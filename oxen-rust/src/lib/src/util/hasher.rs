@@ -1,5 +1,6 @@
 use crate::core::db::key_val::tree_db::TreeObjectChild;
 use crate::error::OxenError;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{ContentHashable, NewCommit};
 use sha2::{Digest, Sha256};
 use std::fs::File;
@@ -102,6 +103,28 @@ pub fn get_hash_given_metadata(
     } else {
         hash_large_file_contents(path)
     }
+}
+
+pub fn get_combined_hash(
+    oxen_metadata_hash: Option<u128>,
+    content_hash: u128,
+) -> Result<u128, OxenError> {
+    match oxen_metadata_hash {
+        Some(oxen_metadata) => {
+            let mut hasher = Xxh3::new();
+            hasher.update(&content_hash.to_le_bytes());
+            hasher.update(&oxen_metadata.to_le_bytes());
+            Ok(hasher.digest128())
+        }
+        None => Ok(content_hash),
+    }
+}
+
+pub fn get_metadata_hash(oxen_metadata: &Option<GenericMetadata>) -> Result<u128, OxenError> {
+    let mut hasher = Xxh3::new();
+    let metadata_str = serde_json::to_string(&oxen_metadata).unwrap();
+    hasher.update(metadata_str.as_bytes());
+    Ok(hasher.digest128())
 }
 
 pub fn get_hash_and_size(path: &Path) -> Result<(u128, u64), OxenError> {

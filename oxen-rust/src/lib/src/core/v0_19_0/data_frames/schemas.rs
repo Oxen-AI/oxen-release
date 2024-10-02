@@ -14,14 +14,18 @@ use serde::Serialize;
 use std::str;
 
 use crate::constants;
+use crate::constants::FILES_DIR;
+use crate::constants::VERSIONS_DIR;
 use crate::core::db;
 
+use crate::core::v0_19_0::add;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::MerkleHash;
 use crate::model::StagedEntryStatus;
 use crate::model::{Commit, LocalRepository, Schema};
 use crate::repositories;
@@ -175,6 +179,7 @@ pub fn add_schema_metadata(
     path: impl AsRef<Path>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
+    println!("add schema here");
     let path = path.as_ref();
     let db = get_staged_db(repo)?;
 
@@ -184,9 +189,20 @@ pub fn add_schema_metadata(
             "Cannot add metadata, no commits found.",
         ));
     };
+    let key = path.to_string_lossy();
 
-    let Some(mut file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
-        return Err(OxenError::path_does_not_exist(path));
+    let staged_merkle_tree_node = db.get(key.as_bytes())?;
+
+    let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
+        let staged_merkle_tree_node: StagedMerkleTreeNode =
+            rmp_serde::from_slice(&staged_merkle_tree_node)
+                .map_err(|_| OxenError::basic_str("Could not read staged merkle tree node"))?;
+        staged_merkle_tree_node.node.file()?
+    } else {
+        let Some(file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
+            return Err(OxenError::path_does_not_exist(path));
+        };
+        file_node
     };
 
     // Update the metadata
@@ -199,12 +215,68 @@ pub fn add_schema_metadata(
         }
     }
 
-    let staged_entry = StagedMerkleTreeNode {
+    let staged_entry_node = MerkleTreeNode::from_file(file_node.clone());
+    let mut staged_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Modified,
-        node: MerkleTreeNode::from_file(file_node),
+        node: staged_entry_node.clone(),
     };
 
-    let key = path.to_string_lossy();
+    println!("before new fixes");
+    let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
+    println!("node: {:?}", node);
+    let mut parent_id = node.parent_id.clone();
+    println!("parent_id: {:?}", parent_id);
+    let mut staged_nodes = vec![];
+
+    while let Some(current_parent_id) = parent_id {
+        if current_parent_id == MerkleHash::new(0) {
+            break;
+        }
+        println!("current_parent_id: {:?}", current_parent_id);
+        let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
+        println!("parent_node: {:?}", parent_node);
+        parent_id = parent_node.parent_id.clone();
+        let staged_parent_node = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Unmodified,
+            node: parent_node,
+        };
+        staged_nodes.push(staged_parent_node);
+    }
+
+    println!("staged_nodes: {:?}", staged_nodes);
+
+    for staged_node in staged_nodes.iter() {
+        let key = staged_node.node.hash.to_string();
+        let mut buf = Vec::new();
+        staged_node
+            .serialize(&mut Serializer::new(&mut buf))
+            .unwrap();
+        db.put(key.as_bytes(), &buf)?;
+    }
+
+    let repo_path = &repo.path;
+
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    let full_path = repo_path.join(&relative_path);
+    let metadata = std::fs::metadata(&full_path)?;
+    let mime_type = util::fs::file_mime_type(&full_path);
+    let data_type = util::fs::datatype_from_mimetype(&full_path, &mime_type);
+    let oxen_metadata = &file_node.metadata;
+    let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
+    let combined_hash =
+        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
+
+    let mut file_node = staged_entry.node.file()?;
+
+    file_node.name = path.to_str().unwrap().to_string();
+    file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
+    file_node.combined_hash = MerkleHash::new(combined_hash);
+    println!("FILE NODE HASH {:?}", &file_node.hash.to_string());
+    println!("HASHASHASHASH {:?}", combined_hash);
+    println!("add_schema_metadata: file_node  1: {file_node:?}");
+
+    staged_entry.node = MerkleTreeNode::from_file(file_node);
+
     let mut buf = Vec::new();
     staged_entry
         .serialize(&mut Serializer::new(&mut buf))
@@ -223,7 +295,7 @@ pub fn add_column_metadata(
     let db = get_staged_db(repo)?;
     let path = path.as_ref();
     let column = column.as_ref();
-
+    println!("add_column_metadata here");
     // Get the FileNode from the CommitMerkleTree
     let Some(commit) = repositories::commits::head_commit_maybe(repo)? else {
         return Err(OxenError::basic_str(
@@ -231,8 +303,20 @@ pub fn add_column_metadata(
         ));
     };
 
-    let Some(mut file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
-        return Err(OxenError::path_does_not_exist(path));
+    let key = path.to_string_lossy();
+
+    let staged_merkle_tree_node = db.get(key.as_bytes())?;
+
+    let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
+        let staged_merkle_tree_node: StagedMerkleTreeNode =
+            rmp_serde::from_slice(&staged_merkle_tree_node)
+                .map_err(|_| OxenError::basic_str("Could not read staged merkle tree node"))?;
+        staged_merkle_tree_node.node.file()?
+    } else {
+        let Some(file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
+            return Err(OxenError::path_does_not_exist(path));
+        };
+        file_node
     };
 
     // Update the column metadata
@@ -255,17 +339,84 @@ pub fn add_column_metadata(
         }
     }
 
-    let staged_entry = StagedMerkleTreeNode {
+    println!("opin debug {:?}", file_node);
+
+    let mut staged_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Modified,
-        node: MerkleTreeNode::from_file(file_node),
+        node: MerkleTreeNode::from_file(file_node.clone()),
     };
 
-    let key = path.to_string_lossy();
+    println!("before new fixes");
+    let node = repositories::tree::get_node_by_path(repo, &commit, path)?.unwrap();
+    println!("node: {:?}", node);
+    let mut parent_id = node.parent_id.clone();
+    println!("parent_id: {:?}", parent_id);
+    let mut staged_nodes = vec![];
+
+    while let Some(current_parent_id) = parent_id {
+        if current_parent_id == MerkleHash::new(0) {
+            break;
+        }
+        println!("current_parent_id: {:?}", current_parent_id);
+        let parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
+        println!("parent_node: {:?}", parent_node);
+        parent_id = parent_node.parent_id.clone();
+        let staged_parent_node = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Unmodified,
+            node: parent_node,
+        };
+        staged_nodes.push(staged_parent_node);
+    }
+
+    println!("staged_nodes: {:?}", staged_nodes);
+
+    for staged_node in staged_nodes.iter() {
+        let key = staged_node.node.hash.to_string();
+        let mut buf = Vec::new();
+        staged_node
+            .serialize(&mut Serializer::new(&mut buf))
+            .unwrap();
+        db.put(key.as_bytes(), &buf)?;
+    }
+
+    println!("debug 1");
+    let repo_path = &repo.path;
+    println!("debug 2");
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    println!("debug 3");
+    let full_path = repo_path.join(&relative_path);
+    println!("debug 4 {:?}", full_path);
+    let metadata = std::fs::metadata(&full_path)?;
+    println!("debug 5");
+    let mime_type = util::fs::file_mime_type(&full_path);
+    println!("debug 6");
+    let data_type = util::fs::datatype_from_mimetype(&full_path, &mime_type);
+    println!("debug 7");
+    let oxen_metadata = &file_node.metadata;
+    println!("oxen_metadata {:?}", oxen_metadata);
+    println!("debug 8");
+    let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
+    let combined_hash =
+        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
+
+    let mut file_node = staged_entry.node.file()?;
+
+    file_node.name = path.to_str().unwrap().to_string();
+    file_node.combined_hash = MerkleHash::new(combined_hash);
+    file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
+
+    println!("add_column_metadata: file_node 2: {file_node:?}");
+
+    staged_entry.node = MerkleTreeNode::from_file(file_node);
+
+    //
+
     let mut buf = Vec::new();
     staged_entry
         .serialize(&mut Serializer::new(&mut buf))
         .unwrap();
     db.put(key.as_bytes(), &buf)?;
+
     Ok(results)
 }
 

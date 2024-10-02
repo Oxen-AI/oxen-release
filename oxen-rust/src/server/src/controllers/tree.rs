@@ -125,6 +125,8 @@ pub async fn create_node(
         }
     }
 
+    println!("create_node: {:?}", hash);
+
     if let Some(hash) = hash {
         let node = repositories::tree::get_node_by_id(&repository, &hash)?
             .ok_or(OxenHttpError::NotFound)?;
