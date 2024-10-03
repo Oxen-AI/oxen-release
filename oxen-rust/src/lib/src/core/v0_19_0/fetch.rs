@@ -16,13 +16,18 @@ use crate::repositories;
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
 
-// TODO: handle the all flag
 pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     remote_branch: &RemoteBranch,
-    _all: bool,
+    all: bool,
 ) -> Result<(), OxenError> {
+    log::debug!(
+        "fetching remote branch {} --all {}",
+        remote_branch.branch,
+        all
+    );
+
     // Start the timer
     let start = std::time::Instant::now();
 
@@ -50,7 +55,7 @@ pub async fn fetch_remote_branch(
 
     // Download the commit history
     // Check what our HEAD commit is locally
-    if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
+    let commits = if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         // Download the commits between the head commit and the remote branch commit
         let base_commit_id = head_commit.id;
         let head_commit_id = &remote_branch.commit_id;
@@ -60,19 +65,36 @@ pub async fn fetch_remote_branch(
             &base_commit_id,
             &head_commit_id,
         )
-        .await?;
+        .await?
     } else {
         // Download the commits from the remote branch commit to the first commit
         api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
-            .await?;
-    }
+            .await?
+    };
 
     // Keep track of how many bytes we have downloaded
     let pull_progress = PullProgress::new();
 
     // Recursively download the entries
-    let directory = PathBuf::from("");
-    r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
+    if all {
+        log::debug!("fetching all {} commits", commits.len());
+        for commit in commits {
+            log::debug!("fetching all commits {}", commit);
+            let hash = MerkleHash::from_str(&commit.id)?;
+            let commit_node = api::client::tree::download_tree(repo, remote_repo, &hash).await?;
+            r_download_entries(
+                repo,
+                remote_repo,
+                &commit_node,
+                &PathBuf::from(""),
+                &pull_progress,
+            )
+            .await?;
+        }
+    } else {
+        let directory = PathBuf::from("");
+        r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
+    }
 
     let ref_writer = RefWriter::new(repo)?;
     ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
@@ -191,6 +213,13 @@ async fn r_download_entries(
             pull_progress,
         )
         .await?;
+    }
+
+    if let EMerkleTreeNode::Commit(commit_node) = &node.node {
+        // Mark the commit as synced
+        let commit_id = commit_node.hash.to_string();
+        let commit = repositories::commits::get_by_id(repo, &commit_id)?.unwrap();
+        core::commit_sync_status::mark_commit_as_synced(repo, &commit)?;
     }
 
     Ok(())

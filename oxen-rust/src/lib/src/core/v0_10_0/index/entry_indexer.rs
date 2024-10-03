@@ -16,7 +16,7 @@ use crate::core::v0_19_0::structs::PullProgress;
 use crate::core::{self, db};
 
 use crate::core::refs::RefWriter;
-use crate::core::v0_10_0::index::{self, puller, versioner, Merger, Stager};
+use crate::core::v0_10_0::index::{puller, versioner, Merger, Stager};
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
 
 use crate::error::OxenError;
@@ -115,7 +115,7 @@ impl EntryIndexer {
         // If our local branch is currently completely synced (from a clone or pull --all), we should
         // override the opts and pull all commits
         if let Some(ref commit) = head_commit {
-            if core::v0_10_0::commits::commit_history_is_complete(&self.repository, commit) {
+            if repositories::commits::commit_history_is_complete(&self.repository, commit)? {
                 opts.should_pull_all = true;
             }
         }
@@ -141,7 +141,7 @@ impl EntryIndexer {
         }
 
         // Mark the new commit (merged or pulled) as synced
-        index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
+        core::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
         // TODO: Revisit after revising shallow logic
@@ -213,7 +213,7 @@ impl EntryIndexer {
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
         log::debug!("checking if {} commits are synced", commits.len());
         for c in &commits {
-            if !index::commit_sync_status::commit_is_synced(&self.repository, c) {
+            if !core::commit_sync_status::commit_is_synced(&self.repository, c) {
                 unsynced_entry_commits.push(c.clone());
             }
         }
@@ -232,7 +232,7 @@ impl EntryIndexer {
 
         // Mark commits as synced for future pulls
         for commit in commits {
-            index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
+            core::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
         }
 
         Ok(new_head)
@@ -253,7 +253,7 @@ impl EntryIndexer {
                 self.pull_all_entries_for_commit(remote_repo, &commit)
                     .await?;
                 // Mark commit complete
-                index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
+                core::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
                 Ok(commit)
             }
             Ok(None) => repositories::commits::head_commit(&self.repository),
@@ -713,7 +713,7 @@ impl EntryIndexer {
             commit.message
         );
 
-        if index::commit_sync_status::commit_is_synced(&self.repository, &commit) {
+        if core::commit_sync_status::commit_is_synced(&self.repository, &commit) {
             log::debug!(
                 "🐂 commit {} -> '{}' is already synced",
                 commit.id,
@@ -830,7 +830,7 @@ impl EntryIndexer {
 
     fn pull_complete(&self, commit: &Commit) -> Result<(), OxenError> {
         // This is so that we know when we switch commits that we don't need to pull versions again
-        index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;
+        core::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;
 
         // When we successfully pull the data, the repo is no longer shallow
         self.repository.write_is_shallow(false)?;

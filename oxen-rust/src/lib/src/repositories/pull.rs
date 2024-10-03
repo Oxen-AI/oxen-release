@@ -58,8 +58,8 @@ mod tests {
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::OXEN_HIDDEN_DIR;
+    use crate::core;
     use crate::core::df::tabular;
-    use crate::core::v0_10_0::index;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
@@ -1358,7 +1358,7 @@ mod tests {
                 let mut synced_commits = 0;
                 log::debug!("total n remote commits {}", remote_commits.len());
                 for commit in remote_commits {
-                    if index::commit_sync_status::commit_is_synced(&user_a_shallow, &commit) {
+                    if core::commit_sync_status::commit_is_synced(&user_a_shallow, &commit) {
                         synced_commits += 1;
                     }
                 }
@@ -1421,7 +1421,7 @@ mod tests {
                 let mut synced_commits = 0;
                 log::debug!("total n remote commits {}", remote_commits.len());
                 for commit in remote_commits {
-                    if index::commit_sync_status::commit_is_synced(&user_a_repo, &commit) {
+                    if core::commit_sync_status::commit_is_synced(&user_a_repo, &commit) {
                         synced_commits += 1;
                     }
                 }

@@ -2,6 +2,7 @@ use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::key_val::path_db;
 
+use crate::core;
 use crate::core::db;
 use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
@@ -133,7 +134,7 @@ impl CommitWriter {
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // Mark as synced so we know we don't need to pull versions files again
-        index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
+        core::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // User output
         println!("Commit {} done.", commit.id);
