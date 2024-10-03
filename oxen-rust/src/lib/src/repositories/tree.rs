@@ -88,10 +88,10 @@ pub fn get_entries(
         log::debug!("get_entries found dir node: {dir_node:?}");
         CommitMerkleTree::dir_entries(&dir_node)
     } else {
-        return Err(OxenError::basic_str(format!(
+        Err(OxenError::basic_str(format!(
             "Error: path not found in tree: {:?}",
             path.as_ref()
-        )));
+        )))
     }
 }
 

@@ -151,7 +151,7 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
     // Iterate over these, copying the new-format data.extension file to commit_id.extension for all
     // commit ids, then delete new file
     for ((hash, path), commit_id) in entry_hash_and_path_to_first_commit_id.iter() {
-        let version_dir = version_dir_from_hash(&repo.path, hash.to_string());
+        let version_dir = version_dir_from_hash(&repo.path, hash);
         let extension = util::fs::file_extension(path);
         let new_filename = if extension.is_empty() {
             version_dir.join(VERSION_FILE_NAME)
@@ -170,7 +170,7 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
     // Now that all have been copied, iterate through and delete the new-format files
     let mut seen_files = HashSet::<PathBuf>::new();
     for ((hash, path), _commit_id) in entry_hash_and_path_to_first_commit_id.iter() {
-        let version_dir = version_dir_from_hash(&repo.path, hash.to_string());
+        let version_dir = version_dir_from_hash(&repo.path, hash);
         let extension = util::fs::file_extension(path);
         let new_filename = if extension.is_empty() {
             version_dir.join(VERSION_FILE_NAME)
