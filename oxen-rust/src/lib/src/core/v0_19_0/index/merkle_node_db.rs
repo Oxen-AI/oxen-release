@@ -289,7 +289,7 @@ impl MerkleNodeDB {
         Ok(db)
     }
 
-    fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
+    pub fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
         let path = path.as_ref();
 
         // mkdir if not exists

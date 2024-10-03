@@ -6,14 +6,12 @@
 use std::path::Path;
 
 use crate::api;
-use crate::error::OxenError;
-use crate::model::RemoteRepository;
-use crate::model::MetadataEntry;
-use crate::core::versions::MinOxenVersion;
-use crate::core::v0_10_0::download;
-use crate::model::LocalRepository;
-use std::path::PathBuf;
 use crate::core;
+use crate::core::versions::MinOxenVersion;
+use crate::error::OxenError;
+use crate::model::MetadataEntry;
+use crate::model::RemoteRepository;
+use std::path::PathBuf;
 
 pub async fn download(
     repo: &RemoteRepository,
@@ -40,7 +38,6 @@ pub async fn download_dir(
     entry: &MetadataEntry,
     local_path: &PathBuf,
 ) -> Result<(), OxenError> {
-
     match remote_repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             log::debug!("Calling v0_10_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
@@ -49,7 +46,7 @@ pub async fn download_dir(
         MinOxenVersion::V0_19_0 => {
             log::debug!("Calling v0_19_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
             core::v0_19_0::download::download_dir(remote_repo, entry, local_path).await?;
-        }   
+        }
     }
 
     Ok(())

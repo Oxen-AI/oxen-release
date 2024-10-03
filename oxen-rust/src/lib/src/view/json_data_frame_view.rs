@@ -214,7 +214,7 @@ impl JsonDataFrameView {
                     } else {
                         let cols = columns
                             .iter()
-                            .map(|name| Series::new(name, Vec::<&str>::new()))
+                            .map(|name| Series::new(PlSmallStr::from_str(name), Vec::<&str>::new()))
                             .collect::<Vec<Series>>();
                         DataFrame::new(cols).unwrap()
                     }
@@ -302,7 +302,7 @@ fn sanitize_df_for_serialization(df: &mut DataFrame) -> Result<(), OxenError> {
             DataType::Struct(subfields) => {
                 let mut cast_series = series.clone();
                 for subfield in subfields {
-                    if let DataType::Binary = subfield.data_type() {
+                    if let DataType::Binary = subfield.dtype() {
                         cast_series = cast_binary_to_string_with_fallback(
                             series,
                             &format!("struct[{}]", subfields.len()),
@@ -336,6 +336,6 @@ fn cast_binary_to_string_with_fallback(series: &Series, out: &str) -> Series {
     } else {
         let mut vec = vec![out];
         vec.resize(series.len(), out);
-        Series::new(series.name(), vec)
+        Series::new(series.name().clone(), vec)
     }
 }

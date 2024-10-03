@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::core::v0_19_0::structs::PullProgress;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::RemoteRepository;
@@ -59,7 +60,7 @@ pub async fn pull_entries(
         (small_entry_paths, large_entry_paths)
     } else {
         let small_entry_paths =
-            version_dir_paths_from_small_entries(&smaller_entries, dst.as_ref());
+            version_dir_paths_from_small_entries(remote_repo, &smaller_entries, dst.as_ref());
         let large_entry_paths = version_dir_paths_from_large_entries(&larger_entries, dst.as_ref());
         (small_entry_paths, large_entry_paths)
     };
@@ -100,16 +101,37 @@ pub async fn pull_entries(
 
 // This one redundantly is just going to pass in two copies of
 // the version path so we don't have to change download_data_from_version_paths
-fn version_dir_paths_from_small_entries(entries: &[Entry], dst: &Path) -> Vec<(String, PathBuf)> {
+fn version_dir_paths_from_small_entries(
+    remote_repo: &RemoteRepository,
+    entries: &[Entry],
+    dst: &Path,
+) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
     for entry in entries.iter() {
         let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         let version_path = util::fs::path_relative_to_dir(&version_path, dst).unwrap();
 
-        content_ids.push((
-            String::from(version_path.to_str().unwrap()).replace('\\', "/"),
-            version_path.to_owned(),
-        ))
+        // TODO: This is annoying but the older client passes in the full path to the version file with the extension
+        // ie .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data.jpg
+        // but the new client passes in the path without the extension
+        // ie .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data
+        // So we need to support both formats.
+        // In an ideal world we would just pass in the HASH and not the full path to save on bandwidth as well
+        let content_id = match remote_repo.min_version() {
+            MinOxenVersion::V0_10_0 => {
+                // Older versions expect the extension
+                let content_id = String::from(version_path.to_str().unwrap()).replace('\\', "/");
+                format!("{}.{}", content_id, entry.extension())
+            }
+            _ => {
+                // Newer versions don't have the extension
+                String::from(version_path.to_str().unwrap()).replace('\\', "/")
+            }
+        };
+
+        // Again...annoying that we need to pass in .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data.jpg for now
+        // instead of just "717783cda74ceeced8d45fae3155382c" but here we are.
+        content_ids.push((content_id, version_path.to_owned()))
     }
     content_ids
 }

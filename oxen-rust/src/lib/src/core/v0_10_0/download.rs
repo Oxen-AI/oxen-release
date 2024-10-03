@@ -1,16 +1,15 @@
+use crate::api;
+use crate::constants::OBJECTS_DIR;
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::core::v0_19_0::structs::PullProgress;
-use std::path::Path;
-use crate::util;
 use crate::error::OxenError;
-use crate::constants::OXEN_HIDDEN_DIR;
-use crate::api::client::commits;
-use crate::constants::OBJECTS_DIR;
-use crate::model::RemoteRepository;
-use crate::model::MetadataEntry;
 use crate::model::entry::commit_entry::Entry;
-use crate::api;
+use crate::model::MetadataEntry;
+use crate::model::RemoteRepository;
+use crate::util;
+use std::path::Path;
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
@@ -35,7 +34,6 @@ pub async fn download_dir(
         tmp_objects_dir,
         local_objects_dir
     );
-
 
     merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
 

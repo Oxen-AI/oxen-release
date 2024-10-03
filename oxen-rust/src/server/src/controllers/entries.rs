@@ -67,6 +67,14 @@ pub async fn download_data_from_version_paths(
         // We read from version file as determined by the latest logic (data.extension)
         // but still want to write the tar archive with the original filename so that it
         // unpacks to the location old clients expect.
+
+        // This is annoying but the older client passes in the full path to the version file with the extension
+        // ie .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data.jpg
+        // but the new client passes in the path without the extension
+        // ie .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data
+        // So we need to support both formats.
+
+        // In an ideal world we would just pass in the hash and not the full path to save on bandwidth as well
         let mut path_to_read = repo.path.join(content_file);
         path_to_read = replace_file_name_keep_extension(
             &path_to_read,

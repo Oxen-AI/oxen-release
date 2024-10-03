@@ -26,7 +26,7 @@ pub async fn list(
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
-    let staged = repositories::workspaces::status::status(&workspace, &path)?;
+    let staged = repositories::workspaces::status::status_from_dir(&workspace, &path)?;
 
     staged.print();
 
@@ -54,7 +54,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
     if util::fs::is_tabular(&path) {
-        repositories::workspaces::data_frames::restore(&workspace, &path)?;
+        repositories::workspaces::data_frames::restore(&repo, &workspace, &path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
     } else if repositories::workspaces::files::exists(&workspace, &path)? {
         repositories::workspaces::files::delete(&workspace, &path)?;

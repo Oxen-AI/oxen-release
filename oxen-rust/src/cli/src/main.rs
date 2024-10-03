@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::process::ExitCode;
 
 use clap::Command;
+use liboxen::util;
 // use env_logger::Env;
 
 pub mod cmd;
@@ -9,7 +10,7 @@ pub mod helpers;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    env_logger::builder().format_timestamp_micros().init();
+    util::logging::init_logging();
 
     let cmds: Vec<Box<dyn cmd::RunCmd>> = vec![
         Box::new(cmd::AddCmd),

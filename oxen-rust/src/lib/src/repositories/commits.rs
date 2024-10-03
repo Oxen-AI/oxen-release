@@ -11,7 +11,7 @@ use crate::util;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{core, resource};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// # Commit the staged files in the repo
@@ -131,7 +131,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
 }
 
 // Source
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
@@ -163,6 +163,17 @@ pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, 
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_from(repo, revision),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from(repo, revision),
+    }
+}
+pub fn list_from_with_depth(
+    repo: &LocalRepository,
+    revision: &str,
+) -> Result<HashMap<Commit, usize>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
+            "list_from_with_depth not supported in v0.10.0",
+        )),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from_with_depth(repo, revision),
     }
 }
 
@@ -263,17 +274,74 @@ pub fn list_by_path_from_paginated(
     }
 }
 
+// TODO: Temporary function until after v0.19.0, we shouldn't need this check
+// once everything is working off the Merkle tree
+pub fn get_commit_status_tmp(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Option<core::v0_10_0::cache::cacher_status::CacherStatusType>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::cache::commit_cacher::get_status(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_commit_status_tmp(repo, commit),
+    }
+}
+
+// TODO: Temporary function until after v0.19.0, we shouldn't need this check
+// once everything is working off the Merkle tree
+pub fn is_commit_valid_tmp(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::cache::cachers::content_validator::is_valid(repo, commit)
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::is_commit_valid_tmp(repo, commit),
+    }
+}
+
+pub fn commit_history_is_complete(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<bool, OxenError> {
+    // Get full commit history from this head backwards
+    let history = list_from(repo, &commit.id)?;
+
+    // Ensure traces back to base commit
+    let maybe_initial_commit = history.last().unwrap();
+    if !maybe_initial_commit.parent_ids.is_empty() {
+        // If it has parents, it isn't an initial commit
+        return Ok(false);
+    }
+
+    // Ensure all commits and their parents are synced
+    // Initialize commit reader
+    for c in &history {
+        log::debug!(
+            "commit_history_is_complete checking if commit is synced: {}",
+            c
+        );
+        if !core::commit_sync_status::commit_is_synced(repo, c) {
+            log::debug!("commit_history_is_complete ❌ commit is not synced: {}", c);
+            return Ok(false);
+        } else {
+            log::debug!("commit_history_is_complete ✅ commit is synced: {}", c);
+        }
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::str::FromStr;
 
     use crate::command;
-    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
+    use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
     use crate::repositories;
     use crate::test;
     use crate::util;
+
+    use super::*;
 
     #[test]
     fn test_command_commit_file() -> Result<(), OxenError> {
@@ -296,7 +364,7 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
             let commits = repositories::commits::list(&repo)?;
-            assert_eq!(commits.len(), 2);
+            assert_eq!(commits.len(), 1);
 
             Ok(())
         })
@@ -315,31 +383,29 @@ mod tests {
             // Remove the file
             util::fs::remove_file(&hello_file)?;
 
-            // Commit the file
+            // Can still commit the file, since it is in the versions directory
             repositories::commit(&repo, "My message")?;
 
             // Get status and make sure the file was not committed
             let head = repositories::commits::head_commit(&repo)?;
-            let commit_reader = CommitEntryReader::new(&repo, &head)?;
-            let commit_list = commit_reader.list_files()?;
-            assert_eq!(commit_list.len(), 0);
+            let commit_list = repositories::entries::list_for_commit(&repo, &head)?;
+            assert_eq!(commit_list.len(), 1);
 
-            // Test subsequent commit
-            let goodbye_file = repo.path.join("goodbye.txt");
-            util::fs::write_to_path(&goodbye_file, "Goodbye World")?;
-
-            repositories::add(&repo, &goodbye_file)?;
-
-            util::fs::remove_file(&goodbye_file)?;
-
+            // Add the removed file and commit
+            repositories::add(&repo, &hello_file)?;
             repositories::commit(&repo, "Second Message")?;
+
+            // We should now have no entries
+            let head = repositories::commits::head_commit(&repo)?;
+            let commit_list = repositories::entries::list_for_commit(&repo, &head)?;
+            assert_eq!(commit_list.len(), 0);
 
             Ok(())
         })
     }
 
     #[test]
-    fn test_command_commit_dir() -> Result<(), OxenError> {
+    fn test_command_commit_train_data_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Track the file
             let train_dir = repo.path.join("train");
@@ -351,11 +417,11 @@ mod tests {
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
-            assert_eq!(repo_status.untracked_dirs.len(), 4);
+            assert_eq!(repo_status.untracked_files.len(), 6);
+            assert_eq!(repo_status.untracked_dirs.len(), 7);
 
             let commits = repositories::commits::list(&repo)?;
-            assert_eq!(commits.len(), 2);
+            assert_eq!(commits.len(), 1);
 
             Ok(())
         })
@@ -374,59 +440,24 @@ mod tests {
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
-            assert_eq!(repo_status.untracked_dirs.len(), 4);
+            assert_eq!(repo_status.untracked_files.len(), 10);
+            assert_eq!(repo_status.untracked_dirs.len(), 5);
 
             let commits = repositories::commits::list(&repo)?;
-            assert_eq!(commits.len(), 2);
+            assert_eq!(commits.len(), 1);
 
             Ok(())
         })
-    }
-
-    #[tokio::test]
-    async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
-            // Get the original branch name
-            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-            // Create a branch to make the changes
-            let branch_name = "feature/adding-train";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-
-            // Track & commit (train dir already created in helper)
-            let train_path = repo.path.join("train");
-            let og_num_files = util::fs::rcount_files_in_dir(&train_path);
-
-            // Add directory
-            repositories::add(&repo, &train_path)?;
-            // Make sure we can get the status
-            let status = repositories::status(&repo)?;
-            assert_eq!(status.staged_dirs.len(), 1);
-
-            // Commit changes
-            repositories::commit(&repo, "Adding train dir")?;
-            // Make sure we can get the status and they are no longer added
-            let status = repositories::status(&repo)?;
-            assert_eq!(status.staged_dirs.len(), 0);
-
-            // checkout OG and make sure it removes the train dir
-            repositories::checkout(&repo, orig_branch.name).await?;
-            assert!(!train_path.exists());
-
-            // checkout branch again and make sure it reverts
-            repositories::checkout(&repo, branch_name).await?;
-            assert!(train_path.exists());
-            assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
-
-            Ok(())
-        })
-        .await
     }
 
     #[tokio::test]
     async fn test_command_commit_second_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Track & commit (dir already created in helper)
+            let new_dir_path = repo.path.join("annotations").join("train");
+            repositories::add(&repo, &new_dir_path)?;
+            repositories::commit(&repo, "Adding train dir")?;
+
             // Get the original branch name
             let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -435,20 +466,20 @@ mod tests {
             repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Track & commit (dir already created in helper)
-            let new_dir_path = repo.path.join("annotations").join("train");
-            let og_num_files = util::fs::rcount_files_in_dir(&new_dir_path);
+            let test_dir_path = repo.path.join("annotations").join("test");
+            let og_num_files = util::fs::rcount_files_in_dir(&test_dir_path);
 
-            repositories::add(&repo, &new_dir_path)?;
-            repositories::commit(&repo, "Adding train dir")?;
+            repositories::add(&repo, &test_dir_path)?;
+            repositories::commit(&repo, "Adding test dir")?;
 
             // checkout OG and make sure it removes the train dir
             repositories::checkout(&repo, orig_branch.name).await?;
-            assert!(!new_dir_path.exists());
+            assert!(!test_dir_path.exists());
 
             // checkout branch again and make sure it reverts
             repositories::checkout(&repo, branch_name).await?;
-            assert!(new_dir_path.exists());
-            assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
+            assert!(test_dir_path.exists());
+            assert_eq!(util::fs::rcount_files_in_dir(&test_dir_path), og_num_files);
 
             Ok(())
         })
@@ -540,33 +571,75 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_commit_hash_on_modified_file() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    async fn test_commit_with_no_staged_changes() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
             // Add a text file
             let text_path = repo.path.join("text.txt");
             util::fs::write_to_path(&text_path, "Hello World")?;
 
             // Get the hash of the file at this timestamp
-            let hash_when_add = util::hasher::hash_file_contents(&text_path)?;
             repositories::add(&repo, &text_path)?;
+            repositories::commit(&repo, "Committing hello world")?;
+
+            // Modify the text file
+            util::fs::write_to_path(&text_path, "Goodbye, world!")?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // There should be nothing to commit since the file is untracked
+            let commit_result = repositories::commit(&repo, "Committing goodbye world");
+            assert!(commit_result.is_err());
+
+            // Make sure the entry is still there
+            let head = repositories::commits::head_commit(&repo)?;
+            let tree = repositories::tree::get_by_commit(&repo, &head)?;
+            let text_entry = tree.get_by_path(Path::new("text.txt"))?;
+            assert!(text_entry.is_some());
+
+            Ok(())
+        })
+    }
+
+    #[tokio::test]
+    async fn test_commit_hash_on_modified_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Add a text file
+            let text_path = repo.path.join("text.txt");
+            util::fs::write_to_path(&text_path, "Hello World")?;
+
+            // Get the hash of the file at this timestamp
+            let hash_when_add =
+                MerkleHash::from_str(&util::hasher::hash_file_contents(&text_path)?)?;
+            repositories::add(&repo, &text_path)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Note v10 did not have this line, and we didn't copy to the versions dir on add
+            repositories::commit(&repo, "Committing hello world")?;
 
             // Modify the text file
             util::fs::write_to_path(&text_path, "Goodbye, world!")?;
 
             // Get the new hash
-            let hash_after_modification = util::hasher::hash_file_contents(&text_path)?;
+            let hash_after_modification =
+                MerkleHash::from_str(&util::hasher::hash_file_contents(&text_path)?)?;
 
-            // Commit the file
-            repositories::commit(&repo, "My message")?;
+            // Add and commit the file
+            repositories::add(&repo, &text_path)?;
+            repositories::commit(&repo, "Committing goodbye world")?;
 
             // Get the most recent commit - the new head commit
             let head = repositories::commits::head_commit(&repo)?;
 
-            // Initialize a commit entry reader here
-            let commit_reader = CommitEntryReader::new(&repo, &head)?;
+            // get the merkle tree for the commit
+            let tree = repositories::tree::get_by_commit(&repo, &head)?;
+            println!("tree after second commit");
+            tree.print();
 
             // Get the commit entry for the text file
-            let text_entry = commit_reader.get_entry(Path::new("text.txt"))?.unwrap();
+            let text_entry = tree.get_by_path(Path::new("text.txt"))?.unwrap();
 
             // Hashes should be different
             assert_ne!(hash_when_add, hash_after_modification);
@@ -576,5 +649,90 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_commit_file_and_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create committer with no commits
+            let repo_path = &repo.path;
+            let train_dir = repo_path.join("training_data");
+            std::fs::create_dir_all(&train_dir)?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
+            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
+
+            let test_dir = repo_path.join("test_data");
+            std::fs::create_dir_all(&test_dir)?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
+
+            // Add a file and a directory
+            repositories::add(&repo, &annotation_file)?;
+            repositories::add(&repo, &train_dir)?;
+
+            let message = "Adding training data to 🐂";
+            repositories::commit(&repo, message)?;
+
+            // should be one commit now
+            let commit_history = repositories::commits::list(&repo)?;
+            assert_eq!(commit_history.len(), 1);
+
+            // Check that the files are no longer staged
+            let status = repositories::status(&repo)?;
+            let files = status.staged_files;
+            let dirs = status.staged_dirs;
+            assert_eq!(files.len(), 0);
+            assert_eq!(dirs.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[tokio::test]
+    async fn test_commit_history_is_complete() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+
+            // Clone with the --all flag
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let new_repo_dir = new_repo_dir.join("repoo");
+                let deep_clone =
+                    repositories::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                // Get head commit of deep_clone repo
+                let head_commit = repositories::commits::head_commit(&deep_clone)?;
+                assert!(commit_history_is_complete(&deep_clone, &head_commit)?);
+                Ok(new_repo_dir)
+            })
+            .await?;
+
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_history_is_not_complete_standard_repo() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+
+            // Clone with the --all flag
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let clone = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
+                // Get head commit of deep_clone repo
+                let head_commit = repositories::commits::head_commit(&clone)?;
+                assert!(!commit_history_is_complete(&clone, &head_commit)?);
+                Ok(new_repo_dir)
+            })
+            .await?;
+
+            Ok(cloned_remote)
+        })
+        .await
     }
 }

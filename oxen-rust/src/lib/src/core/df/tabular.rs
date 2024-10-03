@@ -108,7 +108,7 @@ fn read_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
 }
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
-    let idx = IdxCa::new("idx", &indices);
+    let idx = IdxCa::new(PlSmallStr::from_str("idx"), &indices);
     let collected = df
         .collect()
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))?;
@@ -185,7 +185,7 @@ pub fn add_col_lazy(
 
     let dtype = DataType::from_string(dtype).to_polars();
 
-    let column = Series::new_empty(name, &dtype);
+    let column = Series::new_empty(PlSmallStr::from_str(name), &dtype);
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .map_err(|_| OxenError::basic_str("Could not extend df"))?;
@@ -208,7 +208,7 @@ pub fn add_col(
 ) -> Result<DataFrame, OxenError> {
     let dtype = DataType::from_string(dtype).to_polars();
 
-    let column = Series::new_empty(name, &dtype);
+    let column = Series::new_empty(PlSmallStr::from_str(name), &dtype);
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .map_err(|_| OxenError::basic_str("Could not extend df"))?;
@@ -229,6 +229,10 @@ pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
 }
 
 pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
+    let cols = cols
+        .iter()
+        .map(|c| PlSmallStr::from_str(c))
+        .collect::<Vec<PlSmallStr>>();
     let dupe_mask = df.select(cols)?.is_duplicated()?;
     let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
     Ok(n_dupes)
@@ -252,13 +256,9 @@ pub fn row_from_str_and_schema(
 
     let mut vec: Vec<Series> = Vec::new();
 
-    for ((name, value), dtype) in schema
-        .iter_names()
-        .zip(values.into_iter())
-        .zip(schema.iter_dtypes())
-    {
+    for ((name, dtype), value) in schema.iter_names_and_dtypes().zip(values.into_iter()) {
         let typed_val = val_from_str_and_dtype(value, dtype);
-        match Series::from_any_values_and_dtype(name, &[typed_val], dtype, false) {
+        match Series::from_any_values_and_dtype(name.clone(), &[typed_val], dtype, false) {
             Ok(series) => {
                 vec.push(series);
             }
@@ -324,12 +324,12 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
 
 fn val_from_df_and_filter<'a>(df: &mut LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
     if let Some(value) = df
-        .schema()
+        .collect_schema()
         .expect("Unable to get schema from data frame")
         .iter_fields()
         .find(|f| f.name == filter.field)
     {
-        val_from_str_and_dtype(&filter.value, value.data_type())
+        val_from_str_and_dtype(&filter.value, value.dtype())
     } else {
         log::error!("Unknown field {:?}", filter.field);
         AnyValue::Null
@@ -458,7 +458,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
 
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
-            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+            let cols = columns.iter().map(col).collect::<Vec<Expr>>();
             df = df.select(&cols);
         }
     }
@@ -487,7 +487,7 @@ pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
         let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
-        let s1 = Series::new("", &[value]);
+        let s1 = Series::new(PlSmallStr::from_str(""), &[value]);
         let df = DataFrame::new(vec![s1]).unwrap();
         return Ok(df.lazy());
     }
@@ -550,13 +550,16 @@ fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
-    df.with_row_index(constants::ROW_NUM_COL_NAME, Some(0))
+    df.with_row_index(PlSmallStr::from_str(constants::ROW_NUM_COL_NAME), Some(0))
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
 pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
-    df.with_row_index(constants::ROW_NUM_COL_NAME, Some(start))
-        .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
+    df.with_row_index(
+        PlSmallStr::from_str(constants::ROW_NUM_COL_NAME),
+        Some(start),
+    )
+    .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
 pub fn any_val_to_bytes(value: AnyValue) -> Vec<u8> {
@@ -641,10 +644,10 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     let mut col_names = vec![];
     let schema = df.schema();
     for field in schema.iter_fields() {
-        col_names.push(col(field.name()));
+        col_names.push(col(PlSmallStr::from_str(field.name())));
     }
-    // println!("Hashing: {:?}", col_names);
-    // println!("{:?}", df);
+    log::debug!("Hashing: {:?}", col_names);
+    log::debug!("{:?}", df);
 
     let df = df
         .lazy()
@@ -653,35 +656,35 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
             as_struct(col_names)
                 .apply(
                     move |s| {
-                        // log::debug!("s: {:?}", s);
+                        log::debug!("s: {:?}", s);
 
                         let pb = ProgressBar::new(num_rows as u64);
                         // downcast to struct
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
-                        let out: StringChunked = s_a
-                            .iter()
-                            // .par_bridge() // not sure why this is breaking
-                            .map(|row| {
-                                // log::debug!("row: {:?}", row);
-                                pb.inc(1);
-                                let mut buffer: Vec<u8> = vec![];
-                                for elem in row.iter() {
-                                    // log::debug!("Got elem[{}] {}", i, elem);
-                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
-                                    // println!("Elem[{}] bytes {:?}", i, elem);
-                                    buffer.append(&mut elem);
-                                }
-                                // println!("__DONE__ {:?}", buffer);
-                                let result = hasher::hash_buffer(&buffer);
-                                // let result = xxh3_64(&buffer);
-                                // let result: u64 = 0;
-                                // println!("__DONE__ {}", result);
-                                Some(result)
-                            })
-                            .collect();
 
-                        Ok(Some(out.into_series()))
+                        // s_a is a Vec<Series>
+                        // log::debug!("s_a: {:?}", s_a);
+                        // log::debug!("s_a.len(): {:?}", s_a.len());
+                        let num_columns = s_a.len();
+                        let num_rows = s_a[0].len();
+
+                        let mut hashes = vec![];
+                        for i in 0..num_rows {
+                            // log::debug!("row: {:?}", i);
+                            let mut buffer: Vec<u8> = vec![];
+                            for j in 0..num_columns {
+                                let elem = s_a[j].get(i).unwrap();
+                                // log::debug!("column: {:?} elem: {:?}", j, elem);
+                                let mut elem_bytes = any_val_to_bytes(elem);
+                                buffer.append(&mut elem_bytes);
+                            }
+                            pb.inc(1);
+                            let result = hasher::hash_buffer(&buffer);
+                            hashes.push(result);
+                        }
+
+                        Ok(Some(Series::new(PlSmallStr::from_str(""), hashes)))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
@@ -707,7 +710,7 @@ pub fn df_hash_rows_on_cols(
     for field in schema.iter_fields() {
         let field_name = field.name().to_string();
         if hash_fields.contains(&field_name) {
-            col_names.push(col(field.name()));
+            col_names.push(col(field.name().clone()));
         }
     }
 
@@ -728,21 +731,24 @@ pub fn df_hash_rows_on_cols(
                         let pb = ProgressBar::new(num_rows as u64);
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
-                        let out: StringChunked = s_a
-                            .iter()
-                            .map(|row| {
-                                pb.inc(1);
-                                let mut buffer: Vec<u8> = vec![];
-                                for elem in row.iter() {
-                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
-                                    buffer.append(&mut elem);
-                                }
-                                let result = hasher::hash_buffer(&buffer);
-                                Some(result)
-                            })
-                            .collect();
+                        let num_columns = s_a.len();
+                        let num_rows = s_a[0].len();
 
-                        Ok(Some(out.into_series()))
+                        let mut hashes = vec![];
+                        for i in 0..num_rows {
+                            // log::debug!("row: {:?}", i);
+                            let mut buffer: Vec<u8> = vec![];
+                            for j in 0..num_columns {
+                                let elem = s_a[j].get(i).unwrap();
+                                // log::debug!("column: {:?} elem: {:?}", j, elem);
+                                let mut elem_bytes = any_val_to_bytes(elem);
+                                buffer.append(&mut elem_bytes);
+                            }
+                            pb.inc(1);
+                            let result = hasher::hash_buffer(&buffer);
+                            hashes.push(result);
+                        }
+                        Ok(Some(Series::new(PlSmallStr::from_str(""), hashes)))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
@@ -866,7 +872,7 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
     // Don't need that many rows to get the width
     let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
     let mut lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
-    let schema = lazy_df.schema()?;
+    let schema = lazy_df.collect_schema()?;
     let width = schema.len();
 
     let input_path = path.as_ref();
@@ -1136,7 +1142,7 @@ pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenE
     let total_rows = constants::DEFAULT_PAGE_SIZE;
     let mut df = scan_df(input, &opts, total_rows)?;
     let schema = df
-        .schema()
+        .collect_schema()
         .map_err(|_| OxenError::basic_str("Could not get schema"))?;
 
     Ok(crate::model::Schema::from_polars(&schema))
@@ -1149,7 +1155,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
 ) -> Result<String, OxenError> {
     let mut df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
     let schema = df
-        .schema()
+        .collect_schema()
         .map_err(|_| OxenError::basic_str("Could not get schema"))?;
 
     if flatten {
@@ -1160,7 +1166,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
         table.set_header(vec!["column", "dtype"]);
 
         for field in schema.iter_fields() {
-            let dtype = DataType::from_polars(field.data_type());
+            let dtype = DataType::from_polars(field.dtype());
             let field_str = field.name().to_string();
             let dtype_str = String::from(DataType::as_str(&dtype));
             table.add_row(vec![field_str, dtype_str]);
@@ -1177,7 +1183,7 @@ pub fn polars_schema_to_flat_str(schema: &Schema) -> String {
             result = format!("{result},");
         }
 
-        let dtype = DataType::from_polars(field.data_type());
+        let dtype = DataType::from_polars(field.dtype());
         let field_str = field.name().to_string();
         let dtype_str = String::from(DataType::as_str(&dtype));
         result = format!("{result}{field_str}:{dtype_str}");

@@ -1,33 +1,35 @@
+use crate::api;
+use crate::core::v0_19_0::structs::PullProgress;
+use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::CommitEntry;
 use crate::model::LocalRepository;
 use crate::model::MetadataEntry;
-use crate::core::versions::MinOxenVersion;
 use crate::model::RemoteRepository;
 use std::path::{Path, PathBuf};
-use crate::core::v0_19_0::structs::PullProgress;
-use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::error::OxenError;
-use crate::model::merkle_tree::node::EMerkleTreeNode;
-use crate::model::entry::commit_entry::Entry;
-use crate::model::CommitEntry;
 use std::sync::Arc;
-use crate::api;
-use crate::download;
+
 use crate::core;
+use crate::model::MerkleHash;
+use std::str::FromStr;
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
     local_path: &Path,
 ) -> Result<(), OxenError> {
-    
     // Initialize temp repo to download node into
-    // TODO: Where should this repo be? 
+    // TODO: Where should this repo be?
     let tmp_repo = LocalRepository::new(local_path)?;
-  
-    // Find and download dir node and its children from remote repo
-    let dir_node = api::client::tree::download_node_with_children(&tmp_repo, remote_repo, &entry.hash).await?;
 
-    // Create local directory to pull entries into 
+    // Find and download dir node and its children from remote repo
+    let hash = MerkleHash::from_str(&entry.hash)?;
+    let dir_node =
+        api::client::tree::download_node_with_children(&tmp_repo, remote_repo, &hash).await?;
+
+    // Create local directory to pull entries into
     let directory = PathBuf::from(local_path);
     let pull_progress = PullProgress::new();
 
@@ -35,12 +37,11 @@ pub async fn download_dir(
     r_download_entries(
         &remote_repo,
         &directory,
-        &dir_node, 
+        &dir_node,
         &directory,
         &pull_progress,
-    ).await?;
-
-
+    )
+    .await?;
 
     Ok(())
 }
@@ -75,7 +76,6 @@ async fn r_download_entries(
 
         for child in &node.children {
             if let EMerkleTreeNode::File(file_node) = &child.node {
-
                 entries.push(Entry::CommitEntry(CommitEntry {
                     commit_id: file_node.last_commit_id.to_string(),
                     path: directory.join(&file_node.name),

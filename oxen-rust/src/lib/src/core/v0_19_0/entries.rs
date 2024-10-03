@@ -3,13 +3,13 @@ use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, Merkle
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{
-    Commit, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+    Commit, CommitEntry, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
 };
 use crate::opts::PaginateOpts;
 use crate::repositories;
+use crate::util;
 use crate::view::entries::ResourceVersion;
 use crate::view::PaginatedDirEntries;
-
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -112,20 +112,19 @@ pub fn list_directory(
     log::debug!("list_directory dir_entry {:?}", dir_entry);
     let entries: Vec<MetadataEntry> =
         dir_entries(repo, &dir, directory, parsed_resource, &mut found_commits)?;
-    let total_pages = 1;
-    let total_entries = entries.len();
 
+    let (entries, pagination) = util::paginate(entries, page, page_size);
     let metadata: Option<MetadataDir> = Some(MetadataDir::new(dir_node.data_types()));
 
     Ok(PaginatedDirEntries {
         dir: dir_entry,
-        entries,
+        entries: entries,
         resource,
         metadata,
         page_size,
         page_number: page,
-        total_pages,
-        total_entries,
+        total_pages: pagination.total_pages,
+        total_entries: pagination.total_entries,
     })
 }
 
@@ -218,7 +217,7 @@ fn dir_node_to_metadata_entry(
 
     Ok(Some(MetadataEntry {
         filename: dir_node.name.clone(),
-        hash: node.hash,
+        hash: dir_node.hash.to_string(),
         is_dir: true,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
@@ -253,13 +252,9 @@ fn file_node_to_metadata_entry(
 
     let commit = found_commits.get(&file_node.last_commit_id).unwrap();
 
-    let mut parsed_resource = parsed_resource.clone();
-    parsed_resource.resource = parsed_resource.resource.join(&file_node.name);
-    parsed_resource.path = parsed_resource.path.join(&file_node.name);
-
     Ok(Some(MetadataEntry {
         filename: file_node.name.clone(),
-        hash: node.hash,
+        hash: file_node.hash.to_string(),
         is_dir: false,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
@@ -348,4 +343,35 @@ fn p_dir_entries(
         }
     }
     Ok(())
+}
+
+pub fn list_tabular_files_in_repo(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<MetadataEntry>, OxenError> {
+    let entries = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;
+    let entries: Vec<FileNode> = entries.into_iter().map(|entry| entry.into()).collect();
+    let entries: Vec<MetadataEntry> = entries
+        .into_iter()
+        .map(|node| MetadataEntry::from_file_node(&repo, Some(node), &commit).unwrap())
+        .collect();
+    Ok(entries)
+}
+
+pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    Ok(entries.len())
+}
+
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    Ok(entries
+        .into_iter()
+        .map(|entry| CommitEntry::from_file_node(&entry.file_node))
+        .collect())
 }

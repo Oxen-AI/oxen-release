@@ -1,7 +1,10 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use glob::Pattern;
+
 use crate::core::refs::RefReader;
+use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, User};
@@ -27,22 +30,36 @@ pub fn commit_with_user(
     super::index::commit_writer::commit_with_user(repo, message, user)
 }
 
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
-    if let Some(commit_id_or_branch_name) = commit_id_or_branch_name {
-        log::debug!(
-            "get_commit_or_head: commit_id_or_branch_name: {:?}",
-            commit_id_or_branch_name.as_ref()
-        );
-        let commit = get_by_id(repo, commit_id_or_branch_name)?;
-        if let Some(commit) = commit {
-            return Ok(commit);
+    match commit_id_or_branch_name {
+        Some(ref_name) => {
+            log::debug!("get_commit_or_head: ref_name: {:?}", ref_name.as_ref());
+            get_commit_by_ref(repo, ref_name)
+        }
+        None => {
+            log::debug!("get_commit_or_head: calling head_commit");
+            head_commit(repo)
         }
     }
-    log::debug!("get_commit_or_head: calling head_commit");
-    head_commit(repo)
+}
+
+fn get_commit_by_ref<S: AsRef<str> + Clone>(
+    repo: &LocalRepository,
+    ref_name: S,
+) -> Result<Commit, OxenError> {
+    get_by_id(repo, ref_name.clone())?
+        .or_else(|| get_commit_by_branch(repo, ref_name.as_ref()))
+        .ok_or_else(|| OxenError::basic_str("Commit not found"))
+}
+
+fn get_commit_by_branch(repo: &LocalRepository, branch_name: &str) -> Option<Commit> {
+    repositories::branches::get_by_name(repo, branch_name)
+        .ok()
+        .flatten()
+        .and_then(|branch| get_by_id(repo, branch.commit_id).ok().flatten())
 }
 
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
@@ -98,13 +115,19 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     Ok(commit.to_commit())
 }
 
+/// Get the root commit of the repository or None
 pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    if let Some(commit) = head_commit_maybe(repo)? {
-        let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
-        Ok(Some(root_commit))
-    } else {
-        Ok(None)
+    // Try to get a branch ref and follow it to the root
+    // We only need to look at one ref as all branches will have the same root
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.list_branches()?.first() {
+        if let Some(commit) = get_by_id(repo, &branch.commit_id)? {
+            let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+            return Ok(Some(root_commit));
+        }
     }
+    log::debug!("root_commit_maybe: no root commit found");
+    Ok(None)
 }
 
 fn root_commit_recursive(
@@ -147,27 +170,34 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
+    let mut visited = HashSet::new();
     let commit = head_commit(repo)?;
-    list_recursive(repo, commit, &mut results, None)?;
+    list_recursive(repo, commit, &mut results, None, &mut visited)?;
     Ok(results)
 }
 
-/// List commits recursively from a given commit
-/// if stop_at is provided, stop at that commit
 fn list_recursive(
     repo: &LocalRepository,
     commit: Commit,
     results: &mut Vec<Commit>,
-    stop_at: Option<Commit>,
+    stop_at: Option<&Commit>,
+    visited: &mut HashSet<String>,
 ) -> Result<(), OxenError> {
-    if stop_at.is_some() && commit == *stop_at.as_ref().unwrap() {
+    if stop_at.is_some() && &commit == stop_at.unwrap() {
         return Ok(());
     }
+
+    // Check if we've already visited this commit
+    if !visited.insert(commit.id.clone()) {
+        return Ok(());
+    }
+
     results.push(commit.clone());
+
     for parent_id in commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;
         if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
-            list_recursive(repo, parent_commit, results, stop_at.clone())?;
+            list_recursive(repo, parent_commit, results, stop_at, visited)?;
         }
     }
     Ok(())
@@ -210,9 +240,38 @@ pub fn list_from(
     let mut results = vec![];
     let commit = repositories::revisions::get(repo, revision)?;
     if let Some(commit) = commit {
-        list_recursive(repo, commit, &mut results, None)?;
+        list_recursive(repo, commit, &mut results, None, &mut HashSet::new())?;
     }
     Ok(results)
+}
+
+/// Get commit history given a revision (branch name or commit id)
+pub fn list_from_with_depth(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+) -> Result<HashMap<Commit, usize>, OxenError> {
+    let mut results = HashMap::new();
+    let commit = repositories::revisions::get(repo, revision)?;
+    if let Some(commit) = commit {
+        list_recursive_with_depth(repo, commit, &mut results, 0)?;
+    }
+    Ok(results)
+}
+
+fn list_recursive_with_depth(
+    repo: &LocalRepository,
+    commit: Commit,
+    results: &mut HashMap<Commit, usize>,
+    depth: usize,
+) -> Result<(), OxenError> {
+    results.insert(commit.clone(), depth);
+    for parent_id in commit.parent_ids {
+        let parent_id = MerkleHash::from_str(&parent_id)?;
+        if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
+            list_recursive_with_depth(repo, parent_commit, results, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 /// List the history between two commits
@@ -222,7 +281,13 @@ pub fn list_between(
     head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
-    list_recursive(repo, base.clone(), &mut results, Some(head.clone()))?;
+    list_recursive(
+        repo,
+        base.clone(),
+        &mut results,
+        Some(head),
+        &mut HashSet::new(),
+    )?;
     Ok(results)
 }
 
@@ -232,7 +297,19 @@ pub fn search_entries(
     commit: &Commit,
     pattern: impl AsRef<str>,
 ) -> Result<HashSet<PathBuf>, OxenError> {
-    todo!()
+    let pattern = pattern.as_ref();
+    let pattern = Pattern::new(pattern)?;
+
+    let mut results = HashSet::new();
+    let tree = repositories::tree::get_by_commit(repo, commit)?;
+    let (files, _) = repositories::tree::list_files_and_dirs(&tree)?;
+    for file in files {
+        let path = file.dir.join(file.file_node.name);
+        if pattern.matches_path(&path) {
+            results.insert(path);
+        }
+    }
+    Ok(results)
 }
 
 /// Get paginated list of commits by path (directory or file)
@@ -264,4 +341,20 @@ pub fn list_by_path_from_paginated(
         commits,
         pagination,
     })
+}
+
+// TODO: Temporary function until after v0.19.0, see repositories::commits::get_commit_status_tmp
+pub fn get_commit_status_tmp(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Option<CacherStatusType>, OxenError> {
+    match get_by_id(repo, &commit.id)? {
+        Some(_commit) => Ok(Some(CacherStatusType::Success)),
+        None => Ok(None),
+    }
+}
+
+// TODO: Temporary function until after v0.19.0, see repositories::commits::is_commit_valid_tmp
+pub fn is_commit_valid_tmp(_repo: &LocalRepository, _commit: &Commit) -> Result<bool, OxenError> {
+    Ok(true)
 }
