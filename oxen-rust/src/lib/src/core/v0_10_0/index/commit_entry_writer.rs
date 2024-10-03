@@ -199,6 +199,7 @@ impl CommitEntryWriter {
             // Copy parent dirs into our new dirs db
             let reader = CommitEntryReader::new(repo, &parent_commit)?;
             let dirs = reader.list_dirs()?;
+            log::debug!("copy_parent_dbs got {} dirs", dirs.len());
             for dir in dirs {
                 path_db::put(&self.dir_db, &dir, &0)?;
             }
@@ -1438,11 +1439,13 @@ impl CommitEntryWriter {
                                 &self.repository.path,
                                 &self.commit.id,
                             );
-                            log::error!(
-                                "get_affected_vnodes path_db::get_entry failed for path: {:?}",
+                            log::debug!(
+                                "get_affected_vnodes path_db::get_entry failed for path: {:?} -> {:?}",
+                                path,
                                 db_path
                             );
-                            return Err(OxenError::basic_str("Failed to get dir hash"));
+                            // return Err(OxenError::basic_str("Failed to get dir hash"));
+                            continue;
                         };
                         TreeObjectChild::Dir {
                             path: path.clone(),

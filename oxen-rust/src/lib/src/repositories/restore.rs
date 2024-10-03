@@ -512,10 +512,9 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: false,
-                remote: false,
             };
 
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
 
             // Should now have 7 staged for removal
             let status = repositories::status(&repo)?;

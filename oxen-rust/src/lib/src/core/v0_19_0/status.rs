@@ -64,16 +64,16 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &db, &dir, &read_progress)?;
+    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
-    status_from_dir_entries(dir_entries)
+    status_from_dir_entries(&mut staged_data, dir_entries)
 }
 
 pub fn status_from_dir_entries(
+    staged_data: &mut StagedData,
     dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
 ) -> Result<StagedData, OxenError> {
-    let mut staged_data = StagedData::empty();
-
     let mut summarized_dir_stats = SummarizedStagedDirStats {
         num_files_staged: 0,
         total_files: 0,
@@ -102,14 +102,20 @@ pub fn status_from_dir_entries(
                 EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
                     log::debug!("dir_entries file_node: {}", entry);
+                    let file_path = PathBuf::from(&node.name);
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
                         status: entry.status,
                     };
                     staged_data
                         .staged_files
-                        .insert(PathBuf::from(&node.name), staged_entry);
-                    maybe_add_schemas(node, &mut staged_data)?;
+                        .insert(file_path.clone(), staged_entry);
+                    maybe_add_schemas(node, staged_data)?;
+
+                    // Cannot be removed if it's staged
+                    if staged_data.removed_files.contains(&file_path) {
+                        staged_data.removed_files.remove(&file_path);
+                    }
                 }
                 _ => {
                     return Err(OxenError::basic_str(format!(
@@ -124,7 +130,7 @@ pub fn status_from_dir_entries(
 
     staged_data.staged_dirs = summarized_dir_stats;
 
-    Ok(staged_data)
+    Ok(staged_data.clone())
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
@@ -155,50 +161,39 @@ pub fn read_staged_entries_below_path(
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
-    let start_path = start_path.as_ref();
+    let start_path = util::fs::path_relative_to_dir(start_path.as_ref(), &repo.path)?;
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
     for item in iter {
         match item {
-            // key = file path
-            // value = EntryMetaData
+            // key = file path, value = EntryMetaData
             Ok((key, value)) => {
                 // log::debug!("Key is {key:?}, value is {value:?}");
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
+                if !path.starts_with(&start_path) {
+                    continue;
+                }
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
-                // log::debug!("read_staged_entries key {} entry: {}", key, entry);
-                let key_path = PathBuf::from(key);
-                dir_entries.insert(key_path, vec![]);
+                log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
+                let full_path = repo.path.join(path);
 
+                if full_path.is_dir() {
+                    // add the dir as a key in dir_entries
+                    log::debug!("read_staged_entries adding dir {:?}", path);
+                    dir_entries.entry(path.to_path_buf()).or_default();
+                }
+
+                // add the file or dir as an entry under its parent dir
                 if let Some(parent) = path.parent() {
-                    let relative_start_path =
-                        util::fs::path_relative_to_dir(&start_path, &repo.path)?;
                     log::debug!(
-                        "read_staged_entries parent {:?} start_path {:?} relative {:?}",
-                        parent,
-                        start_path,
-                        relative_start_path
+                        "read_staged_entries adding file {:?} to parent {:?}",
+                        path,
+                        parent
                     );
-
-                    if relative_start_path == PathBuf::from("")
-                        || parent.starts_with(&relative_start_path)
-                    {
-                        log::debug!(
-                            "read_staged_entries adding to parent {:?} entry {}",
-                            parent,
-                            entry
-                        );
-                        dir_entries
-                            .entry(parent.to_path_buf())
-                            .or_default()
-                            .push(entry);
-                    }
-                } else {
-                    log::debug!("read_staged_entries root {:?}", path);
                     dir_entries
-                        .entry(PathBuf::from(""))
+                        .entry(parent.to_path_buf())
                         .or_default()
                         .push(entry);
                 }
@@ -211,9 +206,6 @@ pub fn read_staged_entries_below_path(
             }
         }
     }
-
-    // Filter out any dir entries with no children
-    dir_entries.retain(|_, entries| !entries.is_empty());
 
     log::debug!(
         "read_staged_entries dir_entries.len(): {:?}",
@@ -393,24 +385,26 @@ fn find_untracked_and_modified_paths(
                     "find_untracked_and_modified_paths checking if child {} is removed",
                     child
                 );
-                match &child.node {
-                    EMerkleTreeNode::File(file) => {
-                        if is_removed(file, &full_dir) {
-                            log::debug!(
-                                "find_untracked_and_modified_paths is removed! dir {:?} child {}",
-                                full_dir,
-                                child
-                            );
-                            staged_data
-                                .removed_files
-                                .push(relative_dir.join(&file.name));
-                        }
+                if let EMerkleTreeNode::File(file) = &child.node {
+                    if is_removed(file, &full_dir) {
+                        log::debug!(
+                            "find_untracked_and_modified_paths is removed! dir {:?} child {}",
+                            full_dir,
+                            child
+                        );
+                        staged_data
+                            .removed_files
+                            .insert(relative_dir.join(&file.name));
                     }
-                    _ => {}
                 }
             }
         }
     }
+
+    log::debug!(
+        "find_untracked_and_modified_paths done removed_files: {:?}",
+        staged_data.removed_files
+    );
 
     Ok(())
 }

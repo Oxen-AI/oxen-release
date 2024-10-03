@@ -101,6 +101,12 @@ pub fn commit_with_cfg(
         status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
     commit_progress_bar.set_message(format!("Committing {} changes", total_changes));
 
+    log::debug!("got dir entries: {:?}", dir_entries.len());
+
+    if dir_entries.is_empty() {
+        return Err(OxenError::basic_str("No changes to commit"));
+    }
+
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
 
@@ -330,6 +336,7 @@ pub fn commit_dir_entries_new(
     }
 
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+
     write_commit_entries(
         repo,
         &maybe_head_commit,
@@ -338,6 +345,7 @@ pub fn commit_dir_entries_new(
         &dir_hash_db,
         &vnode_entries,
     )?;
+
     commit_progress_bar.finish_and_clear();
 
     // Remove all the directories that are staged for removal
@@ -456,15 +464,12 @@ fn cleanup_rm_dirs(
 ) -> Result<(), OxenError> {
     for (path, entries) in dir_entries.iter() {
         for entry in entries.iter() {
-            match &entry.node.node {
-                EMerkleTreeNode::Directory(dir_node) => {
-                    if entry.status == StagedEntryStatus::Removed {
-                        let dir_path = path.join(&dir_node.name);
-                        let key = dir_path.to_str().unwrap();
-                        dir_hash_db.delete(key)?;
-                    }
+            if let EMerkleTreeNode::Directory(dir_node) = &entry.node.node {
+                if entry.status == StagedEntryStatus::Removed {
+                    let dir_path = path.join(&dir_node.name);
+                    let key = dir_path.to_str().unwrap();
+                    dir_hash_db.delete(key)?;
                 }
-                _ => {}
             }
         }
     }
@@ -555,6 +560,7 @@ fn split_into_vnodes(
                 child.node.node.dtype(),
                 child.node.maybe_path().unwrap()
             );
+
             // Overwrite the existing child
             // if add or modify, replace the child
             // if remove, remove the child
@@ -742,8 +748,6 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
-    log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
-
     let Some(vnodes) = entries.get(&path) else {
         log::debug!(
             "r_create_dir_node No entries found for directory {:?}",
@@ -762,6 +766,7 @@ fn r_create_dir_node(
             dir_db.add_child(&vnode_obj)?;
             *total_written += 1;
         }
+
         log::debug!(
             "Processing vnode {} with {} entries",
             vnode.id,

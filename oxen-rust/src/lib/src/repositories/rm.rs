@@ -5,11 +5,11 @@
 
 use std::collections::HashSet;
 
-use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
+use crate::{core, repositories};
 use std::path::{Path, PathBuf};
 
 use glob::glob;
@@ -17,33 +17,29 @@ use glob::glob;
 use crate::util;
 
 /// Removes the path from the index
-pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
 
     log::debug!("paths: {paths:?}");
-    p_rm(&paths, repo, opts).await?;
+    p_rm(&paths, repo, opts)?;
 
     Ok(())
 }
 
-async fn p_rm(
-    paths: &HashSet<PathBuf>,
-    repo: &LocalRepository,
-    opts: &RmOpts,
-) -> Result<(), OxenError> {
+fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             log::debug!("Version found: V0_10_0");
             for path in paths {
                 let opts = RmOpts::from_path_opts(path, opts);
-                core::v0_10_0::index::rm(repo, &opts).await?;
+                core::v0_10_0::index::rm(repo, &opts)?;
             }
         }
         MinOxenVersion::V0_19_0 => {
             log::debug!("Version found: V0_19_0");
-            core::v0_19_0::rm::rm(paths, repo, opts).await?;
+            core::v0_19_0::rm::rm(paths, repo, opts)?;
         }
     }
     Ok(())
@@ -60,13 +56,18 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository) -> Result<HashSet<PathBu
             // Match against any untracked entries in the current dir
 
             for entry in glob(path_str)? {
-                let full_path = repo.path.join(entry?);
-                paths.insert(full_path);
+                paths.insert(entry?.to_path_buf());
+            }
+
+            if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
+                let pattern_entries =
+                    repositories::commits::search_entries(repo, &commit, path_str)?;
+                log::debug!("pattern entries: {:?}", pattern_entries);
+                paths.extend(pattern_entries);
             }
         } else {
             // Non-glob path
-            let full_path = repo.path.join(path);
-            paths.insert(full_path);
+            paths.insert(path.to_path_buf());
         }
     }
 
@@ -84,7 +85,6 @@ mod tests {
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
     use crate::repositories;
-    use crate::repositories::entries;
     use crate::test;
     use crate::util;
 
@@ -105,10 +105,9 @@ mod tests {
                 path: rm_dir.to_owned(),
                 recursive: true,
                 staged: false,
-                remote: false,
             };
             println!("Before rm");
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             // Make sure we staged these removals
             let status = repositories::status(&repo)?;
@@ -178,7 +177,7 @@ mod tests {
 
             let mut rm_opts = RmOpts::from_path(Path::new("images"));
             rm_opts.recursive = true;
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             let commit = repositories::commit(&repo, "Removing cat images")?;
 
             for i in 1..=3 {
@@ -282,19 +281,16 @@ mod tests {
 
             repositories::add(&repo, &images_dir)?;
 
-            // TODO: The following assertions seem like the should be valid, and are backed up by the print statement
-            // However, staus.staged_dirs.len() is showing up as 2, rather than 9. That seems to be an issue with status?
-
-            /*
             let status = repositories::status(&repo)?;
             status.print();
+
+            println!("status: {:?}", status);
 
             // root dir + images + cats + level 1 * 3 + level 2 * 2 + level 3 * 1
             assert_eq!(status.staged_dirs.len(), 9);
 
             // 3 * (cats + level 1 * 3 + level 2 * 2 + level 3 * 1)
             assert_eq!(status.staged_files.len(), 21);
-            */
 
             repositories::commit(&repo, "Adding initial cat images")?;
 
@@ -305,7 +301,7 @@ mod tests {
             // Remove all the cat images and subdirectories
             let mut rm_opts = RmOpts::from_path(Path::new("images"));
             rm_opts.recursive = true;
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             let commit = repositories::commit(&repo, "Removing cat images and sub_directories")?;
 
             // None of these files should exist after rm -r
@@ -344,17 +340,19 @@ mod tests {
                 }
             }
 
-            let entries = entries::list_for_commit(&repo, &commit)?;
-            assert_eq!(entries.len(), 0);
-
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
+            assert_eq!(files.len(), 0);
+            assert_eq!(dirs.len(), 0);
+
             let dirs = tree.list_dir_paths()?;
+            println!("list_dir_paths got {} dirs", dirs.len());
             for dir in dirs.iter() {
-                log::debug!("dir: {:?}", dir);
+                println!("dir: {:?}", dir);
             }
 
-            // Should be 0, as list_files_and_dirs explicitly excludes the root dir
-            assert_eq!(dirs.len(), 0);
+            // Should be 1, as list_dir_paths explicitly includes the root dir
+            assert_eq!(dirs.len(), 1);
 
             Ok(())
         })
@@ -407,7 +405,7 @@ mod tests {
             let repo_filepath = PathBuf::from("images").join("dog_1.jpg");
 
             let rm_opts = RmOpts::from_path(repo_filepath);
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
             let commit = repositories::commit(&repo, "Removing dog")?;
 
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
@@ -482,11 +480,30 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
+
+            println!("BEFORE ADD");
+            status.print();
+
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
+            println!("AFTER ADD");
+            println!("status: {:?}", status);
+            status.print();
 
             let status = repositories::status(&repo)?;
-            assert_eq!(status.staged_dirs.len(), 1);
+            println!("AFTER STATUS");
+            println!("status: {:?}", status);
+            status.print();
+
+            // There are 4 dirs
+            // nlp/classification/annotations/
+            // nlp/classification
+            // nlp
+            // "" (root dir)
+            assert_eq!(status.staged_dirs.len(), 4);
+            // 2 files
+            // nlp/classification/annotations/test.tsv
+            // nlp/classification/annotations/train.tsv
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
@@ -526,6 +543,9 @@ mod tests {
             std::fs::remove_file(repo.path.join("images").join("dog_1.jpg"))?;
 
             let status = repositories::status(&repo)?;
+            log::debug!("PRE-REMOVE");
+            log::debug!("status: {:?}", status);
+            status.print();
             assert_eq!(status.removed_files.len(), 3);
             assert_eq!(status.staged_files.len(), 0);
 
@@ -534,13 +554,14 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: false,
-                remote: false,
             };
 
-            repositories::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts)?;
 
             let status = repositories::status(&repo)?;
-
+            log::debug!("POST-REMOVE");
+            log::debug!("status: {:?}", status);
+            status.print();
             // Should now have 7 staged for removal
             assert_eq!(status.staged_files.len(), 7);
             assert_eq!(status.removed_files.len(), 0);
@@ -550,12 +571,13 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: true,
-                remote: false,
             };
 
-            repositories::rm(&repo, &rm_opts).await?;
-
+            repositories::rm(&repo, &rm_opts)?;
             let status = repositories::status(&repo)?;
+            log::debug!("POST-REMOVE-STAGED");
+            log::debug!("status: {:?}", status);
+            status.print();
 
             // Files unstaged, still removed
             assert_eq!(status.staged_files.len(), 0);
@@ -578,7 +600,7 @@ mod tests {
             assert!(status.staged_files.contains_key(path));
 
             let opts = RmOpts::from_staged_path(path);
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             log::debug!("status: {:?}", status);
@@ -605,9 +627,8 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: false, // This should be an error
-                remote: false,
             };
-            let result = repositories::rm(&repo, &opts).await;
+            let result = repositories::rm(&repo, &opts);
             assert!(result.is_err());
 
             Ok(())
@@ -631,9 +652,8 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
-                remote: false,
             };
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -661,9 +681,8 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
-                remote: false,
             };
-            let result = repositories::rm(&repo, &opts).await;
+            let result = repositories::rm(&repo, &opts);
             assert!(result.is_ok());
 
             let status = repositories::status(&repo)?;
@@ -684,7 +703,7 @@ mod tests {
             let path = Path::new("README.md");
 
             let opts = RmOpts::from_path(path);
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -710,10 +729,9 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: false, // This should be an error
-                remote: false,
             };
 
-            let result = repositories::rm(&repo, &opts).await;
+            let result = repositories::rm(&repo, &opts);
             assert!(result.is_err());
 
             Ok(())
@@ -731,10 +749,9 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
-                remote: false,
             };
 
-            let result = repositories::rm(&repo, &opts).await;
+            let result = repositories::rm(&repo, &opts);
             assert!(result.is_err());
 
             Ok(())
@@ -757,7 +774,6 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
-                remote: false,
             };
 
             // copy a cat into the dog image
@@ -774,7 +790,7 @@ mod tests {
             status.print();
             assert_eq!(status.modified_files.len(), 1);
 
-            let result = repositories::rm(&repo, &opts).await;
+            let result = repositories::rm(&repo, &opts);
             assert!(result.is_err());
 
             Ok(())
@@ -799,9 +815,8 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: true, // Must pass in recursive = true
-                remote: false,
             };
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -839,9 +854,8 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: true, // Must pass in recursive = true
-                remote: false,
             };
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -867,9 +881,8 @@ mod tests {
                 path,
                 staged: false,
                 recursive: true, // Must pass in recursive = true
-                remote: false,
             };
-            repositories::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();

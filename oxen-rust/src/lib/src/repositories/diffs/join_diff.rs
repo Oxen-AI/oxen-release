@@ -364,7 +364,7 @@ fn add_diff_status_column(
                                 // log::debug!("column: {:?} elem: {:?}", j, elem);
                                 row.push(elem);
                             }
-                            let key_left = row.get(0);
+                            let key_left = row.first();
                             let key_right = row.get(1);
                             let target_hash_left = row.get(2);
                             let target_hash_right = row.get(3);

@@ -22,7 +22,7 @@ use tokio::time::Duration;
 
 use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
-use crate::core::v0_10_0::index::{self, CommitReader, Merger};
+use crate::core::v0_10_0::index::{CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
@@ -311,7 +311,7 @@ async fn get_commit_objects_to_sync(
 
         // Early return to avoid checking for remote commits: if full local history and no remote branch,
         // push full local branch history.
-        if core::v0_10_0::commits::commit_history_is_complete(local_repo, local_commit) {
+        if repositories::commits::commit_history_is_complete(local_repo, local_commit)? {
             return repositories::commits::list_from(local_repo, &local_commit.id);
         }
 
@@ -504,7 +504,7 @@ fn commits_to_push_are_synced(
     commits_to_push: &Vec<Commit>,
 ) -> Result<bool, OxenError> {
     for commit in commits_to_push {
-        if !index::commit_sync_status::commit_is_synced(local_repo, commit) {
+        if !core::commit_sync_status::commit_is_synced(local_repo, commit) {
             log::debug!("commit is not synced {:?}", commit);
             return Ok(false);
         }
@@ -1412,7 +1412,7 @@ mod tests {
 
             repositories::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit = repositories::commit(&local_repo, "Moved the readme")?;
 
             // All remote entries should by synced
@@ -1457,7 +1457,7 @@ mod tests {
             repositories::add(&local_repo, new_path)?;
             let mut rm_opts = RmOpts::from_path("train");
             rm_opts.recursive = true;
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit =
                 repositories::commit(&local_repo, "Moved all the train image files to images/")?;
 

@@ -150,20 +150,24 @@ mod tests {
 
     use crate::constants::INITIAL_COMMIT_MSG;
     use crate::core::v0_10_0::index::CommitReader;
+    use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
 
     #[test]
     fn test_get_root_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let commit_reader = CommitReader::new(&repo)?;
-            let root_commit = commit_reader.root_commit()?;
+        test::run_training_data_repo_test_fully_committed_w_version(
+            MinOxenVersion::V0_10_0,
+            |repo| {
+                let commit_reader = CommitReader::new(&repo)?;
+                let root_commit = commit_reader.root_commit()?;
 
-            assert_eq!(root_commit.message, INITIAL_COMMIT_MSG);
+                assert_eq!(root_commit.message, INITIAL_COMMIT_MSG);
 
-            Ok(())
-        })
+                Ok(())
+            },
+        )
     }
 
     #[test]

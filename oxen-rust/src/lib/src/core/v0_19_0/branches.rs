@@ -186,7 +186,7 @@ pub fn restore_file(
     file_node: &FileNode,
     dst_path: &Path, // absolute path
 ) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, &file_node.hash.to_string());
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
     if !version_path.exists() {
         return Err(OxenError::basic_str(format!(
             "Source file not found in versions directory: {:?}",

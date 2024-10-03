@@ -8,7 +8,6 @@ pub mod config;
 pub mod db;
 pub mod df;
 pub mod diff;
-pub mod download;
 pub mod load;
 pub mod merge;
 pub mod migrate;
@@ -17,7 +16,6 @@ pub mod save;
 
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::{diff, diff_commits};
-pub use crate::command::download::download;
 pub use crate::command::load::load;
 pub use crate::command::merge::merge;
 pub use crate::command::restore::restore;

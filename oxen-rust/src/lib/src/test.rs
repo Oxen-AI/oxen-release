@@ -8,6 +8,7 @@ use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::refs::RefWriter;
 
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::RepoNew;
@@ -214,7 +215,7 @@ where
 
 pub fn run_empty_local_repo_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(LocalRepository) -> Result<(), OxenError>,
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
     log::info!("<<<<< run_empty_local_repo_test start");
@@ -222,19 +223,46 @@ where
     let repo = repositories::init(&repo_dir)?;
 
     log::info!(">>>>> run_empty_local_repo_test running test");
-    let result = match test(repo) {
-        Ok(_) => true,
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {err}");
-            false
+            panic!("Error running test. Err: {}", err);
         }
-    };
+    });
 
     // Remove repo dir
     util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result);
+    assert!(result.is_ok());
+    Ok(())
+}
+
+pub fn run_empty_local_repo_test_w_version<T>(
+    version: MinOxenVersion,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    log::info!("<<<<< run_empty_local_repo_test start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init::init_with_version(&repo_dir, version)?;
+
+    log::info!(">>>>> run_empty_local_repo_test running test");
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
     Ok(())
 }
 
@@ -442,10 +470,9 @@ where
         path: PathBuf::from("test"),
         recursive: true,
         staged: false,
-        remote: false,
     };
 
-    repositories::rm(&local_repo, &rm_opts).await?;
+    repositories::rm(&local_repo, &rm_opts)?;
     repositories::commit(&local_repo, "Removing test/")?;
 
     // Add all the files
@@ -1130,7 +1157,63 @@ where
 
     // Add all the files
     repositories::add(&repo, &repo.path)?;
+
+    // Get the status and print it
+    let status = repositories::status(&repo)?;
+    println!("setup status: {status:?}");
+    status.print();
+
+    // Commit the data
+    let commit = repositories::commit(&repo, "adding all data baby")?;
+
+    // Read the tree for debug
+    let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+    println!("setup tree after commit:");
+    tree.print();
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_training_data_repo_test_fully_committed running test");
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
+/// Run a test on a repo with a bunch of files
+pub fn run_training_data_repo_test_fully_committed_w_version<T>(
+    version: MinOxenVersion,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    log::info!("<<<<< run_training_data_repo_test_fully_committed start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init::init_with_version(&repo_dir, version)?;
+    // Write all the files
+    populate_dir_with_training_data(&repo_dir)?;
+
+    // Add all the files
+    repositories::add(&repo, &repo.path)?;
+
+    // Get the status and print it
+    let status = repositories::status(&repo)?;
+    println!("setup status: {status:?}");
+    status.print();
+
+    // Commit the data
     repositories::commit(&repo, "adding all data baby")?;
+
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_repo_test_fully_committed running test");
     let result = std::panic::catch_unwind(|| match test(repo) {

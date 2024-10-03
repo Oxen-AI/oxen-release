@@ -45,6 +45,7 @@ pub fn mark_commit_as_synced(repo: &LocalRepository, commit: &Commit) -> Result<
 fn commit_is_synced_file_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
     repo.path
         .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::TREE_DIR)
         .join(constants::SYNC_STATUS_DIR)
         .join(constants::COMMITS_DIR)
         .join(&commit.id)
