@@ -240,7 +240,7 @@ pub fn prepare_modified_or_removed_row(
     // let scan_rows = 10000 as usize;
     let committed_df_path = util::fs::version_path_from_node(
         repo,
-        &commit_merkle_tree.root.hash.to_string(),
+        commit_merkle_tree.root.hash.to_string(),
         path.as_ref(),
     );
 

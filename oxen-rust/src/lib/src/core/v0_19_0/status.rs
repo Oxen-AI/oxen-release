@@ -385,20 +385,17 @@ fn find_untracked_and_modified_paths(
                     "find_untracked_and_modified_paths checking if child {} is removed",
                     child
                 );
-                match &child.node {
-                    EMerkleTreeNode::File(file) => {
-                        let removed_path = relative_dir.join(&file.name);
-                        if is_removed(file, &full_dir)
-                            && !staged_data.staged_files.contains_key(&removed_path)
-                        {
-                            log::debug!(
-                                "find_untracked_and_modified_paths is removed! {:?}",
-                                removed_path
-                            );
-                            staged_data.removed_files.insert(removed_path);
-                        }
+                if let EMerkleTreeNode::File(file) = &child.node {
+                    if is_removed(file, &full_dir) {
+                        log::debug!(
+                            "find_untracked_and_modified_paths is removed! dir {:?} child {}",
+                            full_dir,
+                            child
+                        );
+                        staged_data
+                            .removed_files
+                            .insert(relative_dir.join(&file.name));
                     }
-                    _ => {}
                 }
             }
         }

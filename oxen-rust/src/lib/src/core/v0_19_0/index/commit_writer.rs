@@ -464,15 +464,12 @@ fn cleanup_rm_dirs(
 ) -> Result<(), OxenError> {
     for (path, entries) in dir_entries.iter() {
         for entry in entries.iter() {
-            match &entry.node.node {
-                EMerkleTreeNode::Directory(dir_node) => {
-                    if entry.status == StagedEntryStatus::Removed {
-                        let dir_path = path.join(&dir_node.name);
-                        let key = dir_path.to_str().unwrap();
-                        dir_hash_db.delete(key)?;
-                    }
+            if let EMerkleTreeNode::Directory(dir_node) = &entry.node.node {
+                if entry.status == StagedEntryStatus::Removed {
+                    let dir_path = path.join(&dir_node.name);
+                    let key = dir_path.to_str().unwrap();
+                    dir_hash_db.delete(key)?;
                 }
-                _ => {}
             }
         }
     }
