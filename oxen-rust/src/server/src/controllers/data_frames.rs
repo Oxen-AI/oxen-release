@@ -64,7 +64,7 @@ pub async fn get(
 
     let mut df = data_frame_slice.slice;
     let view_height = if opts.has_filter_transform() {
-        df.height()
+        data_frame_slice.total_entries
     } else {
         data_frame_slice.schemas.slice.size.height
     };
@@ -84,7 +84,7 @@ pub async fn get(
                     page_number: page_opts.page_num,
                     page_size: page_opts.page_size,
                     total_pages,
-                    total_entries: view_height,
+                    total_entries: data_frame_slice.total_entries,
                 },
                 opts: opts_view,
             },

@@ -493,6 +493,10 @@ pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
     }
 
     log::debug!("transform_slice_lazy before collect");
+    println!(
+        "Debug Point 3: df {:?}",
+        df.clone().collect().unwrap().height()
+    );
     Ok(df)
 }
 

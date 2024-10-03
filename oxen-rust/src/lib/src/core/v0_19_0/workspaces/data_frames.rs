@@ -39,16 +39,13 @@ pub fn get_queryable_data_frame_workspace(
     let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, path, true)?;
     let file_hash = commit_merkle_tree.root.hash;
 
-    let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
-
-    let data_type = util::fs::file_data_type(&version_path);
-
-    if data_type != EntryDataType::Tabular {
+    let file_node = repositories::tree::get_file_by_path(&repo, &commit, &path)?
+        .ok_or(OxenError::path_does_not_exist(path))?;
+    if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
-            "File format not supported, must be tabular.",
+            "File format not supported, must be tabular.must be tabular.",
         ));
     }
-
     let workspaces = repositories::workspaces::list(repo)?;
 
     for workspace in workspaces {
@@ -71,7 +68,10 @@ pub fn get_queryable_data_frame_workspace(
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     // Is tabular just looks at the file extensions
-    if !util::fs::is_tabular(path) {
+    let file_node =
+        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, &path)?
+            .ok_or(OxenError::path_does_not_exist(path))?;
+    if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.must be tabular.",
         ));
