@@ -39,7 +39,7 @@ pub fn get_queryable_data_frame_workspace(
     let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, path, true)?;
     let file_hash = commit_merkle_tree.root.hash;
 
-    let version_path = util::fs::version_path_from_node(repo, &file_hash.to_string(), path);
+    let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
 
     let data_type = util::fs::file_data_type(&version_path);
 
@@ -114,7 +114,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     if df_db::table_exists(&conn, TABLE_NAME)? {
         df_db::drop_table(&conn, TABLE_NAME)?;
     }
-    let version_path = util::fs::version_path_from_node(repo, &file_hash.to_string(), path);
+    let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
 
     log::debug!(
         "core::v0_19_0::index::workspaces::data_frames::index({:?}) got version path: {:?}",

@@ -56,6 +56,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let metadata = get_file_metadata(path, &data_type)?;
 
     // TODO: how do we get the cached dir info if the entry is a dir?
+    // TODO: Should we also be getting the real hash here? Seems like we'd have to calculate it again
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
         hash: "".to_string(),

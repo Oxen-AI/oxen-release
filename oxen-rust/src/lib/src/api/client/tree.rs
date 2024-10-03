@@ -12,9 +12,9 @@ use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
+use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
 use crate::view::{MerkleHashesResponse, StatusMessage};
-use crate::{api, util};
+use crate::{api, repositories, util};
 
 /// Check if a node exists in the remote repository merkle tree by hash
 pub async fn has_node(
@@ -114,6 +114,30 @@ pub async fn download_node(
     Ok(node)
 }
 
+/// Download a node and all its children from the remote repository merkle tree by hash
+pub async fn download_node_with_children(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    node_id: &MerkleHash,
+) -> Result<MerkleTreeNode, OxenError> {
+    let node_hash_str = node_id.to_string();
+    let uri = format!("/tree/nodes/{node_hash_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading node {} from {}", node_hash_str, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked node {}", node_hash_str);
+
+    // We just downloaded, so unwrap is safe
+    let node = CommitMerkleTree::read_node(local_repo, node_id, true)?.unwrap();
+
+    log::debug!("read node {}", node);
+
+    Ok(node)
+}
+
 /// Download a tree from the remote repository merkle tree by hash
 pub async fn download_tree(
     local_repo: &LocalRepository,
@@ -143,7 +167,7 @@ pub async fn download_commits_between(
     remote_repo: &RemoteRepository,
     base_id: impl AsRef<str>,
     head_id: impl AsRef<str>,
-) -> Result<(), OxenError> {
+) -> Result<Vec<Commit>, OxenError> {
     let base_id = base_id.as_ref();
     let head_id = head_id.as_ref();
     let base_head = format!("{base_id}..{head_id}");
@@ -156,14 +180,19 @@ pub async fn download_commits_between(
 
     log::debug!("unpacked commits {}", base_head);
 
-    Ok(())
+    // Return the commits we downloaded
+    let base_commit = repositories::commits::get_by_id(local_repo, base_id)?.unwrap();
+    let head_commit = repositories::commits::get_by_id(local_repo, head_id)?.unwrap();
+    let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
+
+    Ok(commits)
 }
 
 pub async fn download_commits_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     base_id: impl AsRef<str>,
-) -> Result<(), OxenError> {
+) -> Result<Vec<Commit>, OxenError> {
     let base_id = base_id.as_ref();
     let uri = format!("/tree/commits/{base_id}/download");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -174,7 +203,9 @@ pub async fn download_commits_from(
 
     log::debug!("unpacked commits {}", base_id);
 
-    Ok(())
+    // Return the commits we downloaded
+    let commits = repositories::commits::list_from(local_repo, &base_id)?;
+    Ok(commits)
 }
 
 async fn node_download_request(

@@ -27,5 +27,6 @@ pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<Stag
         &read_progress,
     )?;
 
-    core::v0_19_0::status::status_from_dir_entries(dir_entries)
+    let mut staged_data = StagedData::empty();
+    core::v0_19_0::status::status_from_dir_entries(&mut staged_data, dir_entries)
 }

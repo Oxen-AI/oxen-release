@@ -53,9 +53,17 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
+            log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
                 paths.insert(entry?);
+            }
+
+            if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
+                let pattern_entries =
+                    repositories::commits::search_entries(repo, &commit, path_str)?;
+                log::debug!("pattern entries: {:?}", pattern_entries);
+                paths.extend(pattern_entries);
             }
         } else {
             // Non-glob path
@@ -126,20 +134,9 @@ fn add_files(
             log::debug!(
                 "Found nonexistant path {path:?}. Staging for removal. Recursive flag not set"
             );
-            let opts = RmOpts::from_path(path);
-
-            // block on the rm call to avoid async/await issues.
-            match tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(repositories::rm(repo, &opts))
-            }) {
-                Ok(()) => {
-                    log::debug!("Sucessfully removed non-existant path {path:?}");
-                }
-                Err(err) => {
-                    let err = format!("Err removing non-existant path {path:?}: {err}");
-                    return Err(OxenError::basic_str(err));
-                }
-            }
+            let mut opts = RmOpts::from_path(path);
+            opts.recursive = true;
+            repositories::rm(repo, &opts)?;
         }
     }
 

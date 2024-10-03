@@ -1,6 +1,8 @@
 //! DEPRECIATED: Use `repositories::entries` instead.
 //!
 
+use crate::core;
+use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::DirNode;
@@ -575,4 +577,61 @@ pub fn get_commit_history_path(
     history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
     Ok(history)
+}
+
+pub fn list_tabular_files_in_repo(
+    local_repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<MetadataEntry>, OxenError> {
+    let schema_reader = index::SchemaReader::new(local_repo, &commit.id)?;
+    let schemas = schema_reader.list_schemas()?;
+
+    let mut meta_entries: Vec<MetadataEntry> = vec![];
+    let entry_reader = CommitEntryReader::new(local_repo, commit)?;
+    let commit_reader = CommitReader::new(local_repo)?;
+    let commits = commit_reader.list_all()?;
+
+    for (path, _schema) in schemas.iter() {
+        let entry = entry_reader.get_entry(path)?;
+
+        if entry.is_some() {
+            let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
+            let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+            for commit in &commits {
+                let object_reader = get_object_reader(local_repo, &commit.id)?;
+                let reader = CommitDirEntryReader::new(
+                    local_repo,
+                    &commit.id,
+                    parent,
+                    object_reader.clone(),
+                )?;
+                commit_entry_readers.push((commit.clone(), reader));
+            }
+
+            let metadata = core::v0_10_0::entries::meta_entry_from_commit_entry(
+                local_repo,
+                &entry.unwrap(),
+                &commit_entry_readers,
+                &commit.id,
+            )?;
+            if metadata.data_type == EntryDataType::Tabular {
+                meta_entries.push(metadata);
+            }
+        }
+    }
+
+    Ok(meta_entries)
+}
+
+pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.num_entries()
+}
+
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.list_entries()
 }
