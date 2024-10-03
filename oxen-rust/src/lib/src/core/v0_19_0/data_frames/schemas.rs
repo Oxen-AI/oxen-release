@@ -14,11 +14,8 @@ use serde::Serialize;
 use std::str;
 
 use crate::constants;
-use crate::constants::FILES_DIR;
-use crate::constants::VERSIONS_DIR;
 use crate::core::db;
 
-use crate::core::v0_19_0::add;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
