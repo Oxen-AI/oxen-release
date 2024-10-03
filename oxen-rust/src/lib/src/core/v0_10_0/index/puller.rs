@@ -28,7 +28,7 @@ pub async fn pull_entries(
         return Ok(());
     }
 
-    let missing_entries = get_missing_entries(entries, &dst);
+    let missing_entries = get_missing_entries(entries, dst);
     // log::debug!("Pulling missing entries {:?}", missing_entries);
 
     if missing_entries.is_empty() {
@@ -55,13 +55,13 @@ pub async fn pull_entries(
     // Either download to the working directory or the versions directory
     let (small_entry_paths, large_entry_paths) = if to_working_dir {
         let small_entry_paths =
-            working_dir_paths_from_small_entries(&smaller_entries, dst.as_ref());
-        let large_entry_paths = working_dir_paths_from_large_entries(&larger_entries, dst.as_ref());
+            working_dir_paths_from_small_entries(&smaller_entries, dst);
+        let large_entry_paths = working_dir_paths_from_large_entries(&larger_entries, dst);
         (small_entry_paths, large_entry_paths)
     } else {
         let small_entry_paths =
-            version_dir_paths_from_small_entries(remote_repo, &smaller_entries, dst.as_ref());
-        let large_entry_paths = version_dir_paths_from_large_entries(&larger_entries, dst.as_ref());
+            version_dir_paths_from_small_entries(remote_repo, &smaller_entries, dst);
+        let large_entry_paths = version_dir_paths_from_large_entries(&larger_entries, dst);
         (small_entry_paths, large_entry_paths)
     };
 
@@ -146,7 +146,7 @@ fn version_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<Pa
 }
 
 fn get_missing_entries(entries: &[Entry], dst: &Path) -> Vec<Entry> {
-    let dst: &Path = dst.as_ref();
+    let dst: &Path = dst;
     let mut missing_entries: Vec<Entry> = vec![];
 
     for entry in entries {

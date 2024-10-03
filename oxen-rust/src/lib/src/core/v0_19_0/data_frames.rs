@@ -1,16 +1,15 @@
 use crate::constants::DUCKDB_DF_TABLE_NAME;
 use crate::core::db::data_frames::df_db;
-use crate::core::df::tabular::{paginate_df, transform_new};
+use crate::core::df::tabular::transform_new;
 use crate::core::df::{sql, tabular};
 use crate::error::OxenError;
 use crate::model::data_frame::{DataFrameSchemaSize, DataFrameSlice, DataFrameSliceSchemas};
-use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::metadata_tabular::MetadataTabularImpl;
 use crate::model::{Commit, DataFrameSize, LocalRepository, Schema, Workspace};
 use crate::opts::DFOpts;
 use crate::{repositories, util};
-use polars::prelude::{IntoLazy as _, LazyFrame};
+use polars::prelude::IntoLazy as _;
 
 use std::path::Path;
 

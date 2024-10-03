@@ -39,7 +39,7 @@ pub fn get_queryable_data_frame_workspace(
     let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, path, true)?;
     let file_hash = commit_merkle_tree.root.hash;
 
-    let file_node = repositories::tree::get_file_by_path(&repo, &commit, &path)?
+    let file_node = repositories::tree::get_file_by_path(repo, commit, path)?
         .ok_or(OxenError::path_does_not_exist(path))?;
     if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
@@ -69,7 +69,7 @@ pub fn get_queryable_data_frame_workspace(
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     // Is tabular just looks at the file extensions
     let file_node =
-        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, &path)?
+        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, path)?
             .ok_or(OxenError::path_does_not_exist(path))?;
     if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(

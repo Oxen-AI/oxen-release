@@ -118,7 +118,7 @@ pub fn list_directory(
 
     Ok(PaginatedDirEntries {
         dir: dir_entry,
-        entries: entries,
+        entries,
         resource,
         metadata,
         page_size,
@@ -349,11 +349,11 @@ pub fn list_tabular_files_in_repo(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<MetadataEntry>, OxenError> {
-    let entries = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;
-    let entries: Vec<FileNode> = entries.into_iter().map(|entry| entry.into()).collect();
+    let entries = repositories::tree::list_tabular_files_in_repo(repo, commit)?;
+    let entries: Vec<FileNode> = entries.into_iter().collect();
     let entries: Vec<MetadataEntry> = entries
         .into_iter()
-        .map(|node| MetadataEntry::from_file_node(&repo, Some(node), &commit).unwrap())
+        .map(|node| MetadataEntry::from_file_node(repo, Some(node), commit).unwrap())
         .collect();
     Ok(entries)
 }
