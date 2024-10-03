@@ -37,7 +37,6 @@ pub fn get_queryable_data_frame_workspace(
     let path = path.as_ref();
 
     let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, path, true)?;
-    let file_hash = commit_merkle_tree.root.hash;
 
     let file_node = repositories::tree::get_file_by_path(repo, commit, path)?
         .ok_or(OxenError::path_does_not_exist(path))?;
