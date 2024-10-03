@@ -43,7 +43,7 @@ pub fn get_queryable_data_frame_workspace(
         .ok_or(OxenError::path_does_not_exist(path))?;
     if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
-            "File format not supported, must be tabular.must be tabular.",
+            "File format not supported, must be tabular.",
         ));
     }
     let workspaces = repositories::workspaces::list(repo)?;
@@ -73,7 +73,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
             .ok_or(OxenError::path_does_not_exist(path))?;
     if file_node.data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
-            "File format not supported, must be tabular.must be tabular.",
+            "File format not supported, must be tabular.",
         ));
     }
 
