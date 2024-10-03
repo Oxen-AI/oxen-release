@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource, MerkleHash};
 use crate::repositories;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -23,6 +23,7 @@ pub struct CLIMetadataEntry {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataEntry {
     pub filename: String,
+    pub hash: MerkleHash,
     pub is_dir: bool,
     pub latest_commit: Option<Commit>,
     pub resource: Option<ParsedResource>,

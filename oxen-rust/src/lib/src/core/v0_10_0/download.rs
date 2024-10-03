@@ -1,10 +1,21 @@
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
+use crate::core::v0_19_0::structs::PullProgress;
+use std::path::Path;
+use crate::util;
+use crate::error::OxenError;
+use crate::constants::OXEN_HIDDEN_DIR;
+use crate::api::client::commits;
+use crate::constants::OBJECTS_DIR;
+use crate::model::RemoteRepository;
+use crate::model::MetadataEntry;
+use crate::model::entry::commit_entry::Entry;
+use crate::api;
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
-    local_path: impl AsRef<Path>,
+    local_path: &Path,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
     let commit_id = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;

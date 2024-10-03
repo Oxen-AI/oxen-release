@@ -8,7 +8,7 @@ use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
+use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, MerkleHash};
 use crate::util;
 
 use std::path::Path;
@@ -31,6 +31,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: MerkleHash::new(0),
         is_dir: path.is_dir(),
         latest_commit: None,
         resource: None,
@@ -54,8 +55,10 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let metadata = get_file_metadata(path, &data_type)?;
 
     // TODO: how do we get the cached dir info if the entry is a dir?
+    // TODO: Should we also be getting the real hash here? Seems like we'd have to calculate it again
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: MerkleHash::new(0),
         is_dir: path.is_dir(),
         latest_commit: None,
         resource: None,
@@ -86,6 +89,7 @@ pub fn from_commit_entry(
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
+        hash: MerkleHash::new(0),
         is_dir: path.is_dir(),
         latest_commit: Some(commit.to_owned()),
         resource: None,

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     model::{
         Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry,
-        SummarizedStagedDirStats,
+        SummarizedStagedDirStats, MerkleHash,
     },
     util,
 };
@@ -129,6 +129,7 @@ impl RemoteStagedStatus {
 
                 MetadataEntry {
                     filename: path_str,
+                    hash: MerkleHash::new(0),
                     is_dir: false,
                     size: len,
                     latest_commit: None,
