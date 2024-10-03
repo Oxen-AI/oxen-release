@@ -17,7 +17,7 @@ use crate::{current_function, util};
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
-    dst: impl AsRef<Path>,
+    dst: &Path,
     to_working_dir: bool,
     progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
@@ -123,8 +123,8 @@ fn version_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<Pa
     paths
 }
 
-fn get_missing_entries(entries: &[Entry], dst: impl AsRef<Path>) -> Vec<Entry> {
-    let dst = dst.as_ref();
+fn get_missing_entries(entries: &[Entry], dst: &Path) -> Vec<Entry> {
+    let dst: &Path = dst.as_ref();
     let mut missing_entries: Vec<Entry> = vec![];
 
     for entry in entries {
@@ -348,7 +348,7 @@ fn working_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<Pa
 pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
-    dst: impl AsRef<Path>,
+    dst: &Path,
     progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = false;
@@ -359,7 +359,7 @@ pub async fn pull_entries_to_versions_dir(
 pub async fn pull_entries_to_working_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
-    dst: impl AsRef<Path>,
+    dst: &Path,
     progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = true;

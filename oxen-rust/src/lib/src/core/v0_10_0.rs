@@ -6,6 +6,7 @@ pub mod branches;
 pub mod cache;
 pub mod clone;
 pub mod commits;
+pub mod download;
 pub mod data_frames;
 pub mod entries;
 pub mod index;

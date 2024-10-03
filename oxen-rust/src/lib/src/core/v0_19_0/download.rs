@@ -1,49 +1,53 @@
+use crate::model::LocalRepository;
+use crate::model::MetadataEntry;
+use crate::core::versions::MinOxenVersion;
+use crate::model::RemoteRepository;
+use std::path::{Path, PathBuf};
+use crate::core::v0_19_0::structs::PullProgress;
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::error::OxenError;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::entry::commit_entry::Entry;
+use crate::model::CommitEntry;
+use std::sync::Arc;
+use crate::api;
+use crate::download;
+use crate::core;
 
 pub async fn download_dir(
-    repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
-    local_path: impl AsRef<Path>,
+    local_path: &Path,
 ) -> Result<(), OxenError> {
-    // Download the commit db for the given commit id or branch
-    // TODO: This might not be necessary for v19
-    let commit_id = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
-    let home_dir = util::fs::oxen_tmp_dir()?;
-    let repo_dir = home_dir
-        .join(&remote_repo.namespace)
-        .join(&remote_repo.name);
-    let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-    api::client::commits::download_dir_hashes_db_to_path(remote_repo, commit_id, &repo_cache_dir)
-        .await?;
-
-    // Find dir node in remote repo
-    let dir_hash = // TODO: How do we get the dir hash for download node?
-
-    // TODO: Does download_node actually download all its children recursively?
-    // Download dir node onto local machine 
-    let dir_node = api::client::tree::download_node(repo, remote_repo, dir_hash)?;
     
-    // Pull all the entries
-    let pull_progress = PullProgress::new();
+    // Initialize temp repo to download node into
+    // TODO: Where should this repo be? 
+    let tmp_repo = LocalRepository::new(local_path)?;
+  
+    // Find and download dir node and its children from remote repo
+    let dir_node = api::client::tree::download_node_with_children(&tmp_repo, remote_repo, &entry.hash).await?;
 
     // Create local directory to pull entries into 
     let directory = PathBuf::from(local_path);
+    let pull_progress = PullProgress::new();
 
     // Recursively pull entries
     r_download_entries(
-        repo,
         &remote_repo,
-        dir_node, 
+        &directory,
+        &dir_node, 
         &directory,
         &pull_progress,
-    )?;
+    ).await?;
+
+
 
     Ok(())
 }
 
 async fn r_download_entries(
-    repo: &LocalRepository,
     remote_repo: &RemoteRepository,
+    local_repo_path: &Path,
     node: &MerkleTreeNode,
     directory: &PathBuf,
     pull_progress: &Arc<PullProgress>,
@@ -56,8 +60,8 @@ async fn r_download_entries(
 
         if child.has_children() {
             Box::pin(r_download_entries(
-                repo,
                 remote_repo,
+                local_repo_path,
                 child,
                 &new_directory,
                 pull_progress,
@@ -86,7 +90,7 @@ async fn r_download_entries(
         core::v0_10_0::index::puller::pull_entries_to_working_dir(
             remote_repo,
             &entries,
-            &repo.path,
+            local_repo_path,
             pull_progress,
         )
         .await?;
