@@ -123,8 +123,6 @@ fn handle_sql_querying(
 
         slice_schema.update_metadata_from_schema(&source_schema);
 
-        println!("Debug Point HHEEEYY: slice_schema {:?}", data_frame_size);
-
         return Ok(DataFrameSlice {
             schemas: DataFrameSliceSchemas {
                 source: DataFrameSchemaSize {
