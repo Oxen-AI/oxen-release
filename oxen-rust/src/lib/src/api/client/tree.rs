@@ -204,7 +204,7 @@ pub async fn download_commits_from(
     log::debug!("unpacked commits {}", base_id);
 
     // Return the commits we downloaded
-    let commits = repositories::commits::list_from(local_repo, &base_id)?;
+    let commits = repositories::commits::list_from(local_repo, base_id)?;
     Ok(commits)
 }
 
