@@ -68,7 +68,6 @@ pub mod command;
 pub mod config;
 pub mod constants;
 pub mod core;
-pub mod download;
 pub mod error;
 pub mod io;
 pub mod migrations;
