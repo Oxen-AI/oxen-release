@@ -24,6 +24,7 @@ pub struct DataFrameSliceSchemas {
 pub struct DataFrameSlice {
     pub schemas: DataFrameSliceSchemas,
     pub slice: DataFrame,
+    pub total_entries: usize,
 }
 
 impl DataFrameSchemaSize {
