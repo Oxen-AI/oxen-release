@@ -5,6 +5,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{HttpRequest, HttpResponse};
+use liboxen::error::StringError;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
@@ -59,8 +60,12 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df =
-        repositories::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
+    let column_df = repositories::workspaces::data_frames::columns::add(
+        &repo,
+        &workspace,
+        &file_path,
+        &new_column,
+    )?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
@@ -122,11 +127,18 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df = repositories::workspaces::data_frames::columns::delete(
+    let column_df = match repositories::workspaces::data_frames::columns::delete(
+        &repo,
         &workspace,
         &file_path,
         &column_to_delete,
-    )?;
+    ) {
+        Ok(df) => df,
+        Err(e) => {
+            log::error!("Error deleting column: {:?}", e);
+            return Err(OxenHttpError::BasicError(StringError::from(e.to_string())));
+        }
+    };
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
@@ -215,6 +227,7 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     }
 
     let column_df = repositories::workspaces::data_frames::columns::update(
+        &repo,
         &workspace,
         &file_path,
         &column_to_update,
@@ -274,11 +287,18 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let restored_column = repositories::workspaces::data_frames::columns::restore(
+    let restored_column = match repositories::workspaces::data_frames::columns::restore(
+        &repo,
         &workspace,
         &file_path,
         &column_to_restore,
-    )?;
+    ) {
+        Ok(df) => df,
+        Err(e) => {
+            log::error!("Error restoring column: {:?}", e);
+            return Err(OxenHttpError::BasicError(StringError::from(e.to_string())));
+        }
+    };
 
     let diff =
         repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;

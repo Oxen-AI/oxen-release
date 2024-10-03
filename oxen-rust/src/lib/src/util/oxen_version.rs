@@ -11,7 +11,7 @@ impl FromStr for OxenVersion {
     type Err = OxenError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split(|c| c == '.' || c == '-').collect();
+        let parts: Vec<&str> = s.split(['.', '-']).collect();
         if parts.len() < 3 || parts.len() > 4 {
             return Err(OxenError::basic_str(format!(
                 "Invalid version string: {}",

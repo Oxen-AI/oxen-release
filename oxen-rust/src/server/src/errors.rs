@@ -25,6 +25,7 @@ pub enum OxenHttpError {
     DatasetAlreadyIndexed(PathBufError),
     UpdateRequired(StringError),
     WorkspaceBehind(Branch),
+    BasicError(StringError),
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
@@ -123,6 +124,18 @@ impl error::ResponseError for OxenHttpError {
                             "Dataset must be indexed.",
                         "detail":
                             format!("This dataset {} is not yet indexed for SQL and NLP querying.", path),
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_BAD_REQUEST,
+                });
+                HttpResponse::BadRequest().json(error_json)
+            }
+            OxenHttpError::BasicError(error) => {
+                let error_json = json!({
+                    "error": {
+                        "type": "basic_error",
+                        "title": "Basic error",
+                        "detail": format!("{}", error)
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_BAD_REQUEST,
@@ -404,6 +417,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
             OxenHttpError::WorkspaceBehind(_) => StatusCode::CONFLICT,
             OxenHttpError::DatasetNotIndexed(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::BasicError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::DatasetAlreadyIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,

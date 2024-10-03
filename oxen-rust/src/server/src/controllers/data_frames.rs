@@ -109,8 +109,8 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     // Check if the data frame is already indexed.
     if repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
         &repo,
-        &commit,
         &resource.path,
+        &commit,
     )? {
         // If the data frame is already indexed, return the appropriate error.
         return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
@@ -120,7 +120,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
         // If not, proceed to create a new workspace and index the data frame.
         let workspace_id = Uuid::new_v4().to_string();
         let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, false)?;
-        repositories::workspaces::data_frames::index(&workspace, &path)?;
+        repositories::workspaces::data_frames::index(&repo, &workspace, &path)?;
     }
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))

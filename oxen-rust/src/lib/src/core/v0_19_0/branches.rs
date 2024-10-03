@@ -9,14 +9,15 @@ use crate::util;
 use std::path::Path;
 
 pub fn list_entry_versions_for_commit(
-    local_repo: &LocalRepository,
-    commit_id: &str,
-    path: &Path,
+    _local_repo: &LocalRepository,
+    _commit_id: &str,
+    _path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
     todo!()
 }
 
 pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), OxenError> {
+    log::debug!("checkout {branch_name}");
     let branch = repositories::branches::get_by_name(repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
@@ -132,7 +133,7 @@ fn r_remove_if_not_in_target(
 fn r_restore_missing_or_modified_files(
     repo: &LocalRepository,
     node: &MerkleTreeNode,
-    path: &Path,
+    path: &Path, // relative path
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
     // If the file is not in the working repo, restore it from the commit
@@ -147,13 +148,13 @@ fn r_restore_missing_or_modified_files(
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
-                restore_file(repo, &file_node, &rel_path)?;
+                restore_file(repo, &file_node, &full_path)?;
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
                 if current_hash != file_node.hash.to_string() {
                     log::debug!("Updating modified file: {:?}", rel_path);
-                    restore_file(repo, &file_node, &rel_path)?;
+                    restore_file(repo, &file_node, &full_path)?;
                 }
             }
         }
@@ -183,22 +184,23 @@ fn r_restore_missing_or_modified_files(
 pub fn restore_file(
     repo: &LocalRepository,
     file_node: &FileNode,
-    dst_path: &Path,
+    dst_path: &Path, // absolute path
 ) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, &file_node.hash.to_string());
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
     if !version_path.exists() {
-        return Err(OxenError::basic_str(&format!(
+        return Err(OxenError::basic_str(format!(
             "Source file not found in versions directory: {:?}",
             version_path
         )));
     }
 
-    let working_path = repo.path.join(dst_path);
     if let Some(parent) = dst_path.parent() {
-        util::fs::create_dir_all(parent)?;
+        if !parent.exists() {
+            util::fs::create_dir_all(parent)?;
+        }
     }
 
-    util::fs::copy(version_path, working_path.clone())?;
+    util::fs::copy(version_path, dst_path)?;
     // TODO: set file metadata
     // Previous version used:
     // CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;

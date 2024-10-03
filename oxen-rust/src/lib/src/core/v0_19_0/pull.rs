@@ -10,11 +10,11 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     pull_remote_branch(repo, &rb.remote, &rb.branch, false).await
 }
 
-pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull_shallow(_repo: &LocalRepository) -> Result<(), OxenError> {
     todo!()
 }
 
-pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull_all(_repo: &LocalRepository) -> Result<(), OxenError> {
     todo!()
 }
 
@@ -46,7 +46,8 @@ pub async fn pull_remote_branch(
 
     // TODO: this should ideally be in the repositories::pull module,
     // but I'm not sure how that will interact with the v0_10_0 code
-    repositories::checkout::checkout(repo, branch).await?;
+    repositories::branches::checkout_branch(repo, branch).await?;
+    repositories::branches::set_head(repo, branch)?;
 
     Ok(())
 }

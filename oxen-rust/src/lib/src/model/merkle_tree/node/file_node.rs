@@ -10,6 +10,7 @@ use crate::model::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct FileNode {
@@ -19,7 +20,9 @@ pub struct FileNode {
     pub name: String,
 
     // Full file hash
+    pub metadata_hash: Option<MerkleHash>, //hash of the metadata
     pub hash: MerkleHash,
+    pub combined_hash: MerkleHash, //hash of the content_hash and metadata_hash
     // Number of bytes in the file
     pub num_bytes: u64,
     // Last commit id that modified the file
@@ -59,6 +62,8 @@ impl Default for FileNode {
             dtype: MerkleTreeNodeType::File,
             name: "".to_string(),
             hash: MerkleHash::new(0),
+            combined_hash: MerkleHash::new(0),
+            metadata_hash: None,
             num_bytes: 0,
             last_commit_id: MerkleHash::new(0),
             last_modified_seconds: 0,
@@ -81,6 +86,16 @@ impl MerkleTreeNodeIdType for FileNode {
 
     fn hash(&self) -> MerkleHash {
         self.hash
+    }
+}
+
+impl Hash for FileNode {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.num_bytes.hash(state);
+        self.last_modified_seconds.hash(state);
+        self.last_modified_nanoseconds.hash(state);
+        self.hash.hash(state);
     }
 }
 

@@ -22,7 +22,7 @@ use tokio::time::Duration;
 
 use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
-use crate::core::v0_10_0::index::{self, CommitReader, Merger};
+use crate::core::v0_10_0::index::{CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
@@ -311,7 +311,7 @@ async fn get_commit_objects_to_sync(
 
         // Early return to avoid checking for remote commits: if full local history and no remote branch,
         // push full local branch history.
-        if core::v0_10_0::commits::commit_history_is_complete(local_repo, local_commit) {
+        if repositories::commits::commit_history_is_complete(local_repo, local_commit)? {
             return repositories::commits::list_from(local_repo, &local_commit.id);
         }
 
@@ -504,7 +504,7 @@ fn commits_to_push_are_synced(
     commits_to_push: &Vec<Commit>,
 ) -> Result<bool, OxenError> {
     for commit in commits_to_push {
-        if !index::commit_sync_status::commit_is_synced(local_repo, commit) {
+        if !core::commit_sync_status::commit_is_synced(local_repo, commit) {
             log::debug!("commit is not synced {:?}", commit);
             return Ok(false);
         }
@@ -1050,7 +1050,7 @@ async fn upload_large_file_chunks(
                         Ok(chunk_size)
                     }
                     Err(err) => {
-                        log::error!("Error uploading chunk: {:?}", err);
+                        log::error!("Error uploading chunk: {err}");
                         Err(err)
                     }
                 }
@@ -1065,7 +1065,7 @@ async fn upload_large_file_chunks(
                         progress.add_bytes(chunk_size);
                     }
                     Err(err) => {
-                        log::error!("Error uploading chunk: {:?}", err)
+                        log::error!("Error uploading chunk: {err}")
                     }
                 }
             })
@@ -1125,6 +1125,8 @@ async fn bundle_and_send_small_entries(
         finished_queue.try_push(false).unwrap();
     }
 
+    // TODO: this needs some more robust error handling. What should we do if a single item fails?
+    // Currently no way to bubble up that error.
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
@@ -1146,11 +1148,21 @@ async fn bundle_and_send_small_entries(
                 };
 
                 for entry in &chunk {
+                    log::trace!(
+                        "bundle_and_send_small_entries adding entry to tarball: {:?}",
+                        entry
+                    );
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
                     let version_path = util::fs::version_path_for_entry(&repo, entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                    tar.append_path_with_name(version_path, name).unwrap();
+                    match tar.append_path_with_name(version_path, name) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::error!("Failed to add file to archive: {}", e);
+                            continue; // TODO: error handling, same as above
+                        }
+                    };
                 }
 
                 let buffer = match tar.into_inner() {
@@ -1400,7 +1412,7 @@ mod tests {
 
             repositories::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit = repositories::commit(&local_repo, "Moved the readme")?;
 
             // All remote entries should by synced
@@ -1445,7 +1457,7 @@ mod tests {
             repositories::add(&local_repo, new_path)?;
             let mut rm_opts = RmOpts::from_path("train");
             rm_opts.recursive = true;
-            repositories::rm(&local_repo, &rm_opts).await?;
+            repositories::rm(&local_repo, &rm_opts)?;
             let commit =
                 repositories::commit(&local_repo, "Moved all the train image files to images/")?;
 

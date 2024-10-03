@@ -178,17 +178,6 @@ pub fn restore_file(
     file_node: &FileNode,
     path: &PathBuf,
 ) -> Result<(), OxenError> {
-    log::debug!("restore::restore_file: start for {:?}", file_node.name);
-    do_restore_file(repo, file_node, path)?;
-    log::debug!("restore::restore_file: end");
-    Ok(())
-}
-
-fn do_restore_file(
-    repo: &LocalRepository,
-    file_node: &FileNode,
-    path: &PathBuf,
-) -> Result<(), OxenError> {
     log::debug!("restore::restore_regular: start for {:?}", file_node.name);
     log::debug!("restore::restore_regular: got entry resource");
 
@@ -196,7 +185,7 @@ fn do_restore_file(
     let last_modified_seconds = file_node.last_modified_seconds;
     log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
-    let version_path = util::fs::version_path_from_node(repo, &file_hash.to_string(), path);
+    let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
     log::debug!("restore::restore_regular: calculated version path");
 
     let working_path = repo.path.join(path);

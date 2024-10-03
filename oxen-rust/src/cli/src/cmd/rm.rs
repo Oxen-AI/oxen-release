@@ -54,7 +54,6 @@ impl RunCmd for RmCmd {
             path: paths.first().unwrap().to_path_buf(),
             staged: args.get_flag("staged"),
             recursive: args.get_flag("recursive"),
-            remote: false,
         };
 
         let repository = LocalRepository::from_current_dir()?;
@@ -62,7 +61,7 @@ impl RunCmd for RmCmd {
 
         for path in paths {
             let path_opts = RmOpts::from_path_opts(&path, &opts);
-            repositories::rm(&repository, &path_opts).await?;
+            repositories::rm(&repository, &path_opts)?;
         }
 
         Ok(())

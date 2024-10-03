@@ -111,6 +111,16 @@ impl MerkleTreeNode {
         }
     }
 
+    /// Create a MerkleTreeNode from a FileNode with the path relative to the repo
+    pub fn from_file_relative_to_repo(file_node: FileNode) -> MerkleTreeNode {
+        MerkleTreeNode {
+            hash: file_node.hash,
+            node: EMerkleTreeNode::File(file_node),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
     /// Create a MerkleTreeNode from a DirNode
     pub fn from_dir(dir_node: DirNode) -> MerkleTreeNode {
         MerkleTreeNode {
@@ -125,6 +135,8 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::Directory(dir_node) = &self.node {
             return Ok(PathBuf::from(dir_node.name.clone()));
         }
+        // From DEF of file_node, file_name.name == file_path to this file
+        // e.g., the file 'happy' in the folder 'sad' is called 'sad//happy'
         if let EMerkleTreeNode::File(file_node) = &self.node {
             return Ok(PathBuf::from(file_node.name.clone()));
         }
@@ -132,6 +144,14 @@ impl MerkleTreeNode {
             "MerkleTreeNode::maybe_path called on non-file or non-dir node: {:?}",
             self
         )))
+    }
+
+    /// Walk the tree
+    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
+        f(self);
+        for child in &self.children {
+            child.walk_tree(&f);
+        }
     }
 
     /// List all the directories in the tree
@@ -170,7 +190,7 @@ impl MerkleTreeNode {
         for child in &self.children {
             if let EMerkleTreeNode::File(_) = &child.node {
                 // Check if the file exists in the versions directory
-                let file_path = util::fs::version_path_from_hash(repo, &child.hash.to_string());
+                let file_path = util::fs::version_path_from_hash(repo, child.hash.to_string());
                 if !file_path.exists() {
                     missing_hashes.insert(child.hash);
                 }

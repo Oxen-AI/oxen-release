@@ -302,7 +302,7 @@ mod tests {
             match resource::parse_resource_from_path(&repo, path) {
                 Ok(Some(resource)) => {
                     assert_eq!(commit.id, resource.commit.unwrap().id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
+                    assert_eq!(resource.path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a commit");
@@ -326,7 +326,7 @@ mod tests {
                 Ok(Some(resource)) => {
                     println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, resource.commit.unwrap().id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
+                    assert_eq!(resource.path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a branch");
@@ -350,7 +350,7 @@ mod tests {
                 Ok(Some(resource)) => {
                     println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, resource.commit.unwrap().id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
+                    assert_eq!(resource.path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a branch");
@@ -374,7 +374,7 @@ mod tests {
                 Ok(Some(resource)) => {
                     println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, resource.commit.unwrap().id);
-                    assert_eq!(path, Path::new(""));
+                    assert_eq!(resource.path, Path::new(""));
                 }
                 _ => {
                     panic!("Should return a branch");

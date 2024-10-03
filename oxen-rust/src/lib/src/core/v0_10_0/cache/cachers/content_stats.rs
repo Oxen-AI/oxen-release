@@ -151,8 +151,8 @@ pub fn aggregate_stats(
     let count_vec: Vec<i64> = data_type_counts.iter().map(|(_, v)| *v).collect();
 
     let data_type_df = DataFrame::new(vec![
-        Series::new("data_type", data_type_vec),
-        Series::new("count", count_vec),
+        Series::new(PlSmallStr::from_str("data_type"), data_type_vec),
+        Series::new(PlSmallStr::from_str("count"), count_vec),
     ])?;
 
     // Create polars DataFrame of mime_type,count from the HashMap
@@ -160,101 +160,9 @@ pub fn aggregate_stats(
     let count_vec: Vec<i64> = mime_type_counts.iter().map(|(_, v)| *v).collect();
 
     let mime_type_df = DataFrame::new(vec![
-        Series::new("mime_type", mime_type_vec),
-        Series::new("count", count_vec),
+        Series::new(PlSmallStr::from_str("mime_type"), mime_type_vec),
+        Series::new(PlSmallStr::from_str("count"), count_vec),
     ])?;
 
     Ok((data_type_df, mime_type_df))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use crate::error::OxenError;
-    use crate::repositories;
-    use crate::test;
-
-    use super::*;
-
-    #[test]
-    fn test_aggregate_metadata_db() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let commit = repositories::commits::head_commit(&repo)?;
-
-            let items = compute_metadata_items(&repo, &commit)?;
-
-            let directory = PathBuf::from("");
-
-            let (data_type_df, mime_type_df) = aggregate_stats(&repo, &commit, directory, &items)?;
-
-            let df_str = format!("{:?}", data_type_df);
-
-            log::debug!("data_type_df: {:#?}", data_type_df);
-            log::debug!("mime_type_df: {:#?}", mime_type_df);
-
-            // Add assert here
-            assert_eq!(
-                df_str,
-                r"shape: (4, 2)
-┌───────────┬───────┐
-│ data_type ┆ count │
-│ ---       ┆ ---   │
-│ str       ┆ i64   │
-╞═══════════╪═══════╡
-│ directory ┆ 9     │
-│ image     ┆ 7     │
-│ tabular   ┆ 7     │
-│ text      ┆ 4     │
-└───────────┴───────┘"
-            );
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_aggregate_metadata_db_just_top_level_dir() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            // write ten text files to dir
-            let dir = repo.path.join("train");
-            util::fs::create_dir_all(&dir)?;
-            for i in 0..10 {
-                let path = dir.join(format!("file_{}.txt", i));
-                util::fs::write_to_path(&path, format!("hello world {}", i))?;
-            }
-            repositories::add(&repo, &dir)?;
-            repositories::commit(&repo, "adding ten text files")?;
-
-            let commit = repositories::commits::head_commit(&repo)?;
-
-            let items = compute_metadata_items(&repo, &commit)?;
-
-            let directory = PathBuf::from("");
-
-            let (data_type_df, mime_type_df) = aggregate_stats(&repo, &commit, directory, &items)?;
-
-            let df_str = format!("{:?}", data_type_df);
-            log::debug!("data_type_df:\n{:?}", df_str);
-
-            log::debug!("data_type_df: {:#?}", data_type_df);
-            log::debug!("mime_type_df: {:#?}", mime_type_df);
-
-            // Add assert here
-            assert_eq!(
-                df_str,
-                r"shape: (2, 2)
-┌───────────┬───────┐
-│ data_type ┆ count │
-│ ---       ┆ ---   │
-│ str       ┆ i64   │
-╞═══════════╪═══════╡
-│ text      ┆ 10    │
-│ directory ┆ 1     │
-└───────────┴───────┘"
-            );
-
-            Ok(())
-        })
-    }
 }

@@ -4,8 +4,8 @@ use liboxen::api;
 use liboxen::error::OxenError;
 use std::path::PathBuf;
 
-use liboxen::opts::DownloadOpts;
 use liboxen::download;
+use liboxen::opts::DownloadOpts;
 
 use crate::helpers::check_remote_version_blocking;
 use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};

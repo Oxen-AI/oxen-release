@@ -13,14 +13,12 @@ use crate::repositories;
 use crate::view::DataTypeCount;
 use rayon::prelude::*;
 
+use crate::constants::ROOT_PATH;
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
-use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::SchemaReader;
-use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::model::{
-    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
-};
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
+use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -47,6 +45,15 @@ pub fn get_file(
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_file(repo, commit, path),
         MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
     }
+}
+
+/// List all the entries within a commit
+pub fn list_commit_entries(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+    paginate_opts: &PaginateOpts,
+) -> Result<PaginatedDirEntries, OxenError> {
+    list_directory_w_version(repo, ROOT_PATH, revision, paginate_opts, repo.min_version())
 }
 
 /// List all the entries within a directory given a specific commit
@@ -109,27 +116,63 @@ pub fn get_meta_entry(
     }
 }
 
+/// List the paths of all the directories in a given commit
+pub fn list_dir_paths(repo: &LocalRepository, commit: &Commit) -> Result<Vec<PathBuf>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            let dir_reader = CommitEntryReader::new(repo, commit)?;
+            dir_reader.list_dirs()
+        }
+        MinOxenVersion::V0_19_0 => {
+            let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(repo, commit)?;
+            tree.list_dir_paths()
+        }
+    }
+}
+
 /// Commit entries are always files, not directories. Will return None if the path is a directory.
 pub fn get_commit_entry(
     repo: &LocalRepository,
     commit: &Commit,
     path: &Path,
 ) -> Result<Option<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.get_entry(path)
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            let reader = CommitEntryReader::new(repo, commit)?;
+            reader.get_entry(path)
+        }
+        MinOxenVersion::V0_19_0 => match core::v0_19_0::entries::get_file(repo, commit, path)? {
+            None => Ok(None),
+            Some(file) => {
+                let entry = CommitEntry {
+                    commit_id: commit.id.clone(),
+                    path: path.to_path_buf(),
+                    hash: file.hash.to_string(),
+                    num_bytes: file.num_bytes,
+                    last_modified_seconds: file.last_modified_seconds,
+                    last_modified_nanoseconds: file.last_modified_nanoseconds,
+                };
+                Ok(Some(entry))
+            }
+        },
+    }
 }
 
 pub fn list_for_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.list_entries()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::list_for_commit(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::list_for_commit(repo, commit),
+    }
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.num_entries()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::count_for_commit(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::count_for_commit(repo, commit),
+    }
 }
 
 pub fn list_page(
@@ -346,44 +389,14 @@ pub fn list_tabular_files_in_repo(
     local_repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<MetadataEntry>, OxenError> {
-    let schema_reader = index::SchemaReader::new(local_repo, &commit.id)?;
-    let schemas = schema_reader.list_schemas()?;
-
-    let mut meta_entries: Vec<MetadataEntry> = vec![];
-    let entry_reader = CommitEntryReader::new(local_repo, commit)?;
-    let commit_reader = CommitReader::new(local_repo)?;
-    let commits = commit_reader.list_all()?;
-
-    for (path, _schema) in schemas.iter() {
-        let entry = entry_reader.get_entry(path)?;
-
-        if entry.is_some() {
-            let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
-            let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-            for commit in &commits {
-                let object_reader = get_object_reader(local_repo, &commit.id)?;
-                let reader = CommitDirEntryReader::new(
-                    local_repo,
-                    &commit.id,
-                    parent,
-                    object_reader.clone(),
-                )?;
-                commit_entry_readers.push((commit.clone(), reader));
-            }
-
-            let metadata = core::v0_10_0::entries::meta_entry_from_commit_entry(
-                local_repo,
-                &entry.unwrap(),
-                &commit_entry_readers,
-                &commit.id,
-            )?;
-            if metadata.data_type == EntryDataType::Tabular {
-                meta_entries.push(metadata);
-            }
+    match local_repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::entries::list_tabular_files_in_repo(local_repo, commit)
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::entries::list_tabular_files_in_repo(local_repo, commit)
         }
     }
-
-    Ok(meta_entries)
 }
 
 #[cfg(test)]
@@ -393,7 +406,6 @@ mod tests {
 
     use uuid::Uuid;
 
-    use crate::core::v0_10_0::cache;
     use crate::core::v0_10_0::index;
     use crate::error::OxenError;
     use crate::opts::PaginateOpts;
@@ -648,10 +660,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -688,10 +696,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 2;
             let page_size = 10;
@@ -737,10 +741,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 11;
             let page_size = 10;
@@ -795,10 +795,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 2;
             let page_size = 10;
 
@@ -844,10 +840,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -892,10 +884,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 1;
             let page_size = 10;
@@ -943,10 +931,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 1;
             let page_size = 10;
 
@@ -988,10 +972,6 @@ mod tests {
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 2;
             let page_size = 10;
@@ -1040,10 +1020,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit = repositories::commit(&repo, "Adding all the data")?;
 
-            // Run the compute cache
-            let force = true;
-            cache::commit_cacher::run_all(&repo, &commit, force)?;
-
             let page_number = 2;
             let page_size = 10;
 
@@ -1060,77 +1036,6 @@ mod tests {
             assert_eq!(paginated.total_entries, num_files + num_dirs);
             assert_eq!(paginated.total_pages, 2);
             assert_eq!(paginated.entries.len(), 7);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_list_tabular() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            // Create a deeply nested directory
-            let dir_path = repo
-                .path
-                .join("data")
-                .join("train")
-                .join("images")
-                .join("cats");
-            util::fs::create_dir_all(&dir_path)?;
-
-            // Add two tabular files to it
-            let filename = "cats.tsv";
-            let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
-
-            let filename = "dogs.csv";
-            let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "1,2,3\nhello,world,sup\n")?;
-
-            // And write a file in the same dir that is not tabular
-            let filename = "README.md";
-            let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // And write a tabular file to the root dir
-            let filename = "labels.tsv";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
-
-            // And write a non tabular file to the root dir
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
-
-            // Add and commit all
-            repositories::add(&repo, &repo.path)?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // List files
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
-
-            assert_eq!(entries.len(), 3);
-
-            // Add another tabular file
-            let filename = "dogs.tsv";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
-
-            // Add and commit all
-            repositories::add(&repo, &repo.path)?;
-            let commit = repositories::commit(&repo, "Adding additional file")?;
-
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
-
-            assert_eq!(entries.len(), 4);
-
-            // Remove the deeply nested dir
-            util::fs::remove_dir_all(&dir_path)?;
-
-            repositories::add(&repo, dir_path)?;
-            let commit = repositories::commit(&repo, "Removing dir")?;
-
-            let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
-            assert_eq!(entries.len(), 2);
 
             Ok(())
         })

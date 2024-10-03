@@ -9,8 +9,6 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
-use crate::core;
-use crate::model::merkle_tree::node::DirNode;
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -19,6 +17,7 @@ use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
+use crate::opts::RmOpts;
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
@@ -54,9 +53,17 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
+            log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
                 paths.insert(entry?);
+            }
+
+            if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
+                let pattern_entries =
+                    repositories::commits::search_entries(repo, &commit, path_str)?;
+                log::debug!("pattern entries: {:?}", pattern_entries);
+                paths.extend(pattern_entries);
             }
         } else {
             // Non-glob path
@@ -123,27 +130,13 @@ fn add_files(
                 }
             }
         } else {
-            // If the path doesn't exist, check if it's in the head commit
-            // If so, stage it for removal
-            // TODO: Should these removals contribute to the cumulative stats?
-            let file_path = path.file_name().unwrap();
-            let mut maybe_dir_node = None;
-            log::debug!("Found non-existant path: {file_path:?}");
-            if let Some(ref head_commit) = maybe_head_commit {
-                let path = util::fs::path_relative_to_dir(path, &repo.path)?;
-                let parent_path = path.parent().unwrap_or(Path::new(""));
-                maybe_dir_node =
-                    CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
-            }
-
-            if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
-                log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
-                // This goes directly to remove_dir because we can't detect the type of a non-existant file
-                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
-            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, file_path) {
-                log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
-                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone())?;
-            }
+            // TODO: Should there be a way to add non-existant dirs? I think it's safer to just require rm for those?
+            log::debug!(
+                "Found nonexistant path {path:?}. Staging for removal. Recursive flag not set"
+            );
+            let mut opts = RmOpts::from_path(path);
+            opts.recursive = true;
+            repositories::rm(repo, &opts)?;
         }
     }
 
@@ -166,7 +159,7 @@ pub fn add_dir(
     process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
 }
 
-fn process_add_dir(
+pub fn process_add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     versions_path: &Path,
@@ -215,60 +208,50 @@ fn process_add_dir(
 
         add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
 
-        // TODO: Parallelize this
-        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            if let Ok(dir_entry) = dir_entry_result {
-                log::debug!("Dir Entry is: {dir_entry:?}");
-                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-                let path = dir_entry.path();
-                let duration = start.elapsed().as_secs_f32();
-                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+        let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+        entries.par_iter().for_each(|dir_entry| {
+            log::debug!("Dir Entry is: {dir_entry:?}");
+            let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+            let path = dir_entry.path();
+            let duration = start.elapsed().as_secs_f32();
+            let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
-                progress_1.set_message(format!(
-                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                    added_file_counter_clone.load(Ordering::Relaxed),
-                    unchanged_file_counter_clone.load(Ordering::Relaxed),
-                    bytesize::ByteSize::b(total_bytes),
-                    mbps
-                ));
+            progress_1.set_message(format!(
+                "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                added_file_counter_clone.load(Ordering::Relaxed),
+                unchanged_file_counter_clone.load(Ordering::Relaxed),
+                bytesize::ByteSize::b(total_bytes),
+                mbps
+            ));
 
-                let seen_dirs_clone = Arc::clone(&seen_dirs);
-                match process_add_file(
-                    &repo_path,
-                    versions_path,
-                    staged_db,
-                    &dir_node,
-                    &path,
-                    &seen_dirs_clone,
-                ) {
-                    Ok(Some(node)) => {
-                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                            cumulative_stats.total_bytes += file_node.num_bytes;
-                            cumulative_stats
-                                .data_type_counts
-                                .entry(file_node.data_type.clone())
-                                .and_modify(|count| *count += 1)
-                                .or_insert(1);
-                            if node.status != StagedEntryStatus::Unmodified {
-                                cumulative_stats.total_files += 1;
-                            }
-                        }
+            let seen_dirs_clone = Arc::clone(&seen_dirs);
+            match process_add_file(
+                &repo_path,
+                versions_path,
+                staged_db,
+                &dir_node,
+                &path,
+                &seen_dirs_clone,
+            ) {
+                Ok(Some(node)) => {
+                    if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                        byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                        added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
-                    Ok(None) => {
-                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(e) => {
-                        log::error!("Error adding file: {:?}", e);
-                    }
+                }
+                Ok(None) => {
+                    unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    log::error!("Error adding file: {:?}", e);
                 }
             }
         });
     }
 
     progress_1_clone.finish_and_clear();
-
+    cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
+    cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
     Ok(cumulative_stats)
 }
 
@@ -293,25 +276,6 @@ fn get_file_node(
         if let Some(node) = node.get_by_path(path)? {
             if let EMerkleTreeNode::File(file_node) = &node.node {
                 Ok(Some(file_node.clone()))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
-}
-
-fn get_dir_node(
-    dir_node: &Option<MerkleTreeNode>,
-    path: impl AsRef<Path>,
-) -> Result<Option<DirNode>, OxenError> {
-    if let Some(node) = dir_node {
-        if let Some(node) = node.get_by_path(path)? {
-            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
-                Ok(Some(dir_node.clone()))
             } else {
                 Ok(None)
             }
@@ -364,13 +328,14 @@ pub fn process_add_file(
     path: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    log::debug!("process_add_file");
+    log::debug!("process_add_file {:?}", path);
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
         return Ok(Some(StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir(),
@@ -425,6 +390,7 @@ pub fn process_add_file(
 
     // Don't have to add the file to the staged db if it hasn't changed
     if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
         return Ok(None);
     }
 
@@ -453,23 +419,46 @@ pub fn process_add_file(
         .unwrap_or_default()
         .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
+    let file_node = FileNode {
+        hash,
+        name: relative_path_str.to_string(),
+        data_type,
+        num_bytes,
+        last_modified_seconds: mtime.unix_seconds(),
+        last_modified_nanoseconds: mtime.nanoseconds(),
+        metadata,
+        extension: file_extension.to_string(),
+        mime_type: mime_type.clone(),
+        ..Default::default()
+    };
+    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+}
+
+/// Used to add a file node to the staged db in a workspace
+pub fn add_file_node_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    status: StagedEntryStatus,
+    file_node: &FileNode,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+    p_add_file_node_to_staged_db(staged_db, relative_path, status, file_node, &seen_dirs)
+}
+
+pub fn p_add_file_node_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    status: StagedEntryStatus,
+    file_node: &FileNode,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let relative_path = relative_path.as_ref();
+    log::debug!("writing to staged db: {:?}", staged_db.path());
+    log::debug!("writing file: {}", file_node);
     let entry = StagedMerkleTreeNode {
         status,
-        node: MerkleTreeNode::from_file(FileNode {
-            hash,
-            name: relative_path_str.to_string(),
-            data_type,
-            num_bytes,
-            last_modified_seconds: mtime.unix_seconds(),
-            last_modified_nanoseconds: mtime.nanoseconds(),
-            metadata,
-            extension: file_extension.to_string(),
-            mime_type: mime_type.clone(),
-            ..Default::default()
-        }),
+        node: MerkleTreeNode::from_file(file_node.clone()),
     };
-
-    log::debug!("writing file to staged db: {}", entry);
 
     let mut buf = Vec::new();
     entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
@@ -480,12 +469,11 @@ pub fn process_add_file(
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
     while let Some(parent) = parent_path.parent() {
-        let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
 
-        add_dir_to_staged_db(staged_db, &relative_path, seen_dirs)?;
+        add_dir_to_staged_db(staged_db, &parent_path, seen_dirs)?;
 
-        if relative_path == Path::new("") {
+        if parent_path == Path::new("") {
             break;
         }
     }

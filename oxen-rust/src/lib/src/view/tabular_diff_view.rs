@@ -2,6 +2,7 @@ use polars::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::repositories;
@@ -40,9 +41,29 @@ impl TabularDiffView {
         head_entry: &Option<CommitEntry>,
         df_opts: DFOpts,
     ) -> TabularDiffView {
-        let base_df = TabularDiffWrapper::maybe_get_df(repo, base_entry);
-        let head_df = TabularDiffWrapper::maybe_get_df(repo, head_entry);
+        let base_df = TabularDiffWrapper::maybe_get_df_from_commit_entry(repo, base_entry);
+        let head_df = TabularDiffWrapper::maybe_get_df_from_commit_entry(repo, head_entry);
 
+        TabularDiffView::from_data_frames(base_df, head_df, df_opts)
+    }
+
+    pub fn from_file_nodes(
+        repo: &LocalRepository,
+        base_entry: &Option<FileNode>,
+        head_entry: &Option<FileNode>,
+        df_opts: DFOpts,
+    ) -> TabularDiffView {
+        let base_df = TabularDiffWrapper::maybe_get_df_from_file_node(repo, base_entry);
+        let head_df = TabularDiffWrapper::maybe_get_df_from_file_node(repo, head_entry);
+
+        TabularDiffView::from_data_frames(base_df, head_df, df_opts)
+    }
+
+    pub fn from_data_frames(
+        base_df: Option<DataFrame>,
+        head_df: Option<DataFrame>,
+        df_opts: DFOpts,
+    ) -> TabularDiffView {
         let schema_has_changed = TabularDiffWrapper::schema_has_changed(&base_df, &head_df);
 
         let base_schema = TabularDiffView::maybe_get_schema(&base_df);
@@ -93,7 +114,7 @@ impl TabularDiffView {
                 let (added_rows_view, removed_rows_view) = if column_names.is_empty() {
                     (None, None)
                 } else {
-                    let cols = column_names.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+                    let cols = column_names.iter().map(col).collect::<Vec<Expr>>();
 
                     let common_base_df = base_df.clone().lazy().select(&cols).collect().unwrap();
                     let common_head_df = head_df.clone().lazy().select(&cols).collect().unwrap();

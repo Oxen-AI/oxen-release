@@ -629,6 +629,8 @@ fn write_file_node(
     let val = FileNode {
         name: file_name.to_owned(),
         hash: *hash,
+        combined_hash: *hash,
+        metadata_hash: None,
         num_bytes,
         chunk_type: FileChunkType::SingleFile,
         storage_backend: FileStorageType::Disk,
