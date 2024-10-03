@@ -127,8 +127,7 @@ pub fn resized_path_for_staged_entry(
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
     let img_hash = util::hasher::hash_file_contents(img_path)?;
-    let img_version_path =
-        version_path_from_hash_and_file(branch_repo.path, img_hash, img_path);
+    let img_version_path = version_path_from_hash_and_file(branch_repo.path, img_hash, img_path);
     let extension = img_version_path.extension().unwrap().to_str().unwrap();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());

@@ -6,8 +6,12 @@
 use std::path::Path;
 
 use crate::api;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::MetadataEntry;
 use crate::model::RemoteRepository;
+use std::path::PathBuf;
 
 pub async fn download(
     repo: &RemoteRepository,
@@ -26,6 +30,25 @@ pub async fn download(
     .await?;
     // Ping server telling it we finished downloading
     api::client::repositories::post_download(repo).await?;
+    Ok(())
+}
+
+pub async fn download_dir(
+    remote_repo: &RemoteRepository,
+    entry: &MetadataEntry,
+    local_path: &PathBuf,
+) -> Result<(), OxenError> {
+    match remote_repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            log::debug!("Calling v0_10_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
+            core::v0_10_0::download::download_dir(remote_repo, entry, local_path).await?;
+        }
+        MinOxenVersion::V0_19_0 => {
+            log::debug!("Calling v0_19_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
+            core::v0_19_0::download::download_dir(remote_repo, entry, local_path).await?;
+        }
+    }
+
     Ok(())
 }
 
@@ -71,7 +94,7 @@ mod tests {
 
             // Download the directory
             let output_dir = repo.path.join("output");
-            command::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
+            download(&remote_repo, &dir, &output_dir, &branch.name).await?;
 
             // Check that the files are there
             for i in 0..num_files {
@@ -115,7 +138,7 @@ mod tests {
 
             // Download the directory
             let output_dir = Path::new("output");
-            command::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
+            repositories::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
 
             // Check that the files are there
             for i in 0..num_files {

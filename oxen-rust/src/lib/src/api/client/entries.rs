@@ -8,6 +8,7 @@ use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
+use crate::repositories;
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -136,7 +137,7 @@ pub async fn download_entry(
     }
 
     if entry.is_dir {
-        download_dir(remote_repo, &entry, local_path).await
+        repositories::download::download_dir(remote_repo, &entry, &local_path).await
     } else {
         download_file(remote_repo, &entry, remote_path, local_path, revision).await
     }
@@ -145,7 +146,7 @@ pub async fn download_entry(
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
-    local_path: impl AsRef<Path>,
+    local_path: &Path,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
     let commit_id = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
@@ -165,6 +166,7 @@ pub async fn download_dir(
         tmp_objects_dir,
         local_objects_dir
     );
+
     merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
 
     // Merge it in with the (probably not already extant) local objects db
@@ -489,7 +491,7 @@ async fn download_entry_chunk(
 pub async fn download_data_from_version_paths(
     remote_repo: &RemoteRepository,
     content_ids: &[(String, PathBuf)], // tuple of content id and entry path
-    dst: impl AsRef<Path>,
+    dst: &Path,
 ) -> Result<u64, OxenError> {
     let total_retries = constants::NUM_HTTP_RETRIES;
     let mut num_retries = 0;
