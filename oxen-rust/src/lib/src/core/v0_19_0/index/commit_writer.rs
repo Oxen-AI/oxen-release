@@ -736,6 +736,7 @@ fn write_commit_entries(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn r_create_dir_node(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,

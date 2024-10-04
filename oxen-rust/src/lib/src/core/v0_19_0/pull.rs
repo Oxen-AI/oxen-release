@@ -1,4 +1,5 @@
 use crate::api;
+use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::repositories;
@@ -10,12 +11,14 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     pull_remote_branch(repo, &rb.remote, &rb.branch, false).await
 }
 
-pub async fn pull_shallow(_repo: &LocalRepository) -> Result<(), OxenError> {
-    todo!()
+pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
+    let pull_all = false;
+    repositories::pull_remote_branch(repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME, pull_all).await
 }
 
-pub async fn pull_all(_repo: &LocalRepository) -> Result<(), OxenError> {
-    todo!()
+pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
+    let pull_all = true;
+    repositories::pull_remote_branch(repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME, pull_all).await
 }
 
 /// Pull a specific remote and branch

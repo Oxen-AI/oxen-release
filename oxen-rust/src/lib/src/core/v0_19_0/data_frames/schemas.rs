@@ -41,7 +41,7 @@ pub fn list(
 }
 
 fn r_list_schemas(
-    repo: &LocalRepository,
+    _repo: &LocalRepository,
     node: MerkleTreeNode,
     current_path: impl AsRef<Path>,
     schemas: &mut HashMap<PathBuf, Schema>,
@@ -50,11 +50,11 @@ fn r_list_schemas(
         match &child.node {
             EMerkleTreeNode::VNode(_) => {
                 let child_path = current_path.as_ref();
-                r_list_schemas(repo, child, child_path, schemas)?;
+                r_list_schemas(_repo, child, child_path, schemas)?;
             }
             EMerkleTreeNode::Directory(dir_node) => {
                 let child_path = current_path.as_ref().join(&dir_node.name);
-                r_list_schemas(repo, child, child_path, schemas)?;
+                r_list_schemas(_repo, child, child_path, schemas)?;
             }
             EMerkleTreeNode::File(file_node) => {
                 if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata {

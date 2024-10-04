@@ -50,11 +50,11 @@ async fn r_download_entries(
     remote_repo: &RemoteRepository,
     local_repo_path: &Path,
     node: &MerkleTreeNode,
-    directory: &PathBuf,
+    directory: &Path,
     pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     for child in &node.children {
-        let mut new_directory = directory.clone();
+        let mut new_directory = directory.to_path_buf();
         if let EMerkleTreeNode::Directory(dir_node) = &child.node {
             new_directory.push(&dir_node.name);
         }

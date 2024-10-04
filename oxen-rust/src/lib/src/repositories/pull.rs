@@ -1437,4 +1437,44 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_pull_full_commit_history_after_shallow_clone() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+            // Get the commits from the local repo to compare against later
+            let og_commits = repositories::commits::list_all(&repo)?;
+
+            // Set the proper remote
+            let name = repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it
+            repositories::push(&repo).await?;
+
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let mut opts = CloneOpts::new(
+                    remote_repo.remote.url.to_owned(),
+                    new_repo_dir.join("new_repo"),
+                );
+                opts.shallow = true;
+
+                // Clone in shallow mode
+                let cloned_repo = repositories::clone(&opts).await?;
+
+                // Pull all the commits
+                repositories::pull_all(&cloned_repo).await?;
+
+                let pulled_commits = repositories::commits::list_all(&cloned_repo)?;
+                assert_eq!(pulled_commits.len(), og_commits.len());
+
+                Ok(new_repo_dir)
+            })
+            .await
+        })
+        .await
+    }
 }
