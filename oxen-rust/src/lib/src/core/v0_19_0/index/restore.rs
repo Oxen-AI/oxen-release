@@ -70,8 +70,9 @@ fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenE
         if opts.path == PathBuf::from(".") {
             // If path is ".", remove all staged entries
             for result in db.iterator(rocksdb::IteratorMode::Start) {
-                if let Ok((key, _)) = result {
-                    batch.delete(key);
+                match result {
+                    Ok((key, _)) => batch.delete(key),
+                    Err(e) => return Err(OxenError::basic_str(&e)),
                 }
             }
             log::debug!("restore::restore_staged: prepared to clear all staged entries");
@@ -82,18 +83,21 @@ fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenE
                 prefix.as_bytes(),
                 rocksdb::Direction::Forward,
             )) {
-                if let Ok((key, _)) = result {
-                    let key_str = String::from_utf8_lossy(&key);
-                    // if prefix is a file, it will also return true on starts_with
-                    if key_str.starts_with(&prefix) {
-                        batch.delete(&key);
-                        log::debug!(
-                            "restore::restore_staged: prepared to remove staged entry for path {:?}",
-                            key_str
-                        );
-                    } else {
-                        break; // Stop when we've passed all entries with the given prefix
+                match result {
+                    Ok((key, _)) => {
+                        let key_str = String::from_utf8_lossy(&key);
+                        // if prefix is a file, it will also return true on starts_with
+                        if key_str.starts_with(&prefix) {
+                            batch.delete(&key);
+                            log::debug!(
+                                "restore::restore_staged: prepared to remove staged entry for path {:?}",
+                                key_str
+                            );
+                        } else {
+                            break; // Stop when we've passed all entries with the given prefix
+                        }
                     }
+                    Err(e) => return Err(OxenError::basic_str(&e)),
                 }
             }
         }
