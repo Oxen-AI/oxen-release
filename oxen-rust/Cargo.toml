@@ -81,7 +81,7 @@ minus = { version = "5.4.0", features = ["static_output", "search"] }
 nom = "7.1.3"
 num_cpus = "1.16.0"
 pluralizer = "0.4.0"
-polars = { version = "0.43.1", features = [
+polars = { git = "https://github.com/pola-rs/polars", rev = "f55658b17d0b27c71a84511b578604ccf9d01cd2", features = [
     "lazy",
     "parquet",
     "json",
@@ -89,7 +89,6 @@ polars = { version = "0.43.1", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-polars-sql = "0.43.1"
 os_path = "0.8.0"
 qsv-sniffer = "0.10.3"
 r2d2 = "0.8.10"

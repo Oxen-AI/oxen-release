@@ -34,18 +34,18 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         return Err(OxenError::incompatible_schemas(table_schema.clone()));
     }
 
-    let added_column = Series::new(
+    let added_column = Column::Series(Series::new(
         PlSmallStr::from_str(DIFF_STATUS_COL),
         vec![StagedRowStatus::Added.to_string(); df.height()],
-    );
+    ));
     let df = df.hstack(&[added_column])?;
 
     // Handle initialization for completely null {} create objects coming over from the hub
     let df = if df.height() == 0 {
-        let added_column = Series::new(
+        let added_column = Column::Series(Series::new(
             PlSmallStr::from_str(DIFF_STATUS_COL),
             vec![StagedRowStatus::Added.to_string()],
-        );
+        ));
         DataFrame::new(vec![added_column])?
     } else {
         df

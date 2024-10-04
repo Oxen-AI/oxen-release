@@ -251,13 +251,13 @@ pub fn row_from_str_and_schema(
         ));
     }
 
-    let mut vec: Vec<Series> = Vec::new();
+    let mut vec: Vec<Column> = Vec::new();
 
     for ((name, dtype), value) in schema.iter_names_and_dtypes().zip(values.into_iter()) {
         let typed_val = val_from_str_and_dtype(value, dtype);
         match Series::from_any_values_and_dtype(name.clone(), &[typed_val], dtype, false) {
             Ok(series) => {
-                vec.push(series);
+                vec.push(Column::Series(series));
             }
             Err(err) => {
                 return Err(OxenError::basic_str(format!("Error parsing json: {err}")));
@@ -484,7 +484,7 @@ pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
         let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
-        let s1 = Series::new(PlSmallStr::from_str(""), &[value]);
+        let s1 = Column::Series(Series::new(PlSmallStr::from_str(""), &[value]));
         let df = DataFrame::new(vec![s1]).unwrap();
         return Ok(df.lazy());
     }
@@ -587,6 +587,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
 pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
     match value {
         AnyValue::String(s) => Box::new(s.to_string()),
+        AnyValue::StringOwned(s) => Box::new(s.to_string()),
         AnyValue::Int32(n) => Box::new(n),
         AnyValue::Int64(n) => Box::new(n),
         AnyValue::Float32(f) => Box::new(f),
@@ -677,7 +678,10 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         }
                         pb.finish_and_clear();
 
-                        Ok(Some(Series::new(PlSmallStr::from_str(""), hashes)))
+                        Ok(Some(Column::Series(Series::new(
+                            PlSmallStr::from_str(""),
+                            hashes,
+                        ))))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
@@ -743,7 +747,10 @@ pub fn df_hash_rows_on_cols(
                         }
                         pb.finish_and_clear();
 
-                        Ok(Some(Series::new(PlSmallStr::from_str(""), hashes)))
+                        Ok(Some(Column::Series(Series::new(
+                            PlSmallStr::from_str(""),
+                            hashes,
+                        ))))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
