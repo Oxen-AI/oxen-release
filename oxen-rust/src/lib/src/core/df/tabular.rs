@@ -738,9 +738,9 @@ pub fn df_hash_rows_on_cols(
                         for i in 0..num_rows {
                             // log::debug!("row: {:?}", i);
                             let mut buffer: Vec<u8> = vec![];
-                            for j in 0..num_columns {
-                                let elem = s_a[j].get(i).unwrap();
-                                // log::debug!("column: {:?} elem: {:?}", j, elem);
+                            for j_elem in s_a.iter().take(num_columns) {
+                                let elem = j_elem.get(i).unwrap();
+                                // log::debug!("  elem: {:?}", elem);
                                 let mut elem_bytes = any_val_to_bytes(elem);
                                 buffer.append(&mut elem_bytes);
                             }
