@@ -35,7 +35,7 @@ pub async fn download_dir(
 
     // Recursively pull entries
     r_download_entries(
-        &remote_repo,
+        remote_repo,
         &directory,
         &dir_node,
         &directory,

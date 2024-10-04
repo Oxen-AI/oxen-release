@@ -259,7 +259,7 @@ pub fn version_path_from_hash_and_file_v0_10_0(
         "version_path_from_hash_and_file version_dir {:?}",
         version_dir
     );
-    let extension = extension_from_path(&filename);
+    let extension = extension_from_path(filename);
     version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
 }
 

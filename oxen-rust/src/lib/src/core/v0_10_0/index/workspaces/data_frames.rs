@@ -95,7 +95,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     // Is tabular just looks at the file extensions
     if !util::fs::is_tabular(path) {
         return Err(OxenError::basic_str(
-            "File format not supported, must be tabular.must be tabular.",
+            "File format not supported, must be tabular.",
         ));
     }
 

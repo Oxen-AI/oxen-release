@@ -481,7 +481,7 @@ mod tests {
 
             // And it is
             let relative_path = util::fs::path_relative_to_dir(&file_to_rm, repo_path)?;
-            assert_eq!(files.contains(&relative_path), true);
+            assert!(files.contains(&relative_path));
 
             Ok(())
         })
@@ -509,7 +509,7 @@ mod tests {
 
             // And it is
             let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
-            assert_eq!(files.contains(&relative_path), true);
+            assert!(files.contains(&relative_path));
 
             Ok(())
         })
