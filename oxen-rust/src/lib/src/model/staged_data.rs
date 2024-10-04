@@ -391,6 +391,7 @@ impl StagedData {
             outputs,
             opts,
         );
+        outputs.push("\n".normal());
     }
 
     fn __collect_modified_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
@@ -467,14 +468,14 @@ impl StagedData {
 
             self.__collapse_outputs(
                 &dirs,
-                |(path, _size)| {
+                |(path, size)| {
                     let path_str = path.to_str().unwrap();
                     let num_spaces = max_dir_len - path_str.len();
                     vec![
-                        format!("  {}/ {}\n", path_str, StagedData::spaces(num_spaces))
+                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
                             .red()
                             .bold(),
-                        // format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
+                        format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
                     ]
                 },
                 outputs,
