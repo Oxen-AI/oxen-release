@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -163,11 +163,11 @@ async fn r_download_entries(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     node: &MerkleTreeNode,
-    directory: &PathBuf,
+    directory: &Path,
     pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     for child in &node.children {
-        let mut new_directory = directory.clone();
+        let mut new_directory = directory.to_path_buf();
         if let EMerkleTreeNode::Directory(dir_node) = &child.node {
             new_directory.push(&dir_node.name);
         }

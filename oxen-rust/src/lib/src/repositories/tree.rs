@@ -342,8 +342,8 @@ mod tests {
 
             let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
 
-            assert!(tree.has_path(&PathBuf::from(p1))?);
-            assert!(tree.has_path(&PathBuf::from(p2))?);
+            assert!(tree.has_path(PathBuf::from(p1))?);
+            assert!(tree.has_path(PathBuf::from(p2))?);
 
             Ok(())
         })
