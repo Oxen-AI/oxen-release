@@ -6,7 +6,7 @@ use crate::model::{merge_conflict::NodeMergeConflict, Commit, LocalRepository};
 use crate::{repositories, util};
 
 use rocksdb::DB;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub struct NodeMergeConflictReader {
     merge_db: DB,
@@ -46,7 +46,7 @@ impl NodeMergeConflictReader {
         NodeMergeConflictDBReader::list_conflicts(&self.merge_db)
     }
 
-    pub fn get_conflict(&self, path: &PathBuf) -> Result<Option<NodeMergeConflict>, OxenError> {
+    pub fn get_conflict(&self, path: &Path) -> Result<Option<NodeMergeConflict>, OxenError> {
         NodeMergeConflictDBReader::get_conflict(&self.merge_db, path)
     }
 }

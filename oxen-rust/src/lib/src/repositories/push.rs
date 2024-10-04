@@ -82,6 +82,7 @@ mod tests {
     use crate::core::v0_10_0::index::CommitEntryReader;
 
     use crate::error::OxenError;
+    use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -1791,6 +1792,91 @@ mod tests {
             })
             .await?;
             Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_move_entire_directory() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Move the README to a new file name
+            let train_images = local_repo.path.join("train");
+            let new_path = local_repo.path.join("images").join("train");
+            util::fs::create_dir_all(local_repo.path.join("images"))?;
+            util::fs::rename(&train_images, &new_path)?;
+
+            repositories::add(&local_repo, new_path)?;
+            let mut rm_opts = RmOpts::from_path("train");
+            rm_opts.recursive = true;
+            repositories::rm(&local_repo, &rm_opts)?;
+            let commit =
+                repositories::commit(&local_repo, "Moved all the train image files to images/")?;
+            repositories::push(&local_repo).await?;
+
+            let path = PathBuf::from("");
+            let page = 1;
+            let page_size = 100;
+            let dir_entries =
+                api::client::dir::list(&remote_repo, &commit.id, &path, page, page_size).await?;
+            // check to make sure we only have the images directory and not the train directory
+            assert!(!dir_entries
+                .entries
+                .iter()
+                .any(|entry| entry.filename == "train"));
+            assert!(dir_entries
+                .entries
+                .iter()
+                .any(|entry| entry.filename == "images"));
+
+            // Add a single new file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            let commit = repositories::commit(&local_repo, "Added a new file")?;
+            repositories::push(&local_repo).await?;
+
+            let dir_entries =
+                api::client::dir::list(&remote_repo, &commit.id, &path, page, page_size).await?;
+            // make sure we have the new file
+            assert!(dir_entries
+                .entries
+                .iter()
+                .any(|entry| entry.filename == "new_file.txt"));
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_only_one_modified_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Move the README to a new file name
+            let readme_path = local_repo.path.join("README.md");
+            let new_path = local_repo.path.join("README2.md");
+            util::fs::rename(&readme_path, &new_path)?;
+
+            repositories::add(&local_repo, new_path)?;
+            let rm_opts = RmOpts::from_path("README.md");
+            repositories::rm(&local_repo, &rm_opts)?;
+            let commit = repositories::commit(&local_repo, "Moved the readme")?;
+            repositories::push(&local_repo).await?;
+
+            let dir_entries =
+                api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
+                    .await?;
+            // make sure we have the new file
+            assert!(dir_entries
+                .entries
+                .iter()
+                .any(|entry| entry.filename == "README2.md"));
+            // make sure we don't have the old file
+            assert!(!dir_entries
+                .entries
+                .iter()
+                .any(|entry| entry.filename == "README.md"));
+
+            Ok(remote_repo)
         })
         .await
     }

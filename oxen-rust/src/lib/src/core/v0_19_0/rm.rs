@@ -419,7 +419,7 @@ fn process_remove_dir(
 // TODO: Refactor to singular match statement/loop
 // TODO: Currently, this function is only called sequentially. Consider using Arc/AtomicU64 to parallelize
 fn r_process_remove_dir(
-    repo: &LocalRepository,
+    _repo: &LocalRepository,
     path: &Path,
     node: &MerkleTreeNode,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -437,12 +437,12 @@ fn r_process_remove_dir(
                 log::debug!("Recursive process_remove_dir found dir: {dir_node:?}");
                 // Update path, and move to the next level of recurstion
                 let new_path = path.join(&dir_node.name);
-                total += r_process_remove_dir(repo, &new_path, child, staged_db)?;
+                total += r_process_remove_dir(_repo, &new_path, child, staged_db)?;
             }
             EMerkleTreeNode::VNode(_) => {
                 log::debug!("Recursive process_remove_dir found vnode");
                 // Move to the next level of recursion
-                total += r_process_remove_dir(repo, path, child, staged_db)?;
+                total += r_process_remove_dir(_repo, path, child, staged_db)?;
             }
             EMerkleTreeNode::File(file_node) => {
                 log::debug!("Recursive process_remove_dir found file: {file_node:?}");

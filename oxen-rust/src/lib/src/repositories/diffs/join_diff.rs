@@ -359,9 +359,9 @@ fn add_diff_status_column(
                         for i in 0..num_rows {
                             // log::debug!("row: {:?}", i);
                             let mut row = vec![];
-                            for j in 0..num_columns {
-                                let elem = s_a[j].get(i).unwrap();
-                                // log::debug!("column: {:?} elem: {:?}", j, elem);
+                            for j_elem in s_a.iter().take(num_columns) {
+                                let elem = j_elem.get(i).unwrap();
+                                // log::debug!("  elem: {:?}", elem);
                                 row.push(elem);
                             }
                             let key_left = row.first();

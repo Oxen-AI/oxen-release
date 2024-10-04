@@ -240,6 +240,8 @@ mod tests {
     use crate::test;
     use crate::util;
 
+    use std::path::PathBuf;
+
     #[test]
     fn test_list_tabular_files_in_repo() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
@@ -309,5 +311,42 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_merkle_two_files_same_hash() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let p1 = "hi.txt";
+            let p2 = "bye.txt";
+            let path_1 = local_repo.path.join(p1);
+            let path_2 = local_repo.path.join(p2);
+
+            let common_contents = "the same file";
+
+            test::write_txt_file_to_path(&path_1, common_contents)?;
+            test::write_txt_file_to_path(&path_2, common_contents)?;
+
+            repositories::add(&local_repo, &path_1)?;
+            repositories::add(&local_repo, &path_2)?;
+
+            let status = repositories::status(&local_repo)?;
+
+            log::debug!("staged files here are {:?}", status.staged_files);
+
+            assert_eq!(status.staged_files.len(), 2);
+
+            assert!(status.staged_files.contains_key(&PathBuf::from(p1)));
+            assert!(status.staged_files.contains_key(&PathBuf::from(p2)));
+
+            let commit = repositories::commit(&local_repo, "add two files")?;
+
+            let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+
+            assert!(tree.has_path(PathBuf::from(p1))?);
+            assert!(tree.has_path(PathBuf::from(p2))?);
+
+            Ok(())
+        })
+        .await
     }
 }

@@ -152,7 +152,6 @@ mod tests {
     use crate::core::v0_10_0::index::CommitReader;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
-    use crate::repositories;
     use crate::test;
 
     #[test]
@@ -168,63 +167,5 @@ mod tests {
                 Ok(())
             },
         )
-    }
-
-    #[test]
-    fn test_commit_history_order() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
-            let train_dir = repo.path.join("train");
-            repositories::add(&repo, train_dir)?;
-            repositories::commit(&repo, "adding train dir")?;
-
-            let test_dir = repo.path.join("test");
-            repositories::add(&repo, test_dir)?;
-            let most_recent_message = "adding test dir";
-            repositories::commit(&repo, most_recent_message)?;
-
-            let commit_reader = CommitReader::new(&repo)?;
-            let history = commit_reader.history_from_head()?;
-            assert_eq!(history.len(), 3);
-
-            assert_eq!(history.first().unwrap().message, most_recent_message);
-            assert_eq!(history.last().unwrap().message, INITIAL_COMMIT_MSG);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_get_commit_history_base_head() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let new_file = repo.path.join("new_1.txt");
-            test::write_txt_file_to_path(&new_file, "new 1")?;
-            repositories::add(&repo, new_file)?;
-            let base_commit = repositories::commit(&repo, "commit 1")?;
-
-            let new_file = repo.path.join("new_2.txt");
-            test::write_txt_file_to_path(&new_file, "new 2")?;
-            repositories::add(&repo, new_file)?;
-            let first_new_commit = repositories::commit(&repo, "commit 2")?;
-
-            let new_file = repo.path.join("new_3.txt");
-            test::write_txt_file_to_path(&new_file, "new 3")?;
-            repositories::add(&repo, new_file)?;
-            let head_commit = repositories::commit(&repo, "commit 3")?;
-
-            let new_file = repo.path.join("new_4.txt");
-            test::write_txt_file_to_path(&new_file, "new 4")?;
-            repositories::add(&repo, new_file)?;
-            repositories::commit(&repo, "commit 4")?;
-
-            let commit_reader = CommitReader::new(&repo)?;
-            let history =
-                commit_reader.history_from_base_to_head(&base_commit.id, &head_commit.id)?;
-            assert_eq!(history.len(), 2);
-
-            assert_eq!(history.first().unwrap().message, head_commit.message);
-            assert_eq!(history.last().unwrap().message, first_new_commit.message);
-
-            Ok(())
-        })
     }
 }

@@ -241,7 +241,8 @@ mod tests {
     use serde_json::json;
 
     use crate::config::UserConfig;
-    use crate::constants::OXEN_ID_COL;
+    use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ID_COL};
+    use crate::core::df;
     use crate::error::OxenError;
     use crate::model::diff::DiffResult;
     use crate::model::NewCommitBody;
@@ -924,6 +925,89 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_append_invalid_column() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Try stage an append
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
+
+            let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+
+            let workspace_id = UserConfig::identifier()?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
+            workspaces::data_frames::index(&repo, &workspace, &path)?;
+            let json_data = json!({"NOT_REAL_COLUMN": "images/test.jpg"});
+            let result = workspaces::data_frames::rows::add(&repo, &workspace, &path, &json_data);
+            // Should be an error
+            assert!(result.is_err());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_appends_staged() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Stage an append
+            let commit = repositories::commits::head_commit(&repo)?;
+            let user = UserConfig::get()?.to_user();
+            let workspace_id = UserConfig::identifier()?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
+
+            let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
+            workspaces::data_frames::index(&repo, &workspace, &path)?;
+            workspaces::data_frames::rows::add(&repo, &workspace, &path, &json_data)?;
+            let new_commit = NewCommitBody {
+                author: user.name.to_owned(),
+                email: user.email,
+                message: "Appending tabular data".to_string(),
+            };
+
+            let commit = workspaces::commit(&workspace, &new_commit, DEFAULT_BRANCH_NAME)?;
+
+            // Make sure version file is updated
+            let entry = repositories::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
+            let version_file = util::fs::version_path(&repo, &entry);
+            let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;
+            println!("{data_frame}");
+            assert_eq!(
+                format!("{data_frame}"),
+                r"shape: (7, 6)
+┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
+│ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+│ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
+│ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
+╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
+│ train/dog_1.jpg ┆ dog   ┆ 101.5 ┆ 32.0  ┆ 385   ┆ 330    │
+│ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
+│ train/dog_2.jpg ┆ dog   ┆ 7.0   ┆ 29.5  ┆ 246   ┆ 247    │
+│ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
+│ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
+│ train/cat_2.jpg ┆ cat   ┆ 30.5  ┆ 44.0  ┆ 333   ┆ 396    │
+│ images/test.jpg ┆ dog   ┆ 2.0   ┆ 3.0   ┆ 100   ┆ 120    │
+└─────────────────┴───────┴───────┴───────┴───────┴────────┘"
+            );
             Ok(())
         })
     }

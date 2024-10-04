@@ -219,6 +219,7 @@ impl DiffEntry {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn from_file_nodes(
         repo: &LocalRepository,
         file_path: impl AsRef<Path>,

@@ -503,8 +503,8 @@ impl MerkleNodeDB {
         children_file.read_to_end(&mut file_data)?;
         // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
-        let mut ret: Vec<(MerkleHash, MerkleTreeNode)> = Vec::new();
-        ret.reserve(lookup.num_children as usize);
+        let mut ret: Vec<(MerkleHash, MerkleTreeNode)> =
+            Vec::with_capacity(lookup.num_children as usize);
 
         let mut cursor = std::io::Cursor::new(file_data);
         // Iterate over offsets and read the data

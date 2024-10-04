@@ -359,10 +359,24 @@ mod tests {
     use crate::model::NewCommitBody;
     use crate::repositories;
     use crate::test;
+    use crate::util;
 
     #[tokio::test]
     async fn test_create_remote_branch() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // add and commit a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // push it
+            repositories::push(&local_repo).await?;
+
             let name = "my-branch";
             let branch =
                 api::client::branches::create_from_branch(&remote_repo, name, "main").await?;
@@ -375,7 +389,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_remote_branch_from_existing() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // add and commit a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // push it
+            repositories::push(&local_repo).await?;
+
             let name = "my-branch";
             let from = "old-branch";
             api::client::branches::create_from_branch(&remote_repo, from, DEFAULT_BRANCH_NAME)
@@ -391,7 +418,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_branch_by_name() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // add and commit a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // push it
+            repositories::push(&local_repo).await?;
+
             let branch_name = "my-branch";
             api::client::branches::create_from_branch(&remote_repo, branch_name, "main").await?;
 
@@ -406,7 +446,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_remote_branches() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // Create and push the main branch
+            // add a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // Set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push it
+            repositories::push(&local_repo).await?;
+
             api::client::branches::create_from_branch(
                 &remote_repo,
                 "branch-1",
@@ -434,7 +488,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_branch() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // add and commit a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // push it
+            repositories::push(&local_repo).await?;
+
             let branch_name = "my-branch";
             api::client::branches::create_from_branch(
                 &remote_repo,
@@ -461,7 +528,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_latest_synced_commit_no_lock() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // add and commit a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // push it
+            repositories::push(&local_repo).await?;
+
             let branch_name = "my-branch";
             api::client::branches::create_from_branch(
                 &remote_repo,
@@ -484,6 +564,12 @@ mod tests {
     #[test]
     fn test_rename_current_branch() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             // Create and checkout branch
             let og_branch_name = "feature/world-explorer";
             repositories::branches::create_checkout(&repo, og_branch_name)?;
@@ -588,6 +674,12 @@ mod tests {
     #[tokio::test]
     async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             let branch_name = "my-branch";
             repositories::branches::create_checkout(&repo, branch_name)?;
 
@@ -604,6 +696,12 @@ mod tests {
     #[test]
     fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             let branch_name = "my-branch";
             repositories::branches::create_checkout(&repo, branch_name)?;
 
@@ -619,6 +717,12 @@ mod tests {
     #[tokio::test]
     async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             let og_branches = repositories::branches::list(&repo)?;
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -652,6 +756,12 @@ mod tests {
     #[tokio::test]
     async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             let og_branches = repositories::branches::list(&repo)?;
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
