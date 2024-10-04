@@ -54,8 +54,7 @@ pub async fn pull_entries(
 
     // Either download to the working directory or the versions directory
     let (small_entry_paths, large_entry_paths) = if to_working_dir {
-        let small_entry_paths =
-            working_dir_paths_from_small_entries(&smaller_entries, dst);
+        let small_entry_paths = working_dir_paths_from_small_entries(&smaller_entries, dst);
         let large_entry_paths = working_dir_paths_from_large_entries(&larger_entries, dst);
         (small_entry_paths, large_entry_paths)
     } else {
