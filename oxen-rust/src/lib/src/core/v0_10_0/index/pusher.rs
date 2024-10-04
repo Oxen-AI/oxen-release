@@ -1229,12 +1229,12 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::core::v0_10_0::index::pusher;
-    use crate::core::v0_10_0::index::CommitReader;
+    
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
 
-    use crate::opts::RmOpts;
-    use crate::util;
+    
+    
 
     use crate::repositories;
     use crate::test;

@@ -69,11 +69,8 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     for branch in branches {
         let commit = get_by_id(repo, &branch.commit_id)?;
         if let Some(commit) = commit {
-            if latest_commit.is_some()
-                && commit.timestamp < latest_commit.as_ref().unwrap().timestamp
+            if commit.timestamp < latest_commit.as_ref().unwrap().timestamp
             {
-                latest_commit = Some(commit);
-            } else if latest_commit.is_none() {
                 latest_commit = Some(commit);
             }
         }
