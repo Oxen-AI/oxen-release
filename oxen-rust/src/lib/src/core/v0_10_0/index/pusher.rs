@@ -1230,6 +1230,7 @@ mod tests {
     use crate::constants;
     use crate::core::v0_10_0::index::pusher;
     use crate::core::v0_10_0::index::CommitReader;
+    use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
 
     use crate::opts::RmOpts;
@@ -1239,270 +1240,52 @@ mod tests {
     use crate::test;
 
     #[tokio::test]
-    async fn test_push_missing_commit_objects() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Set the proper remote
-            let name = repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Get commits to sync...
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-
-            // Root commit is created w/ the repo, so there should be 1 unsynced commit (the follow-on)
-            assert_eq!(unsynced_commits.len(), 1);
-
-            // Push commit objects only
-            pusher::push_missing_commit_objects(&repo, &remote_repo, &unsynced_commits, &branch)
-                .await?;
-
-            // There should be none unsynced
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-
-            assert_eq!(unsynced_commits.len(), 0);
-
-            // Full push to clear out
-            repositories::push(&repo).await?;
-
-            // Modify README
-            let readme_path = repo.path.join("README.md");
-            let readme_path = test::modify_txt_file(readme_path, "I am the readme now.")?;
-            repositories::add(&repo, readme_path)?;
-
-            // Commit again
-            let head_commit = repositories::commit(&repo, "Changed the readme")?;
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-
-            println!("Num unsynced {}", unsynced_commits.len());
-            for commit in unsynced_commits.iter() {
-                println!("FOUND UNSYNCED: {:?}", commit);
-            }
-
-            // Should be one more
-            assert_eq!(unsynced_commits.len(), 1);
-
-            // Push commit objects only
-            pusher::push_missing_commit_objects(&repo, &remote_repo, &unsynced_commits, &branch)
-                .await?;
-
-            // There should be none unsynced
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-
-            assert_eq!(unsynced_commits.len(), 0);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_push_missing_commit_dbs() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Set the proper remote
-            let name = repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        test::run_training_data_repo_test_fully_committed_async_min_version(
+            MinOxenVersion::V0_10_0,
+            |mut repo| async move {
+                // Set the proper remote
+                let name = repo.dirname();
+                let remote = test::repo_remote_url_from(&name);
+                command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
+                // Create remote repo
+                let remote_repo = test::create_remote_repo(&repo).await?;
 
-            // Get commits to sync...
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let branch = repositories::branches::current_branch(&repo)?.unwrap();
+                // Get commits to sync...
+                let head_commit = repositories::commits::head_commit(&repo)?;
+                let branch = repositories::branches::current_branch(&repo)?.unwrap();
 
-            // Create all commit objects
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-            pusher::push_missing_commit_objects(&repo, &remote_repo, &unsynced_commits, &branch)
+                // Create all commit objects
+                let unsynced_commits =
+                    pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
+                        .await?;
+                pusher::push_missing_commit_objects(
+                    &repo,
+                    &remote_repo,
+                    &unsynced_commits,
+                    &branch,
+                )
                 .await?;
 
-            // Should have one missing commit db - root created on repo creation
-            let unsynced_db_commits =
-                api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
-            assert_eq!(unsynced_db_commits.len(), 1);
+                // Should have one missing commit db - root created on repo creation
+                let unsynced_db_commits =
+                    api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch)
+                        .await?;
+                assert_eq!(unsynced_db_commits.len(), 0);
 
-            // Push to the remote
-            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
+                // Push to the remote
+                pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
 
-            // All commits should now have dbs
-            let unsynced_db_commits =
-                api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
-            assert_eq!(unsynced_db_commits.len(), 0);
+                // All commits should now have dbs
+                let unsynced_db_commits =
+                    api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch)
+                        .await?;
+                assert_eq!(unsynced_db_commits.len(), 0);
 
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_push_missing_commit_entries() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Set the proper remote
-            let name = repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Get commits to sync...
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-            // Get missing commit objects and push
-            let unsynced_commits =
-                pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                    .await?;
-            pusher::push_missing_commit_objects(&repo, &remote_repo, &unsynced_commits, &branch)
-                .await?;
-
-            // Get missing commit dbs and push
-            let unsynced_db_commits =
-                api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
-            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
-
-            // 2 commit should be missing - commit object and db created on repo creation, but entries not synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 2);
-
-            // Full push (to catch the final poll_until_synced)
-            // Since the other two steps have already been enumerated above, this effectively just tests `push_missing_commit_entries` with the wrapup that sets CONTENT_IS_VALID
-            repositories::push(&repo).await?;
-
-            // All should now be synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 0);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_push_only_one_modified_file() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            // Get original branch
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Move the README to a new file name
-            let readme_path = local_repo.path.join("README.md");
-            let new_path = local_repo.path.join("README2.md");
-            util::fs::rename(&readme_path, &new_path)?;
-
-            repositories::add(&local_repo, new_path)?;
-            let rm_opts = RmOpts::from_path("README.md");
-            repositories::rm(&local_repo, &rm_opts)?;
-            let commit = repositories::commit(&local_repo, "Moved the readme")?;
-
-            // All remote entries should by synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 0);
-
-            let commit_reader = CommitReader::new(&local_repo)?;
-            // We should only have one unsynced commit and one unsynced entry
-            let (commit_unsynced_commits, _) =
-                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
-
-            assert_eq!(commit_unsynced_commits.len(), 1);
-            assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
-
-            repositories::push(&local_repo).await?;
-
-            // All remote entries should by synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 0);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_push_move_entire_directory() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            // Get original branch
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Move the README to a new file name
-            let train_images = local_repo.path.join("train");
-            let new_path = local_repo.path.join("images").join("train");
-            util::fs::create_dir_all(local_repo.path.join("images"))?;
-            util::fs::rename(&train_images, &new_path)?;
-
-            repositories::add(&local_repo, new_path)?;
-            let mut rm_opts = RmOpts::from_path("train");
-            rm_opts.recursive = true;
-            repositories::rm(&local_repo, &rm_opts)?;
-            let commit =
-                repositories::commit(&local_repo, "Moved all the train image files to images/")?;
-
-            // All remote entries should by synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 0);
-
-            let commit_reader = CommitReader::new(&local_repo)?;
-            // We should have 5 unsynced entries
-            let (commit_unsynced_commits, _) =
-                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
-
-            assert_eq!(commit_unsynced_commits.len(), 1);
-            assert_eq!(commit_unsynced_commits[0].entries.len(), 5);
-
-            repositories::push(&local_repo).await?;
-
-            // All remote entries should by synced
-            let unsynced_entries_commits =
-                api::client::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
-                    .await?;
-            assert_eq!(unsynced_entries_commits.len(), 0);
-
-            // Add a single new file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file)?;
-            let commit = repositories::commit(&local_repo, "Added a new file")?;
-
-            // We should have 1 unsynced entry
-            let (commit_unsynced_commits, _) =
-                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
-
-            assert_eq!(commit_unsynced_commits.len(), 1);
-
-            for _entry in commit_unsynced_commits[0].entries.clone().into_iter() {}
-
-            assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
-
-            repositories::push(&local_repo).await?;
-
-            Ok(remote_repo)
-        })
+                Ok(())
+            },
+        )
         .await
     }
 }

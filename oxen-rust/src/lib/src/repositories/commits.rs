@@ -735,4 +735,69 @@ mod tests {
         })
         .await
     }
+
+    #[test]
+    fn test_commit_history_order() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            let train_dir = repo.path.join("train");
+            repositories::add(&repo, train_dir)?;
+            let initial_commit_message = "adding train dir";
+            repositories::commit(&repo, initial_commit_message)?;
+
+            // Write a text file
+            let text_path = repo.path.join("newnewnew.txt");
+            util::fs::write_to_path(&text_path, "Hello World")?;
+            repositories::add(&repo, &text_path)?;
+            repositories::commit(&repo, "adding text file")?;
+
+            let test_dir = repo.path.join("test");
+            repositories::add(&repo, test_dir)?;
+            let most_recent_message = "adding test dir";
+            repositories::commit(&repo, most_recent_message)?;
+
+            let history = repositories::commits::list(&repo)?;
+            assert_eq!(history.len(), 3);
+
+            assert_eq!(history.first().unwrap().message, most_recent_message);
+            assert_eq!(history.last().unwrap().message, initial_commit_message);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_get_commit_history_list_between() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let new_file = repo.path.join("new_1.txt");
+            test::write_txt_file_to_path(&new_file, "new 1")?;
+            repositories::add(&repo, new_file)?;
+            let base_commit = repositories::commit(&repo, "commit 1")?;
+
+            let new_file = repo.path.join("new_2.txt");
+            test::write_txt_file_to_path(&new_file, "new 2")?;
+            repositories::add(&repo, new_file)?;
+            let last_before_base_commit = repositories::commit(&repo, "commit 2")?;
+
+            let new_file = repo.path.join("new_3.txt");
+            test::write_txt_file_to_path(&new_file, "new 3")?;
+            repositories::add(&repo, new_file)?;
+            let head_commit = repositories::commit(&repo, "commit 3")?;
+
+            let new_file = repo.path.join("new_4.txt");
+            test::write_txt_file_to_path(&new_file, "new 4")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "commit 4")?;
+
+            let history = repositories::commits::list_between(&repo, &head_commit, &base_commit)?;
+            assert_eq!(history.len(), 2);
+
+            assert_eq!(history.first().unwrap().message, head_commit.message);
+            assert_eq!(
+                history.last().unwrap().message,
+                last_before_base_commit.message
+            );
+
+            Ok(())
+        })
+    }
 }

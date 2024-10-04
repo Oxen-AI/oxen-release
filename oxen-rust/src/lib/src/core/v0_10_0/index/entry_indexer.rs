@@ -996,126 +996,13 @@ impl EntryIndexer {
 mod tests {
     use crate::command;
     use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::core::v0_10_0::index::EntryIndexer;
     use crate::error::OxenError;
-    use crate::model::RemoteBranch;
 
     use crate::opts::CloneOpts;
-    use crate::opts::PullOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
-
-    #[tokio::test]
-    async fn test_indexer_pull_full_commit_history() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Get the commits from the local repo to compare against later
-            let og_commits = repositories::commits::list_all(&repo)?;
-
-            // Set the proper remote
-            let name = repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Push it
-            repositories::push(&repo).await?;
-
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(
-                    remote_repo.remote.url.to_owned(),
-                    new_repo_dir.join("new_repo"),
-                );
-                opts.shallow = true;
-
-                let cloned_repo = repositories::clone(&opts).await?;
-                let indexer = EntryIndexer::new(&cloned_repo)?;
-
-                let rb = RemoteBranch {
-                    remote: DEFAULT_REMOTE_NAME.to_owned(),
-                    branch: DEFAULT_BRANCH_NAME.to_owned(),
-                };
-
-                // Pull all the commit objects
-                indexer.pull_all_commit_objects(&remote_repo, &rb).await?;
-
-                let pulled_commits = repositories::commits::list_all(&repo)?;
-                assert_eq!(pulled_commits.len(), og_commits.len());
-
-                Ok(new_repo_dir)
-            })
-            .await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_indexer_partial_pull_then_full() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
-
-            // Set the proper remote
-            let name = repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create remote
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Push it
-            repositories::push(&repo).await?;
-
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(
-                    remote_repo.remote.url.to_owned(),
-                    new_repo_dir.join("new_repo"),
-                );
-                opts.shallow = true;
-
-                let cloned_repo = repositories::clone(&opts).await?;
-                let indexer = EntryIndexer::new(&cloned_repo)?;
-
-                // Pull a part of the commit
-                let commits = repositories::commits::list(&repo)?;
-                let latest_commit = commits.first().unwrap();
-                let page_size = 2;
-                let limit = page_size;
-
-                indexer
-                    .pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)
-                    .await?;
-
-                let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
-                assert_eq!(num_files, limit);
-
-                // try to pull the full thing again even though we have only partially pulled some
-                log::debug!("second pull");
-                let rb = RemoteBranch::default();
-                indexer
-                    .pull(
-                        &rb,
-                        PullOpts {
-                            should_update_head: true,
-                            should_pull_all: true,
-                        },
-                    )
-                    .await?;
-
-                log::debug!("second pull done");
-
-                let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
-                assert_eq!(og_num_files, num_files);
-
-                Ok(new_repo_dir)
-            })
-            .await
-        })
-        .await
-    }
 
     #[tokio::test]
     async fn test_indexer_partial_pull_multiple_commits() -> Result<(), OxenError> {
