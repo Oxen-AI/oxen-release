@@ -98,6 +98,7 @@ pub fn get_slice(
     log::debug!("Slice schema {:?}", slice_schema);
 
     Ok(DataFrameSlice {
+        total_entries: view_height,
         schemas: DataFrameSliceSchemas {
             source: source_schema,
             slice: DataFrameSchemaSize {
@@ -152,6 +153,7 @@ fn handle_sql_querying(
         slice_schema.update_metadata_from_schema(&source_schema);
 
         return Ok(DataFrameSlice {
+            total_entries: df.height(),
             schemas: DataFrameSliceSchemas {
                 source: DataFrameSchemaSize {
                     size: data_frame_size.clone(),
