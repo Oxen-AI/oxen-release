@@ -18,11 +18,7 @@ use polars::datatypes::AnyValue;
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
-use polars::prelude::NamedFrom;
-use polars::prelude::SchemaExt;
-use polars::prelude::{ChunkCompare, PlSmallStr};
-use polars::prelude::{DataFrame, DataFrameJoinOps};
-use polars::series::Series;
+use polars::prelude::*;
 
 use super::{tabular, SchemaDiff};
 
@@ -70,11 +66,15 @@ pub fn diff(
     )?;
 
     let joined_df = add_diff_status_column(joined_df, keys.clone(), targets.clone())?;
-
+    let unchanged_vec = vec![DIFF_STATUS_UNCHANGED; df_1.height()];
+    let unchanged_series = Column::Series(Series::new(
+        PlSmallStr::from_str(DIFF_STATUS_UNCHANGED),
+        unchanged_vec,
+    ));
     let mut joined_df = joined_df.filter(
         &joined_df
             .column(DIFF_STATUS_COL)?
-            .not_equal(DIFF_STATUS_UNCHANGED)?,
+            .not_equal(&unchanged_series)?,
     )?;
 
     // Once we've joined and calculated group membership based on .left and .right nullity, coalesce keys
@@ -384,7 +384,10 @@ fn add_diff_status_column(
                             ));
                         }
 
-                        Ok(Some(Series::new(PlSmallStr::from_str(""), results)))
+                        Ok(Some(Column::Series(Series::new(
+                            PlSmallStr::from_str(""),
+                            results,
+                        ))))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
