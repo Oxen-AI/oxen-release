@@ -94,7 +94,6 @@ pub fn status_from_dir_entries(
             status: StagedEntryStatus::Added,
         };
         for entry in entries {
-            log::debug!("dir_entries entry: {}", entry);
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
@@ -103,6 +102,9 @@ pub fn status_from_dir_entries(
                     // TODO: It's not always added. It could be modified.
                     log::debug!("dir_entries file_node: {}", entry);
                     let file_path = PathBuf::from(&node.name);
+                    if entry.status == StagedEntryStatus::Modified {
+                        staged_data.modified_files.push(dir.join(&file_path));
+                    }
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
                         status: entry.status,
