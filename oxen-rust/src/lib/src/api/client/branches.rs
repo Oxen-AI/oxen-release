@@ -359,6 +359,7 @@ mod tests {
     use crate::model::NewCommitBody;
     use crate::repositories;
     use crate::test;
+    use crate::util;
 
     #[tokio::test]
     async fn test_create_remote_branch() -> Result<(), OxenError> {
@@ -406,7 +407,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_remote_branches() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // Create and push the main branch
+            // add a file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&local_repo, new_file)?;
+            repositories::commit(&local_repo, "Added a new file")?;
+
+            // Set proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push it
+            repositories::push(&local_repo).await?;
+
             api::client::branches::create_from_branch(
                 &remote_repo,
                 "branch-1",
