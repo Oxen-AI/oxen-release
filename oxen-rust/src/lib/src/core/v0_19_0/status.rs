@@ -267,7 +267,7 @@ fn find_untracked_and_modified_paths(
     // Add all the directories that are in the head commit
     let dir_hashes = if let Some(head_commit) = maybe_head_commit {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
-        for (dir, _) in &dir_hashes {
+        for dir in dir_hashes.keys() {
             let dir = repo.path.join(dir);
             if dir.starts_with(&repo_start_path) && dir != repo_start_path {
                 candidate_dirs.insert(dir);

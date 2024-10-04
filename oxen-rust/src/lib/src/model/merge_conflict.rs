@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::model::CommitEntry;
 use serde::{Deserialize, Serialize};
@@ -69,9 +69,9 @@ impl CommitEntry {
     }
 }
 
-fn to_merge_conflict_entry(node: &FileNode, path: &PathBuf) -> MergeConflictEntry {
+fn to_merge_conflict_entry(node: &FileNode, path: &Path) -> MergeConflictEntry {
     MergeConflictEntry {
-        path: path.clone(),
+        path: path.to_path_buf(),
         filename: path.file_name().unwrap().to_string_lossy().into_owned(),
         hash: node.hash.to_string(),
         commit_id: node.last_commit_id.to_string(),
