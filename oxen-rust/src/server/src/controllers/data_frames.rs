@@ -5,6 +5,7 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::constants;
 use liboxen::error::PathBufError;
+use liboxen::model::DataFrameSize;
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::repositories;
 use liboxen::view::entries::ResourceVersion;
@@ -78,7 +79,10 @@ pub async fn get(
             source: data_frame_slice.schemas.source,
             view: JsonDataFrameView {
                 schema: data_frame_slice.schemas.slice.schema,
-                size: data_frame_slice.schemas.slice.size,
+                size: DataFrameSize {
+                    height: df.height(),
+                    width: df.width(),
+                },
                 data: JsonDataFrameView::json_from_df(&mut df),
                 pagination: Pagination {
                     page_number: page_opts.page_num,
