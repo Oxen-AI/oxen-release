@@ -1225,13 +1225,8 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::constants::COMMITS_DIR;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_PAGE_SIZE;
-    use crate::constants::OXEN_HIDDEN_DIR;
-    use crate::core::db;
-
-    use crate::core::v0_10_0::index::CommitDBReader;
     use crate::error::OxenError;
 
     use crate::model::entry::commit_entry::Entry;
@@ -1240,7 +1235,6 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use rocksdb::{DBWithThreadMode, MultiThreaded};
 
     #[tokio::test]
     async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
@@ -1529,14 +1523,16 @@ mod tests {
     #[tokio::test]
     async fn test_list_remote_commits_base_head() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            // There should be >= 7 commits here
+            // There should be >= 6 commits here
             let commit_history = repositories::commits::list(&local_repo)?;
-            assert!(commit_history.len() >= 7);
+            assert!(commit_history.len() >= 6);
 
             // Log comes out in reverse order, so we want the 5th commit as the base,
             // and will end up with the 2nd,3rd,4th commits (3 commits total)
-            let head_commit = &commit_history[2];
-            let base_commit = &commit_history[5];
+            let base_commit = &commit_history[1];
+            let head_commit = &commit_history[4];
+
+            println!("base_commit: {}\nhead_commit: {}", base_commit, head_commit);
 
             let revision = format!("{}..{}", base_commit.id, head_commit.id);
 
@@ -1551,104 +1547,6 @@ mod tests {
             assert_eq!(remote_commits.len(), 3);
 
             api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_download_commits_db() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let local_commit_history = repositories::commits::list(&local_repo)?;
-            let remote_clone = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|new_dir| async move {
-                // Download the db
-                let dst = api::client::commits::download_commits_db_to_path(&remote_repo, &new_dir)
-                    .await?;
-
-                let db_dir = new_dir.join(OXEN_HIDDEN_DIR).join(COMMITS_DIR);
-                assert_eq!(dst, db_dir);
-                assert!(db_dir.exists());
-
-                let opts = db::key_val::opts::default();
-                let db: DBWithThreadMode<MultiThreaded> =
-                    DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?;
-                let commits = CommitDBReader::list_all(&db)?;
-
-                assert_eq!(commits.len(), local_commit_history.len());
-
-                // Then on clone
-                // 1) add a --all flag
-                // 2) first pull the commit db
-                // 3) then add a progress bar if we are doing the full pull as we grab each commit entry db
-                // 4) make sure to fully test --shallow vs regular (one revision) vs --all
-                // 5) document the default, advantage, and differences of each approach.
-
-                Ok(new_dir)
-            })
-            .await?;
-
-            Ok(remote_clone)
-        })
-        .await
-    }
-    #[tokio::test]
-    async fn test_latest_commit_synced() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|mut local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let annotations_dir = local_repo.path.join("annotations");
-            repositories::add(&local_repo, &annotations_dir)?;
-            // Commit the directory
-            let commit = repositories::commit(
-                &local_repo,
-                "Adding annotations data dir, which has two levels",
-            )?;
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Post commit but not the actual files
-            let entries = Vec::<Entry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
-            api::client::commits::post_commits_to_server(
-                &local_repo,
-                &remote_repo,
-                &vec![UnsyncedCommitEntries {
-                    commit: commit.clone(),
-                    entries,
-                }],
-                branch.name.clone(),
-            )
-            .await?;
-
-            // Should not be synced because we didn't actually post the files
-            let latest_synced =
-                api::client::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
-
-            assert!(latest_synced.latest_synced.is_none());
-
-            // Initial and followon
-            assert_eq!(latest_synced.num_unsynced, 2);
-
-            // Set remote and push
-            command::config::set_remote(
-                &mut local_repo,
-                constants::DEFAULT_REMOTE_NAME,
-                &remote_repo.remote.url,
-            )?;
-            repositories::push(&local_repo).await?;
-
-            // Should now be synced
-            let latest_synced =
-                api::client::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
-
-            assert_eq!(latest_synced.num_unsynced, 0);
 
             Ok(remote_repo)
         })

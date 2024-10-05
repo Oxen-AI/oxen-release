@@ -112,6 +112,8 @@ pub async fn commit_history(
         )));
     }
 
+    log::debug!("commit_history resource_param: {:?}", resource_param);
+
     // This checks if the parameter received from the client is two commits split by "..", in this case we don't parse the resource
     let (resource, revision, commit) = if resource_param.contains("..") {
         (None, Some(resource_param), None)
@@ -123,6 +125,7 @@ pub async fn commit_history(
 
     match &resource {
         Some(resource) if resource.path != Path::new("") => {
+            log::debug!("commit_history resource_param: {:?}", resource);
             let commits = repositories::commits::list_by_path_from_paginated(
                 &repo,
                 commit.as_ref().unwrap(), // Safe unwrap: `commit` is Some if `resource` is Some
@@ -133,6 +136,7 @@ pub async fn commit_history(
         }
         _ => {
             // Handling the case where resource is None or its path is empty
+            log::debug!("commit_history revision: {:?}", revision);
             let revision_id = revision.as_ref().or_else(|| commit.as_ref().map(|c| &c.id));
             if let Some(revision_id) = revision_id {
                 let commits =
