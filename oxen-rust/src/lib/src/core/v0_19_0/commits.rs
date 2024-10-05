@@ -167,8 +167,9 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
     let mut visited = HashSet::new();
-    let commit = head_commit(repo)?;
-    list_recursive(repo, commit, &mut results, None, &mut visited)?;
+    if let Some(commit) = head_commit_maybe(repo)? {
+        list_recursive(repo, commit, &mut results, None, &mut visited)?;
+    }
     Ok(results)
 }
 
