@@ -233,6 +233,17 @@ pub fn list_from(
     repo: &LocalRepository,
     revision: impl AsRef<str>,
 ) -> Result<Vec<Commit>, OxenError> {
+    let revision = revision.as_ref();
+    if revision.contains("..") {
+        let split: Vec<&str> = revision.split("..").collect();
+        let base = split[0];
+        let head = split[1];
+        let base_commit = repositories::commits::get_by_id(repo, base)?
+            .ok_or(OxenError::revision_not_found(base.into()))?;
+        let head_commit = repositories::commits::get_by_id(repo, head)?
+            .ok_or(OxenError::revision_not_found(head.into()))?;
+        return list_between(repo, &base_commit, &head_commit);
+    }
     let mut results = vec![];
     let commit = repositories::revisions::get(repo, revision)?;
     if let Some(commit) = commit {

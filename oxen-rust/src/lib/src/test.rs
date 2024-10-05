@@ -1290,6 +1290,13 @@ where
     log::info!("<<<<< run_referencer_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
+
+    // add and commit a file
+    let new_file = repo.path.join("new_file.txt");
+    util::fs::write(&new_file, "I am a new file")?;
+    repositories::add(&repo, new_file)?;
+    repositories::commit(&repo, "Added a new file")?;
+
     let referencer = RefWriter::new(&repo)?;
 
     // Run test to see if it panic'd
