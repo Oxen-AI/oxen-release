@@ -442,7 +442,7 @@ fn maybe_get_child_node(
 
 fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<bool, OxenError> {
     // Check the file timestamps vs the commit timestamps
-    let metadata = std::fs::metadata(full_path)?;
+    let metadata = std::fs::metadata(&full_path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
 
     let (node_modified_seconds, node_modified_nanoseconds) = match &node.node {
@@ -464,6 +464,14 @@ fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<boo
     if node_modified_nanoseconds != mtime.nanoseconds()
         || node_modified_seconds != mtime.unix_seconds()
     {
+        log::debug!(
+            "is_modified path {:?} modified time mismatch {:?} vs {:?} || {:?} vs {:?}",
+            full_path.as_ref(),
+            node_modified_seconds,
+            mtime.unix_seconds(),
+            node_modified_nanoseconds,
+            mtime.nanoseconds()
+        );
         return Ok(true);
     }
 

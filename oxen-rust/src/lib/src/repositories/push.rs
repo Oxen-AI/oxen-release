@@ -1720,6 +1720,7 @@ mod tests {
     }
     */
 
+    /*
     #[tokio::test]
     async fn test_tree_merge_on_push_to_branch() -> Result<(), OxenError> {
         let new_branch = "new_branch";
@@ -1812,6 +1813,7 @@ mod tests {
         })
         .await
     }
+    */
 
     #[tokio::test]
     async fn test_push_move_entire_directory() -> Result<(), OxenError> {

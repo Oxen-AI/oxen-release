@@ -201,8 +201,16 @@ pub fn restore_file(
     }
 
     util::fs::copy(version_path, dst_path)?;
-    // TODO: set file metadata
-    // Previous version used:
-    // CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;
+
+    let last_modified_seconds = file_node.last_modified_seconds;
+    let last_modified_nanoseconds = file_node.last_modified_nanoseconds;
+    let last_modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(last_modified_seconds as u64)
+        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
+    filetime::set_file_mtime(
+        dst_path,
+        filetime::FileTime::from_system_time(last_modified),
+    )?;
+
     Ok(())
 }
