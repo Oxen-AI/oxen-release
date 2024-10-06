@@ -558,7 +558,7 @@ fn split_into_vnodes(
             log::debug!(
                 "new_child {:?} {:?}",
                 child.node.node.dtype(),
-                child.node.maybe_path().unwrap()
+                child.node.maybe_path()
             );
 
             // Overwrite the existing child
