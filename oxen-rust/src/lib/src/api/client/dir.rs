@@ -58,7 +58,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_dir_has_correct_commits() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
+        test::run_one_commit_local_repo_test_async(|local_repo| async move {
             let mut local_repo = local_repo;
 
             // Set the proper remote
@@ -72,11 +72,11 @@ mod tests {
             // Push it
             repositories::push(&local_repo).await?;
 
-            // Make sure we have no entries
+            // Make sure we have one entry
             let root_path = Path::new("");
             let root_entries =
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
-            assert_eq!(root_entries.entries.len(), 0);
+            assert_eq!(root_entries.entries.len(), 1);
 
             // Add a file
             let file_name = Path::new("file.txt");
@@ -91,10 +91,10 @@ mod tests {
             // Push it
             repositories::push(&local_repo).await?;
 
-            // Make sure we have one entry
+            // Make sure we have two entries
             let root_entries =
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
-            assert_eq!(root_entries.entries.len(), 1);
+            assert_eq!(root_entries.entries.len(), 2);
 
             // Add a dir
             let dir_name = Path::new("data");
@@ -116,10 +116,10 @@ mod tests {
             // Push it
             repositories::push(&local_repo).await?;
 
-            // Make sure we have two entries
+            // Make sure we have three entries
             let root_entries =
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
-            assert_eq!(root_entries.entries.len(), 2);
+            assert_eq!(root_entries.entries.len(), 3);
 
             for entry in &root_entries.entries {
                 println!("entry: {:?}", entry);
@@ -127,12 +127,22 @@ mod tests {
             println!("----------------------");
 
             // Make sure the commit hashes are correct
+            let data_entry = root_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "data")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                data_entry.latest_commit.as_ref().unwrap().id,
                 second_commit.id
             );
+            let file_entry = root_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "file.txt")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[1].latest_commit.as_ref().unwrap().id,
+                file_entry.latest_commit.as_ref().unwrap().id,
                 first_commit.id
             );
 
@@ -156,26 +166,41 @@ mod tests {
             // Push it
             repositories::push(&local_repo).await?;
 
-            // Make sure we have three entries
+            // Make sure we have four entries
             let root_entries =
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
-            assert_eq!(root_entries.entries.len(), 3);
+            assert_eq!(root_entries.entries.len(), 4);
 
             for entry in &root_entries.entries {
                 println!("entry: {:?}", entry);
             }
 
             // Make sure the commit hashes are correct
+            let a_data_entry = root_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "a_data")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                a_data_entry.latest_commit.as_ref().unwrap().id,
                 third_commit.id
             );
+            let data_entry = root_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "data")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[1].latest_commit.as_ref().unwrap().id,
+                data_entry.latest_commit.as_ref().unwrap().id,
                 second_commit.id
             );
+            let file_entry = root_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "file.txt")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[2].latest_commit.as_ref().unwrap().id,
+                file_entry.latest_commit.as_ref().unwrap().id,
                 first_commit.id
             );
 
@@ -200,10 +225,19 @@ mod tests {
             repositories::push(&local_repo).await?;
 
             // Make sure the sub directory has the correct commit id
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            let sub_entries =
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, dir2_name, 1, 10).await?;
+            println!("sub_entries: {:?}", sub_entries.entries.len());
+            for entry in &sub_entries.entries {
+                println!("entry: {:?}", entry.filename);
+            }
+            let sub_data_entry = sub_entries
+                .entries
+                .iter()
+                .find(|e| e.filename == "sub_data")
+                .unwrap();
             assert_eq!(
-                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                sub_data_entry.latest_commit.as_ref().unwrap().id,
                 fourth_commit.id
             );
 
