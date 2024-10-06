@@ -57,11 +57,7 @@ pub async fn pull_remote_branch(
     let new_head_commit = repositories::revisions::get(repo, branch)?
         .ok_or(OxenError::revision_not_found(branch.into()))?;
 
-    log::debug!(
-        "previous_head_commit: {:?} vs new_head_commit: {:?}",
-        previous_head_commit,
-        new_head_commit
-    );
+    // Merge if there are changes
     if let Some(previous_head_commit) = previous_head_commit {
         if previous_head_commit.id != new_head_commit.id {
             repositories::merge::merge_commit_into_base(

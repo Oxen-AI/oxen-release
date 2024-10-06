@@ -187,6 +187,7 @@ pub fn restore_file(
 
     let file_hash = file_node.hash;
     let last_modified_seconds = file_node.last_modified_seconds;
+    let last_modified_nanoseconds = file_node.last_modified_nanoseconds;
     log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
@@ -204,11 +205,8 @@ pub fn restore_file(
     log::debug!("restore::restore_regular: working_path {:?}", working_path);
     util::fs::copy(version_path, working_path.clone())?;
     let last_modified = std::time::SystemTime::UNIX_EPOCH
-        + std::time::Duration::from_secs(
-            last_modified_seconds
-                .try_into()
-                .map_err(|e: std::num::TryFromIntError| OxenError::basic_str(e.to_string()))?,
-        );
+        + std::time::Duration::from_secs(last_modified_seconds as u64)
+        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
     filetime::set_file_mtime(
         &working_path,
         filetime::FileTime::from_system_time(last_modified),
