@@ -56,6 +56,15 @@ pub fn status_from_dir(
     staged_data.modified_files = modified;
     staged_data.removed_files = removed;
 
+    // Find merge conflicts
+    let conflicts = repositories::merge::list_conflicts(repo)?;
+    log::debug!("list_conflicts found {} conflicts", conflicts.len());
+    for conflict in conflicts {
+        staged_data
+            .merge_conflicts
+            .push(conflict.to_entry_merge_conflict());
+    }
+
     let Some(staged_db) = staged_db_maybe else {
         log::debug!("status_from_dir no staged db, returning early");
         return Ok(staged_data);

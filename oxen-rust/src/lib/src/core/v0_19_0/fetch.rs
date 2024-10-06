@@ -56,16 +56,24 @@ pub async fn fetch_remote_branch(
     // Download the commit history
     // Check what our HEAD commit is locally
     let commits = if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
-        // Download the commits between the head commit and the remote branch commit
-        let base_commit_id = head_commit.id;
-        let head_commit_id = &remote_branch.commit_id;
-        api::client::tree::download_commits_between(
-            repo,
-            remote_repo,
-            &base_commit_id,
-            &head_commit_id,
-        )
-        .await?
+        // Remote is not guaranteed to have our head commit
+        // If it doesn't, we will download all commits from the remote branch commit
+        if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
+            // Download the commits between the head commit and the remote branch commit
+            let base_commit_id = head_commit.id;
+            let head_commit_id = &remote_branch.commit_id;
+            api::client::tree::download_commits_between(
+                repo,
+                remote_repo,
+                &base_commit_id,
+                &head_commit_id,
+            )
+            .await?
+        } else {
+            // Download the commits from the remote branch commit to the first commit
+            api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
+                .await?
+        }
     } else {
         // Download the commits from the remote branch commit to the first commit
         api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
