@@ -1036,7 +1036,6 @@ pub fn get_dir_diff_entry_with_summary(
     }
 }
 
-/// TODO this is very ugly...
 pub fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
