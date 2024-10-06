@@ -11,7 +11,7 @@ use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};
 use liboxen::model::diff::generic_diff_summary::GenericDiffSummary;
 use liboxen::model::diff::DiffResult;
-use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
+use liboxen::model::{Commit, CommitEntry, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
@@ -310,12 +310,12 @@ pub async fn create_df_diff(
     let commit_2 = repositories::revisions::get(&repository, &data.right.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
 
-    let entry_1 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
-        .ok_or_else(|| {
+    let node_1 =
+        repositories::entries::get_file(&repository, &commit_1, &resource_1)?.ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
-    let entry_2 = repositories::entries::get_commit_entry(&repository, &commit_2, &resource_2)?
-        .ok_or_else(|| {
+    let node_2 =
+        repositories::entries::get_file(&repository, &commit_1, &resource_2)?.ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
 
@@ -324,19 +324,10 @@ pub async fn create_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = repositories::revisions::get_version_file_from_commit_id(
+    let diff_result = repositories::diffs::diff_tabular_file_nodes(
         &repository,
-        &commit_1.id,
-        &resource_1,
-    )?;
-    let file_2 = repositories::revisions::get_version_file_from_commit_id(
-        &repository,
-        &commit_2.id,
-        &resource_2,
-    )?;
-    let diff_result = repositories::diffs::diff_files(
-        file_1,
-        file_2,
+        &node_1,
+        &node_2,
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
@@ -345,6 +336,8 @@ pub async fn create_df_diff(
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
             // Cache the diff on the server
+            let entry_1 = CommitEntry::from_file_node(&node_1);
+            let entry_2 = CommitEntry::from_file_node(&node_2);
             repositories::diffs::cache_tabular_diff(
                 &repository,
                 &compare_id,
@@ -366,7 +359,7 @@ pub async fn create_df_diff(
                 messages,
             }
         }
-        _ => Err(OxenError::basic_str("Wrong comparison type"))?,
+        _ => Err(OxenError::basic_str("Create diff wrong comparison type"))?,
     };
 
     Ok(HttpResponse::Ok().json(view))
@@ -412,12 +405,12 @@ pub async fn update_df_diff(
     let commit_2 = repositories::revisions::get(&repository, &data.right.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
 
-    let entry_1 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
-        .ok_or_else(|| {
+    let node_1 =
+        repositories::entries::get_file(&repository, &commit_1, &resource_1)?.ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
-    let entry_2 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
-        .ok_or_else(|| {
+    let node_2 =
+        repositories::entries::get_file(&repository, &commit_1, &resource_2)?.ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
 
@@ -426,19 +419,10 @@ pub async fn update_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = repositories::revisions::get_version_file_from_commit_id(
+    let diff_result = repositories::diffs::diff_tabular_file_nodes(
         &repository,
-        &commit_1.id,
-        &resource_1,
-    )?;
-    let file_2 = repositories::revisions::get_version_file_from_commit_id(
-        &repository,
-        &commit_2.id,
-        &resource_2,
-    )?;
-    let diff_result = repositories::diffs::diff_files(
-        file_1,
-        file_2,
+        &node_1,
+        &node_2,
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
@@ -446,6 +430,8 @@ pub async fn update_df_diff(
 
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
+            let entry_1 = CommitEntry::from_file_node(&node_1);
+            let entry_2 = CommitEntry::from_file_node(&node_2);
             // Cache the diff on the server
             repositories::diffs::cache_tabular_diff(
                 &repository,
@@ -470,7 +456,7 @@ pub async fn update_df_diff(
                 messages,
             }
         }
-        _ => Err(OxenError::basic_str("Wrong comparison type"))?,
+        _ => Err(OxenError::basic_str("Update df wrong comparison type"))?,
     };
     Ok(HttpResponse::Ok().json(view))
 }
