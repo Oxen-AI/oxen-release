@@ -180,7 +180,7 @@ fn process_remove_file_and_parents(
         node,
     };
 
-    log::debug!("Staged entry is: {staged_entry:?}");
+    log::debug!("Staged entry is: {staged_entry}");
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);

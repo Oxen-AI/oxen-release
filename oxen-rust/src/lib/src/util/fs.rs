@@ -1380,7 +1380,8 @@ pub fn open_file(path: impl AsRef<Path>) -> Result<File, OxenError> {
     match File::open(path.as_ref()) {
         Ok(file) => Ok(file),
         Err(err) => Err(OxenError::basic_str(format!(
-            "Failed to open file: {:?}",
+            "Failed to open file: {:?}\n{:?}",
+            path.as_ref(),
             err
         ))),
     }

@@ -47,7 +47,7 @@ pub async fn set_working_repo_to_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<(), OxenError> {
-    log::debug!("set_working_repo_to_commit {}", commit.id);
+    log::debug!("set_working_repo_to_commit {}", commit);
     if let Some(head_commit) = commits::head_commit_maybe(repo)? {
         if head_commit.id == commit.id {
             log::debug!(
@@ -105,7 +105,7 @@ fn r_remove_if_not_in_target(
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
                     log::debug!("Removing file: {:?}", file_path);
-                    std::fs::remove_file(full_path)?;
+                    util::fs::remove_file(&full_path)?;
                 }
             }
         }
@@ -122,7 +122,7 @@ fn r_remove_if_not_in_target(
             let full_dir_path = repo.path.join(&dir_path);
             if full_dir_path.exists() && full_dir_path.read_dir()?.next().is_none() {
                 log::debug!("Removing empty directory: {:?}", dir_path);
-                std::fs::remove_dir(full_dir_path)?;
+                util::fs::remove_dir_all(&full_dir_path)?;
             }
         }
         _ => {}
