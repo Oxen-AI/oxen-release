@@ -141,7 +141,7 @@ async fn r_push_node(
     // Recursively push the node and all its children
     // We want to push all the children before the commit at the root
     for child in &node.children {
-        if child.has_children() {
+        if !child.is_file() {
             Box::pin(r_push_node(repo, remote_repo, commit, child, progress)).await?;
         }
     }

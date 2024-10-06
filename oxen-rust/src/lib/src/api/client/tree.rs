@@ -60,7 +60,7 @@ pub async fn create_node(
     let mut tar = tar::Builder::new(enc);
 
     log::debug!(
-        "appending objects dir {:?} to tar at path {:?}",
+        "create_node appending objects dir {:?} to tar at path {:?}",
         sub_dir,
         node_dir
     );

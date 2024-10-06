@@ -870,7 +870,7 @@ pub async fn post_tree_objects_to_server(
     let mut tar = tar::Builder::new(enc);
 
     log::debug!(
-        "appending objects dir {:?} to tar at path {:?}",
+        "post_tree_objects_to_server appending objects dir {:?} to tar at path {:?}",
         objects_dir,
         tar_subdir
     );
