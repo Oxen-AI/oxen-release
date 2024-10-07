@@ -20,7 +20,7 @@ impl RunCmd for StatusCmd {
     }
     fn args(&self) -> Command {
         Command::new(NAME)
-            .about("See at what files are ready to be added or committed")
+            .about("View the repository status, including staged, untracked, modified, and removed files")
             .arg(
                 Arg::new("skip")
                     .long("skip")

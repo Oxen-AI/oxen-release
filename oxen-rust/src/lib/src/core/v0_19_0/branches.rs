@@ -47,7 +47,7 @@ pub async fn set_working_repo_to_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<(), OxenError> {
-    log::debug!("set_working_repo_to_commit {}", commit.id);
+    log::debug!("set_working_repo_to_commit {}", commit);
     if let Some(head_commit) = commits::head_commit_maybe(repo)? {
         if head_commit.id == commit.id {
             log::debug!(
@@ -105,7 +105,7 @@ fn r_remove_if_not_in_target(
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
                     log::debug!("Removing file: {:?}", file_path);
-                    std::fs::remove_file(full_path)?;
+                    util::fs::remove_file(&full_path)?;
                 }
             }
         }
@@ -122,7 +122,7 @@ fn r_remove_if_not_in_target(
             let full_dir_path = repo.path.join(&dir_path);
             if full_dir_path.exists() && full_dir_path.read_dir()?.next().is_none() {
                 log::debug!("Removing empty directory: {:?}", dir_path);
-                std::fs::remove_dir(full_dir_path)?;
+                util::fs::remove_dir_all(&full_dir_path)?;
             }
         }
         _ => {}
@@ -201,8 +201,16 @@ pub fn restore_file(
     }
 
     util::fs::copy(version_path, dst_path)?;
-    // TODO: set file metadata
-    // Previous version used:
-    // CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;
+
+    let last_modified_seconds = file_node.last_modified_seconds;
+    let last_modified_nanoseconds = file_node.last_modified_nanoseconds;
+    let last_modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(last_modified_seconds as u64)
+        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
+    filetime::set_file_mtime(
+        dst_path,
+        filetime::FileTime::from_system_time(last_modified),
+    )?;
+
     Ok(())
 }

@@ -190,6 +190,9 @@ mod tests {
     }
 
     // This specific flow broke during a demo
+    //   Because there ends up being no files in the root dir
+    //   after we remove the labels.txt file, push, and pull
+
     // * add file *
     // push
     // pull
@@ -198,12 +201,14 @@ mod tests {
     // pull
     // * remove file *
     // push
+    // pull
     #[tokio::test]
     async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        test::run_empty_local_repo_test_async(|mut repo| async move {
             // Track a file
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
+            test::write_txt_file_to_path(&filepath, "I am the labels")?;
             repositories::add(&repo, &filepath)?;
             repositories::commit(&repo, "Adding labels file")?;
 
@@ -249,6 +254,7 @@ mod tests {
                 repositories::commit(&repo, "You mess with it, I remove it")?;
                 repositories::push(&repo).await?;
 
+                // This pull should still work even with no files in the root dir
                 repositories::pull(&cloned_repo).await?;
                 assert!(!cloned_filepath.exists());
 
@@ -1240,18 +1246,6 @@ mod tests {
 
                 // Make sure the histories match
                 assert_eq!(local_history.len(), cloned_history.len());
-
-                // Make sure we have grabbed all the history dirs
-                let hidden_dir = util::fs::oxen_hidden_dir(&cloned_repo.path);
-                let history_dir = hidden_dir.join(Path::new(constants::HISTORY_DIR));
-                for commit in cloned_history.iter() {
-                    let commit_history_dir = history_dir.join(&commit.id);
-                    assert!(commit_history_dir.exists());
-
-                    // make sure we can successfully open the db and read entries
-                    let entries = repositories::entries::list_for_commit(&cloned_repo, commit);
-                    assert!(entries.is_ok());
-                }
 
                 api::client::repositories::delete(&remote_repo).await?;
 

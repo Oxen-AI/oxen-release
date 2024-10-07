@@ -300,7 +300,11 @@ impl MerkleNodeDB {
         let node_path = path.join(NODE_FILE);
         let children_path = path.join(CHILDREN_FILE);
 
-        log::debug!("Opening merkle node db at {}", path.display());
+        log::debug!(
+            "Opening merkle node db read_only {} at {}",
+            read_only,
+            path.display()
+        );
         let (lookup, node_file, children_file): (
             Option<MerkleNodeLookup>,
             Option<File>,
@@ -308,6 +312,7 @@ impl MerkleNodeDB {
         ) = if read_only {
             let mut node_file = util::fs::open_file(node_path)?;
             let children_file = util::fs::open_file(children_path)?;
+            log::debug!("Opened merkle node db read_only at {}", path.display());
             (
                 Some(MerkleNodeLookup::load(&mut node_file)?),
                 Some(node_file),
