@@ -112,7 +112,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_workspace() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "main";
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
@@ -126,7 +126,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_workspaces() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "main";
             create(&remote_repo, branch_name, "test_workspace_id").await?;
             create(&remote_repo, branch_name, "test_workspace_id2").await?;
@@ -152,7 +152,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_workspace() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "main";
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
