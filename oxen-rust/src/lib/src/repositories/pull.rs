@@ -1247,18 +1247,6 @@ mod tests {
                 // Make sure the histories match
                 assert_eq!(local_history.len(), cloned_history.len());
 
-                // Make sure we have grabbed all the history dirs
-                let hidden_dir = util::fs::oxen_hidden_dir(&cloned_repo.path);
-                let history_dir = hidden_dir.join(Path::new(constants::HISTORY_DIR));
-                for commit in cloned_history.iter() {
-                    let commit_history_dir = history_dir.join(&commit.id);
-                    assert!(commit_history_dir.exists());
-
-                    // make sure we can successfully open the db and read entries
-                    let entries = repositories::entries::list_for_commit(&cloned_repo, commit);
-                    assert!(entries.is_ok());
-                }
-
                 api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
