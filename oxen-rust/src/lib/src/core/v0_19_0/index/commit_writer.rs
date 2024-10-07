@@ -837,8 +837,15 @@ fn r_create_dir_node(
                     } else {
                         log::debug!("r_create_dir_node skipping {:?}", dir_path);
                         // Look up the old dir node and reference it
-                        let old_dir_node =
-                            CommitMerkleTree::read_node(repo, &node.hash, false)?.unwrap();
+                        let Some(old_dir_node) =
+                            CommitMerkleTree::read_node(repo, &node.hash, false)?
+                        else {
+                            log::debug!(
+                                "r_create_dir_node could not read old dir node {:?}",
+                                node.hash
+                            );
+                            continue;
+                        };
                         let dir_node = old_dir_node.dir()?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {

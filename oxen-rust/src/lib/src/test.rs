@@ -657,6 +657,59 @@ where
     Ok(())
 }
 
+/// Test interacting with a remote repo that has nothing synced
+pub async fn run_readme_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    log::info!("<<<<< run_empty_remote_repo_test start");
+    let empty_dir = create_empty_dir(test_run_dir())?;
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let path = empty_dir.join(name);
+    let mut local_repo = repositories::init(&path)?;
+
+    // Add a README file
+    util::fs::write_to_path(&local_repo.path.join("README.md"), "Hello World")?;
+    repositories::add(&local_repo, &local_repo.path)?;
+    repositories::commit(&local_repo, "Adding README")?;
+
+    // Set the proper remote
+    let remote_repo = create_remote_repo(&local_repo).await?;
+    command::config::set_remote(
+        &mut local_repo,
+        constants::DEFAULT_REMOTE_NAME,
+        &remote_repo.url(),
+    )?;
+
+    // Push
+    repositories::push(&local_repo).await?;
+
+    println!("REMOTE REPO: {remote_repo:?}");
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_empty_remote_repo_test running test");
+    let result = match test(local_repo, remote_repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Cleanup Local
+    util::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test interacting with a remote repo that has has the initial commit pushed
 pub async fn run_remote_repo_test_all_data_pushed<T, Fut>(test: T) -> Result<(), OxenError>
 where
