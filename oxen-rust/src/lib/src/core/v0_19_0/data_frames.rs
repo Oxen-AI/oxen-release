@@ -37,6 +37,7 @@ pub fn get_slice(
         }
     };
     let metadata = metadata?;
+    log::debug!("get_slice metadata {:?}", metadata);
 
     let source_schema = metadata.schema;
     let data_frame_size = DataFrameSize {
@@ -62,7 +63,7 @@ pub fn get_slice(
     // Update the schema metadata from the source schema
     let mut slice_schema = Schema::from_polars(&df.schema());
     slice_schema.update_metadata_from_schema(&source_schema);
-
+    log::debug!("get_slice slice_schema {:?}", slice_schema);
     // Return a DataFrameSlice
     Ok(DataFrameSlice {
         schemas: DataFrameSliceSchemas {

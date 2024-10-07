@@ -21,6 +21,14 @@ impl RunCmd for NodeCmd {
         Command::new(NAME)
             .about("Inspect an oxen merkle tree node")
             .arg(Arg::new("node").required(true).action(clap::ArgAction::Set))
+            // add --verbose flag
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .short('v')
+                    .help("Verbose output")
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -32,6 +40,14 @@ impl RunCmd for NodeCmd {
         let node = CommitMerkleTree::read_node(&repository, &node_hash, false)?;
 
         println!("{:?}", node);
+        if args.get_flag("verbose") {
+            if let Some(node) = node {
+                println!("{} children", node.children.len());
+                for child in node.children {
+                    println!("{:?}", child);
+                }
+            }
+        }
 
         Ok(())
     }

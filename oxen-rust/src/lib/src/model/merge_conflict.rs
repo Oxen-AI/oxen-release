@@ -25,12 +25,37 @@ pub struct MergeConflict {
     pub base_entry: MergeConflictEntry,
     pub merge_entry: MergeConflictEntry,
 }
+
+impl MergeConflict {
+    pub fn to_entry_merge_conflict(&self) -> EntryMergeConflict {
+        EntryMergeConflict {
+            lca_entry: self.lca_entry.to_commit_entry(),
+            base_entry: self.base_entry.to_commit_entry(),
+            merge_entry: self.merge_entry.to_commit_entry(),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MergeConflictEntry {
     pub path: PathBuf,
     pub filename: String,
     pub hash: String,
     pub commit_id: String,
+}
+
+impl MergeConflictEntry {
+    pub fn to_commit_entry(&self) -> CommitEntry {
+        CommitEntry {
+            path: self.path.clone(),
+            hash: self.hash.clone(),
+            commit_id: self.commit_id.clone(),
+            // TODO: We need to get rid of CommitEntry after the v19 migration
+            num_bytes: 0,
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
+        }
+    }
 }
 
 impl EntryMergeConflict {

@@ -151,6 +151,12 @@ pub fn list_diff_entries(
     page: usize,
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
+    log::debug!(
+        "list_diff_entries dir: '{:?}', base_commit: '{}', head_commit: '{}'",
+        dir,
+        base_commit,
+        head_commit
+    );
     // Load the trees into memory starting at the given dir
     let load_recursive = true;
     let base_tree = CommitMerkleTree::from_path(repo, base_commit, &dir, load_recursive)?;
@@ -159,10 +165,26 @@ pub fn list_diff_entries(
     let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
     let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
 
-    log::debug!("Collected {} head_files", head_files.len());
-    log::debug!("Collected {} head_dirs", head_dirs.len());
-    log::debug!("Collected {} base_files", base_files.len());
-    log::debug!("Collected {} base_dirs", base_dirs.len());
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} head_files",
+        dir,
+        head_files.len()
+    );
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} head_dirs",
+        dir,
+        head_dirs.len()
+    );
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} base_files",
+        dir,
+        base_files.len()
+    );
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} base_dirs",
+        dir,
+        base_dirs.len()
+    );
 
     let mut dir_entries: Vec<DiffEntry> = vec![];
     collect_added_directories(
@@ -174,7 +196,11 @@ pub fn list_diff_entries(
         &mut dir_entries,
         &dir,
     )?;
-    log::debug!("Collected {} added_dirs dir_entries", dir_entries.len());
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} added_dirs dir_entries",
+        dir,
+        dir_entries.len()
+    );
     collect_removed_directories(
         repo,
         &base_dirs,
@@ -184,7 +210,11 @@ pub fn list_diff_entries(
         &mut dir_entries,
         &dir,
     )?;
-    log::debug!("Collected {} removed_dirs dir_entries", dir_entries.len());
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} removed_dirs dir_entries",
+        dir,
+        dir_entries.len()
+    );
     collect_modified_directories(
         repo,
         &base_dirs,
@@ -195,28 +225,35 @@ pub fn list_diff_entries(
         &dir,
     )?;
     dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
-    log::debug!("Collected {} modified_dirs dir_entries", dir_entries.len());
+    log::debug!(
+        "list_diff_entries dir: '{:?}' collected {} modified_dirs dir_entries",
+        dir,
+        dir_entries.len()
+    );
 
     // the DiffEntry takes a little bit of time to compute, so want to just find the commit entries
     // then filter them down to the ones we need
     let mut added_commit_entries: Vec<DiffFileNode> = vec![];
     collect_added_entries(&base_files, &head_files, &mut added_commit_entries, &dir)?;
     log::debug!(
-        "Collected {} collect_added_entries",
+        "list_diff_entries dir: '{:?}' collected {} collect_added_entries",
+        dir,
         added_commit_entries.len()
     );
 
     let mut removed_commit_entries: Vec<DiffFileNode> = vec![];
     collect_removed_entries(&base_files, &head_files, &mut removed_commit_entries, &dir)?;
     log::debug!(
-        "Collected {} collect_removed_entries",
+        "list_diff_entries dir: '{:?}' collected {} collect_removed_entries",
+        dir,
         removed_commit_entries.len()
     );
 
     let mut modified_commit_entries: Vec<DiffFileNode> = vec![];
     collect_modified_entries(&base_files, &head_files, &mut modified_commit_entries, &dir)?;
     log::debug!(
-        "Collected {} collect_modified_entries",
+        "list_diff_entries dir: '{:?}' collected {} collect_modified_entries",
+        dir,
         modified_commit_entries.len()
     );
     let counts = AddRemoveModifyCounts {
@@ -231,13 +268,24 @@ pub fn list_diff_entries(
         .collect();
     combined.sort_by(|a, b| a.path.cmp(&b.path));
 
-    log::debug!("Got {} combined files", combined.len());
+    log::debug!(
+        "list_diff_entries dir: '{:?}' got {} combined files",
+        dir,
+        combined.len()
+    );
 
     let (files, pagination) =
         util::paginate::paginate_files_assuming_dirs(&combined, dir_entries.len(), page, page_size);
-    log::debug!("Got {} initial dirs", dir_entries.len());
-    log::debug!("Got {} files", files.len());
-
+    log::debug!(
+        "list_diff_entries dir: '{:?}' got {} initial dirs",
+        dir,
+        dir_entries.len()
+    );
+    log::debug!(
+        "list_diff_entries dir: '{:?}' got {} files",
+        dir,
+        files.len()
+    );
     let file_entries: Vec<DiffEntry> = files
         .into_iter()
         .map(|entry| {
@@ -257,9 +305,17 @@ pub fn list_diff_entries(
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
-    log::debug!("Got {} filtered dirs", dirs.len());
-    log::debug!("Page num {} Page size {}", page, page_size);
-
+    log::debug!(
+        "list_diff_entries dir: '{:?}' got {} filtered dirs",
+        dir,
+        dirs.len()
+    );
+    log::debug!(
+        "list_diff_entries dir: '{:?}' Page num {} Page size {}",
+        dir,
+        page,
+        page_size
+    );
     let all = dirs.into_iter().chain(file_entries).collect();
 
     Ok(DiffEntriesCounts {

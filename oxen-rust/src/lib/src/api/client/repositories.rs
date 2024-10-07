@@ -261,35 +261,31 @@ pub async fn create_from_local(
     log::debug!("repositories::create_from_local: {}\n{:?}", url, repo_new);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).json(&repo_new).send().await {
-        let body = client::parse_json_body(&url, res).await?;
+    let res = client.post(&url).json(&repo_new).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
 
-        log::debug!("repositories::create_from_local response {}", body);
-        let response: Result<RepositoryCreationResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(RemoteRepository::from_creation_view(
-                &response.repository,
-                &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(
-                        &host,
-                        &repo_new.namespace,
-                        &repo_new.name,
-                    ),
-                    name: String::from(DEFAULT_REMOTE_NAME),
-                },
-            )),
-            Err(err) => {
-                let err = format!(
-                    "Could not create or find repository [{}]: {err}\n{body}",
-                    repo_new.repo_id()
-                );
-                Err(OxenError::basic_str(err))
-            }
+    log::debug!("repositories::create_from_local response {}", body);
+    let response: Result<RepositoryCreationResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(RemoteRepository::from_creation_view(
+            &response.repository,
+            &Remote {
+                url: api::endpoint::remote_url_from_namespace_name(
+                    &host,
+                    &repo_new.namespace,
+                    &repo_new.name,
+                ),
+                name: String::from(DEFAULT_REMOTE_NAME),
+            },
+        )),
+        Err(err) => {
+            let err = format!(
+                "Could not create or find repository [{}]: {err}\n{body}",
+                repo_new.repo_id()
+            );
+            Err(OxenError::basic_str(err))
         }
-    } else {
-        let err = format!("Create repository could not connect to {url}. Make sure you have the correct server and that it is running.");
-        Err(OxenError::basic_str(err))
     }
 }
 

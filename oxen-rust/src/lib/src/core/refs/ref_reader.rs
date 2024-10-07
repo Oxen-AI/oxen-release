@@ -179,10 +179,17 @@ mod tests {
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_ref_reader_list_branches() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
+            // add and commit a file
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file)?;
+            repositories::commit(&repo, "Added a new file")?;
+
             repositories::branches::create_from_head(&repo, "feature/add-something")?;
             repositories::branches::create_from_head(&repo, "bug/something-is-broken")?;
 

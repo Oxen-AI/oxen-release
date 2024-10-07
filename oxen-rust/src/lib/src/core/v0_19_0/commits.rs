@@ -69,7 +69,9 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     for branch in branches {
         let commit = get_by_id(repo, &branch.commit_id)?;
         if let Some(commit) = commit {
-            if commit.timestamp < latest_commit.as_ref().unwrap().timestamp {
+            if latest_commit.is_none() {
+                latest_commit = Some(commit);
+            } else if commit.timestamp < latest_commit.as_ref().unwrap().timestamp {
                 latest_commit = Some(commit);
             }
         }
@@ -167,8 +169,9 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
     let mut visited = HashSet::new();
-    let commit = head_commit(repo)?;
-    list_recursive(repo, commit, &mut results, None, &mut visited)?;
+    if let Some(commit) = head_commit_maybe(repo)? {
+        list_recursive(repo, commit, &mut results, None, &mut visited)?;
+    }
     Ok(results)
 }
 
@@ -233,6 +236,17 @@ pub fn list_from(
     repo: &LocalRepository,
     revision: impl AsRef<str>,
 ) -> Result<Vec<Commit>, OxenError> {
+    let revision = revision.as_ref();
+    if revision.contains("..") {
+        let split: Vec<&str> = revision.split("..").collect();
+        let base = split[0];
+        let head = split[1];
+        let base_commit = repositories::commits::get_by_id(repo, base)?
+            .ok_or(OxenError::revision_not_found(base.into()))?;
+        let head_commit = repositories::commits::get_by_id(repo, head)?
+            .ok_or(OxenError::revision_not_found(head.into()))?;
+        return list_between(repo, &base_commit, &head_commit);
+    }
     let mut results = vec![];
     let commit = repositories::revisions::get(repo, revision)?;
     if let Some(commit) = commit {

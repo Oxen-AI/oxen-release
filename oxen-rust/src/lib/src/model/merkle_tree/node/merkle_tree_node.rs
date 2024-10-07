@@ -44,6 +44,11 @@ impl MerkleTreeNode {
         !self.children.is_empty()
     }
 
+    /// Check if it is a file
+    pub fn is_file(&self) -> bool {
+        matches!(self.node, EMerkleTreeNode::File(_))
+    }
+
     /// Recursively count the total number of vnodes in the tree
     pub fn total_vnodes(&self) -> usize {
         let mut count = 0;
