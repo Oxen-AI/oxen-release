@@ -30,7 +30,6 @@ pub async fn get_file(
 mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
@@ -47,10 +46,9 @@ mod tests {
 
             let head = repositories::commits::head_commit(&local_repo)?;
 
-            let commit_entry_reader = CommitEntryReader::new(&local_repo, &head)?;
-
             // Try to get the entry from the local repo
-            let entry = commit_entry_reader.get_entry(&path)?;
+            let tree = repositories::tree::get_by_commit(&local_repo, &head)?;
+            let entry = tree.get_by_path(&path)?;
             assert!(entry.is_some());
 
             let entry = api::client::metadata::get_file(&remote_repo, revision, path)
