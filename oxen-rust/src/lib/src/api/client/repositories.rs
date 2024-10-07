@@ -504,7 +504,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repo_pre_and_post_push() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
+        test::run_one_commit_local_repo_test_async(|local_repo| async move {
             let mut server = mockito::Server::new_async().await;
             let server_url = server.url();
 
