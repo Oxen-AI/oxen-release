@@ -53,6 +53,11 @@ pub fn commit(
         &commit_progress_bar,
     )?;
 
+    // DEBUG
+    let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
+    log::debug!("0.19.0::workspaces::commit tree");
+    tree.print();
+
     // Update the branch
     let ref_writer = RefWriter::new(&workspace.base_repo)?;
     let commit_id = commit.id.to_owned();
@@ -70,9 +75,9 @@ fn export_tabular_data_frames(
     for (path, entries) in dir_entries {
         for dir_entry in entries {
             log::debug!(
-                "workspace commit checking if we want to export: {:?} -> {:?}",
+                "workspace commit checking if we want to export tabular data frame: {:?} -> {}",
                 path,
-                dir_entry.node.node
+                dir_entry.node
             );
             match &dir_entry.node.node {
                 EMerkleTreeNode::File(file_node) => {
@@ -94,6 +99,11 @@ fn export_tabular_data_frames(
                             .entry(path.to_path_buf())
                             .or_default()
                             .push(new_staged_merkle_tree_node);
+                    } else {
+                        new_dir_entries
+                            .entry(path.to_path_buf())
+                            .or_default()
+                            .push(dir_entry);
                     }
                 }
                 _ => {

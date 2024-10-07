@@ -26,6 +26,8 @@ use crate::model::metadata::generic_metadata::GenericMetadata;
 pub use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
 use serde::{Deserialize, Serialize};
 
+use super::MerkleHash;
+
 #[derive(Clone, Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum EMerkleTreeNode {
     File(FileNode),
@@ -45,6 +47,17 @@ impl EMerkleTreeNode {
             EMerkleTreeNode::Schema(_) => MerkleTreeNodeType::Schema,
             EMerkleTreeNode::FileChunk(_) => MerkleTreeNodeType::FileChunk,
             EMerkleTreeNode::Commit(_) => MerkleTreeNodeType::Commit,
+        }
+    }
+
+    pub fn hash(&self) -> MerkleHash {
+        match self {
+            EMerkleTreeNode::File(file) => file.hash,
+            EMerkleTreeNode::Directory(dir) => dir.hash,
+            EMerkleTreeNode::VNode(vnode) => vnode.hash,
+            EMerkleTreeNode::Schema(schema) => schema.hash,
+            EMerkleTreeNode::FileChunk(file_chunk) => file_chunk.hash,
+            EMerkleTreeNode::Commit(commit) => commit.hash,
         }
     }
 
