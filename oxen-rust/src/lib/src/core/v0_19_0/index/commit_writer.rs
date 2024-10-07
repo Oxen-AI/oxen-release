@@ -370,7 +370,11 @@ pub fn commit_dir_entries(
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_dir_entries got {} entries", dir_entries.len());
     for (path, entries) in &dir_entries {
-        log::debug!("commit_dir_entries entry {:?} with {} nodes", path, entries.len());
+        log::debug!(
+            "commit_dir_entries entry {:?} with {} nodes",
+            path,
+            entries.len()
+        );
     }
 
     let message = &new_commit.message;
@@ -434,7 +438,11 @@ pub fn commit_dir_entries(
     if let Some(commit) = &maybe_head_commit {
         parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        log::debug!("Copy over {} dir hashes from previous commit {}", dir_hashes.len(), commit);
+        log::debug!(
+            "Copy over {} dir hashes from previous commit {}",
+            dir_hashes.len(),
+            commit
+        );
         for (path, hash) in dir_hashes {
             if let Some(path_str) = path.to_str() {
                 str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
