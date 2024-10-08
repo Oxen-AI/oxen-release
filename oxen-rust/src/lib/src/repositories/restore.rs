@@ -140,11 +140,11 @@ mod tests {
             // (file already created in helper)
             let file_to_remove = repo.path.join("labels.txt");
 
-            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Commit the file
             repositories::add(&repo, &file_to_remove)?;
             repositories::commit(&repo, "Adding labels file")?;
+
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             let train_dir = repo.path.join("train");
             repositories::add(&repo, train_dir)?;
