@@ -271,8 +271,12 @@ mod tests {
             let status = repositories::status(&repo)?;
             status.print();
 
-            assert_eq!(status.removed_files.len(), 2);
+            // status.removed_files currently is files and dirs,
+            // we roll up the dirs into the parent dir, so len should be 1
+            // TODO: https://app.asana.com/0/1204211285259102/1208493904390183/f
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
+
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
 
@@ -339,6 +343,11 @@ mod tests {
                     .len(),
                 1
             );
+
+            assert!(!status.is_clean());
+
+            // Empty dir should not be untracked
+            assert_eq!(status.untracked_dirs.len(), 0);
 
             Ok(())
         })
