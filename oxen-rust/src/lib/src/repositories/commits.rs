@@ -848,4 +848,39 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_add_and_commit_empty_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make an empty dir
+            let empty_dir = repo.path.join("empty_dir");
+            util::fs::create_dir_all(&empty_dir)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Should find the untracked dir
+            assert!(status
+                .untracked_dirs
+                .iter()
+                .any(|(path, _)| *path == PathBuf::from("empty_dir")));
+
+            // Add the empty dir
+            repositories::add(&repo, &empty_dir)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            let commit = repositories::commit(&repo, "adding empty dir")?;
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            println!("tree after commit: {}", commit);
+            tree.print();
+
+            assert!(tree.get_by_path(&PathBuf::from("empty_dir"))?.is_some());
+
+            Ok(())
+        })
+    }
+
 }
