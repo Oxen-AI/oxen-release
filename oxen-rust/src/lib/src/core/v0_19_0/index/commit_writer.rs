@@ -645,7 +645,11 @@ fn split_into_vnodes(
 
             let mut has_new_entries = false;
             for entry in vnode.entries.iter() {
-                vnode_hasher.update(&entry.node.hash.to_le_bytes());
+                if let EMerkleTreeNode::File(file_node) = &entry.node.node {
+                    vnode_hasher.update(&file_node.combined_hash.to_le_bytes());
+                } else {
+                    vnode_hasher.update(&entry.node.hash.to_le_bytes());
+                }
                 if entry.status != StagedEntryStatus::Unmodified {
                     has_new_entries = true;
                 }
@@ -989,7 +993,7 @@ fn compute_dir_node(
                         log::debug!("No need to aggregate dir {}", node.name);
                     }
                     EMerkleTreeNode::File(file_node) => {
-                        hasher.update(&file_node.hash.to_le_bytes());
+                        hasher.update(&file_node.combined_hash.to_le_bytes());
 
                         match entry.status {
                             StagedEntryStatus::Added => {
