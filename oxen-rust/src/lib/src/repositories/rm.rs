@@ -645,11 +645,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rm_staged_annotations_train_dir() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Stage the data
+            let path = Path::new("annotations").join("train");
+            repositories::add(&repo, repo.path.join(&path))?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+            // 1: annotations/train
+            assert_eq!(status.staged_dirs.len(), 1);
+
+            let opts = RmOpts {
+                path: path.to_path_buf(),
+                staged: true,
+                recursive: true, // make sure to pass in recursive
+            };
+            repositories::rm(&repo, &opts)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            assert_eq!(status.staged_dirs.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_rm_staged_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
-            repositories::add(&repo, repo.path.join(path))?;
+            repositories::add(&repo, repo.path.join(&path))?;
 
             let status = repositories::status(&repo)?;
             status.print();
