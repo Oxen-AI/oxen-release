@@ -172,6 +172,7 @@ impl CommitMerkleTree {
         let mut node = MerkleTreeNode::from_hash(repo, hash)?;
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
+        log::debug!("read_node done: {:?}", node.hash);
         Ok(Some(node))
     }
 
@@ -222,6 +223,7 @@ impl CommitMerkleTree {
                 }
             }
         }
+        log::debug!("read dir_hashes: {:?}", dir_hashes);
         Ok(dir_hashes)
     }
 
@@ -558,16 +560,18 @@ impl CommitMerkleTree {
         let children: Vec<(MerkleHash, MerkleTreeNode)> = node_db.map()?;
         log::debug!("read_children_from_node Got {} children", children.len());
 
-        for (_key, child) in children {
+        for (key, child) in children {
             let mut child = child.to_owned();
-            //log::debug!("read_children_from_node child: {} -> {}", key, child);
+            log::debug!("read_children_from_node child: {} -> {}", key, child);
             match &child.node.dtype() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
                 | MerkleTreeNodeType::VNode => {
                     if recurse {
+                        log::debug!("read_children_from_node recurse: {:?}", child.hash);
                         let mut node_db = MerkleNodeDB::open_read_only(repo, &child.hash)?;
+                        log::debug!("read_children_from_node opened node_db: {:?}", child.hash);
                         CommitMerkleTree::read_children_from_node(
                             repo,
                             &mut node_db,
@@ -585,6 +589,8 @@ impl CommitMerkleTree {
                 }
             }
         }
+
+        log::debug!("read_children_from_node done: {:?}", node.hash);
 
         Ok(())
     }
