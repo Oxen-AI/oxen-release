@@ -4,16 +4,16 @@ use serde_json::json;
 use std::fs::File;
 use std::num::NonZeroUsize;
 
-use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::{pretty_print, sql};
+use crate::{constants, repositories};
 
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
 use crate::model::data_frame::data_frame_size::DataFrameSize;
 use crate::model::data_frame::schema::DataType;
 use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::model::LocalRepository;
+use crate::model::{Commit, LocalRepository};
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::fs;
 use crate::util::hasher;
@@ -836,6 +836,49 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     if let Some(extension) = extension {
         read_df_with_extension(path, extension, &opts)
     } else {
+        Err(OxenError::basic_str(err))
+    }
+}
+
+pub fn maybe_read_df_with_extension(
+    repo: &LocalRepository,
+    version_path: impl AsRef<Path>,
+    path: impl AsRef<Path>,
+    commit_id: &str,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let version_path = version_path.as_ref();
+    if !version_path.exists() {
+        return Err(OxenError::entry_does_not_exist(path));
+    }
+
+    let extension = version_path.extension().and_then(OsStr::to_str);
+
+    if let Some(extension) = extension {
+        read_df_with_extension(path, extension, &opts)
+    } else {
+        let commit = repositories::commits::get_by_id(repo, commit_id)?;
+        if let Some(commit) = commit {
+            try_to_read_extension_from_node(repo, version_path, path, &commit, &opts)
+        } else {
+            let err = format!("Could not find commit: {commit_id}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
+fn try_to_read_extension_from_node(
+    repo: &LocalRepository,
+    version_path: impl AsRef<Path>,
+    path: impl AsRef<Path>,
+    commit: &Commit,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let node = repositories::tree::get_file_by_path(repo, commit, &path)?;
+    if let Some(file_node) = node {
+        read_df_with_extension(&version_path, file_node.extension, opts)
+    } else {
+        let err = format!("Could not find file node {:?}", path.as_ref());
         Err(OxenError::basic_str(err))
     }
 }
