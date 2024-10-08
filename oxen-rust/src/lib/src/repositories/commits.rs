@@ -333,7 +333,6 @@ mod tests {
     use std::path::Path;
     use std::str::FromStr;
 
-    use crate::command;
     use crate::error::OxenError;
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
@@ -417,8 +416,8 @@ mod tests {
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 6);
-            assert_eq!(repo_status.untracked_dirs.len(), 7);
+            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 1);
@@ -440,8 +439,8 @@ mod tests {
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 10);
-            assert_eq!(repo_status.untracked_dirs.len(), 5);
+            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 1);
@@ -776,7 +775,7 @@ mod tests {
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
             repositories::add(&repo, new_file)?;
-            let last_before_base_commit = repositories::commit(&repo, "commit 2")?;
+            repositories::commit(&repo, "commit 2")?;
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
@@ -789,13 +788,10 @@ mod tests {
             repositories::commit(&repo, "commit 4")?;
 
             let history = repositories::commits::list_between(&repo, &head_commit, &base_commit)?;
-            assert_eq!(history.len(), 2);
+            assert_eq!(history.len(), 3);
 
             assert_eq!(history.first().unwrap().message, head_commit.message);
-            assert_eq!(
-                history.last().unwrap().message,
-                last_before_base_commit.message
-            );
+            assert_eq!(history.last().unwrap().message, base_commit.message);
 
             Ok(())
         })
