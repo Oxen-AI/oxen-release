@@ -987,8 +987,9 @@ fn compute_dir_node(
 
     let children = get_children(entries, &path)?;
     log::debug!(
-        "Aggregating dir {:?} with {:?} children num_bytes {:?} data_type_counts {:?}",
+        "Aggregating dir {:?} for [{}] with {:?} children num_bytes {:?} data_type_counts {:?}",
         path,
+        commit_id,
         children,
         num_bytes,
         data_type_counts
@@ -1007,6 +1008,12 @@ fn compute_dir_node(
                         log::debug!("No need to aggregate dir {}", node.name);
                     }
                     EMerkleTreeNode::File(file_node) => {
+                        log::debug!(
+                            "Updating hash for file {} -> hash {}",
+                            file_node.name,
+                            file_node.hash
+                        );
+                        hasher.update(&file_node.name.as_bytes());
                         hasher.update(&file_node.hash.to_le_bytes());
 
                         match entry.status {
@@ -1044,11 +1051,12 @@ fn compute_dir_node(
         }
     }
 
-    let hash = hasher.digest128();
+    let hash = MerkleHash::new(hasher.digest128());
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
     log::debug!(
-        "Aggregated dir {:?} num_bytes {:?} data_type_counts {:?}",
+        "Aggregated dir {:?} [{}] num_bytes {:?} data_type_counts {:?}",
         path,
+        hash,
         num_bytes,
         data_type_counts
     );
@@ -1056,7 +1064,7 @@ fn compute_dir_node(
     let node = DirNode {
         dtype: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
-        hash: MerkleHash::new(hash),
+        hash,
         num_bytes,
         last_commit_id: commit_id,
         last_modified_seconds: 0,
