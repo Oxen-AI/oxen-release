@@ -90,7 +90,13 @@ pub fn list_commits_between_branches(
     let head_commit = get_commit_or_head(repo, Some(head_branch.commit_id.clone()))?;
 
     let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &head_commit)?;
-    list_between(repo, &lca, &head_commit)
+    log::debug!(
+        "list_commits_between_branches {:?} -> {:?} found lca {:?}",
+        base_commit,
+        head_commit,
+        lca
+    );
+    list_between(repo, &head_commit, &lca)
 }
 
 pub fn list_commits_between_commits(

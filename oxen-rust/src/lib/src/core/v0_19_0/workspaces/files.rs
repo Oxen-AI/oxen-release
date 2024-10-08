@@ -48,12 +48,34 @@ pub fn track_modified_data_frame(
     Ok(relative_path)
 }
 
-pub fn delete(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<(), OxenError> {
-    todo!()
+pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let workspace_repo = &workspace.workspace_repo;
+
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    let path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
+    let relative_path_str = path.to_str().unwrap();
+    staged_db.delete(relative_path_str)?;
+    Ok(())
 }
 
-pub fn exists(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<bool, OxenError> {
-    todo!()
+pub fn exists(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
+    let path = path.as_ref();
+    let workspace_repo = &workspace.workspace_repo;
+
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), false)?;
+
+    let path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
+    let relative_path_str = path.to_str().unwrap();
+    let result = staged_db.key_may_exist(relative_path_str);
+    Ok(result)
 }
 
 fn p_add_file(

@@ -153,6 +153,7 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
         let stmt = sql::Delete::new()
             .delete_from(TABLE_NAME)
             .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
+        log::debug!("staged_df_db::delete_row() sql: {:?}", stmt);
         conn.execute(&stmt.to_string(), [])?;
     } else {
         log::debug!("staged_df_db::delete_row() updating row to indicate deletion");
@@ -164,6 +165,7 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
                 StagedRowStatus::Removed
             ))
             .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
+        log::debug!("staged_df_db::delete_row() sql: {:?}", stmt);
         conn.execute(&stmt.to_string(), [])?;
     };
 

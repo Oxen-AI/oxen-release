@@ -290,6 +290,7 @@ pub fn list_between(
     base: &Commit,
     head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("list_between() base: {:?} head: {:?}", base, head);
     let mut results = vec![];
     list_recursive(
         repo,
