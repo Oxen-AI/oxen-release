@@ -320,7 +320,7 @@ fn find_changes(
             untracked.all_untracked = false;
             continue;
         } else if let Some(node) =
-            maybe_get_child_node(&relative_path.file_name().unwrap(), &dir_node)?
+            maybe_get_child_node(relative_path.file_name().unwrap(), &dir_node)?
         {
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
@@ -386,7 +386,7 @@ fn get_dir_hashes(
     head_commit_maybe: &Option<Commit>,
 ) -> Result<HashMap<PathBuf, MerkleHash>, OxenError> {
     if let Some(head_commit) = head_commit_maybe {
-        Ok(CommitMerkleTree::dir_hashes(repo, &head_commit)?)
+        Ok(CommitMerkleTree::dir_hashes(repo, head_commit)?)
     } else {
         Ok(HashMap::new())
     }
