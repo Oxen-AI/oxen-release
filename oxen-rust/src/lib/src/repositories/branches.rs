@@ -479,6 +479,25 @@ mod tests {
             assert_eq!(file_versions[0].0.id, commit_3.id);
             assert_eq!(file_versions[1].0.id, commit_1.id);
 
+            let tree = repositories::tree::get_by_commit(&repo, &commit_1)?;
+            println!("AFTER commit_1: {}", commit_1);
+            tree.print();
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit_2)?;
+            println!("AFTER commit_2: {}", commit_2);
+            tree.print();
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit_3)?;
+            println!("AFTER commit_3: {}", commit_3);
+            tree.print();
+
+            println!("commit_1: {}", commit_1);
+            println!("commit_2: {}", commit_2);
+            println!("commit_3: {}", commit_3);
+            for v in &file_2_versions {
+                println!("file_2_versions: {:?} -> {:?}", v.0, v.1);
+            }
+
             assert_eq!(file_2_versions.len(), 2);
             assert_eq!(file_2_versions[0].0.id, commit_3.id);
             assert_eq!(file_2_versions[1].0.id, commit_2.id);
@@ -552,6 +571,14 @@ mod tests {
                 "test_branch",
                 &file_path.to_path_buf(),
             )?;
+
+            for v in &main_versions {
+                println!("main: {:?} -> {:?}", v.0, v.1);
+            }
+
+            for v in &branch_versions {
+                println!("branch: {:?} -> {:?}", v.0, v.1);
+            }
 
             // Main should have commits 6, 2, and 1.
             assert_eq!(main_versions.len(), 3);

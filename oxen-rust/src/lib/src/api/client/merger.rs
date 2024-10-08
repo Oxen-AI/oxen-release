@@ -61,7 +61,8 @@ mod tests {
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
 
             assert!(mergability.is_mergeable);
-            assert_eq!(mergability.commits.len(), 0);
+            // Only one commit in the history, the head
+            assert_eq!(mergability.commits.len(), 1);
 
             Ok(remote_repo)
         })
@@ -88,7 +89,7 @@ mod tests {
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
 
             assert!(mergability.is_mergeable);
-            assert_eq!(mergability.commits.len(), 0);
+            assert_eq!(mergability.commits.len(), 1);
 
             Ok(remote_repo)
         })
@@ -131,7 +132,7 @@ mod tests {
             }
 
             assert!(mergability.is_mergeable);
-            assert_eq!(mergability.commits.len(), 2);
+            assert_eq!(mergability.commits.len(), 3);
             assert_eq!(mergability.conflicts.len(), 0);
 
             Ok(remote_repo)
@@ -180,7 +181,7 @@ mod tests {
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
 
             assert!(!mergability.is_mergeable);
-            assert_eq!(mergability.commits.len(), 2);
+            assert_eq!(mergability.commits.len(), 3);
             assert_eq!(mergability.conflicts.len(), 1);
 
             Ok(remote_repo)

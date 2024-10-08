@@ -1,19 +1,63 @@
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::{commits, fetch};
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
 use crate::repositories;
 use crate::util;
 
+use std::collections::HashSet;
 use std::path::Path;
 
 pub fn list_entry_versions_for_commit(
-    _local_repo: &LocalRepository,
-    _commit_id: &str,
-    _path: &Path,
+    local_repo: &LocalRepository,
+    commit_id: &str,
+    path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
-    todo!()
+    log::debug!("list_entry_versions_for_commit {} -> {:?}", commit_id, path);
+    let mut branch_commits = repositories::commits::list_from(local_repo, &commit_id)?;
+
+    // Sort on timestamp oldest to newest
+    branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
+    let mut seen_hashes: HashSet<String> = HashSet::new();
+
+    for commit in branch_commits {
+        log::debug!("list_entry_versions_for_commit {}", commit);
+        let tree = repositories::tree::get_by_commit(local_repo, &commit)?;
+        let node = tree.get_by_path(path)?;
+        tree.print();
+
+        if let Some(node) = node {
+            if !seen_hashes.contains(&node.node.hash().to_string()) {
+                log::debug!(
+                    "list_entry_versions_for_commit adding {} -> {}",
+                    commit,
+                    node
+                );
+                seen_hashes.insert(node.node.hash().to_string());
+
+                match node.node {
+                    EMerkleTreeNode::File(file_node) => {
+                        let entry = CommitEntry::from_file_node(&file_node);
+                        result.push((commit, entry));
+                    }
+                    EMerkleTreeNode::Directory(dir_node) => {
+                        let entry = CommitEntry::from_dir_node(&dir_node);
+                        result.push((commit, entry));
+                    }
+                    _ => {}
+                }
+            } else {
+                log::debug!("list_entry_versions_for_commit already seen {}", node);
+            }
+        }
+    }
+
+    result.reverse();
+
+    Ok(result)
 }
 
 pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), OxenError> {

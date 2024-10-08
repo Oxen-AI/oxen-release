@@ -800,4 +800,56 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_commit_subdir_then_root_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make a dir
+            let dir_path = Path::new("test_dir");
+            let dir_repo_path = repo.path.join(dir_path);
+            util::fs::create_dir_all(dir_repo_path)?;
+
+            // File in the dir
+            let file_path = dir_path.join(Path::new("test_file.txt"));
+            let file_repo_path = repo.path.join(&file_path);
+            util::fs::write_to_path(&file_repo_path, "test")?;
+
+            // Add the dir
+            repositories::add(&repo, &repo.path)?;
+            let commit_1 = repositories::commit(&repo, "adding test dir")?;
+
+            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
+            println!("INITIAL commit_1: {}", commit_1);
+            tree_1.print();
+
+            // New file in root
+            let file_path_2 = Path::new("test_file_2.txt");
+            let file_repo_path_2 = repo.path.join(file_path_2);
+            util::fs::write_to_path(&file_repo_path_2, "test")?;
+
+            // Add the file
+            repositories::add(&repo, &file_repo_path_2)?;
+            let commit_2 = repositories::commit(&repo, "adding test file")?;
+
+            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
+            println!("AFTER commit_1: {}", commit_1);
+            tree_1.print();
+
+            let tree_2 = repositories::tree::get_by_commit(&repo, &commit_2)?;
+            println!("AFTER commit_2: {}", commit_2);
+            tree_2.print();
+
+            // Make sure the file is not in the first commit
+            // This was biting us in an initial implementation
+            // BECAUSE the file contents was the same, the hash was not updated
+            let node_from_tree_1 = tree_1.get_by_path(&file_path_2)?;
+            assert!(node_from_tree_1.is_none());
+
+            // Make sure the file is in the second commit
+            let node_from_tree_2 = tree_2.get_by_path(&file_path_2)?;
+            assert!(node_from_tree_2.is_some());
+
+            Ok(())
+        })
+    }
 }
