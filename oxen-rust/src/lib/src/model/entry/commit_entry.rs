@@ -1,5 +1,5 @@
 use crate::constants::VERSION_FILE_NAME;
-use crate::model::merkle_tree::node::FileNode;
+use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::{Commit, ContentHashable, LocalRepository, RemoteEntry, Schema};
 use crate::util;
 
@@ -156,6 +156,17 @@ impl CommitEntry {
             num_bytes: file_node.num_bytes,
             last_modified_seconds: file_node.last_modified_seconds,
             last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+        }
+    }
+
+    pub fn from_dir_node(dir_node: &DirNode) -> CommitEntry {
+        CommitEntry {
+            commit_id: dir_node.last_commit_id.to_string(),
+            path: PathBuf::from(dir_node.name.clone()),
+            hash: dir_node.hash.to_string(),
+            num_bytes: dir_node.num_bytes,
+            last_modified_seconds: dir_node.last_modified_seconds,
+            last_modified_nanoseconds: dir_node.last_modified_nanoseconds,
         }
     }
 
