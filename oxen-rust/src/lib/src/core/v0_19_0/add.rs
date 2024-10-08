@@ -419,8 +419,20 @@ pub fn process_add_file(
         .unwrap_or_default()
         .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
+    let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
+        let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
+        let metadata_hash = MerkleHash::new(metadata_hash);
+        let combined_hash =
+            util::hasher::get_combined_hash(Some(metadata_hash.to_u128()), hash.to_u128())?;
+        let combined_hash = MerkleHash::new(combined_hash);
+        (hash, Some(metadata_hash), combined_hash)
+    } else {
+        (hash, None, hash)
+    };
     let file_node = FileNode {
         hash,
+        metadata_hash,
+        combined_hash,
         name: relative_path_str.to_string(),
         data_type,
         num_bytes,
