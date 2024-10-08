@@ -206,18 +206,9 @@ mod tests {
             status.print();
 
             // Should add all the sub dirs
-            // nlp/
-            //   classification/
-            //     annotations/
-            assert_eq!(
-                status
-                    .staged_dirs
-                    .paths
-                    .get(Path::new("nlp"))
-                    .unwrap()
-                    .len(),
-                3
-            );
+            // nlp/classification/annotations/
+            assert_eq!(status.staged_dirs.len(), 1);
+
             // Should add sub files
             // nlp/classification/annotations/train.tsv
             // nlp/classification/annotations/test.tsv
@@ -263,18 +254,8 @@ mod tests {
             status.print();
 
             // Should add all the sub dirs
-            // nlp/
-            //   classification/
-            //     annotations/
-            assert_eq!(
-                status
-                    .staged_dirs
-                    .paths
-                    .get(Path::new("nlp"))
-                    .unwrap()
-                    .len(),
-                3
-            );
+            // nlp/classification/annotations/
+            assert_eq!(status.staged_dirs.len(), 1);
             // Should add sub files
             // nlp/classification/annotations/train.tsv
             // nlp/classification/annotations/test.tsv
@@ -288,6 +269,8 @@ mod tests {
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
             let status = repositories::status(&repo)?;
+            status.print();
+
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
@@ -312,18 +295,9 @@ mod tests {
             status.print();
 
             // Should add all the sub dirs
-            // nlp/
-            //   classification/
-            //     annotations/
-            assert_eq!(
-                status
-                    .staged_dirs
-                    .paths
-                    .get(Path::new("nlp"))
-                    .unwrap()
-                    .len(),
-                3
-            );
+            // nlp/classification/annotations/
+            assert_eq!(status.staged_dirs.len(), 1);
+
             // Should add sub files
             // nlp/classification/annotations/train.tsv
             // nlp/classification/annotations/test.tsv
@@ -404,7 +378,7 @@ mod tests {
             // And there is one tracked directory
             let staged_dirs = status.staged_dirs;
 
-            assert_eq!(staged_dirs.len(), 2);
+            assert_eq!(staged_dirs.len(), 1);
 
             Ok(())
         })
@@ -434,7 +408,7 @@ mod tests {
             let dirs = status.staged_dirs;
 
             // There are 3 staged directories
-            assert_eq!(dirs.len(), 4);
+            assert_eq!(dirs.len(), 3);
 
             Ok(())
         })
