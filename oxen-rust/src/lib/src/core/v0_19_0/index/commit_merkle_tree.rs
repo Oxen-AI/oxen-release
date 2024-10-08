@@ -172,7 +172,7 @@ impl CommitMerkleTree {
         let mut node = MerkleTreeNode::from_hash(repo, hash)?;
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
-        log::debug!("read_node done: {:?}", node.hash);
+        log::debug!("read_node done: {:?} recurse: {}", node.hash, recurse);
         Ok(Some(node))
     }
 
@@ -194,6 +194,7 @@ impl CommitMerkleTree {
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
 
         CommitMerkleTree::read_children_until_depth(repo, &mut node_db, &mut node, depth)?;
+        log::debug!("Read depth {} node done: {:?}", depth, node.hash);
         Ok(Some(node))
     }
 
