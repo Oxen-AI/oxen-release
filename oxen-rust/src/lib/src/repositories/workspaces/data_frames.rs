@@ -157,6 +157,7 @@ pub fn full_diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffRe
     let conn = df_db::get_connection(db_path)?;
 
     let diff_df = workspace_df_db::df_diff(&conn)?;
+    log::debug!("full_diff() diff_df: {:?}", diff_df);
 
     if diff_df.is_empty() {
         return Ok(DiffResult::Tabular(TabularDiff::empty()));

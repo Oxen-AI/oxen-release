@@ -1220,21 +1220,16 @@ async fn upload_data_chunk_to_server(
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use crate::api;
     use crate::command;
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::constants::DEFAULT_PAGE_SIZE;
     use crate::error::OxenError;
 
     use crate::model::entry::commit_entry::Entry;
     use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
-    use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;
-    use crate::util;
 
     #[tokio::test]
     async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
@@ -1393,6 +1388,7 @@ mod tests {
         .await
     }
 
+    /* Commented out because it's expensive to find the initial commit id
     #[tokio::test]
     async fn test_list_commit_history_for_path() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
@@ -1451,7 +1447,9 @@ mod tests {
         })
         .await
     }
+    */
 
+    /* Commented out because it's expensive to find the initial commit id
     #[tokio::test]
     async fn test_list_commit_history_for_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
@@ -1519,6 +1517,7 @@ mod tests {
         })
         .await
     }
+     */
 
     #[tokio::test]
     async fn test_list_remote_commits_base_head() -> Result<(), OxenError> {

@@ -99,6 +99,7 @@ pub fn delete(
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
+    log::debug!("delete() row_id: {row_id} from path: {:?}", path.as_ref());
     let path = path.as_ref();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
@@ -107,6 +108,7 @@ pub fn delete(
         let conn = df_db::get_connection(db_path)?;
         rows::delete_row(&conn, row_id)?
     };
+    log::debug!("delete() deleted_row: {:?}", deleted_row);
 
     let row = JsonDataFrameView::json_from_df(&mut deleted_row);
 
@@ -118,22 +120,24 @@ pub fn delete(
         None,
     )?;
 
-    // We track that the file has been modified
-    log::debug!("rows::delete() tracking file to staged db: {:?}", path);
-    workspaces::files::track_modified_data_frame(workspace, path)?;
-
     // TODO: Better way of tracking when a file is restored to its original state without diffing
     //       this could be really slow
     let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
 
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            log::debug!("no changes, deleting file from staged db");
+            log::debug!("no changes, deleting file from staged db {:?}", path);
             // Restored to original state == delete file from staged db
             rm::remove_staged_recursively(
-                &workspace.base_repo,
+                &workspace.workspace_repo,
                 &HashSet::from([path.to_path_buf()]),
             )?;
+        } else {
+            log::debug!("there are still changes, not deleting file from staged db");
+            log::debug!("diff: {:?}", diff);
+            // We track that the file has been modified
+            log::debug!("rows::delete() tracking file to staged db: {:?}", path);
+            workspaces::files::track_modified_data_frame(workspace, path)?;
         }
     }
     Ok(deleted_row)
