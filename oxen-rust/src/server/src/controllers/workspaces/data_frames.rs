@@ -126,13 +126,16 @@ pub async fn get_by_branch(
         .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
 
     let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+    log::debug!("got {} tabular entries", entries.len());
 
     let mut editable_entries = vec![];
     for entry in entries {
-        if let Some(resource) = entry.resource.clone() {
-            if repositories::workspaces::data_frames::is_indexed(&workspace, &resource.path)? {
-                editable_entries.push(entry);
-            }
+        log::debug!("considering entry {:?}", entry);
+        let path = PathBuf::from(&entry.filename);
+        if repositories::workspaces::data_frames::is_indexed(&workspace, &path)? {
+            editable_entries.push(entry);
+        } else {
+            log::debug!("not indexed {:?}", path);
         }
     }
 

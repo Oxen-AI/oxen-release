@@ -79,7 +79,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_empty_changes_none_pushed() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+        test::run_readme_remote_repo_test(|mut local_repo, remote_repo| async move {
             let branch_name = "add-images";
             repositories::branches::create_checkout(&local_repo, branch_name)?;
             let remote = test::repo_remote_url_from(&local_repo.dirname());

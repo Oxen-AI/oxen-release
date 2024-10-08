@@ -368,6 +368,15 @@ pub fn commit_dir_entries(
     staged_db_path: &Path,
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
+    log::debug!("commit_dir_entries got {} entries", dir_entries.len());
+    for (path, entries) in &dir_entries {
+        log::debug!(
+            "commit_dir_entries entry {:?} with {} nodes",
+            path,
+            entries.len()
+        );
+    }
+
     let message = &new_commit.message;
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
@@ -429,6 +438,11 @@ pub fn commit_dir_entries(
     if let Some(commit) = &maybe_head_commit {
         parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        log::debug!(
+            "Copy over {} dir hashes from previous commit {}",
+            dir_hashes.len(),
+            commit
+        );
         for (path, hash) in dir_hashes {
             if let Some(path_str) = path.to_str() {
                 str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
@@ -595,7 +609,7 @@ fn split_into_vnodes(
         // Log the children
         for child in children.iter() {
             log::debug!(
-                "  child populated {:?} {:?} status {:?}",
+                "child populated {:?} {:?} status {:?}",
                 child.node.node.dtype(),
                 child.node.maybe_path().unwrap(),
                 child.status
@@ -682,9 +696,10 @@ fn split_into_vnodes(
             log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!(
-                    "    entry {:?} {} with status {:?}",
+                    "    entry {:?} [{}] `{:?}` with status {:?}",
                     entry.node.node.dtype(),
-                    entry.node.maybe_path().unwrap().to_str().unwrap(),
+                    entry.node.node.hash(),
+                    entry.node.maybe_path(),
                     entry.status
                 );
             }
@@ -752,6 +767,9 @@ fn r_create_dir_node(
     total_written: &mut u64,
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
+
+    let keys = entries.keys();
+    log::debug!("r_create_dir_node path {:?} keys: {:?}", path, keys);
 
     let Some(vnodes) = entries.get(&path) else {
         log::debug!(

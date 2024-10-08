@@ -125,6 +125,11 @@ mod tests {
 
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
 
+            println!("Got {} commits", mergability.commits.len());
+            for commit in &mergability.commits {
+                println!("mergability commit: {:?}", commit);
+            }
+
             assert!(mergability.is_mergeable);
             assert_eq!(mergability.commits.len(), 2);
             assert_eq!(mergability.conflicts.len(), 0);
