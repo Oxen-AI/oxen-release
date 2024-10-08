@@ -3,7 +3,7 @@ use clap::{arg, Command};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 
-use liboxen::{command, repositories};
+use liboxen::repositories;
 
 use crate::helpers::check_repo_migration_needed;
 
