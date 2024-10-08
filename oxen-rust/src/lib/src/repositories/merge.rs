@@ -785,7 +785,6 @@ mod tests {
             let bbox_file =
                 test::append_line_txt_file(bbox_file, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
             let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
-            let their_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
             repositories::add(&repo, &bbox_file)?;
             repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
@@ -811,7 +810,6 @@ mod tests {
 
             // Run repositories::checkout::checkout_theirs() and make sure their changes get kept
             repositories::checkout::checkout_theirs(&repo, &bbox_filename)?;
-            let restored_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
             let file_contents = util::fs::read_from_path(&bbox_file)?;
             assert_eq!(file_contents, their_branch_contents);

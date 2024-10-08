@@ -173,7 +173,7 @@ mod tests {
             repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
-            command::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name)?;
 
             let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
