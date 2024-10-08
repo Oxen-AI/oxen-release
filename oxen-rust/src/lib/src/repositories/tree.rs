@@ -218,11 +218,15 @@ fn r_list_files_by_type(
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
                 if file_node.data_type == *data_type {
-                    file_nodes.insert(file_node.to_owned());
+                    let mut file_node = file_node.to_owned();
+                    let full_path = traversed_path.join(&file_node.name);
+                    file_node.name = full_path.to_string_lossy().to_string();
+                    file_nodes.insert(file_node);
                 }
             }
-            EMerkleTreeNode::Directory(_) => {
-                r_list_files_by_type(child, data_type, file_nodes, traversed_path)?;
+            EMerkleTreeNode::Directory(dir_node) => {
+                let full_path = traversed_path.join(&dir_node.name);
+                r_list_files_by_type(child, data_type, file_nodes, full_path)?;
             }
             EMerkleTreeNode::VNode(_) => {
                 r_list_files_by_type(child, data_type, file_nodes, traversed_path)?;

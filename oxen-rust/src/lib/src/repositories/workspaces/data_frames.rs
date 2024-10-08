@@ -990,7 +990,9 @@ mod tests {
             // Make sure version file is updated
             let entry = repositories::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
             let version_file = util::fs::version_path(&repo, &entry);
-            let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;
+            let extension = entry.path.extension().unwrap().to_str().unwrap();
+            let data_frame =
+                df::tabular::read_df_with_extension(version_file, extension, &DFOpts::empty())?;
             println!("{data_frame}");
             assert_eq!(
                 format!("{data_frame}"),
