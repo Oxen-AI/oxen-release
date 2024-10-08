@@ -445,8 +445,9 @@ mod tests {
             status.print();
             let dirs = status.staged_dirs;
 
-            // There are two directories, root and training_data
-            assert_eq!(dirs.len(), 2);
+            // TODO: v0_10_0 logic should have root and training_data
+            // We should just have training_data staged
+            assert_eq!(dirs.len(), 1);
             let added_dir = dirs.get(&training_data_dir).unwrap();
             assert_eq!(added_dir.path, training_data_dir);
 
