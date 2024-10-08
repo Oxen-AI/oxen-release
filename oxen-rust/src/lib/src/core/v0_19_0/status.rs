@@ -141,8 +141,52 @@ pub fn status_from_dir_entries(
     }
 
     staged_data.staged_dirs = summarized_dir_stats;
+    find_moved_files(staged_data)?;
 
     Ok(staged_data.clone())
+}
+
+fn find_moved_files(staged_data: &mut StagedData) -> Result<(), OxenError> {
+    let files = staged_data.staged_files.clone();
+    let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().collect();
+
+    // Find pairs of added-removed with same hash and add them to moved.
+    // We won't mutate StagedEntries here, the "moved" property is read-only
+    let mut added_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+    let mut removed_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+
+    for (path, entry) in files_vec.iter() {
+        match entry.status {
+            StagedEntryStatus::Added => {
+                added_map.entry(entry.hash.clone()).or_default().push(path);
+            }
+            StagedEntryStatus::Removed => {
+                removed_map
+                    .entry(entry.hash.clone())
+                    .or_default()
+                    .push(path);
+            }
+            _ => continue,
+        }
+    }
+
+    for (hash, added_paths) in added_map.iter_mut() {
+        if let Some(removed_paths) = removed_map.get_mut(hash) {
+            while !added_paths.is_empty() && !removed_paths.is_empty() {
+                if let (Some(added_path), Some(removed_path)) =
+                    (added_paths.pop(), removed_paths.pop())
+                {
+                    // moved_entries.push((added_path, removed_path, hash.to_string()));
+                    staged_data.moved_files.push((
+                        added_path.clone(),
+                        removed_path.clone(),
+                        hash.to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
@@ -307,6 +351,11 @@ fn find_changes(
                     let file_path = full_dir.join(&file.name);
                     if !file_path.exists() {
                         removed.insert(relative_dir.join(&file.name));
+                    }
+                } else if let EMerkleTreeNode::Directory(dir) = &child.node {
+                    let dir_path = full_dir.join(&dir.name);
+                    if !dir_path.exists() {
+                        removed.insert(relative_dir.join(&dir.name));
                     }
                 }
             }
