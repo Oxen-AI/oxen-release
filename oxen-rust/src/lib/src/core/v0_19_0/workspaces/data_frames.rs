@@ -35,7 +35,7 @@ pub fn get_queryable_data_frame_workspace(
     commit: &Commit,
 ) -> Result<Workspace, OxenError> {
     let path = path.as_ref();
-
+    log::debug!("get_queryable_data_frame_workspace path: {:?}", path);
     let file_node = repositories::tree::get_file_by_path(repo, commit, path)?
         .ok_or(OxenError::path_does_not_exist(path))?;
     if file_node.data_type != EntryDataType::Tabular {
