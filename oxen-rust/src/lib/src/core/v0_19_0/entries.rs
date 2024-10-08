@@ -251,6 +251,19 @@ fn file_node_to_metadata_entry(
     }
 
     let commit = found_commits.get(&file_node.last_commit_id).unwrap();
+    let data_type = &file_node.data_type;
+
+    let is_indexed = if *data_type == EntryDataType::Tabular {
+        Some(
+            repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
+                repo,
+                &parsed_resource.path,
+                &commit,
+            )?,
+        )
+    } else {
+        None
+    };
 
     Ok(Some(MetadataEntry {
         filename: file_node.name.clone(),
@@ -263,7 +276,7 @@ fn file_node_to_metadata_entry(
         mime_type: file_node.mime_type.clone(),
         extension: file_node.extension.clone(),
         metadata: file_node.metadata.clone(),
-        is_queryable: None,
+        is_queryable: is_indexed,
     }))
 }
 

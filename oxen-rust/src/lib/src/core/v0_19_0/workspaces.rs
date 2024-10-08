@@ -27,8 +27,12 @@ pub fn init_workspace_repo(
     log::debug!("init_workspace_repo {workspace_hidden_dir:?}");
     util::fs::create_dir_all(&workspace_hidden_dir)?;
 
-    let dirs_to_copy = vec![constants::HISTORY_DIR];
+    // Copy the config file
+    let config_file = oxen_hidden_dir.join(constants::REPO_CONFIG_FILENAME);
+    let target_config_file = workspace_hidden_dir.join(constants::REPO_CONFIG_FILENAME);
+    util::fs::copy(config_file, target_config_file)?;
 
+    let dirs_to_copy = vec![constants::HISTORY_DIR];
     for dir in dirs_to_copy {
         let oxen_dir = oxen_hidden_dir.join(dir);
         let target_dir = workspace_hidden_dir.join(dir);
