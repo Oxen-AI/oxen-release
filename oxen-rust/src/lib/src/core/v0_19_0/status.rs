@@ -71,7 +71,7 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &staged_db, &dir, &read_progress)?;
-    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
+    // println!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -94,7 +94,7 @@ pub fn status_from_dir_entries(
             dir,
             entries.len()
         );
-        let stats = StagedDirStats {
+        let mut stats = StagedDirStats {
             path: dir.clone(),
             num_files_staged: 0,
             total_files: 0,
@@ -119,6 +119,7 @@ pub fn status_from_dir_entries(
                     staged_data
                         .staged_files
                         .insert(file_path.clone(), staged_entry);
+                    stats.num_files_staged += 1;
                     maybe_add_schemas(node, staged_data)?;
 
                     // Cannot be removed if it's staged
@@ -134,7 +135,9 @@ pub fn status_from_dir_entries(
                 }
             }
         }
-        summarized_dir_stats.add_stats(&stats);
+        if stats.num_files_staged > 0 {
+            summarized_dir_stats.add_stats(&stats);
+        }
     }
 
     staged_data.staged_dirs = summarized_dir_stats;
@@ -261,11 +264,6 @@ fn find_changes(
             continue;
         }
 
-        if is_staged(&relative_path, staged_db)? {
-            untracked.all_untracked = false;
-            continue;
-        }
-
         if path.is_dir() {
             // If it's a directory, recursively find changes below it
             let (sub_untracked, sub_modified, sub_removed) =
@@ -273,6 +271,10 @@ fn find_changes(
             untracked.merge(sub_untracked);
             modified.extend(sub_modified);
             removed.extend(sub_removed);
+        } else if is_staged(&relative_path, staged_db)? {
+            // check this after handling directories, because we still need to recurse into staged directories
+            untracked.all_untracked = false;
+            continue;
         } else if let Some(node) =
             maybe_get_child_node(&relative_path.file_name().unwrap(), &dir_node)?
         {
