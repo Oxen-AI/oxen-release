@@ -72,43 +72,51 @@ fn export_tabular_data_frames(
 ) -> Result<HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, OxenError> {
     // Export all the workspace data frames and add them to the commit
     let mut new_dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
-    for (path, entries) in dir_entries {
+    for (dir_path, entries) in dir_entries {
         for dir_entry in entries {
             log::debug!(
                 "workspace commit checking if we want to export tabular data frame: {:?} -> {}",
-                path,
+                dir_path,
                 dir_entry.node
             );
             match &dir_entry.node.node {
                 EMerkleTreeNode::File(file_node) => {
+                    let node_path = dir_path.join(file_node.name.clone());
                     if file_node.data_type == EntryDataType::Tabular {
                         log::debug!(
                             "Exporting tabular data frame: {:?} -> {:?}",
-                            path,
+                            node_path,
                             file_node.name
                         );
-                        let exported_path =
+                        let exported_path = if repositories::workspaces::data_frames::is_indexed(
+                            &workspace, &node_path,
+                        )? {
                             workspaces::data_frames::extract_file_node_to_working_dir(
-                                workspace, &path, file_node,
-                            )?;
+                                workspace, &dir_path, file_node,
+                            )?
+                        } else {
+                            workspace.workspace_repo.path.join(node_path)
+                        };
+
+                        log::debug!("exported path: {:?}", exported_path);
 
                         // Update the metadata in the new staged merkle tree node
                         let new_staged_merkle_tree_node =
                             compute_staged_merkle_tree_node(workspace, &exported_path)?;
                         new_dir_entries
-                            .entry(path.to_path_buf())
+                            .entry(dir_path.to_path_buf())
                             .or_default()
                             .push(new_staged_merkle_tree_node);
                     } else {
                         new_dir_entries
-                            .entry(path.to_path_buf())
+                            .entry(dir_path.to_path_buf())
                             .or_default()
                             .push(dir_entry);
                     }
                 }
                 _ => {
                     new_dir_entries
-                        .entry(path.to_path_buf())
+                        .entry(dir_path.to_path_buf())
                         .or_default()
                         .push(dir_entry);
                 }
