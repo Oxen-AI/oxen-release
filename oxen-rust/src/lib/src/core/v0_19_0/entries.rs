@@ -112,6 +112,7 @@ pub fn list_directory(
     log::debug!("list_directory dir_entry {:?}", dir_entry);
     let entries: Vec<MetadataEntry> =
         dir_entries(repo, &dir, directory, parsed_resource, &mut found_commits)?;
+    log::debug!("list_directory got {} entries", entries.len());
 
     let (entries, pagination) = util::paginate(entries, page, page_size);
     let metadata: Option<MetadataDir> = Some(MetadataDir::new(dir_node.data_types()));
@@ -140,14 +141,18 @@ pub fn get_meta_entry(
             parsed_resource.clone(),
         ))?;
     let node = repositories::tree::get_dir_without_children(repo, &commit, path)?;
+    log::debug!("get_meta_entry node: {:?}", node);
 
     if let Some(node) = node {
+        log::debug!("get_meta_entry dir path found: {:?}", path.to_str().unwrap());
         let metadata =
             dir_node_to_metadata_entry(repo, &node, parsed_resource, &mut HashMap::new(), false)?;
         Ok(metadata.unwrap())
     } else {
+        log::debug!("get_meta_entry file path: {:?}", path.to_str().unwrap());
         let file_node = get_file_merkle_tree_node(repo, &commit, path)?;
         if let Some(file_node) = file_node {
+            log::debug!("get_meta_entry file node found: {:?}", file_node);
             let metadata = file_node_to_metadata_entry(
                 repo,
                 &file_node,
@@ -156,6 +161,7 @@ pub fn get_meta_entry(
             )?;
             Ok(metadata.unwrap())
         } else {
+            log::debug!("get_meta_entry path not found: {:?}", path.to_str().unwrap());
             Err(OxenError::resource_not_found(path.to_str().unwrap()))
         }
     }
@@ -204,7 +210,7 @@ fn dir_node_to_metadata_entry(
         found_commits.entry(dir_node.last_commit_id)
     {
         let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id)?
-            .ok_or(OxenError::resource_not_found(dir_node.name.clone()))?;
+            .ok_or(OxenError::commit_id_does_not_exist(&dir_node.last_commit_id.to_string()))?;
         e.insert(commit);
     }
 
@@ -246,7 +252,7 @@ fn file_node_to_metadata_entry(
         found_commits.entry(file_node.last_commit_id)
     {
         let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id)?
-            .ok_or(OxenError::resource_not_found(file_node.name.clone()))?;
+            .ok_or(OxenError::commit_id_does_not_exist(&file_node.last_commit_id.to_string()))?;
         e.insert(commit);
     }
 
