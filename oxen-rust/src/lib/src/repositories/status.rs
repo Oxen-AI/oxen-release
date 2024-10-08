@@ -268,7 +268,7 @@ mod tests {
             repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
-            let commit = command::merge(&repo, branch_name)?;
+            let commit = repositories::merge::merge(&repo, branch_name)?;
 
             // Make sure we didn't get a commit out of it
             assert!(commit.is_none());

@@ -81,7 +81,12 @@ fn export_tabular_data_frames(
             );
             match &dir_entry.node.node {
                 EMerkleTreeNode::File(file_node) => {
-                    let node_path = dir_path.join(file_node.name.clone());
+                    // TODO: This is hacky - because we don't know if a file node is the full path or relative to the dir_path
+                    // need a better way to distinguish
+                    let mut node_path = PathBuf::from(file_node.name.clone());
+                    if !node_path.starts_with(&dir_path) {
+                        node_path = dir_path.join(node_path);
+                    }
                     if file_node.data_type == EntryDataType::Tabular {
                         log::debug!(
                             "Exporting tabular data frame: {:?} -> {:?}",
@@ -131,7 +136,7 @@ fn compute_staged_merkle_tree_node(
     path: &PathBuf,
 ) -> Result<StagedMerkleTreeNode, OxenError> {
     // This logic is copied from add.rs but add has some optimizations that make it hard to be reused here
-    let metadata = std::fs::metadata(path)?;
+    let metadata = util::fs::metadata(path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
     let hash = util::hasher::get_hash_given_metadata(path, &metadata)?;
     let num_bytes = metadata.len();
