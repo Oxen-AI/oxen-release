@@ -286,8 +286,16 @@ mod tests {
 
             println!("status: {:?}", status);
 
-            // root dir + images + cats + level 1 * 3 + level 2 * 2 + level 3 * 1
-            assert_eq!(status.staged_dirs.len(), 9);
+            /*
+            added: images/cats/subdir1_level_1 with 3 files
+            added: images/cats/subdir2_level_1 with 3 files
+            added: images/cats/subdir2_level_1/subdir2_level_2 with 3 files
+            added: images/cats/subdir3_level_1 with 3 files
+            added: images/cats/subdir1_level_1/subdir1_level_2/subdir1_level_3 with 3 files
+            added: images/cats/subdir1_level_1/subdir1_level_2 with 3 files
+            added: images/cats with 3 files
+            */
+            assert_eq!(status.staged_dirs.len(), 7);
 
             // 3 * (cats + level 1 * 3 + level 2 * 2 + level 3 * 1)
             assert_eq!(status.staged_files.len(), 21);
@@ -645,8 +653,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            // 2: train & the root dir
-            assert_eq!(status.staged_dirs.len(), 2);
+            // 1: train
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -657,8 +665,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            // 1: The root dir will still be present
-            assert_eq!(status.staged_dirs.len(), 1);
+
+            assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
@@ -674,8 +682,8 @@ mod tests {
             repositories::add(&repo, repo.path.join(path))?;
 
             let status = repositories::status(&repo)?;
-            // 2: train & the root dir
-            assert_eq!(status.staged_dirs.len(), 2);
+            // 1: train dir
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -687,8 +695,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            // 1: The root dir will still be present
-            assert_eq!(status.staged_dirs.len(), 1);
+
+            assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
