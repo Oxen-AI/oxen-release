@@ -182,16 +182,16 @@ fn list_recursive(
     stop_at: Option<&Commit>,
     visited: &mut HashSet<String>,
 ) -> Result<(), OxenError> {
-    if stop_at.is_some() && &commit == stop_at.unwrap() {
-        return Ok(());
-    }
-
     // Check if we've already visited this commit
     if !visited.insert(commit.id.clone()) {
         return Ok(());
     }
 
     results.push(commit.clone());
+
+    if stop_at.is_some() && &commit == stop_at.unwrap() {
+        return Ok(());
+    }
 
     for parent_id in commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;

@@ -6,14 +6,42 @@ use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
 use crate::repositories;
 use crate::util;
 
+use std::collections::HashSet;
 use std::path::Path;
 
 pub fn list_entry_versions_for_commit(
-    _local_repo: &LocalRepository,
-    _commit_id: &str,
-    _path: &Path,
+    local_repo: &LocalRepository,
+    commit_id: &str,
+    path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
-    todo!()
+    let Some(root_commit) = repositories::commits::root_commit_maybe(local_repo)? else {
+        return Ok(Vec::new());
+    };
+    let commit = repositories::commits::get_by_id(local_repo, commit_id)?
+        .ok_or(OxenError::commit_id_does_not_exist(commit_id))?;
+    let mut branch_commits =
+        repositories::commits::list_between(local_repo, &commit, &root_commit)?;
+
+    // Sort on timestamp oldest to newest
+    branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
+    let mut seen_hashes: HashSet<String> = HashSet::new();
+
+    for commit in branch_commits {
+        let entry = repositories::entries::get_commit_entry(local_repo, &commit, path)?;
+
+        if let Some(entry) = entry {
+            if !seen_hashes.contains(&entry.hash) {
+                seen_hashes.insert(entry.hash.clone());
+                result.push((commit, entry));
+            }
+        }
+    }
+
+    result.reverse();
+
+    Ok(result)
 }
 
 pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), OxenError> {
