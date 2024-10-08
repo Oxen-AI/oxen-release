@@ -124,7 +124,11 @@ pub async fn download_node_with_children(
     let uri = format!("/tree/nodes/{node_hash_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    log::debug!("downloading node {} from {}", node_hash_str, url);
+    log::debug!(
+        "downloading node with children {} from {}",
+        node_hash_str,
+        url
+    );
 
     node_download_request(local_repo, &url).await?;
 
