@@ -553,6 +553,14 @@ mod tests {
                 &file_path.to_path_buf(),
             )?;
 
+            for v in &main_versions {
+                println!("main: {:?} -> {:?}", v.0, v.1);
+            }
+
+            for v in &branch_versions {
+                println!("branch: {:?} -> {:?}", v.0, v.1);
+            }
+
             // Main should have commits 6, 2, and 1.
             assert_eq!(main_versions.len(), 3);
             assert_eq!(main_versions[0].0.id, commit_6.id);
