@@ -71,7 +71,7 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &staged_db, &dir, &read_progress)?;
-    // println!("status_from_dir dir_entries: {:?}", dir_entries);
+    log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -100,7 +100,7 @@ pub fn status_from_dir_entries(
             total_files: 0,
             status: StagedEntryStatus::Added,
         };
-        for entry in entries {
+        for entry in &entries {
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
@@ -114,7 +114,7 @@ pub fn status_from_dir_entries(
                     }
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
-                        status: entry.status,
+                        status: entry.status.clone(),
                     };
                     staged_data
                         .staged_files
@@ -135,7 +135,10 @@ pub fn status_from_dir_entries(
                 }
             }
         }
-        if stats.num_files_staged > 0 {
+
+        // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
+        // Otherwise we are filtering out parent dirs that were added during add
+        if stats.num_files_staged > 0 || entries.len() == 0 {
             summarized_dir_stats.add_stats(&stats);
         }
     }
@@ -326,17 +329,21 @@ fn find_changes(
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
             if is_modified(&node, &path)? {
-                modified.push(relative_path);
+                modified.push(relative_path.clone());
             }
         } else {
             // If it's none of the above conditions, then it's untracked
-            untracked.add_file(relative_path);
+            untracked.add_file(relative_path.clone());
             untracked_count += 1;
         }
     }
 
     // Only add the untracked directory if it's not the root directory
-    if untracked.all_untracked && relative_dir != Path::new("") {
+    // and it's not staged
+    if untracked.all_untracked
+        && relative_dir != Path::new("")
+        && !is_staged(&relative_dir, staged_db)?
+    {
         untracked.add_dir(relative_dir.to_path_buf(), untracked_count);
         // Clear individual files as they're now represented by the directory
         untracked.files.clear();

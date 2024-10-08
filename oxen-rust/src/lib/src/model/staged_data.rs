@@ -86,6 +86,7 @@ impl StagedData {
 
     pub fn is_clean(&self) -> bool {
         self.staged_files.is_empty()
+            && self.staged_dirs.is_empty()
             && self.staged_schemas.is_empty()
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
