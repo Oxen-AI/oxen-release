@@ -542,7 +542,7 @@ mod tests {
             repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
-            command::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name)?;
 
             // We should have a conflict
             let status = repositories::status(&repo)?;
