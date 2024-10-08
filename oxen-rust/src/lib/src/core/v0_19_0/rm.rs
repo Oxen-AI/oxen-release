@@ -58,6 +58,7 @@ pub fn remove_staged_recursively(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
 ) -> Result<(), OxenError> {
+    log::debug!("remove_staged_recursively paths: {:?}", paths);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
@@ -68,12 +69,17 @@ pub fn remove_staged_recursively(
         match item {
             Ok((key, _)) => match str::from_utf8(&key) {
                 Ok(key) => {
+                    log::debug!("considering key: {:?}", key);
                     for path in paths {
                         let path = util::fs::path_relative_to_dir(path, &repo.path)?;
                         let db_path = PathBuf::from(key);
                         log::debug!("considering rm db_path: {:?} for path: {:?}", db_path, path);
                         if db_path.starts_with(&path) && path != PathBuf::from("") {
+                            let parent = db_path.parent().unwrap_or(Path::new(""));
                             remove_staged_entry(&db_path, &staged_db)?;
+                            if parent != Path::new("") {
+                                cleanup_empty_dirs(&parent, &staged_db)?;
+                            }
                         }
                     }
                 }
@@ -87,6 +93,43 @@ pub fn remove_staged_recursively(
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+// Removes an empty directory from the staged db
+fn cleanup_empty_dirs(
+    path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<(), OxenError> {
+    let iter = staged_db.iterator(IteratorMode::Start);
+    let mut total = 0;
+    for item in iter {
+        match item {
+            Ok((key, _)) => match str::from_utf8(&key) {
+                Ok(key) => {
+                    let db_path = PathBuf::from(key);
+                    if db_path.starts_with(path) {
+                        total += 1;
+                    }
+                }
+                _ => {
+                    return Err(OxenError::basic_str(
+                        "Could not read iterate over db values",
+                    ));
+                }
+            },
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+    log::debug!("total sub paths for dir {path:?}: {total}");
+    if total == 0 {
+        log::debug!("removing empty dir: {:?}", path);
+        staged_db.delete(path.to_str().unwrap())?;
     }
     Ok(())
 }
