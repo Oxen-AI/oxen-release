@@ -534,9 +534,9 @@ pub async fn download_dir_hashes_db(
         }
         let base_commit_id = split[0];
         let head_commit_id = split[1];
-        let base_commit = repositories::revisions::get(&repository, &base_commit_id)?
+        let base_commit = repositories::revisions::get(&repository, base_commit_id)?
             .ok_or(OxenError::revision_not_found(base_commit_id.into()))?;
-        let head_commit = repositories::revisions::get(&repository, &head_commit_id)?
+        let head_commit = repositories::revisions::get(&repository, head_commit_id)?
             .ok_or(OxenError::revision_not_found(head_commit_id.into()))?;
 
         repositories::commits::list_between(&repository, &base_commit, &head_commit)?
