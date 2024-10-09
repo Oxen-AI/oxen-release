@@ -394,9 +394,11 @@ pub fn process_add_file(
     if let Some(_file_node) = &maybe_file_node {
         let conflicts = repositories::merge::list_conflicts(repo)?;
         for conflict in conflicts {
-            let conflict_path = repo.path.join(conflict.merge_entry.path);
+            let conflict_path = repo.path.join(&conflict.merge_entry.path);
+            log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
             if conflict_path == path {
                 status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+                repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
             }
         }
     }

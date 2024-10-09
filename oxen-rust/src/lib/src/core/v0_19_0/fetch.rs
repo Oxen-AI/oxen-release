@@ -9,7 +9,7 @@ use crate::core::refs::RefWriter;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
-use crate::model::{Commit, CommitEntry};
+use crate::model::{Branch, Commit, CommitEntry};
 use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
 use crate::repositories;
 
@@ -38,9 +38,86 @@ pub async fn fetch_remote_branch(
         return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
     };
 
-    // Download the dir hashes
+    fetch_full_tree_and_hashes(repo, remote_repo, &remote_branch).await?;
+    let commits = repositories::commits::list_unsynced(repo)?;
+
+    // Keep track of how many bytes we have downloaded
+    let pull_progress = PullProgress::new();
+
+    // Recursively download the entries
+    if all {
+        log::debug!("fetching all {} commits", commits.len());
+        for commit in commits {
+            log::debug!("fetching all commits {}", commit);
+            let hash = MerkleHash::from_str(&commit.id)?;
+            api::client::tree::download_tree(repo, remote_repo).await?;
+            let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
+            r_download_entries(
+                repo,
+                remote_repo,
+                &commit_node,
+                &PathBuf::from(""),
+                &pull_progress,
+            )
+            .await?;
+        }
+    } else {
+        let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
+        let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
+        let directory = PathBuf::from("");
+        r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
+    }
+
+    // Make sure the branch now points to the latest commit
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
+
+    // If we fetched all the data, we're no longer shallow
+    repo.write_is_shallow(false)?;
+
+    pull_progress.finish();
+    let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
+
+    println!(
+        "🐂 oxen fetched {} ({} files) in {}",
+        bytesize::ByteSize::b(pull_progress.get_num_bytes()),
+        pull_progress.get_num_files(),
+        humantime::format_duration(duration)
+    );
+
+    Ok(())
+}
+
+pub async fn fetch_tree_and_hashes_for_commit_id(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let repo_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    api::client::commits::download_dir_hashes_db_to_path(remote_repo, &commit_id, &repo_hidden_dir)
+        .await?;
+
+    let hash = MerkleHash::from_str(commit_id)?;
+    api::client::tree::download_tree_from(repo, remote_repo, &hash).await?;
+
+    api::client::commits::download_dir_hashes_from_commit(
+        remote_repo,
+        &commit_id,
+        &repo_hidden_dir,
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn fetch_full_tree_and_hashes(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    remote_branch: &Branch,
+) -> Result<(), OxenError> {
+    // Download the latest merkle tree
     // Must do this before downloading the commit node
-    // because the commit node references the dir hashes
+    // because the commit node references the merkle tree
     let repo_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
     api::client::commits::download_dir_hashes_db_to_path(
         remote_repo,
@@ -49,13 +126,14 @@ pub async fn fetch_remote_branch(
     )
     .await?;
 
-    // Download the latest commit node
-    let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
-    let commit_node = api::client::tree::download_tree(repo, remote_repo, &hash).await?;
+    // Download the latest merkle tree
+    // let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
+    api::client::tree::download_tree(repo, remote_repo).await?;
+    // let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
 
     // Download the commit history
     // Check what our HEAD commit is locally
-    let commits = if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
+    if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         // Remote is not guaranteed to have our head commit
         // If it doesn't, we will download all commits from the remote branch commit
         if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
@@ -70,13 +148,15 @@ pub async fn fetch_remote_branch(
                 &repo_hidden_dir,
             )
             .await?;
-            api::client::tree::download_commits_between(
-                repo,
-                remote_repo,
-                &base_commit_id,
-                &head_commit_id,
-            )
-            .await?
+
+            // We download the whole tree above, so no need to download the commits
+            // api::client::tree::download_commits_between(
+            //     repo,
+            //     remote_repo,
+            //     &base_commit_id,
+            //     &head_commit_id,
+            // )
+            // .await?
         } else {
             // Download the dir hashes from the remote branch commit
             api::client::commits::download_dir_hashes_from_commit(
@@ -86,9 +166,10 @@ pub async fn fetch_remote_branch(
             )
             .await?;
 
-            // Download the commits from the remote branch commit to the first commit
-            api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
-                .await?
+            // We download the whole tree above, so no need to download the commits
+            // // Download the commits from the remote branch commit to the first commit
+            // api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
+            //     .await?
         }
     } else {
         // Download the dir hashes from the remote branch commit
@@ -100,46 +181,9 @@ pub async fn fetch_remote_branch(
         .await?;
 
         // Download the commits from the remote branch commit to the first commit
-        api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
-            .await?
+        // api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
+        //     .await?
     };
-
-    // Keep track of how many bytes we have downloaded
-    let pull_progress = PullProgress::new();
-
-    // Recursively download the entries
-    if all {
-        log::debug!("fetching all {} commits", commits.len());
-        for commit in commits {
-            log::debug!("fetching all commits {}", commit);
-            let hash = MerkleHash::from_str(&commit.id)?;
-            let commit_node = api::client::tree::download_tree(repo, remote_repo, &hash).await?;
-            r_download_entries(
-                repo,
-                remote_repo,
-                &commit_node,
-                &PathBuf::from(""),
-                &pull_progress,
-            )
-            .await?;
-        }
-    } else {
-        let directory = PathBuf::from("");
-        r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
-    }
-
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
-    pull_progress.finish();
-    let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
-
-    println!(
-        "🐂 oxen fetched {} ({} files) in {}",
-        bytesize::ByteSize::b(pull_progress.get_num_bytes()),
-        pull_progress.get_num_files(),
-        humantime::format_duration(duration)
-    );
-
     Ok(())
 }
 

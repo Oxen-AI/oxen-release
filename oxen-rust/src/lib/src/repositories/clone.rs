@@ -268,8 +268,6 @@ mod tests {
                 // Should be able to push all data successfully
                 repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await?;
 
-                // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
-
                 Ok(new_repo_dir)
             })
             .await?;
@@ -378,7 +376,6 @@ mod tests {
                 let push_res =
                     repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await;
                 assert!(push_res.is_err());
-                // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
 
                 Ok(new_repo_dir)
             })
