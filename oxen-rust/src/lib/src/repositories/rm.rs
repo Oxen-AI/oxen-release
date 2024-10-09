@@ -131,7 +131,8 @@ mod tests {
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(0, status.staged_files.len());
-            assert_eq!(num_files, status.removed_files.len());
+            // One removed dir (rolled up)
+            assert_eq!(1, status.removed_files.len());
 
             // This should restore all the files from the HEAD commit
             let opts = RestoreOpts::from_path(&rm_dir);
@@ -461,18 +462,9 @@ mod tests {
             status.print();
 
             // Should add all the sub dirs
-            // nlp/
-            //   classification/
-            //     annotations/
-            assert_eq!(
-                status
-                    .staged_dirs
-                    .paths
-                    .get(Path::new("nlp"))
-                    .unwrap()
-                    .len(),
-                3
-            );
+            // nlp/classification/annotations/
+            assert_eq!(status.staged_dirs.len(), 1);
+
             // Should add sub files
             // nlp/classification/annotations/train.tsv
             // nlp/classification/annotations/test.tsv
@@ -486,7 +478,11 @@ mod tests {
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
             let status = repositories::status(&repo)?;
-            assert_eq!(status.removed_files.len(), 2);
+
+            // status.removed_files currently is files and dirs,
+            // we roll up the dirs into the parent dir, so len should be 1
+            // TODO: https://app.asana.com/0/1204211285259102/1208493904390183/f
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             println!("BEFORE ADD");
@@ -503,12 +499,9 @@ mod tests {
             println!("status: {:?}", status);
             status.print();
 
-            // There are 4 dirs
-            // nlp/classification/annotations/
-            // nlp/classification
+            // There is one rolled up dir
             // nlp
-            // "" (root dir)
-            assert_eq!(status.staged_dirs.len(), 4);
+            assert_eq!(status.staged_dirs.len(), 1);
             // 2 files
             // nlp/classification/annotations/test.tsv
             // nlp/classification/annotations/train.tsv
