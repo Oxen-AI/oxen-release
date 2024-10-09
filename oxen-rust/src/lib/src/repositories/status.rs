@@ -372,7 +372,7 @@ mod tests {
             assert_eq!(status.staged_files.len(), 2); // Staged files still operates on the addition + removal
 
             // Restore one file and break the pair
-            command::restore(&repo, RestoreOpts::from_staged_path(og_basename))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(og_basename))?;
 
             // Pair is broken; no more "moved"
             let status = repositories::status(&repo)?;

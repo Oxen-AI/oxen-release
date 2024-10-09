@@ -84,7 +84,7 @@ pub fn checkout_ours(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         // Lookup the file for the base commit entry and copy it over
-        command::restore(
+        repositories::restore::restore(
             repo,
             RestoreOpts::from_path_ref(path, conflict.base_entry.commit_id.clone()),
         )
