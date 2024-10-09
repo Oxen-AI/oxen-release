@@ -842,6 +842,40 @@ where
     Ok(())
 }
 
+pub async fn run_training_data_repo_test_no_commits_async_with_version<T, Fut>(
+    version: MinOxenVersion,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    log::info!("<<<<< run_training_data_repo_test_no_commits_async start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init::init_with_version(&repo_dir, version)?;
+
+    // Write all the files
+    populate_dir_with_training_data(&repo_dir)?;
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_training_data_repo_test_no_commits_async running test");
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 pub async fn run_select_data_repo_test_no_commits_async<T, Fut>(
     data: &str,
     test: T,

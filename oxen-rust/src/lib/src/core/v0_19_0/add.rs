@@ -47,6 +47,11 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
+    // Cannot add if shallow
+    if repo.is_shallow_clone() {
+        return Err(OxenError::basic_str("Cannot run `oxen add` on a shallow clone"));
+    }
+
     // Start a timer
     let start = std::time::Instant::now();
     let path = path.as_ref();
@@ -394,9 +399,11 @@ pub fn process_add_file(
     if let Some(_file_node) = &maybe_file_node {
         let conflicts = repositories::merge::list_conflicts(repo)?;
         for conflict in conflicts {
-            let conflict_path = repo.path.join(conflict.merge_entry.path);
+            let conflict_path = repo.path.join(&conflict.merge_entry.path);
+            log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
             if conflict_path == path {
                 status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+                repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
             }
         }
     }
