@@ -556,13 +556,12 @@ mod tests {
             repositories::commit(&repo, "merging into main")?;
 
             // Should have commits:
-            //  1) initial
-            //  2) add labels
-            //  3) change-labels branch modification
-            //  4) main branch modification
-            //  5) merge commit
+            //  1) add labels
+            //  2) change-labels branch modification
+            //  3) main branch modification
+            //  4) merge commit
             let history = repositories::commits::list(&repo)?;
-            assert_eq!(history.len(), 5);
+            assert_eq!(history.len(), 4);
 
             Ok(())
         })
