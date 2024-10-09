@@ -75,10 +75,15 @@ pub fn remove_staged_recursively(
                         let db_path = PathBuf::from(key);
                         log::debug!("considering rm db_path: {:?} for path: {:?}", db_path, path);
                         if db_path.starts_with(&path) && path != PathBuf::from("") {
-                            let parent = db_path.parent().unwrap_or(Path::new(""));
+                            let mut parent = db_path.parent().unwrap_or(Path::new(""));
                             remove_staged_entry(&db_path, &staged_db)?;
-                            if parent != Path::new("") {
-                                cleanup_empty_dirs(&parent, &staged_db)?;
+                            while parent != Path::new("") {
+                                log::debug!("maybe cleaning up empty dir: {:?}", parent);
+                                cleanup_empty_dirs(parent, &staged_db)?;
+                                parent = parent.parent().unwrap_or(Path::new(""));
+                                if parent == Path::new("") {
+                                    cleanup_empty_dirs(parent, &staged_db)?;
+                                }
                             }
                         }
                     }
@@ -108,8 +113,9 @@ fn cleanup_empty_dirs(
         match item {
             Ok((key, _)) => match str::from_utf8(&key) {
                 Ok(key) => {
+                    log::debug!("considering key: {:?}", key);
                     let db_path = PathBuf::from(key);
-                    if db_path.starts_with(path) {
+                    if db_path.starts_with(path) && path != db_path {
                         total += 1;
                     }
                 }
