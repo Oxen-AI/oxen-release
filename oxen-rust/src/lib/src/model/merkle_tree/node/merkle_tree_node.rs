@@ -49,6 +49,11 @@ impl MerkleTreeNode {
         matches!(self.node, EMerkleTreeNode::File(_))
     }
 
+    /// Check if it is a directory
+    pub fn is_dir(&self) -> bool {
+        matches!(self.node, EMerkleTreeNode::Directory(_))
+    }
+
     /// Recursively count the total number of vnodes in the tree
     pub fn total_vnodes(&self) -> usize {
         let mut count = 0;

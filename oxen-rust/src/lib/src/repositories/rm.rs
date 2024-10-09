@@ -621,8 +621,8 @@ mod tests {
 
             let status = repositories::status(&repo)?;
             status.print();
-            // 2: train & the root dir
-            assert_eq!(status.staged_dirs.len(), 2);
+            // 2: train
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),

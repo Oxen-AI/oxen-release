@@ -71,7 +71,7 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &staged_db, &dir, &read_progress)?;
-    log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
+    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -104,6 +104,10 @@ pub fn status_from_dir_entries(
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
+                    // Cannot be removed if it's staged
+                    if !staged_data.staged_dirs.contains_key(&dir) {
+                        staged_data.removed_files.remove(&dir);
+                    }
                 }
                 EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
@@ -123,7 +127,7 @@ pub fn status_from_dir_entries(
                     maybe_add_schemas(node, staged_data)?;
 
                     // Cannot be removed if it's staged
-                    if staged_data.removed_files.contains(&file_path) {
+                    if staged_data.staged_files.contains_key(&file_path) {
                         staged_data.removed_files.remove(&file_path);
                     }
                 }
@@ -134,6 +138,11 @@ pub fn status_from_dir_entries(
                     )));
                 }
             }
+        }
+
+        // Cannot be removed if it's staged
+        if !staged_data.staged_dirs.contains_key(&dir) {
+            staged_data.removed_files.remove(&dir);
         }
 
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
