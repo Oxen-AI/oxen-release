@@ -47,6 +47,11 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
+    // Cannot add if shallow
+    if repo.is_shallow_clone() {
+        return Err(OxenError::basic_str("Cannot run `oxen add` on a shallow clone"));
+    }
+
     // Start a timer
     let start = std::time::Instant::now();
     let path = path.as_ref();
