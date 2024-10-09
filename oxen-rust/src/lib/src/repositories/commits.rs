@@ -509,6 +509,8 @@ mod tests {
                 StagedEntryStatus::Removed
             );
 
+            status.print();
+
             // Make sure they don't show up in the status
             assert_eq!(status.removed_files.len(), 0);
 

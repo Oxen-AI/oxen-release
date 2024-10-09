@@ -42,11 +42,16 @@ pub fn rm(
         return Err(OxenError::repo_is_shallow());
     }
 
+    if has_modified_files(repo)? {
+        let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
+        return Err(OxenError::basic_str(error));
+    }
+
     // TODO: Accurately calculate stats for remove_staged
     if opts.staged && opts.recursive {
         return remove_staged_recursively(repo, paths);
     } else if opts.staged {
-        return remove_staged(repo, paths);
+        return remove_staged(repo, paths, opts);
     }
 
     remove(paths, repo, opts)?;
@@ -102,6 +107,17 @@ pub fn remove_staged_recursively(
     Ok(())
 }
 
+fn has_modified_files(repo: &LocalRepository) -> Result<bool, OxenError> {
+    let modified = list_modified_files(repo)?;
+    Ok(!modified.is_empty())
+}
+
+fn list_modified_files(repo: &LocalRepository) -> Result<Vec<PathBuf>, OxenError> {
+    let status = repositories::status(repo)?;
+    let modified: Vec<PathBuf> = status.modified_files.into_iter().collect();
+    Ok(modified)
+}
+
 // Removes an empty directory from the staged db
 fn cleanup_empty_dirs(
     path: &Path,
@@ -140,7 +156,11 @@ fn cleanup_empty_dirs(
     Ok(())
 }
 
-pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<(), OxenError> {
+pub fn remove_staged(
+    repo: &LocalRepository,
+    paths: &HashSet<PathBuf>,
+    rm_opts: &RmOpts,
+) -> Result<(), OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
@@ -149,14 +169,35 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
     log::debug!("remove_staged paths {:?}", paths);
     for path in paths {
         let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
+        let Some(entry) = get_staged_entry(&relative_path, &staged_db)? else {
+            continue;
+        };
+        if entry.node.is_dir() && !rm_opts.recursive {
+            let error = format!("`oxen rm` on directory {path:?} requires -r");
+            return Err(OxenError::basic_str(error));
+        }
         remove_staged_entry(&relative_path, &staged_db)?;
     }
 
     Ok(())
 }
 
+fn get_staged_entry(
+    path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let path_str = path.to_str().unwrap();
+    let Some(value) = staged_db.get(path_str)? else {
+        return Ok(None);
+    };
+
+    let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
+
+    Ok(Some(entry))
+}
+
 fn remove_staged_entry(
-    path: &PathBuf,
+    path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     log::debug!(
