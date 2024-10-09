@@ -1017,7 +1017,7 @@ fn compute_dir_node(
                             file_node.name,
                             file_node.hash
                         );
-                        hasher.update(&file_node.name.as_bytes());
+                        hasher.update(file_node.name.as_bytes());
                         hasher.update(&file_node.combined_hash.to_le_bytes());
 
                         match entry.status {

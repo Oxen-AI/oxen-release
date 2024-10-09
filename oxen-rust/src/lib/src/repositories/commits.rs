@@ -838,11 +838,11 @@ mod tests {
             // Make sure the file is not in the first commit
             // This was biting us in an initial implementation
             // BECAUSE the file contents was the same, the hash was not updated
-            let node_from_tree_1 = tree_1.get_by_path(&file_path_2)?;
+            let node_from_tree_1 = tree_1.get_by_path(file_path_2)?;
             assert!(node_from_tree_1.is_none());
 
             // Make sure the file is in the second commit
-            let node_from_tree_2 = tree_2.get_by_path(&file_path_2)?;
+            let node_from_tree_2 = tree_2.get_by_path(file_path_2)?;
             assert!(node_from_tree_2.is_some());
 
             Ok(())
@@ -877,10 +877,9 @@ mod tests {
             println!("tree after commit: {}", commit);
             tree.print();
 
-            assert!(tree.get_by_path(&PathBuf::from("empty_dir"))?.is_some());
+            assert!(tree.get_by_path(PathBuf::from("empty_dir"))?.is_some());
 
             Ok(())
         })
     }
-
 }
