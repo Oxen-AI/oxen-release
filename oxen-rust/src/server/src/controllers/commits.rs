@@ -515,6 +515,40 @@ pub async fn download_objects_db(
 }
 
 /// Download the database of all entries given a specific commit
+pub async fn download_dir_hashes_db(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    // base_head is the base and head commit id separated by ..
+    let base_head = path_param(&req, "base_head")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    // Let user pass in base..head to download a range of commits
+    // or we just get all the commits from the base commit to the first commit
+    let commits = if base_head.contains("..") {
+        let split = base_head.split("..").collect::<Vec<&str>>();
+        if split.len() != 2 {
+            return Err(OxenHttpError::BadRequest("Invalid base_head".into()));
+        }
+        let base_commit_id = split[0];
+        let head_commit_id = split[1];
+        let base_commit = repositories::revisions::get(&repository, &base_commit_id)?
+            .ok_or(OxenError::revision_not_found(base_commit_id.into()))?;
+        let head_commit = repositories::revisions::get(&repository, &head_commit_id)?
+            .ok_or(OxenError::revision_not_found(head_commit_id.into()))?;
+
+        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
+    } else {
+        repositories::commits::list_from(&repository, &base_head)?
+    };
+    let buffer = compress_commits(&repository, &commits)?;
+
+    Ok(HttpResponse::Ok().body(buffer))
+}
+
+/// Download the database of all entries given a specific commit
 pub async fn download_commit_entries_db(
     req: HttpRequest,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -526,16 +560,56 @@ pub async fn download_commit_entries_db(
 
     let commit = repositories::revisions::get(&repository, &commit_or_branch)?
         .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
-
     let buffer = compress_commit(&repository, &commit)?;
 
     Ok(HttpResponse::Ok().body(buffer))
 }
 
+// Allow downloading of multiple commits for efficiency
+fn compress_commits(
+    repository: &LocalRepository,
+    commits: &[Commit],
+) -> Result<Vec<u8>, OxenError> {
+    // Tar and gzip all the commit dir_hashes db directories
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
+    log::debug!("Compressing {} commits", commits.len());
+    for commit in commits {
+        let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
+            .join(HISTORY_DIR)
+            .join(commit.id.clone());
+        // This will be the subdir within the tarball
+        let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
+
+        log::debug!("Compressing commit {} from dir {:?}", commit.id, commit_dir);
+
+        for dir in &dirs_to_compress {
+            let full_path = commit_dir.join(dir);
+            let tar_path = tar_subdir.join(dir);
+            if full_path.exists() {
+                tar.append_dir_all(&tar_path, full_path)?;
+            }
+        }
+    }
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Compressed {} commits, size is {}",
+        commits.len(),
+        ByteSize::b(total_size)
+    );
+
+    Ok(buffer)
+}
+
 // Allow downloading of sub-dirs for efficiency
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
-    // zip up the rocksdb in history dir, and post to server
+    // zip up the rocksdb in history dir, and download from server
     let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
         .join(HISTORY_DIR)
         .join(commit.id.clone());
