@@ -9,7 +9,7 @@ use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::opts::{DFOpts, RestoreOpts};
-use crate::{command, repositories, util};
+use crate::{repositories, util};
 
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
@@ -84,7 +84,7 @@ pub fn checkout_ours(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         // Lookup the file for the base commit entry and copy it over
-        command::restore(
+        repositories::restore(
             repo,
             RestoreOpts::from_path_ref(path, conflict.base_entry.commit_id.clone()),
         )

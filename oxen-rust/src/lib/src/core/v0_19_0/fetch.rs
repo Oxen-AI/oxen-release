@@ -94,7 +94,7 @@ pub async fn fetch_tree_and_hashes_for_commit_id(
     commit_id: &str,
 ) -> Result<(), OxenError> {
     let repo_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
-    api::client::commits::download_dir_hashes_db_to_path(remote_repo, &commit_id, &repo_hidden_dir)
+    api::client::commits::download_dir_hashes_db_to_path(remote_repo, commit_id, &repo_hidden_dir)
         .await?;
 
     let hash = MerkleHash::from_str(commit_id)?;
@@ -102,7 +102,7 @@ pub async fn fetch_tree_and_hashes_for_commit_id(
 
     api::client::commits::download_dir_hashes_from_commit(
         remote_repo,
-        &commit_id,
+        commit_id,
         &repo_hidden_dir,
     )
     .await?;

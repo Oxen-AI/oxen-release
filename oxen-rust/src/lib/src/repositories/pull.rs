@@ -1420,11 +1420,13 @@ mod tests {
                 })
                 .await?;
 
-                // Pull on the shallow copy
-                repositories::pull_remote_branch_shallow(
+                // Pull again
+                let all = false;
+                repositories::pull_remote_branch(
                     &user_a_repo,
                     DEFAULT_REMOTE_NAME,
                     DEFAULT_BRANCH_NAME,
+                    all
                 )
                 .await?;
 
