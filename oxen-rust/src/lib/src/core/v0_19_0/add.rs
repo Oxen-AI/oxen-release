@@ -226,6 +226,7 @@ pub fn process_add_dir(
 
             let seen_dirs_clone = Arc::clone(&seen_dirs);
             match process_add_file(
+                &repo,
                 &repo_path,
                 versions_path,
                 staged_db,
@@ -311,6 +312,7 @@ pub fn add_file(
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
+        repo,
         &repo_path,
         &versions_path,
         &staged_db,
@@ -321,6 +323,7 @@ pub fn add_file(
 }
 
 pub fn process_add_file(
+    repo: &LocalRepository,
     repo_path: &Path,
     versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -347,11 +350,11 @@ pub fn process_add_file(
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
 
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
-    let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
+    let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        if has_different_modification_time(&file_node, &mtime) {
+        if has_different_modification_time(file_node, &mtime) {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
                 (
@@ -387,6 +390,16 @@ pub fn process_add_file(
             mtime,
         )
     };
+
+    if let Some(_file_node) = &maybe_file_node {
+        let conflicts = repositories::merge::list_conflicts(repo)?;
+        for conflict in conflicts {
+            let conflict_path = repo.path.join(conflict.merge_entry.path);
+            if conflict_path == path {
+                status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+            }
+        }
+    }
 
     // Don't have to add the file to the staged db if it hasn't changed
     if status == StagedEntryStatus::Unmodified {

@@ -671,7 +671,7 @@ where
     let mut local_repo = repositories::init(&path)?;
 
     // Add a README file
-    util::fs::write_to_path(&local_repo.path.join("README.md"), "Hello World")?;
+    util::fs::write_to_path(local_repo.path.join("README.md"), "Hello World")?;
     repositories::add(&local_repo, &local_repo.path)?;
     repositories::commit(&local_repo, "Adding README")?;
 
@@ -680,7 +680,7 @@ where
     command::config::set_remote(
         &mut local_repo,
         constants::DEFAULT_REMOTE_NAME,
-        &remote_repo.url(),
+        remote_repo.url(),
     )?;
 
     // Push

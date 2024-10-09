@@ -15,7 +15,7 @@ pub fn list_entry_versions_for_commit(
     path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
     log::debug!("list_entry_versions_for_commit {} -> {:?}", commit_id, path);
-    let mut branch_commits = repositories::commits::list_from(local_repo, &commit_id)?;
+    let mut branch_commits = repositories::commits::list_from(local_repo, commit_id)?;
 
     // Sort on timestamp oldest to newest
     branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));

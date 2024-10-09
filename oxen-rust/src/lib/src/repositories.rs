@@ -58,6 +58,7 @@ pub use init::init;
 pub use load::load;
 pub use pull::{pull, pull_all, pull_remote_branch, pull_shallow};
 pub use push::push;
+pub use restore::restore;
 pub use rm::rm;
 pub use save::save;
 pub use status::status;

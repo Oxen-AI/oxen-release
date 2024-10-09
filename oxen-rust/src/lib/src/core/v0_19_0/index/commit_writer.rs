@@ -12,6 +12,8 @@ use time::OffsetDateTime;
 
 use crate::config::UserConfig;
 use crate::constants::DEFAULT_BRANCH_NAME;
+use crate::constants::MERGE_HEAD_FILE;
+use crate::constants::ORIG_HEAD_FILE;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
@@ -31,6 +33,7 @@ use crate::model::User;
 use crate::model::{Commit, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
+use std::str::FromStr;
 
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::merkle_tree::node::{CommitNode, DirNode};
@@ -196,15 +199,11 @@ pub fn commit_dir_entries_with_parents(
     // Sort children and split into VNodes
     let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
 
-    // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
-    let new_commit = NewCommit {
-        parent_ids: parent_commits,
-        message: message.to_string(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
-        timestamp,
-    };
+
+    let new_commit = create_commit_data(repo, message, timestamp, parent_commits, new_commit)?;
+
+    // Compute the commit hash
     let commit_id = compute_commit_id(&new_commit)?;
 
     let mut parent_hashes = Vec::new();
@@ -297,18 +296,23 @@ pub fn commit_dir_entries_new(
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
-    let new_commit = NewCommit {
-        parent_ids: parent_ids.iter().map(|id| id.to_string()).collect(),
-        message: message.to_string(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
+    let new_commit = create_commit_data(
+        repo,
+        message,
         timestamp,
-    };
+        parent_ids.iter().map(|id| id.to_string()).collect(),
+        new_commit,
+    )?;
+
     let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode {
         hash: commit_id,
-        parent_ids,
+        parent_ids: new_commit
+            .parent_ids
+            .iter()
+            .map(|id: &String| MerkleHash::from_str(id).unwrap())
+            .collect(),
         message: message.to_string(),
         author: new_commit.author.clone(),
         email: new_commit.email.clone(),
@@ -1017,7 +1021,7 @@ fn compute_dir_node(
                             file_node.name,
                             file_node.hash
                         );
-                        hasher.update(&file_node.name.as_bytes());
+                        hasher.update(file_node.name.as_bytes());
                         hasher.update(&file_node.combined_hash.to_le_bytes());
 
                         match entry.status {
@@ -1077,6 +1081,59 @@ fn compute_dir_node(
         data_type_sizes,
     };
     Ok(node)
+}
+
+fn create_merge_commit(
+    repo: &LocalRepository,
+    message: &str,
+    timestamp: OffsetDateTime,
+    new_commit: &NewCommitBody,
+) -> Result<NewCommit, OxenError> {
+    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+    let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+    let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
+
+    // Read parent commit ids
+    let merge_commit_id = util::fs::read_from_path(&merge_head_path)?;
+    let head_commit_id = util::fs::read_from_path(&orig_head_path)?;
+
+    // Cleanup
+    util::fs::remove_file(merge_head_path)?;
+    util::fs::remove_file(orig_head_path)?;
+
+    Ok(NewCommit {
+        parent_ids: vec![merge_commit_id, head_commit_id],
+        message: String::from(message),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+    })
+}
+
+fn is_merge_commit(repo: &LocalRepository) -> bool {
+    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+    let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+    merge_head_path.exists()
+}
+
+fn create_commit_data(
+    repo: &LocalRepository,
+    message: &str,
+    timestamp: OffsetDateTime,
+    parent_commits: Vec<String>,
+    new_commit: &NewCommitBody,
+) -> Result<NewCommit, OxenError> {
+    if is_merge_commit(repo) {
+        create_merge_commit(repo, message, timestamp, new_commit)
+    } else {
+        Ok(NewCommit {
+            parent_ids: parent_commits,
+            message: message.to_string(),
+            author: new_commit.author.clone(),
+            email: new_commit.email.clone(),
+            timestamp,
+        })
+    }
 }
 
 #[cfg(test)]

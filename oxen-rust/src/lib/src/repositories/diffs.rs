@@ -237,8 +237,8 @@ pub fn diff_tabular_file_nodes(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<DiffResult, OxenError> {
-    let version_path_1 = util::fs::version_path_from_hash(&repo, file_1.hash.to_string());
-    let version_path_2 = util::fs::version_path_from_hash(&repo, file_2.hash.to_string());
+    let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash.to_string());
+    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash.to_string());
     let df_1 =
         tabular::read_df_with_extension(version_path_1, &file_1.extension, &DFOpts::empty())?;
     let df_2 =
