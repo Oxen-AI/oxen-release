@@ -3,6 +3,7 @@ use std::path::Path;
 
 use glob::Pattern;
 
+use crate::core;
 use crate::core::refs::RefReader;
 use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
@@ -214,6 +215,17 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
         }
     }
     Ok(commits)
+}
+
+pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
+    let all_commits = list_all(repo)?;
+    let mut unsynced_commits = HashSet::new();
+    for commit in all_commits {
+        if !core::commit_sync_status::commit_is_synced(repo, &commit) {
+            unsynced_commits.insert(commit);
+        }
+    }
+    Ok(unsynced_commits)
 }
 
 fn list_all_recursive(
