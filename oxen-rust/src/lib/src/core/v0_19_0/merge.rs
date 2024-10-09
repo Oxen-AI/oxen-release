@@ -11,6 +11,7 @@ use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Branch, Commit, LocalRepository};
+use crate::opts::RmOpts;
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
@@ -533,7 +534,10 @@ fn create_merge_commit_on_branch(
     // The author in this case is the pusher - the author of the merge commit
 
     let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
-    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+    let mut opts = RmOpts::from_path(PathBuf::from("/"));
+    opts.staged = true;
+    opts.recursive = true;
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]), &opts)?;
 
     Ok(commit)
 }

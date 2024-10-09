@@ -101,6 +101,7 @@ fn p_add_file(
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
+        workspace_repo,
         &workspace_repo.path,
         &versions_path,
         &staged_db,

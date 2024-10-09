@@ -62,6 +62,14 @@ pub async fn fetch_remote_branch(
             // Download the commits between the head commit and the remote branch commit
             let base_commit_id = head_commit.id;
             let head_commit_id = &remote_branch.commit_id;
+
+            api::client::commits::download_base_head_dir_hashes(
+                remote_repo,
+                &base_commit_id,
+                head_commit_id,
+                &repo_hidden_dir,
+            )
+            .await?;
             api::client::tree::download_commits_between(
                 repo,
                 remote_repo,
@@ -70,11 +78,27 @@ pub async fn fetch_remote_branch(
             )
             .await?
         } else {
+            // Download the dir hashes from the remote branch commit
+            api::client::commits::download_dir_hashes_from_commit(
+                remote_repo,
+                &remote_branch.commit_id,
+                &repo_hidden_dir,
+            )
+            .await?;
+
             // Download the commits from the remote branch commit to the first commit
             api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
                 .await?
         }
     } else {
+        // Download the dir hashes from the remote branch commit
+        api::client::commits::download_dir_hashes_from_commit(
+            remote_repo,
+            &remote_branch.commit_id,
+            &repo_hidden_dir,
+        )
+        .await?;
+
         // Download the commits from the remote branch commit to the first commit
         api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
             .await?

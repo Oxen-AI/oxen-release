@@ -509,6 +509,8 @@ mod tests {
                 StagedEntryStatus::Removed
             );
 
+            status.print();
+
             // Make sure they don't show up in the status
             assert_eq!(status.removed_files.len(), 0);
 
@@ -556,13 +558,12 @@ mod tests {
             repositories::commit(&repo, "merging into main")?;
 
             // Should have commits:
-            //  1) initial
-            //  2) add labels
-            //  3) change-labels branch modification
-            //  4) main branch modification
-            //  5) merge commit
+            //  1) add labels
+            //  2) change-labels branch modification
+            //  3) main branch modification
+            //  4) merge commit
             let history = repositories::commits::list(&repo)?;
-            assert_eq!(history.len(), 5);
+            assert_eq!(history.len(), 4);
 
             Ok(())
         })
@@ -838,12 +839,46 @@ mod tests {
             // Make sure the file is not in the first commit
             // This was biting us in an initial implementation
             // BECAUSE the file contents was the same, the hash was not updated
-            let node_from_tree_1 = tree_1.get_by_path(&file_path_2)?;
+            let node_from_tree_1 = tree_1.get_by_path(file_path_2)?;
             assert!(node_from_tree_1.is_none());
 
             // Make sure the file is in the second commit
-            let node_from_tree_2 = tree_2.get_by_path(&file_path_2)?;
+            let node_from_tree_2 = tree_2.get_by_path(file_path_2)?;
             assert!(node_from_tree_2.is_some());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_add_and_commit_empty_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make an empty dir
+            let empty_dir = repo.path.join("empty_dir");
+            util::fs::create_dir_all(&empty_dir)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Should find the untracked dir
+            assert!(status
+                .untracked_dirs
+                .iter()
+                .any(|(path, _)| *path == PathBuf::from("empty_dir")));
+
+            // Add the empty dir
+            repositories::add(&repo, &empty_dir)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            let commit = repositories::commit(&repo, "adding empty dir")?;
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            println!("tree after commit: {}", commit);
+            tree.print();
+
+            assert!(tree.get_by_path(PathBuf::from("empty_dir"))?.is_some());
 
             Ok(())
         })

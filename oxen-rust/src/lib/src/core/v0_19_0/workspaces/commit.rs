@@ -94,7 +94,7 @@ fn export_tabular_data_frames(
                             file_node.name
                         );
                         let exported_path = if repositories::workspaces::data_frames::is_indexed(
-                            &workspace, &node_path,
+                            workspace, &node_path,
                         )? {
                             workspaces::data_frames::extract_file_node_to_working_dir(
                                 workspace, &dir_path, file_node,

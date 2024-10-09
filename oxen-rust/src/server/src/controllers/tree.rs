@@ -249,7 +249,7 @@ fn compress_tree(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<
     log::debug!("Compressing entire tree {}", hash);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
-    r_compress_tree(repository, hash, &mut tar)?;
+    compress_full_tree(repository, &mut tar)?;
     tar.finish()?;
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
@@ -263,39 +263,24 @@ fn compress_tree(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<
     Ok(buffer)
 }
 
-fn r_compress_tree(
+fn compress_full_tree(
     repository: &LocalRepository,
-    hash: &MerkleHash,
     tar: &mut tar::Builder<GzEncoder<Vec<u8>>>,
 ) -> Result<(), OxenError> {
     // This will be the subdir within the tarball,
     // so when we untar it, all the subdirs will be extracted to
     // tree/nodes/...
-    let dir_prefix = node_db_prefix(hash);
-    let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
+    let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR);
+    let nodes_dir = repository
+        .path
+        .join(OXEN_HIDDEN_DIR)
+        .join(TREE_DIR)
+        .join(NODES_DIR);
 
-    let node_dir = node_db_path(repository, hash);
-    log::debug!("Compressing tree node {} from dir {:?}", hash, node_dir);
+    log::debug!("Compressing tree in dir {:?}", nodes_dir);
 
-    if node_dir.exists() {
-        log::debug!("Tree node {} exists, adding to tarball", hash);
-        tar.append_dir_all(&tar_subdir, node_dir)?;
-
-        let Some(node) = repositories::tree::get_node_by_id(repository, hash)? else {
-            return Err(OxenError::basic_str(format!("Node {} not found", hash)));
-        };
-
-        log::debug!(
-            "Got node {:?} is leaf {:?}",
-            node.node.dtype(),
-            node.is_leaf()
-        );
-        if !node.is_leaf() {
-            let children = repositories::tree::child_hashes(repository, hash)?;
-            for child in children {
-                r_compress_tree(repository, &child, tar)?;
-            }
-        }
+    if nodes_dir.exists() {
+        tar.append_dir_all(&tar_subdir, nodes_dir)?;
     }
 
     Ok(())
