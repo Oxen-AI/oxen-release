@@ -71,7 +71,7 @@ pub fn status_from_dir(
     };
 
     let (dir_entries, _) = read_staged_entries_below_path(repo, &staged_db, &dir, &read_progress)?;
-    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
+    log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -94,13 +94,13 @@ pub fn status_from_dir_entries(
             dir,
             entries.len()
         );
-        let stats = StagedDirStats {
+        let mut stats = StagedDirStats {
             path: dir.clone(),
             num_files_staged: 0,
             total_files: 0,
             status: StagedEntryStatus::Added,
         };
-        for entry in entries {
+        for entry in &entries {
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
@@ -114,11 +114,12 @@ pub fn status_from_dir_entries(
                     }
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
-                        status: entry.status,
+                        status: entry.status.clone(),
                     };
                     staged_data
                         .staged_files
                         .insert(file_path.clone(), staged_entry);
+                    stats.num_files_staged += 1;
                     maybe_add_schemas(node, staged_data)?;
 
                     // Cannot be removed if it's staged
@@ -134,12 +135,61 @@ pub fn status_from_dir_entries(
                 }
             }
         }
-        summarized_dir_stats.add_stats(&stats);
+
+        // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
+        // Otherwise we are filtering out parent dirs that were added during add
+        if stats.num_files_staged > 0 || entries.is_empty() {
+            summarized_dir_stats.add_stats(&stats);
+        }
     }
 
     staged_data.staged_dirs = summarized_dir_stats;
+    find_moved_files(staged_data)?;
 
     Ok(staged_data.clone())
+}
+
+fn find_moved_files(staged_data: &mut StagedData) -> Result<(), OxenError> {
+    let files = staged_data.staged_files.clone();
+    let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().collect();
+
+    // Find pairs of added-removed with same hash and add them to moved.
+    // We won't mutate StagedEntries here, the "moved" property is read-only
+    let mut added_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+    let mut removed_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+
+    for (path, entry) in files_vec.iter() {
+        match entry.status {
+            StagedEntryStatus::Added => {
+                added_map.entry(entry.hash.clone()).or_default().push(path);
+            }
+            StagedEntryStatus::Removed => {
+                removed_map
+                    .entry(entry.hash.clone())
+                    .or_default()
+                    .push(path);
+            }
+            _ => continue,
+        }
+    }
+
+    for (hash, added_paths) in added_map.iter_mut() {
+        if let Some(removed_paths) = removed_map.get_mut(hash) {
+            while !added_paths.is_empty() && !removed_paths.is_empty() {
+                if let (Some(added_path), Some(removed_path)) =
+                    (added_paths.pop(), removed_paths.pop())
+                {
+                    // moved_entries.push((added_path, removed_path, hash.to_string()));
+                    staged_data.moved_files.push((
+                        added_path.clone(),
+                        removed_path.clone(),
+                        hash.to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
@@ -261,11 +311,6 @@ fn find_changes(
             continue;
         }
 
-        if is_staged(&relative_path, staged_db)? {
-            untracked.all_untracked = false;
-            continue;
-        }
-
         if path.is_dir() {
             // If it's a directory, recursively find changes below it
             let (sub_untracked, sub_modified, sub_removed) =
@@ -273,24 +318,32 @@ fn find_changes(
             untracked.merge(sub_untracked);
             modified.extend(sub_modified);
             removed.extend(sub_removed);
+        } else if is_staged(&relative_path, staged_db)? {
+            // check this after handling directories, because we still need to recurse into staged directories
+            untracked.all_untracked = false;
+            continue;
         } else if let Some(node) =
-            maybe_get_child_node(&relative_path.file_name().unwrap(), &dir_node)?
+            maybe_get_child_node(relative_path.file_name().unwrap(), &dir_node)?
         {
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
             if is_modified(&node, &path)? {
-                modified.push(relative_path);
+                modified.push(relative_path.clone());
             }
         } else {
             // If it's none of the above conditions, then it's untracked
-            untracked.add_file(relative_path);
+            untracked.add_file(relative_path.clone());
             untracked_count += 1;
         }
     }
 
     // Only add the untracked directory if it's not the root directory
-    if untracked.all_untracked && relative_dir != Path::new("") {
+    // and it's not staged
+    if untracked.all_untracked
+        && relative_dir != Path::new("")
+        && !is_staged(relative_dir, staged_db)?
+    {
         untracked.add_dir(relative_dir.to_path_buf(), untracked_count);
         // Clear individual files as they're now represented by the directory
         untracked.files.clear();
@@ -305,6 +358,11 @@ fn find_changes(
                     let file_path = full_dir.join(&file.name);
                     if !file_path.exists() {
                         removed.insert(relative_dir.join(&file.name));
+                    }
+                } else if let EMerkleTreeNode::Directory(dir) = &child.node {
+                    let dir_path = full_dir.join(&dir.name);
+                    if !dir_path.exists() {
+                        removed.insert(relative_dir.join(&dir.name));
                     }
                 }
             }
@@ -335,7 +393,7 @@ fn get_dir_hashes(
     head_commit_maybe: &Option<Commit>,
 ) -> Result<HashMap<PathBuf, MerkleHash>, OxenError> {
     if let Some(head_commit) = head_commit_maybe {
-        Ok(CommitMerkleTree::dir_hashes(repo, &head_commit)?)
+        Ok(CommitMerkleTree::dir_hashes(repo, head_commit)?)
     } else {
         Ok(HashMap::new())
     }

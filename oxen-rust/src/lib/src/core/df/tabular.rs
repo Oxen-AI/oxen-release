@@ -855,11 +855,11 @@ pub fn maybe_read_df_with_extension(
     let extension = version_path.extension().and_then(OsStr::to_str);
 
     if let Some(extension) = extension {
-        read_df_with_extension(path, extension, &opts)
+        read_df_with_extension(path, extension, opts)
     } else {
         let commit = repositories::commits::get_by_id(repo, commit_id)?;
         if let Some(commit) = commit {
-            try_to_read_extension_from_node(repo, version_path, path, &commit, &opts)
+            try_to_read_extension_from_node(repo, version_path, path, &commit, opts)
         } else {
             let err = format!("Could not find commit: {commit_id}");
             Err(OxenError::basic_str(err))
