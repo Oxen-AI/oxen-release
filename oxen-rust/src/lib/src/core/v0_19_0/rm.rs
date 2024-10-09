@@ -79,10 +79,10 @@ pub fn remove_staged_recursively(
                             remove_staged_entry(&db_path, &staged_db)?;
                             while parent != Path::new("") {
                                 log::debug!("maybe cleaning up empty dir: {:?}", parent);
-                                cleanup_empty_dirs(&parent, &staged_db)?;
+                                cleanup_empty_dirs(parent, &staged_db)?;
                                 parent = parent.parent().unwrap_or(Path::new(""));
                                 if parent == Path::new("") {
-                                    cleanup_empty_dirs(&parent, &staged_db)?;
+                                    cleanup_empty_dirs(parent, &staged_db)?;
                                 }
                             }
                         }

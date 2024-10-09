@@ -138,7 +138,7 @@ pub fn status_from_dir_entries(
 
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
         // Otherwise we are filtering out parent dirs that were added during add
-        if stats.num_files_staged > 0 || entries.len() == 0 {
+        if stats.num_files_staged > 0 || entries.is_empty() {
             summarized_dir_stats.add_stats(&stats);
         }
     }
@@ -342,7 +342,7 @@ fn find_changes(
     // and it's not staged
     if untracked.all_untracked
         && relative_dir != Path::new("")
-        && !is_staged(&relative_dir, staged_db)?
+        && !is_staged(relative_dir, staged_db)?
     {
         untracked.add_dir(relative_dir.to_path_buf(), untracked_count);
         // Clear individual files as they're now represented by the directory

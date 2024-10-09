@@ -218,7 +218,7 @@ fn dir_node_to_metadata_entry(
         found_commits.entry(dir_node.last_commit_id)
     {
         let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id)?.ok_or(
-            OxenError::commit_id_does_not_exist(&dir_node.last_commit_id.to_string()),
+            OxenError::commit_id_does_not_exist(dir_node.last_commit_id.to_string()),
         )?;
         e.insert(commit);
     }
@@ -261,7 +261,7 @@ fn file_node_to_metadata_entry(
         found_commits.entry(file_node.last_commit_id)
     {
         let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id)?.ok_or(
-            OxenError::commit_id_does_not_exist(&file_node.last_commit_id.to_string()),
+            OxenError::commit_id_does_not_exist(file_node.last_commit_id.to_string()),
         )?;
         e.insert(commit);
     }
@@ -278,7 +278,7 @@ fn file_node_to_metadata_entry(
         }
         Some(
             repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, &file_path, &commit,
+                repo, &file_path, commit,
             )?,
         )
     } else {

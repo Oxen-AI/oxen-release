@@ -672,7 +672,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
-            repositories::add(&repo, repo.path.join(&path))?;
+            repositories::add(&repo, repo.path.join(path))?;
 
             let status = repositories::status(&repo)?;
             status.print();
