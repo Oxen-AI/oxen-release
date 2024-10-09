@@ -354,7 +354,7 @@ pub fn process_add_file(
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        if has_different_modification_time(&file_node, &mtime) {
+        if has_different_modification_time(file_node, &mtime) {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
                 (
@@ -392,7 +392,7 @@ pub fn process_add_file(
     };
 
     if let Some(_file_node) = &maybe_file_node {
-        let conflicts = repositories::merge::list_conflicts(&repo)?;
+        let conflicts = repositories::merge::list_conflicts(repo)?;
         for conflict in conflicts {
             let conflict_path = repo.path.join(conflict.merge_entry.path);
             if conflict_path == path {

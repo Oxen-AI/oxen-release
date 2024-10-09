@@ -1124,7 +1124,7 @@ fn create_commit_data(
     new_commit: &NewCommitBody,
 ) -> Result<NewCommit, OxenError> {
     if is_merge_commit(repo) {
-        return create_merge_commit(repo, message, timestamp, new_commit);
+        create_merge_commit(repo, message, timestamp, new_commit)
     } else {
         Ok(NewCommit {
             parent_ids: parent_commits,
