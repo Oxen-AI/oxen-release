@@ -33,6 +33,12 @@ pub fn status_from_dir(
     repo: &LocalRepository,
     dir: impl AsRef<Path>,
 ) -> Result<StagedData, OxenError> {
+    if repo.is_shallow_clone() {
+        return Err(OxenError::basic_str(
+            "Cannot run `oxen status` on a shallow clone",
+        ));
+    }
+
     log::debug!("status_from_dir {:?}", dir.as_ref());
     let staged_db_maybe = open_staged_db(repo)?;
     let head_commit = repositories::commits::head_commit_maybe(repo)?;

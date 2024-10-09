@@ -130,6 +130,14 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     }
 }
 
+/// List commits for the repository in no particular order
+pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("list_unsynced not supported in v0.10.0"),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced(repo),
+    }
+}
+
 // Source
 pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,

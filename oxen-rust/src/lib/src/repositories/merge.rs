@@ -56,6 +56,13 @@ pub fn has_conflicts(
     }
 }
 
+pub fn mark_conflict_as_resolved(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("mark_conflict_as_resolved not supported for oxen v0.10"),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::mark_conflict_as_resolved(repo, path),
+    }
+}
+
 pub fn can_merge_commits(
     repo: &LocalRepository,
     base_commit: &Commit,

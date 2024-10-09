@@ -32,6 +32,12 @@ pub async fn push_remote_branch(
     // start a timer
     let start = std::time::Instant::now();
 
+    if repo.is_shallow_clone() {
+        return Err(OxenError::basic_str(
+            "oxen push does not support shallow clones",
+        ));
+    }
+
     let remote = remote.as_ref();
     let branch_name = branch_name.as_ref();
 
