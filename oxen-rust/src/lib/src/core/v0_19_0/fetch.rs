@@ -66,7 +66,7 @@ pub async fn fetch_remote_branch(
             api::client::commits::download_base_head_dir_hashes(
                 remote_repo,
                 &base_commit_id,
-                &head_commit_id,
+                head_commit_id,
                 &repo_hidden_dir,
             )
             .await?;

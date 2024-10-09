@@ -688,7 +688,7 @@ pub async fn download_dir_hashes_from_url(
                 let target = full_unpacked_path.join(HISTORY_DIR).join(entry.file_name());
                 if !target.exists() {
                     log::debug!("copying {:?} to {:?}", entry.path(), target);
-                    util::fs::rename(&entry.path(), &target)?;
+                    util::fs::rename(entry.path(), &target)?;
                 } else {
                     log::debug!("skipping copying {:?} to {:?}", entry.path(), target);
                 }

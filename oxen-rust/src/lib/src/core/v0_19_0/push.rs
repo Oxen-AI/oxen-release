@@ -150,7 +150,7 @@ async fn r_push_node(
 
     // Check if the node exists on the remote
     let has_node = api::client::tree::has_node(remote_repo, node.hash).await?;
-    log::debug!("has_node: {:?}", has_node);
+    log::debug!("has_node: {:?} [{}]", has_node, node);
 
     // If not exists, create it
     if !has_node {
