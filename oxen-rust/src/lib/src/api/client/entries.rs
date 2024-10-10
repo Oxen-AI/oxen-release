@@ -584,7 +584,7 @@ pub async fn try_download_data_from_version_paths(
                 }
             }
 
-            // log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
+            log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
             match file.unpack(&full_path).await {
                 Ok(_) => {
                     log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
@@ -598,7 +598,7 @@ pub async fn try_download_data_from_version_paths(
             let metadata = util::fs::metadata(&full_path)?;
             size += metadata.len();
             idx += 1;
-            // log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
+            log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
         }
 
         Ok(size)
