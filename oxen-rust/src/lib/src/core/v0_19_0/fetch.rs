@@ -144,15 +144,6 @@ pub async fn fetch_full_tree_and_hashes(
                 &repo_hidden_dir,
             )
             .await?;
-
-            // We download the whole tree above, so no need to download the commits
-            // api::client::tree::download_commits_between(
-            //     repo,
-            //     remote_repo,
-            //     &base_commit_id,
-            //     &head_commit_id,
-            // )
-            // .await?
         } else {
             // Download the dir hashes from the remote branch commit
             api::client::commits::download_dir_hashes_from_commit(
@@ -161,11 +152,6 @@ pub async fn fetch_full_tree_and_hashes(
                 &repo_hidden_dir,
             )
             .await?;
-
-            // We download the whole tree above, so no need to download the commits
-            // // Download the commits from the remote branch commit to the first commit
-            // api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
-            //     .await?
         }
     } else {
         // Download the dir hashes from the remote branch commit
@@ -175,10 +161,6 @@ pub async fn fetch_full_tree_and_hashes(
             &repo_hidden_dir,
         )
         .await?;
-
-        // Download the commits from the remote branch commit to the first commit
-        // api::client::tree::download_commits_from(repo, remote_repo, &remote_branch.commit_id)
-        //     .await?
     };
     Ok(())
 }
