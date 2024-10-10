@@ -101,7 +101,6 @@ mod tests {
 
     use crate::api;
     use crate::command;
-    use crate::config::UserConfig;
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
