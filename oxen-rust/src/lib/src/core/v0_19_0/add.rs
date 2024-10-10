@@ -423,14 +423,10 @@ pub fn process_add_file(
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
     let metadata = match &oxen_metadata {
         Some(oxen_metadata) => {
-            println!("point 1");
             let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
             maybe_construct_generic_metadata_for_tabular(df_metadata, oxen_metadata.clone())
         }
-        None => {
-            println!("point 2");
-            repositories::metadata::get_file_metadata(&full_path, &data_type)?
-        }
+        None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
     };
 
     // Add the file to the versions db
