@@ -120,7 +120,7 @@ pub fn status_from_dir_entries(
                     log::debug!("dir_entries file_node: {}", entry);
                     let file_path = PathBuf::from(&node.name);
                     if entry.status == StagedEntryStatus::Modified {
-                        staged_data.modified_files.push(dir.join(&file_path));
+                        staged_data.modified_files.insert(file_path.clone());
                     }
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
@@ -135,6 +135,7 @@ pub fn status_from_dir_entries(
                     // Cannot be removed if it's staged
                     if staged_data.staged_files.contains_key(&file_path) {
                         staged_data.removed_files.remove(&file_path);
+                        staged_data.modified_files.remove(&file_path);
                     }
                 }
                 _ => {
@@ -300,11 +301,11 @@ fn find_changes(
     relative_dir: impl AsRef<Path>,
     staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
-) -> Result<(UntrackedData, Vec<PathBuf>, HashSet<PathBuf>), OxenError> {
+) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
     let relative_dir = relative_dir.as_ref();
     log::debug!("find_changes dir: {:?}", relative_dir);
     let mut untracked = UntrackedData::new();
-    let mut modified = Vec::new();
+    let mut modified = HashSet::new();
     let mut removed = HashSet::new();
 
     let full_dir = repo.path.join(relative_dir);
@@ -343,8 +344,10 @@ fn find_changes(
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
-            if is_modified(&node, &path)? {
-                modified.push(relative_path.clone());
+            let is_modified = is_modified(&node, &path)?;
+            log::debug!("is_modified {} {:?}", is_modified, relative_path);
+            if is_modified {
+                modified.insert(relative_path.clone());
             }
         } else {
             // If it's none of the above conditions, then it's untracked

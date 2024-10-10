@@ -347,8 +347,8 @@ mod tests {
                 page_size,
             )
             .await?;
-            assert_eq!(entries.modified_files.entries.len(), 1);
-            assert_eq!(entries.modified_files.total_entries, 1);
+            assert_eq!(entries.added_files.entries.len(), 1);
+            assert_eq!(entries.added_files.total_entries, 1);
 
             Ok(remote_repo)
         })
