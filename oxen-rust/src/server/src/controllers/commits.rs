@@ -1164,28 +1164,29 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(Some(repo)) => {
             match repositories::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
+                    log::debug!("Commit complete {:?} on repo {:?}", commit, repo.path);
                     // Kick off processing in background thread because could take awhile
-                    std::thread::spawn(move || {
-                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                        let force = false;
-                        match commit_cacher::run_all(&repo, &commit, force) {
-                            Ok(_) => {
-                                log::debug!(
-                                    "Success processing commit {:?} on repo {:?}",
-                                    commit,
-                                    repo.path
-                                );
-                            }
-                            Err(err) => {
-                                log::error!(
-                                    "Could not process commit {:?} on repo {:?}: {}",
-                                    commit,
-                                    repo.path,
-                                    err
-                                );
-                            }
-                        }
-                    });
+                    // std::thread::spawn(move || {
+                    //     log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                    //     let force = false;
+                    //     match commit_cacher::run_all(&repo, &commit, force) {
+                    //         Ok(_) => {
+                    //             log::debug!(
+                    //                 "Success processing commit {:?} on repo {:?}",
+                    //                 commit,
+                    //                 repo.path
+                    //             );
+                    //         }
+                    //         Err(err) => {
+                    //             log::error!(
+                    //                 "Could not process commit {:?} on repo {:?}: {}",
+                    //                 commit,
+                    //                 repo.path,
+                    //                 err
+                    //             );
+                    //         }
+                    //     }
+                    // });
 
                     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
