@@ -80,11 +80,12 @@ pub fn list_directory_w_version(
         }
         MinOxenVersion::V0_19_0 => {
             let revision = revision.as_ref().to_string();
+            let branch = repositories::branches::get_by_name(repo, &revision)?;
             let commit = repositories::revisions::get(repo, &revision)?;
             let parsed_resource = ParsedResource {
                 path: directory.as_ref().to_path_buf(),
-                commit: commit.clone(),
-                branch: None,
+                commit,
+                branch,
                 version: PathBuf::from(&revision),
                 resource: PathBuf::from(&revision).join(&directory),
             };
