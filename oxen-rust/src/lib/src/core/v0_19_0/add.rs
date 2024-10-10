@@ -49,7 +49,9 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
 
     // Cannot add if shallow
     if repo.is_shallow_clone() {
-        return Err(OxenError::basic_str("Cannot run `oxen add` on a shallow clone"));
+        return Err(OxenError::basic_str(
+            "Cannot run `oxen add` on a shallow clone",
+        ));
     }
 
     // Start a timer

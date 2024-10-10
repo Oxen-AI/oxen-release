@@ -582,7 +582,11 @@ mod tests {
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
-                let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+                let cloned_files = util::fs::rlist_files_in_dir(&cloned_repo.path);
+                for file in cloned_files.iter() {
+                    println!("Cloned file: {}", file.display());
+                }
+                let cloned_num_files = cloned_files.len();
                 assert_eq!(cloned_num_files, 5);
 
                 // Switch to main branch and pull
@@ -1426,7 +1430,7 @@ mod tests {
                     &user_a_repo,
                     DEFAULT_REMOTE_NAME,
                     DEFAULT_BRANCH_NAME,
-                    all
+                    all,
                 )
                 .await?;
 

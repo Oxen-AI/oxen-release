@@ -100,12 +100,8 @@ pub async fn fetch_tree_and_hashes_for_commit_id(
     let hash = MerkleHash::from_str(commit_id)?;
     api::client::tree::download_tree_from(repo, remote_repo, &hash).await?;
 
-    api::client::commits::download_dir_hashes_from_commit(
-        remote_repo,
-        commit_id,
-        &repo_hidden_dir,
-    )
-    .await?;
+    api::client::commits::download_dir_hashes_from_commit(remote_repo, commit_id, &repo_hidden_dir)
+        .await?;
 
     Ok(())
 }
