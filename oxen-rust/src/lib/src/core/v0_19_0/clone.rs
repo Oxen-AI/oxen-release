@@ -1,7 +1,5 @@
 use crate::config::RepositoryConfig;
-use crate::constants::{
-    DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, REPO_CONFIG_FILENAME,
-};
+use crate::constants::{DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, REPO_CONFIG_FILENAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::opts::CloneOpts;
@@ -64,7 +62,7 @@ pub async fn clone_repo(
         repositories::pull::pull_remote_branch(
             &local_repo,
             DEFAULT_REMOTE_NAME,
-            DEFAULT_BRANCH_NAME,
+            &opts.branch,
             opts.all,
         )
         .await?;
