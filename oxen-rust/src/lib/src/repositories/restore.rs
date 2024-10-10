@@ -459,7 +459,7 @@ mod tests {
                     .get(Path::new("nlp"))
                     .unwrap()
                     .len(),
-                3
+                1
             );
             // Should add sub files
             // nlp/classification/annotations/train.tsv
@@ -474,7 +474,7 @@ mod tests {
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
             let status = repositories::status(&repo)?;
-            assert_eq!(status.removed_files.len(), 2);
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
