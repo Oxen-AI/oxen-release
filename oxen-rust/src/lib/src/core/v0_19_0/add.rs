@@ -487,7 +487,7 @@ pub fn p_add_file_node_to_staged_db(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = relative_path.as_ref();
-    log::debug!("writing to staged db: {:?}", staged_db.path());
+    log::debug!("writing {:?} to staged db: {:?}", relative_path, staged_db.path());
     log::debug!("writing file: {}", file_node);
     let entry = StagedMerkleTreeNode {
         status,

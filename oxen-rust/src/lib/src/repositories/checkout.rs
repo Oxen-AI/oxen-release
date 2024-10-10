@@ -491,6 +491,7 @@ mod tests {
             assert_eq!(status.modified_files.len(), 1);
             repositories::add(&repo, &one_shot_path)?;
             let status = repositories::status(&repo)?;
+            status.print();
             assert_eq!(status.modified_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
 

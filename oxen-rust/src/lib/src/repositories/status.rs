@@ -542,7 +542,7 @@ mod tests {
 
             // And it is
             let relative_path = util::fs::path_relative_to_dir(one_shot_file, repo_path)?;
-            assert_eq!(files[0], relative_path);
+            assert!(files.contains(&relative_path));
 
             Ok(())
         })
@@ -630,9 +630,39 @@ mod tests {
             let mod_files = status.modified_files;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
-            assert_eq!(mod_files[0], relative_path);
+            assert_eq!(mod_files.get(&relative_path).is_some(), true);
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_command_status_modified_file_in_subdirectory() -> Result<(), OxenError>
+    {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Track & commit all the data
+            let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
+            repositories::add(&repo, &repo.path)?;
+            repositories::commit(&repo, "Adding one shot")?;
+
+            let branch_name = "feature/modify-data";
+            repositories::branches::create_checkout(&repo, branch_name)?;
+
+            let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
+            test::modify_txt_file(one_shot_path, file_contents)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+            assert_eq!(status.modified_files.len(), 1);
+            assert_eq!(
+                status
+                    .modified_files
+                    .get(&PathBuf::from("annotations/train/one_shot.csv"))
+                    .is_some(),
+                true
+            );
+
+            Ok(())
+        })
+        .await
     }
 }
