@@ -176,7 +176,7 @@ pub async fn download_tree_from(
     log::debug!("unpacked tree from {}", hash_str);
 
     // We just downloaded, so unwrap is safe
-    let node = CommitMerkleTree::read_node(local_repo, hash, false)?.unwrap();
+    let node = CommitMerkleTree::read_node(local_repo, hash, true)?.unwrap();
 
     log::debug!("read tree root from {}", node);
 
