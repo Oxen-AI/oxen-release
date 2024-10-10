@@ -460,7 +460,9 @@ impl Stager {
                             .push(relative_path.to_path_buf());
                     }
                     EntryStatus::Modified => {
-                        staged_data.modified_files.insert(relative_path.to_path_buf());
+                        staged_data
+                            .modified_files
+                            .insert(relative_path.to_path_buf());
                     }
                     EntryStatus::Removed => {
                         staged_data

@@ -794,11 +794,11 @@ fn r_create_dir_node(
             *total_written += 1;
         }
 
-        log::debug!(
-            "Processing vnode {} with {} entries",
-            vnode.id,
-            vnode.entries.len()
-        );
+        // log::debug!(
+        //     "Processing vnode {} with {} entries",
+        //     vnode.id,
+        //     vnode.entries.len()
+        // );
 
         // Maybe because we don't need to overwrite vnode dbs that already exist,
         // but still need to recurse and create the children
@@ -813,12 +813,12 @@ fn r_create_dir_node(
             maybe_dir_db.as_ref().map(|db| db.node_id),
         )?;
         for entry in vnode.entries.iter() {
-            log::debug!("Processing entry {} in vnode {}", entry.node, vnode.id);
+            // log::debug!("Processing entry {} in vnode {}", entry.node, vnode.id);
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     // If the dir has updates, we need a new dir db
                     let dir_path = entry.node.maybe_path().unwrap();
-                    log::debug!("Processing dir node {:?}", dir_path);
+                    // log::debug!("Processing dir node {:?}", dir_path);
                     let dir_node = if entries.contains_key(&dir_path) {
                         let dir_node = compute_dir_node(
                             repo,
@@ -861,15 +861,15 @@ fn r_create_dir_node(
                         )?;
                         dir_node
                     } else {
-                        log::debug!("r_create_dir_node skipping {:?}", dir_path);
+                        // log::debug!("r_create_dir_node skipping {:?}", dir_path);
                         // Look up the old dir node and reference it
                         let Some(old_dir_node) =
                             CommitMerkleTree::read_node(repo, &node.hash, false)?
                         else {
-                            log::debug!(
-                                "r_create_dir_node could not read old dir node {:?}",
-                                node.hash
-                            );
+                            // log::debug!(
+                            //     "r_create_dir_node could not read old dir node {:?}",
+                            //     node.hash
+                            // );
                             continue;
                         };
                         let dir_node = old_dir_node.dir()?;
@@ -882,11 +882,11 @@ fn r_create_dir_node(
                     };
 
                     // Write the dir hash to the dir_hashes db or delete it if it has children
-                    log::debug!(
-                        "dir entry has {} children {:?} ",
-                        entry.node.children.len(),
-                        dir_path
-                    );
+                    // log::debug!(
+                    //     "dir entry has {} children {:?} ",
+                    //     entry.node.children.len(),
+                    //     dir_path
+                    // );
                     // if entry.node.children.is_empty() {
                     //     str_val_db::delete(dir_hash_db, dir_path.to_str().unwrap())?;
                     // } else {
@@ -902,12 +902,12 @@ fn r_create_dir_node(
                     let file_path = PathBuf::from(&file_node.name);
                     let file_name = file_path.file_name().unwrap().to_str().unwrap();
 
-                    log::debug!(
-                        "Processing file {:?} in vnode {} in commit {}",
-                        path,
-                        vnode.id,
-                        commit_id
-                    );
+                    // log::debug!(
+                    //     "Processing file {:?} in vnode {} in commit {}",
+                    //     path,
+                    //     vnode.id,
+                    //     commit_id
+                    // );
 
                     // Just single file chunk for now
                     let chunks = vec![file_node.hash.to_u128()];
@@ -920,12 +920,12 @@ fn r_create_dir_node(
                     file_node.name = file_name.to_string();
 
                     // if let Some(vnode_db) = &mut maybe_vnode_db {
-                    log::debug!(
-                        "Adding file {} to vnode {} in commit {}",
-                        file_name,
-                        vnode.id,
-                        commit_id
-                    );
+                    // log::debug!(
+                    //     "Adding file {} to vnode {} in commit {}",
+                    //     file_name,
+                    //     vnode.id,
+                    //     commit_id
+                    // );
                     vnode_db.add_child(&file_node)?;
                     *total_written += 1;
                     // }
