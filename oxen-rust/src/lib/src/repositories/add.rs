@@ -448,8 +448,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_command_add_after_modified_file_in_subdirectory() -> Result<(), OxenError>
-    {
+    async fn test_command_add_after_modified_file_in_subdirectory() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Track & commit all the data
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");

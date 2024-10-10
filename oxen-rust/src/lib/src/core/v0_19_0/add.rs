@@ -487,15 +487,21 @@ pub fn p_add_file_node_to_staged_db(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = relative_path.as_ref();
-    log::debug!("writing {:?} to staged db: {:?}", relative_path, staged_db.path());
-    log::debug!("writing file: {}", file_node);
-    let entry = StagedMerkleTreeNode {
+    log::debug!(
+        "writing {:?} to staged db: {:?}",
+        relative_path,
+        staged_db.path()
+    );
+    let staged_file_node = StagedMerkleTreeNode {
         status,
         node: MerkleTreeNode::from_file(file_node.clone()),
     };
+    log::debug!("writing file: {}", staged_file_node);
 
     let mut buf = Vec::new();
-    entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    staged_file_node
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
 
     let relative_path_str = relative_path.to_str().unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
@@ -512,7 +518,7 @@ pub fn p_add_file_node_to_staged_db(
         }
     }
 
-    Ok(Some(entry))
+    Ok(Some(staged_file_node))
 }
 
 fn add_dir_to_staged_db(
