@@ -42,7 +42,7 @@ pub fn rm(
         return Err(OxenError::repo_is_shallow());
     }
 
-    if has_modified_files(repo)? {
+    if has_modified_files(repo, paths)? {
         let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
         return Err(OxenError::basic_str(error));
     }
@@ -107,14 +107,25 @@ pub fn remove_staged_recursively(
     Ok(())
 }
 
-fn has_modified_files(repo: &LocalRepository) -> Result<bool, OxenError> {
-    let modified = list_modified_files(repo)?;
+fn has_modified_files(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<bool, OxenError> {
+    let modified = list_modified_files(repo, paths)?;
     Ok(!modified.is_empty())
 }
 
-fn list_modified_files(repo: &LocalRepository) -> Result<Vec<PathBuf>, OxenError> {
+fn list_modified_files(
+    repo: &LocalRepository,
+    paths: &HashSet<PathBuf>,
+) -> Result<Vec<PathBuf>, OxenError> {
     let status = repositories::status(repo)?;
-    let modified: Vec<PathBuf> = status.modified_files.into_iter().collect();
+    log::debug!("status modified_files: {:?}", status.modified_files);
+    log::debug!("paths: {:?}", paths);
+    let modified: Vec<PathBuf> = status
+        .modified_files
+        .into_iter()
+        .filter(|path| {
+            paths.contains(path.parent().unwrap_or(Path::new(""))) || paths.contains(path)
+        })
+        .collect();
     Ok(modified)
 }
 
@@ -524,7 +535,7 @@ fn r_process_remove_dir(
     for child in &node.children {
         match &child.node {
             EMerkleTreeNode::Directory(dir_node) => {
-                log::debug!("Recursive process_remove_dir found dir: {dir_node:?}");
+                log::debug!("Recursive process_remove_dir found dir: {dir_node}");
                 // Update path, and move to the next level of recurstion
                 let new_path = path.join(&dir_node.name);
                 total += r_process_remove_dir(_repo, &new_path, child, staged_db)?;
@@ -535,7 +546,7 @@ fn r_process_remove_dir(
                 total += r_process_remove_dir(_repo, path, child, staged_db)?;
             }
             EMerkleTreeNode::File(file_node) => {
-                log::debug!("Recursive process_remove_dir found file: {file_node:?}");
+                log::debug!("Recursive process_remove_dir found file: {file_node}");
                 // Add the relative path of the dir to the path
                 let new_path = path.join(&file_node.name);
 
