@@ -16,6 +16,7 @@ use serde::Serialize;
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
 use crate::{error::OxenError, model::LocalRepository};
@@ -355,12 +356,13 @@ pub fn process_add_file(
     // Check if the file is already in the head commit
     let file_path = relative_path.file_name().unwrap();
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
-
+    let mut oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
+        oxen_metadata = file_node.metadata.clone();
         if has_different_modification_time(file_node, &mtime) {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
@@ -419,7 +421,13 @@ pub fn process_add_file(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
+    let metadata = match &oxen_metadata {
+        Some(oxen_metadata) => {
+            let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
+            maybe_construct_generic_metadata_for_tabular(df_metadata, oxen_metadata.clone())
+        }
+        None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
+    };
 
     // Add the file to the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
@@ -466,6 +474,32 @@ pub fn process_add_file(
         ..Default::default()
     };
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+}
+
+pub fn maybe_construct_generic_metadata_for_tabular(
+    df_metadata: Option<GenericMetadata>,
+    oxen_metadata: GenericMetadata,
+) -> Option<GenericMetadata> {
+    if let Some(GenericMetadata::MetadataTabular(mut df_metadata)) = df_metadata {
+        if let GenericMetadata::MetadataTabular(oxen_metadata) = oxen_metadata {
+            // Combine the two by using oxen_metadata as the source of truth for metadata,
+            // but keeping df_metadata's fields
+
+            for field in &mut df_metadata.tabular.schema.fields {
+                if let Some(oxen_field) = oxen_metadata
+                    .tabular
+                    .schema
+                    .fields
+                    .iter()
+                    .find(|oxen_field| oxen_field.name == field.name)
+                {
+                    field.metadata = oxen_field.metadata.clone();
+                }
+            }
+            return Some(GenericMetadata::MetadataTabular(df_metadata));
+        }
+    }
+    Some(oxen_metadata)
 }
 
 /// Used to add a file node to the staged db in a workspace
