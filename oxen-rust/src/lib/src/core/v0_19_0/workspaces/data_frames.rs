@@ -164,9 +164,14 @@ pub fn extract_file_node_to_working_dir(
     dir_path: impl AsRef<Path>,
     file_node: &FileNode,
 ) -> Result<PathBuf, OxenError> {
-    let workspace_repo = &workspace.workspace_repo;
     let dir_path = dir_path.as_ref();
-    let path = dir_path.join(file_node.name.clone());
+    log::debug!(
+        "extract_file_node_to_working_dir dir_path: {:?} file_node: {}",
+        dir_path,
+        file_node
+    );
+    let workspace_repo = &workspace.workspace_repo;
+    let path = PathBuf::from(file_node.name.clone());
 
     let working_path = workspace_repo.path.join(&path);
     log::debug!("extracting file node to working dir: {:?}", working_path);
