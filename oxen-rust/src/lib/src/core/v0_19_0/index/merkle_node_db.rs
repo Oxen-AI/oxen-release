@@ -383,7 +383,7 @@ impl MerkleNodeDB {
         let Some(node_file) = self.node_file.as_mut() else {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
-        log::debug!("write_node node: {}", node);
+        // log::debug!("write_node node: {}", node);
 
         // Write data type
         node_file.write_all(&node.dtype().to_u8().to_le_bytes())?;
@@ -400,7 +400,7 @@ impl MerkleNodeDB {
         node.serialize(&mut Serializer::new(&mut buf)).unwrap();
         let data_len = buf.len() as u32;
         node_file.write_all(&data_len.to_le_bytes())?;
-        log::debug!("write_node Wrote data length {}", data_len);
+        // log::debug!("write_node Wrote data length {}", data_len);
 
         // Write data
         node_file.write_all(&buf)?;
@@ -408,11 +408,11 @@ impl MerkleNodeDB {
         self.dtype = node.dtype();
         self.node_id = node.hash();
         self.parent_id = parent_id;
-        log::debug!(
-            "write_node wrote id {} dtype: {:?}",
-            node.hash(),
-            node.dtype()
-        );
+        // log::debug!(
+        //     "write_node wrote id {} dtype: {:?}",
+        //     node.hash(),
+        //     node.dtype()
+        // );
         Ok(())
     }
 
