@@ -10,11 +10,7 @@ use crate::core::v0_19_0::workspaces;
 use crate::error::{OxenError, StringError};
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{
-<<<<<<< HEAD
-    Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
-=======
     Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace
->>>>>>> 5ca6b364 (add test_list_dir_has_populates_resource_path)
 };
 use crate::repositories;
 use crate::util;
@@ -30,21 +26,12 @@ pub fn commit(
 ) -> Result<Commit, OxenError> {
     let branch_name = branch_name.as_ref();
 
-<<<<<<< HEAD
-    // Check if the branch has advanced
-    let head_commit =
-        repositories::commits::get_commit_or_head(&workspace.base_repo, Some(branch_name))?;
-    let workspace_commit = &workspace.commit;
-
-    if head_commit.id != workspace_commit.id {
-=======
     let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)? else {
         return Err(OxenError::BranchNotFound(Box::new(StringError::from(branch_name.to_string()))));
     };
 
     let workspace_commit = &workspace.commit;
     if branch.commit_id != workspace_commit.id {
->>>>>>> 5ca6b364 (add test_list_dir_has_populates_resource_path)
         return Err(OxenError::WorkspaceBehind(Branch {
             name: branch_name.to_string(),
             commit_id: workspace_commit.id.to_string(),
