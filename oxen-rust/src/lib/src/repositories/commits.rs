@@ -130,7 +130,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     }
 }
 
-/// List commits for the repository in no particular order
+/// List unsynced commits for the repository (ie they are missing their .version/ files)
 pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("list_unsynced not supported in v0.10.0"),
@@ -138,6 +138,16 @@ pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenErro
     }
 }
 
+/// List unsynced commits from a specific revision
+pub fn list_unsynced_from(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+) -> Result<HashSet<Commit>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("list_unsynced_from not supported in v0.10.0"),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced_from(repo, revision),
+    }
+}
 // Source
 pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,

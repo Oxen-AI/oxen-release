@@ -39,7 +39,7 @@ pub async fn fetch_remote_branch(
     };
 
     fetch_full_tree_and_hashes(repo, remote_repo, &remote_branch).await?;
-    let commits = repositories::commits::list_unsynced(repo)?;
+    let commits = repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?;
 
     // Keep track of how many bytes we have downloaded
     let pull_progress = PullProgress::new();
