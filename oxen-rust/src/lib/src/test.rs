@@ -325,20 +325,36 @@ where
 }
 
 /// Test syncing between local and remote, where both exist, and both are empty
-pub async fn run_empty_sync_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
+pub async fn run_one_commit_sync_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(&LocalRepository, RemoteRepository) -> Fut,
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    log::info!("<<<<< run_empty_sync_repo_test start");
+    log::info!("<<<<< run_one_commit_sync_repo_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
 
-    let local_repo = repositories::init(&repo_dir)?;
+    let mut local_repo = repositories::init(&repo_dir)?;
+
+    let txt = generate_random_string(20);
+    let file_path = add_txt_file_to_dir(&repo_dir, &txt)?;
+    repositories::add(&local_repo, &file_path)?;
+    repositories::commit(&local_repo, "Init commit")?;
+
     let remote_repo = create_remote_repo(&local_repo).await?;
 
+    // Set remote
+    command::config::set_remote(
+        &mut local_repo,
+        DEFAULT_REMOTE_NAME,
+        &remote_repo.remote.url,
+    )?;
+
+    // Push
+    repositories::push(&local_repo).await?;
+
     // Run test to see if it panic'd
-    log::info!(">>>>> run_empty_sync_repo_test running test");
+    log::info!(">>>>> run_one_commit_sync_repo_test running test");
     let result = match test(&local_repo, remote_repo).await {
         Ok(remote_repo) => {
             // Cleanup remote repo

@@ -652,7 +652,7 @@ mod tests {
     #[tokio::test]
     async fn test_checkout_local_does_not_remove_untracked_files() -> Result<(), OxenError> {
         // Push the Remote Repo
-        test::run_empty_sync_repo_test(|_, remote_repo| async move {
+        test::run_one_commit_sync_repo_test(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 
             // Clone Repo to User A
