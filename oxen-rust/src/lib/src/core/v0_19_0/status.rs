@@ -1,6 +1,7 @@
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::STAGED_DIR;
 use crate::core::db;
+use crate::core::oxenignore;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
@@ -12,6 +13,7 @@ use crate::model::{
 use crate::{repositories, util};
 
 use filetime::FileTime;
+use ignore::gitignore::Gitignore;
 use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
 use std::collections::HashMap;
@@ -307,6 +309,7 @@ fn find_changes(
     let mut untracked = UntrackedData::new();
     let mut modified = HashSet::new();
     let mut removed = HashSet::new();
+    let gitignore = oxenignore::create(repo);
 
     let full_dir = repo.path.join(relative_dir);
 
@@ -323,7 +326,7 @@ fn find_changes(
         let path = entry.path();
         let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
 
-        if is_ignored(&relative_path) {
+        if is_ignored(&relative_path, &gitignore, path.is_dir()) {
             continue;
         }
 
@@ -430,10 +433,15 @@ fn get_dir_node(
     }
 }
 
-fn is_ignored(path: &Path) -> bool {
+fn is_ignored(path: &Path, gitignore: &Option<Gitignore>, is_dir: bool) -> bool {
     // Skip hidden .oxen files
     if path.starts_with(OXEN_HIDDEN_DIR) {
         return true;
+    }
+    if let Some(gitignore) = gitignore {
+        if gitignore.matched(path, is_dir).is_ignore() {
+            return true;
+        }
     }
     false
 }
