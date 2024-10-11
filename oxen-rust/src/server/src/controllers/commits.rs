@@ -1632,7 +1632,6 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("body: {body}");
         let resp: CommitResponse = serde_json::from_str(body)?;
 
         // Make sure commit gets populated
