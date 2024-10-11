@@ -1154,7 +1154,7 @@ pub async fn upload(
 
     Ok(HttpResponse::Ok().json(UploadCommitResponse {
         status: StatusMessage::resource_created(),
-        commit: commit,
+        commit,
     }))
 }
 

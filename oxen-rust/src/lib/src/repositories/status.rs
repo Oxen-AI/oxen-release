@@ -630,7 +630,7 @@ mod tests {
             let mod_files = status.modified_files;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
-            assert_eq!(mod_files.get(&relative_path).is_some(), true);
+            assert!(mod_files.get(&relative_path).is_some());
 
             Ok(())
         })
@@ -652,12 +652,11 @@ mod tests {
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.modified_files.len(), 1);
-            assert_eq!(
+            assert!(
                 status
                     .modified_files
                     .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                    .is_some(),
-                true
+                    .is_some()
             );
 
             Ok(())

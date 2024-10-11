@@ -271,9 +271,8 @@ mod tests {
                 first_commit.id
             );
 
-            assert_eq!(
-                readme_entry.resource.as_ref().unwrap().branch.is_some(),
-                true
+            assert!(
+                readme_entry.resource.as_ref().unwrap().branch.is_some()
             );
             assert_eq!(
                 readme_entry.resource.as_ref().unwrap().path,
