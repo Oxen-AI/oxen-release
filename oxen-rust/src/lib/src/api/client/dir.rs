@@ -249,7 +249,6 @@ mod tests {
     #[tokio::test]
     async fn test_list_dir_has_populates_resource_path() -> Result<(), OxenError> {
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-
             let first_commit = repositories::commits::head_commit(&local_repo)?;
 
             // Make sure we have one entry
@@ -272,8 +271,14 @@ mod tests {
                 first_commit.id
             );
 
-            assert_eq!(readme_entry.resource.as_ref().unwrap().branch.is_some(), true);
-            assert_eq!(readme_entry.resource.as_ref().unwrap().path, Path::new("README.md"));
+            assert_eq!(
+                readme_entry.resource.as_ref().unwrap().branch.is_some(),
+                true
+            );
+            assert_eq!(
+                readme_entry.resource.as_ref().unwrap().path,
+                Path::new("README.md")
+            );
 
             Ok(remote_repo)
         })

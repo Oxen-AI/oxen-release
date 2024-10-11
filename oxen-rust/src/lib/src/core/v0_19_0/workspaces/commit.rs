@@ -10,7 +10,7 @@ use crate::core::v0_19_0::workspaces;
 use crate::error::{OxenError, StringError};
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{
-    Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace
+    Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
 };
 use crate::repositories;
 use crate::util;
@@ -26,8 +26,11 @@ pub fn commit(
 ) -> Result<Commit, OxenError> {
     let branch_name = branch_name.as_ref();
 
-    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)? else {
-        return Err(OxenError::BranchNotFound(Box::new(StringError::from(branch_name.to_string()))));
+    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)?
+    else {
+        return Err(OxenError::BranchNotFound(Box::new(StringError::from(
+            branch_name.to_string(),
+        ))));
     };
 
     let workspace_commit = &workspace.commit;
