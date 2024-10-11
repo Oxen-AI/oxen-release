@@ -463,24 +463,20 @@ mod tests {
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.modified_files.len(), 1);
-            assert!(
-                status
-                    .modified_files
-                    .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                    .is_some()
-            );
+            assert!(status
+                .modified_files
+                .get(&PathBuf::from("annotations/train/one_shot.csv"))
+                .is_some());
 
             repositories::add(&repo, &one_shot_path)?;
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_files.len(), 1);
             assert_eq!(status.modified_files.len(), 0);
-            assert!(
-                status
-                    .staged_files
-                    .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                    .is_some()
-            );
+            assert!(status
+                .staged_files
+                .get(&PathBuf::from("annotations/train/one_shot.csv"))
+                .is_some());
 
             Ok(())
         })

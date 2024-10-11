@@ -652,12 +652,10 @@ mod tests {
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.modified_files.len(), 1);
-            assert!(
-                status
-                    .modified_files
-                    .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                    .is_some()
-            );
+            assert!(status
+                .modified_files
+                .get(&PathBuf::from("annotations/train/one_shot.csv"))
+                .is_some());
 
             Ok(())
         })
