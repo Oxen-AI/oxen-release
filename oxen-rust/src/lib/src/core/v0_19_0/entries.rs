@@ -269,13 +269,17 @@ fn file_node_to_metadata_entry(
     let commit = found_commits.get(&file_node.last_commit_id).unwrap();
     let data_type = &file_node.data_type;
 
+    let mut parsed_resource = parsed_resource.clone();
+    // HACK for not knowing if we have the full path or just the dir path
+    // so we just add the file name to the end of the path if it's not already there
+    let mut file_path = parsed_resource.path.clone();
+    if !file_path.ends_with(&file_node.name) {
+        file_path = file_path.join(&file_node.name);
+        parsed_resource.resource = parsed_resource.resource.join(&file_node.name);
+        parsed_resource.path = parsed_resource.path.join(&file_node.name);
+    }
+
     let is_indexed = if *data_type == EntryDataType::Tabular {
-        // HACK for not knowing if we have the full path or just the dir path
-        // so we just add the file name to the end of the path if it's not already there
-        let mut file_path = parsed_resource.path.clone();
-        if !file_path.ends_with(&file_node.name) {
-            file_path = file_path.join(&file_node.name);
-        }
         Some(
             repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
                 repo, &file_path, commit,

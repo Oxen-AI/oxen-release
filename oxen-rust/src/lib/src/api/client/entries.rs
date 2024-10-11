@@ -741,4 +741,21 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_get_root_entry_metadata() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|_local_repo, remote_repo| async move {
+            let entry = api::client::entries::get_entry(
+                &remote_repo,
+                Path::new(""),
+                DEFAULT_BRANCH_NAME,
+            )
+            .await;
+            println!("entry: {:?}", entry);
+            assert!(entry.is_ok());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 }
