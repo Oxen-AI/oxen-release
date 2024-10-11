@@ -1147,15 +1147,9 @@ pub async fn upload(
     // Unpack tarball to our hidden dir
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
     unpack_entry_tarball(&hidden_dir, &mut archive);
-
-    let commit = repositories::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::revision_not_found(commit_id.to_owned().into()))?;
     // });
 
-    Ok(HttpResponse::Ok().json(CommitResponse {
-        status: StatusMessage::resource_created(),
-        commit: commit,
-    }))
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -1170,29 +1164,28 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(Some(repo)) => {
             match repositories::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
-                    log::debug!("Commit complete {:?} on repo {:?}", commit, repo.path);
                     // Kick off processing in background thread because could take awhile
-                    // std::thread::spawn(move || {
-                    //     log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                    //     let force = false;
-                    //     match commit_cacher::run_all(&repo, &commit, force) {
-                    //         Ok(_) => {
-                    //             log::debug!(
-                    //                 "Success processing commit {:?} on repo {:?}",
-                    //                 commit,
-                    //                 repo.path
-                    //             );
-                    //         }
-                    //         Err(err) => {
-                    //             log::error!(
-                    //                 "Could not process commit {:?} on repo {:?}: {}",
-                    //                 commit,
-                    //                 repo.path,
-                    //                 err
-                    //             );
-                    //         }
-                    //     }
-                    // });
+                    std::thread::spawn(move || {
+                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                        let force = false;
+                        match commit_cacher::run_all(&repo, &commit, force) {
+                            Ok(_) => {
+                                log::debug!(
+                                    "Success processing commit {:?} on repo {:?}",
+                                    commit,
+                                    repo.path
+                                );
+                            }
+                            Err(err) => {
+                                log::error!(
+                                    "Could not process commit {:?} on repo {:?}: {}",
+                                    commit,
+                                    repo.path,
+                                    err
+                                );
+                            }
+                        }
+                    });
 
                     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
@@ -1633,6 +1626,7 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
+        println!("body: {body}");
         let resp: CommitResponse = serde_json::from_str(body)?;
 
         // Make sure commit gets populated
