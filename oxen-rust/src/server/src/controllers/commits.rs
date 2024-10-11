@@ -1147,9 +1147,15 @@ pub async fn upload(
     // Unpack tarball to our hidden dir
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
     unpack_entry_tarball(&hidden_dir, &mut archive);
+
+    let commit = repositories::commits::get_by_id(&repo, &commit_id)?
+        .ok_or(OxenError::revision_not_found(commit_id.to_owned().into()))?;
     // });
 
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_created(),
+        commit: commit,
+    }))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -1434,10 +1440,8 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("Got response: {text}");
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 1);
+        assert_eq!(list.commits.len(), 0);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1467,8 +1471,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 3);
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1514,8 +1517,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 3);
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1531,6 +1533,10 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
@@ -1626,6 +1632,7 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
+        println!("body: {body}");
         let resp: CommitResponse = serde_json::from_str(body)?;
 
         // Make sure commit gets populated
