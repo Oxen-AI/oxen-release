@@ -32,6 +32,7 @@ use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
 use liboxen::view::commit::CommitTreeValidationResponse;
+use liboxen::view::commit::UploadCommitResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -1149,7 +1150,12 @@ pub async fn upload(
     unpack_entry_tarball(&hidden_dir, &mut archive);
     // });
 
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+    let commit = repositories::commits::get_by_id(&repo, &commit_id)?;
+
+    Ok(HttpResponse::Ok().json(UploadCommitResponse {
+        status: StatusMessage::resource_created(),
+        commit: commit,
+    }))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -1164,29 +1170,28 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(Some(repo)) => {
             match repositories::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
-                    log::debug!("Commit complete {:?} on repo {:?}", commit, repo.path);
                     // Kick off processing in background thread because could take awhile
-                    // std::thread::spawn(move || {
-                    //     log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                    //     let force = false;
-                    //     match commit_cacher::run_all(&repo, &commit, force) {
-                    //         Ok(_) => {
-                    //             log::debug!(
-                    //                 "Success processing commit {:?} on repo {:?}",
-                    //                 commit,
-                    //                 repo.path
-                    //             );
-                    //         }
-                    //         Err(err) => {
-                    //             log::error!(
-                    //                 "Could not process commit {:?} on repo {:?}: {}",
-                    //                 commit,
-                    //                 repo.path,
-                    //                 err
-                    //             );
-                    //         }
-                    //     }
-                    // });
+                    std::thread::spawn(move || {
+                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                        let force = false;
+                        match commit_cacher::run_all(&repo, &commit, force) {
+                            Ok(_) => {
+                                log::debug!(
+                                    "Success processing commit {:?} on repo {:?}",
+                                    commit,
+                                    repo.path
+                                );
+                            }
+                            Err(err) => {
+                                log::error!(
+                                    "Could not process commit {:?} on repo {:?}: {}",
+                                    commit,
+                                    repo.path,
+                                    err
+                                );
+                            }
+                        }
+                    });
 
                     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
@@ -1405,6 +1410,7 @@ mod tests {
     use actix_web::{web, App};
     use flate2::write::GzEncoder;
     use flate2::Compression;
+    use liboxen::view::commit::UploadCommitResponse;
     use std::path::Path;
     use std::thread;
 
@@ -1412,7 +1418,7 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;
-    use liboxen::view::{CommitResponse, ListCommitResponse};
+    use liboxen::view::ListCommitResponse;
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
@@ -1435,10 +1441,8 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("Got response: {text}");
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 1);
+        assert_eq!(list.commits.len(), 0);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1468,8 +1472,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 3);
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1515,8 +1518,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        // Plus the initial commit
-        assert_eq!(list.commits.len(), 3);
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
@@ -1532,6 +1534,10 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
@@ -1627,13 +1633,17 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        let resp: CommitResponse = serde_json::from_str(body)?;
+        let resp: UploadCommitResponse = serde_json::from_str(body)?;
+
+        let Some(commit) = resp.commit else {
+            return Err(OxenError::basic_str("Commit not found"));
+        };
 
         // Make sure commit gets populated
-        assert_eq!(resp.commit.id, commit.id);
-        assert_eq!(resp.commit.message, commit.message);
-        assert_eq!(resp.commit.author, commit.author);
-        assert_eq!(resp.commit.parent_ids.len(), commit.parent_ids.len());
+        assert_eq!(commit.id, commit.id);
+        assert_eq!(commit.message, commit.message);
+        assert_eq!(commit.author, commit.author);
+        assert_eq!(commit.parent_ids.len(), commit.parent_ids.len());
 
         // We unzip in a background thread, so give it a second
         thread::sleep(std::time::Duration::from_secs(1));

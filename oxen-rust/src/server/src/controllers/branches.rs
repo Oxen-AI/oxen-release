@@ -77,7 +77,8 @@ fn create_from_branch(
     repo: &LocalRepository,
     data: &BranchNewFromBranchName,
 ) -> Result<HttpResponse, OxenHttpError> {
-    let maybe_new_branch = repositories::branches::get_by_name(repo, &data.new_name)?;
+    let maybe_new_branch: Option<liboxen::model::Branch> =
+        repositories::branches::get_by_name(repo, &data.new_name)?;
     if let Some(branch) = maybe_new_branch {
         let view = BranchResponse {
             status: StatusMessage::resource_found(),
@@ -361,7 +362,11 @@ mod tests {
         let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
-        test::create_local_repo(&sync_dir, namespace, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
@@ -388,6 +393,10 @@ mod tests {
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         repositories::branches::create_from_head(&repo, "branch-1")?;
         repositories::branches::create_from_head(&repo, "branch-2")?;
 
@@ -415,6 +424,10 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         let branch_name = "branch-1";
         repositories::branches::create_from_head(&repo, branch_name)?;
 
@@ -448,7 +461,11 @@ mod tests {
         let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-Create";
-        test::create_local_repo(&sync_dir, namespace, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
 
         let new_name = "My-Branch-Name";
 
@@ -483,6 +500,10 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
         let branch_name = "branch-1";
         repositories::branches::create_from_head(&repo, branch_name)?;
 
