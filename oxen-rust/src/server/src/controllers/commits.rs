@@ -32,6 +32,7 @@ use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
 use liboxen::view::commit::CommitTreeValidationResponse;
+use liboxen::view::commit::UploadCommitResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -1149,7 +1150,12 @@ pub async fn upload(
     unpack_entry_tarball(&hidden_dir, &mut archive);
     // });
 
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+    let commit = repositories::commits::get_by_id(&repo, &commit_id)?;
+
+    Ok(HttpResponse::Ok().json(UploadCommitResponse {
+        status: StatusMessage::resource_created(),
+        commit: commit,
+    }))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -1404,6 +1410,7 @@ mod tests {
     use actix_web::{web, App};
     use flate2::write::GzEncoder;
     use flate2::Compression;
+    use liboxen::view::commit::UploadCommitResponse;
     use std::path::Path;
     use std::thread;
 
@@ -1411,7 +1418,7 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;
-    use liboxen::view::{CommitResponse, ListCommitResponse};
+    use liboxen::view::ListCommitResponse;
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
@@ -1626,14 +1633,17 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("body: {body}");
-        let resp: CommitResponse = serde_json::from_str(body)?;
+        let resp: UploadCommitResponse = serde_json::from_str(body)?;
+
+        let Some(commit) = resp.commit else {
+            return Err(OxenError::basic_str("Commit not found"));
+        };
 
         // Make sure commit gets populated
-        assert_eq!(resp.commit.id, commit.id);
-        assert_eq!(resp.commit.message, commit.message);
-        assert_eq!(resp.commit.author, commit.author);
-        assert_eq!(resp.commit.parent_ids.len(), commit.parent_ids.len());
+        assert_eq!(commit.id, commit.id);
+        assert_eq!(commit.message, commit.message);
+        assert_eq!(commit.author, commit.author);
+        assert_eq!(commit.parent_ids.len(), commit.parent_ids.len());
 
         // We unzip in a background thread, so give it a second
         thread::sleep(std::time::Duration::from_secs(1));
