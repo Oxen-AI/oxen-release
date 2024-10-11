@@ -7,10 +7,10 @@ use crate::core::db;
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::core::v0_19_0::workspaces;
-use crate::error::OxenError;
+use crate::error::{OxenError, StringError};
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{
-    Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
+    Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace
 };
 use crate::repositories;
 use crate::util;
@@ -25,6 +25,19 @@ pub fn commit(
     branch_name: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     let branch_name = branch_name.as_ref();
+
+    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)? else {
+        return Err(OxenError::BranchNotFound(Box::new(StringError::from(branch_name.to_string()))));
+    };
+
+    let workspace_commit = &workspace.commit;
+    if branch.commit_id != workspace_commit.id {
+        return Err(OxenError::WorkspaceBehind(Branch {
+            name: branch_name.to_string(),
+            commit_id: workspace_commit.id.to_string(),
+        }));
+    }
+
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
     log::debug!(
         "0.19.0::workspaces::commit staged db path: {:?}",

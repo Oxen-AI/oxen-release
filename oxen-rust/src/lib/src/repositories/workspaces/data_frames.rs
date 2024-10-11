@@ -192,7 +192,13 @@ pub fn full_diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffRe
 }
 
 pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    let path = path.as_ref();
+    log::debug!(
+        "duckdb_path path: {:?} workspace: {:?}",
+        path,
+        workspace.dir()
+    );
+    let path_hash = util::hasher::hash_str(path.to_string_lossy());
     workspace
         .dir()
         .join(OXEN_HIDDEN_DIR)
