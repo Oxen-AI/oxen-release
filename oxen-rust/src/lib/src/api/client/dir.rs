@@ -271,9 +271,7 @@ mod tests {
                 first_commit.id
             );
 
-            assert!(
-                readme_entry.resource.as_ref().unwrap().branch.is_some()
-            );
+            assert!(readme_entry.resource.as_ref().unwrap().branch.is_some());
             assert_eq!(
                 readme_entry.resource.as_ref().unwrap().path,
                 Path::new("README.md")
