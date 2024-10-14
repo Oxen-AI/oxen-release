@@ -465,8 +465,7 @@ mod tests {
             assert_eq!(status.modified_files.len(), 1);
             assert!(status
                 .modified_files
-                .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                .is_some());
+                .contains(&PathBuf::from("annotations/train/one_shot.csv")));
 
             repositories::add(&repo, &one_shot_path)?;
             let status = repositories::status(&repo)?;
@@ -475,8 +474,7 @@ mod tests {
             assert_eq!(status.modified_files.len(), 0);
             assert!(status
                 .staged_files
-                .get(&PathBuf::from("annotations/train/one_shot.csv"))
-                .is_some());
+                .contains_key(&PathBuf::from("annotations/train/one_shot.csv")));
 
             Ok(())
         })
