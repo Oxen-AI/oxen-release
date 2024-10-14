@@ -301,11 +301,8 @@ pub async fn list_entry_versions(
     for (commit, entry) in commits_with_versions {
         // For each version, get the schema hash if one exists.
         let maybe_schema_hash = if util::fs::is_tabular(&entry.path) {
-            let maybe_schema = repositories::data_frames::schemas::get_by_path(
-                &repo,
-                &commit,
-                &entry.path
-            )?;
+            let maybe_schema =
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &entry.path)?;
             match maybe_schema {
                 Some(schema) => Some(schema.hash),
                 None => {

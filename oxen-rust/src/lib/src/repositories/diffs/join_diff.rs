@@ -18,12 +18,12 @@ use polars::datatypes::AnyValue;
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
-use polars::prelude::{Column, NamedFrom};
-use polars::prelude::SchemaExt;
+use polars::prelude::ChunkCompareEq;
 use polars::prelude::PlSmallStr;
+use polars::prelude::SchemaExt;
+use polars::prelude::{Column, NamedFrom};
 use polars::prelude::{DataFrame, DataFrameJoinOps};
 use polars::series::Series;
-use polars::prelude::ChunkCompareEq;
 
 use super::{tabular, SchemaDiff};
 
