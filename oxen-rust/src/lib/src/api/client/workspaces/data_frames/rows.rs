@@ -614,6 +614,7 @@ mod tests {
                     repositories::workspaces::df(&cloned_repo, workspace_id, &path, opts).await?;
                 let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
                     AnyValue::String(s) => s.to_string(),
+                    AnyValue::StringOwned(s) => s.to_string(),
                     _ => panic!("Expected string"),
                 };
 

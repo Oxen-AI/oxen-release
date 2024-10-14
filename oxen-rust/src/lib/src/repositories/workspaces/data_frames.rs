@@ -1,7 +1,10 @@
 use polars::frame::DataFrame;
 
-use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR, TABLE_NAME};
+use sql_query_builder::Select;
+
 use crate::core;
+use crate::constants::TABLE_NAME;
+use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::versions::MinOxenVersion;
@@ -9,7 +12,6 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{repositories, util};
-use sql_query_builder::Select;
 
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
