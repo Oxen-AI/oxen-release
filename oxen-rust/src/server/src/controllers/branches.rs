@@ -6,7 +6,6 @@ use crate::params::{app_data, path_param, PageNumQuery};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
-use liboxen::core::v0_10_0::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::util::{self, paginate};
@@ -174,9 +173,12 @@ pub async fn maybe_create_merge(
         incoming_commit_id
     );
 
-    let merger = Merger::new(&repository)?;
-    let maybe_merge_commit =
-        merger.merge_commit_into_base_on_branch(&incoming_commit, &current_commit, &branch)?;
+    let maybe_merge_commit = repositories::merge::merge_commit_into_base_on_branch(
+        &repository,
+        &incoming_commit,
+        &current_commit,
+        &branch,
+    )?;
 
     // Return what will become the new head of the repo after push is complete.
     if let Some(merge_commit) = maybe_merge_commit {
@@ -299,8 +301,11 @@ pub async fn list_entry_versions(
     for (commit, entry) in commits_with_versions {
         // For each version, get the schema hash if one exists.
         let maybe_schema_hash = if util::fs::is_tabular(&entry.path) {
-            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
-            let maybe_schema = schema_reader.get_schema_for_file(&entry.path)?;
+            let maybe_schema = repositories::data_frames::schemas::get_by_path(
+                &repo,
+                &commit,
+                &entry.path
+            )?;
             match maybe_schema {
                 Some(schema) => Some(schema.hash),
                 None => {
