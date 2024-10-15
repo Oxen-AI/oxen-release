@@ -249,10 +249,10 @@ async fn push_to_existing_branch(
         repositories::commits::get_by_id(repo, &remote_branch.commit_id)?
     else {
         let err_str = format!(
-            "Branch {} is behind {} must pull.",
+            "Branch {} is behind {} must pull.\n\nRun `oxen pull` to update your local branch",
             remote_branch.name, remote_branch.commit_id
         );
-        return Err(OxenError::local_revision_not_found(err_str));
+        return Err(OxenError::basic_str(err_str));
     };
 
     // If we do have the commit locally, we are ahead

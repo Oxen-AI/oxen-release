@@ -106,11 +106,8 @@ impl CommitMerkleTree {
         path: impl AsRef<Path>,
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
         let node_path = path.as_ref();
-        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        log::debug!("dir_without_children: dir_hashes: {:?}", dir_hashes);
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
-        log::debug!("dir_without_children: node_hash: {:?}", node_hash);
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -309,6 +306,22 @@ impl CommitMerkleTree {
             )))?;
 
         CommitMerkleTree::node_files_and_folders(&node)
+    }
+
+    pub fn files_and_folders(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<HashSet<MerkleTreeNode>, OxenError> {
+        let path = path.as_ref();
+        let node = self.root.get_by_path(path)?.ok_or(OxenError::basic_str(format!(
+            "Merkle tree hash not found for parent: {:?}",
+            path
+        )))?;
+        let mut children = HashSet::new();
+        for child in &node.children {
+            children.extend(child.children.iter().cloned());
+        }
+        Ok(children)
     }
 
     pub fn node_files_and_folders(node: &MerkleTreeNode) -> Result<Vec<MerkleTreeNode>, OxenError> {

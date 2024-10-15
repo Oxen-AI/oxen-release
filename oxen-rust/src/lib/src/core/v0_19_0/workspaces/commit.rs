@@ -70,9 +70,9 @@ pub fn commit(
     )?;
 
     // DEBUG
-    let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
-    log::debug!("0.19.0::workspaces::commit tree");
-    tree.print();
+    // let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
+    // log::debug!("0.19.0::workspaces::commit tree");
+    // tree.print();
 
     // Update the branch
     let ref_writer = RefWriter::new(&workspace.base_repo)?;

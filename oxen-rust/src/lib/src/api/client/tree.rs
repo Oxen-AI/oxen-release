@@ -235,17 +235,20 @@ async fn node_download_request(
 ) -> Result<(), OxenError> {
     let url = url.as_ref();
     let client = client::new_for_url(url)?;
+    log::debug!("node_download_request about to send request {}", url);
     let res = client.get(url).send().await?;
     let reader = res
         .bytes_stream()
         .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
         .into_async_read();
+    log::debug!("node_download_request about to iterate over archive");
     let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
     let archive = Archive::new(decoder);
 
     // The remote tar packs it in TREE_DIR/NODES_DIR
     // So this will unpack it in OXEN_HIDDEN_DIR/TREE_DIR/NODES_DIR
     let full_unpacked_path = local_repo.path.join(OXEN_HIDDEN_DIR);
+    log::debug!("node_download_request unpacking to {:?}", full_unpacked_path);
 
     // create the temp path if it doesn't exist
     if !full_unpacked_path.exists() {

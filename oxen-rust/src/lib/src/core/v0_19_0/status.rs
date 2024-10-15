@@ -51,8 +51,15 @@ pub fn status_from_dir(
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
-    let (untracked, modified, removed) =
-        find_changes(repo, &relative_dir, &staged_db_maybe, &dir_hashes)?;
+    let mut total_entries = 0;
+    let (untracked, modified, removed) = find_changes(
+        repo,
+        &relative_dir,
+        &staged_db_maybe,
+        &dir_hashes,
+        &read_progress,
+        &mut total_entries,
+    )?;
 
     log::debug!("find_changes untracked: {:?}", untracked);
     log::debug!("find_changes modified: {:?}", modified);
@@ -303,6 +310,8 @@ fn find_changes(
     relative_dir: impl AsRef<Path>,
     staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
+    progress: &ProgressBar,
+    total_entries: &mut u64,
 ) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
     let relative_dir = relative_dir.as_ref();
     log::debug!("find_changes dir: {:?}", relative_dir);
@@ -323,6 +332,11 @@ fn find_changes(
     let dir_node = get_dir_node(repo, dir_hashes, relative_dir)?;
 
     for entry in entries.flatten() {
+        progress.set_message(format!(
+            "🐂 checking ({total_entries} files) scanning {:?}",
+            relative_dir
+        ));
+        *total_entries += 1;
         let path = entry.path();
         let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
 
@@ -333,7 +347,14 @@ fn find_changes(
         if path.is_dir() {
             // If it's a directory, recursively find changes below it
             let (sub_untracked, sub_modified, sub_removed) =
-                find_changes(repo, &relative_path, staged_db, dir_hashes)?;
+                find_changes(
+                    repo,
+                    &relative_path,
+                    staged_db,
+                    dir_hashes,
+                    progress,
+                    total_entries,
+                )?;
             untracked.merge(sub_untracked);
             modified.extend(sub_modified);
             removed.extend(sub_removed);

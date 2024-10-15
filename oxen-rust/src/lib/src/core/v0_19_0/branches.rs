@@ -1,5 +1,7 @@
+use indicatif::{ProgressBar, ProgressStyle};
+
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
-use crate::core::v0_19_0::{commits, fetch};
+use crate::core::v0_19_0::fetch;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
@@ -8,6 +10,64 @@ use crate::util;
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::time::Duration;
+
+struct CheckoutProgressBar {
+    revision: String,
+    progress: ProgressBar,
+    num_visited: usize,
+    num_restored: usize,
+    num_modified: usize,
+    num_removed: usize,
+}
+
+impl CheckoutProgressBar {
+    pub fn new(revision: String) -> Self {
+        let progress = ProgressBar::new_spinner();
+        progress.set_style(ProgressStyle::default_spinner());
+        progress.enable_steady_tick(Duration::from_millis(100));
+
+        Self {
+            revision,
+            progress,
+            num_visited: 0,
+            num_restored: 0,
+            num_modified: 0,
+            num_removed: 0,
+        }
+    }
+
+    pub fn increment_visited(&mut self) {
+        self.num_visited += 1;
+        self.update_message();
+    }
+
+    pub fn increment_restored(&mut self) {
+        self.num_restored += 1;
+        self.update_message();
+    }
+
+    pub fn increment_modified(&mut self) {
+        self.num_modified += 1;
+        self.update_message();
+    }
+
+    pub fn increment_removed(&mut self) {
+        self.num_removed += 1;
+        self.update_message();
+    }
+
+    fn update_message(&mut self) {
+        self.progress.set_message(format!(
+            "🐂 checkout ({}) visited {}, restored {}, modified {}, removed {}",
+            self.revision,
+            self.num_visited,
+            self.num_restored,
+            self.num_modified,
+            self.num_removed
+        ));
+    }
+}
 
 pub fn list_entry_versions_for_commit(
     local_repo: &LocalRepository,
@@ -27,7 +87,7 @@ pub fn list_entry_versions_for_commit(
         log::debug!("list_entry_versions_for_commit {}", commit);
         let tree = repositories::tree::get_by_commit(local_repo, &commit)?;
         let node = tree.get_by_path(path)?;
-        tree.print();
+        // tree.print();
 
         if let Some(node) = node {
             if !seen_hashes.contains(&node.node.hash().to_string()) {
@@ -60,55 +120,63 @@ pub fn list_entry_versions_for_commit(
     Ok(result)
 }
 
-pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), OxenError> {
+pub async fn checkout(
+    repo: &LocalRepository,
+    branch_name: &str,
+    from_commit: &Option<Commit>,
+) -> Result<(), OxenError> {
     log::debug!("checkout {branch_name}");
     let branch = repositories::branches::get_by_name(repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
-    checkout_commit_id(repo, &branch.commit_id).await?;
+    let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?
+        .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
+
+    checkout_commit(repo, &commit, from_commit).await?;
 
     Ok(())
 }
 
-pub async fn checkout_commit_id(
+pub async fn checkout_commit(
     repo: &LocalRepository,
-    commit_id: impl AsRef<str>,
+    to_commit: &Commit,
+    from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
-    log::debug!("checkout_commit_id {}", commit_id.as_ref());
-    let commit = repositories::commits::get_by_id(repo, &commit_id)?
-        .ok_or(OxenError::commit_id_does_not_exist(&commit_id))?;
+    log::debug!("checkout_commit to {} from {:?}", to_commit, from_commit);
 
     // Fetch entries if needed
-    fetch::maybe_fetch_missing_entries(repo, &commit).await?;
+    fetch::maybe_fetch_missing_entries(repo, &to_commit).await?;
 
     // Set working repo to commit
-    set_working_repo_to_commit(repo, &commit, true).await?;
+    set_working_repo_to_commit(repo, &to_commit, from_commit).await?;
 
     Ok(())
 }
 
 pub async fn set_working_repo_to_commit(
     repo: &LocalRepository,
-    commit: &Commit,
-    force: bool,
+    to_commit: &Commit,
+    maybe_from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
-    log::debug!("set_working_repo_to_commit {}", commit);
-    if !force {
-        if let Some(head_commit) = commits::head_commit_maybe(repo)? {
-            if head_commit.id == commit.id {
-                log::debug!(
-                    "set_working_repo_to_commit, do nothing... head commit == commit_id {}",
-                    commit.id
-                );
-                return Ok(());
-            }
+    let mut progress = CheckoutProgressBar::new(to_commit.id.clone());
+
+    log::debug!("set_working_repo_to_commit to_commit {} from_commit {:?}", to_commit, maybe_from_commit);
+    let target_tree = CommitMerkleTree::from_commit(repo, to_commit)?;
+    if let Some(from_commit) = maybe_from_commit {
+        if from_commit.id == to_commit.id {
+            log::debug!(
+                "set_working_repo_to_commit, do nothing... to_commit == from_commit {}",
+                to_commit
+            );
+            return Ok(());
         }
+
+        // Only cleanup removed files if we are checking out from an existing tree
+        let from_tree = CommitMerkleTree::from_commit(repo, &from_commit)?;
+        cleanup_removed_files(repo, &target_tree, &from_tree, &mut progress)?;
     }
 
-    let tree = CommitMerkleTree::from_commit(repo, commit)?;
-
-    cleanup_removed_files(repo, &tree)?;
-    r_restore_missing_or_modified_files(repo, &tree.root, Path::new(""))?;
+    r_restore_missing_or_modified_files(repo, &target_tree.root, Path::new(""))?;
 
     Ok(())
 }
@@ -116,19 +184,27 @@ pub async fn set_working_repo_to_commit(
 fn cleanup_removed_files(
     repo: &LocalRepository,
     target_tree: &CommitMerkleTree,
+    from_tree: &CommitMerkleTree,
+    progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
-    // Get the head commit, and the merkle tree for that commit
-    // Compare the nodes in the head tree to the nodes in the target tree
-    // If the file node is in the head tree, but not in the target tree, remove it
-    // If we don't have a head commit, there isn't anything to clean up (i.e., new clone)
-    if let Some(head_commit) = commits::head_commit_maybe(repo)? {
-        log::debug!("cleanup_removed_files head_commit {:?}", head_commit.id);
+    // Compare the nodes in the from tree to the nodes in the target tree
+    // If the file node is in the from tree, but not in the target tree, remove it
+    let from_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&from_tree.root)?;
+    log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
 
-        let head_tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
-        let head_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&head_tree.root)?;
+    println!("from_tree");
+    from_tree.print();
+    println!("target_tree");
+    target_tree.print();
 
-        r_remove_if_not_in_target(repo, head_root_dir_node, target_tree, Path::new(""))?;
-    }
+    r_remove_if_not_in_target(
+        repo,
+        from_root_dir_node,
+        from_tree,
+        target_tree,
+        Path::new(""),
+        progress,
+    )?;
 
     Ok(())
 }
@@ -136,34 +212,80 @@ fn cleanup_removed_files(
 fn r_remove_if_not_in_target(
     repo: &LocalRepository,
     head_node: &MerkleTreeNode,
+    from_tree: &CommitMerkleTree,
     target_tree: &CommitMerkleTree,
     current_path: &Path,
+    progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
     log::debug!(
-        "r_remove_if_not_in_target head_node: {:?} current_path: {:?}",
-        head_node.hash,
-        current_path
+        "r_remove_if_not_in_target current_path: {:?} head_node: {}",
+        current_path,
+        head_node
     );
-    match &head_node.node.dtype() {
-        MerkleTreeNodeType::File => {
-            let file_node = head_node.file()?;
+    match &head_node.node {
+        EMerkleTreeNode::File(file_node) => {
             let file_path = current_path.join(&file_node.name);
-            if target_tree.get_by_path(&file_path)?.is_none() {
+            log::debug!(
+                "r_remove_if_not_in_target looking up file_path {:?} from current_path {:?}",
+                file_path,
+                current_path
+            );
+            let target_node = target_tree.get_by_path(&file_path)?;
+            let from_node = from_tree.get_by_path(&file_path)?;
+            log::debug!(
+                "r_remove_if_not_in_target target_node.is_none() {} from_node.is_some() {}",
+                target_node.is_none(),
+                from_node.is_some()
+            );
+
+            if target_node.is_none() && from_node.is_some() {
+                log::debug!("r_remove_if_not_in_target removing file: {:?}", file_path);
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
                     log::debug!("Removing file: {:?}", file_path);
                     util::fs::remove_file(&full_path)?;
+                    progress.increment_removed();
                 }
             }
         }
-        MerkleTreeNodeType::Dir => {
+        EMerkleTreeNode::Directory(dir_node) => {
             // TODO: can we also check if the directory is in the target tree,
             // and potentially remove the whole directory?
-            let dir_node = head_node.dir()?;
             let dir_path = current_path.join(&dir_node.name);
-            let children = CommitMerkleTree::node_files_and_folders(head_node)?;
-            for child in children {
-                r_remove_if_not_in_target(repo, &child, target_tree, &dir_path)?;
+
+            // Check if the directory is the same in the from and target trees
+            // If it is, we don't need to do anything
+            if let Some(target_node) = target_tree.get_by_path(&dir_path)? {
+                log::debug!(
+                    "r_remove_if_not_in_target dir_path {:?} from_node {} === target_node {}",
+                    dir_path,
+                    target_node,
+                    dir_node
+                );
+                if target_node.node.hash() == dir_node.hash {
+                    log::debug!("r_remove_if_not_in_target dir_path {:?} is the same as target_tree", dir_path);
+                    return Ok(());
+                }
+            }
+
+            let from_children = from_tree.files_and_folders(&dir_path)?;
+            for child in from_children {
+                // If the hashes match, we don't need to check if we need to remove any children
+                // because the subdirectory will be the same content-wise
+                log::debug!(
+                    "r_remove_if_not_in_target dir_path {:?} child {} dir_node {}",
+                    dir_path,
+                    dir_node,
+                    child,
+                );
+                r_remove_if_not_in_target(
+                    repo,
+                    &child,
+                    from_tree,
+                    target_tree,
+                    &dir_path,
+                    progress,
+                )?;
             }
             // Remove directory if it's empty
             let full_dir_path = repo.path.join(&dir_path);

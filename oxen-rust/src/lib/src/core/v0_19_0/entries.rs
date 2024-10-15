@@ -156,7 +156,7 @@ pub fn get_meta_entry(
         log::debug!("get_meta_entry file path: {:?}", path.to_str().unwrap());
         let file_node = get_file_merkle_tree_node(repo, &commit, path)?;
         if let Some(file_node) = file_node {
-            log::debug!("get_meta_entry file node found: {:?}", file_node);
+            // log::debug!("get_meta_entry file node found: {:?}", file_node);
             let metadata = file_node_to_metadata_entry(
                 repo,
                 &file_node,
