@@ -72,9 +72,10 @@ pub fn commit_with_user(
     message: impl AsRef<str>,
     user: &User,
 ) -> Result<Commit, OxenError> {
-    let mut cfg = UserConfig::get()?;
-    cfg.name = user.name.clone();
-    cfg.email = user.email.clone();
+    let cfg = UserConfig {
+        name: user.name.clone(),
+        email: user.email.clone(),
+    };
     commit_with_cfg(repo, message, &cfg, None)
 }
 
