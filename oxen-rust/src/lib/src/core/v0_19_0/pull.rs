@@ -80,15 +80,11 @@ pub async fn pull_remote_branch(
     // Fetch all the tree nodes and the entries
     fetch::fetch_remote_branch(repo, &remote_repo, &rb, all).await?;
 
-    // TODO: this should ideally be in the repositories::pull module,
-    // but I'm not sure how that will interact with the v0_10_0 code
-    repositories::branches::checkout_branch(repo, branch).await?;
-
     let new_head_commit = repositories::revisions::get(repo, branch)?
         .ok_or(OxenError::revision_not_found(branch.into()))?;
 
     // Merge if there are changes
-    if let Some(previous_head_commit) = previous_head_commit {
+    if let Some(previous_head_commit) = &previous_head_commit {
         if previous_head_commit.id != new_head_commit.id {
             repositories::merge::merge_commit_into_base(
                 repo,
@@ -97,6 +93,10 @@ pub async fn pull_remote_branch(
             )?;
         }
     }
+
+    // TODO: this should ideally be in the repositories::pull module,
+    // but I'm not sure how that will interact with the v0_10_0 code
+    repositories::branches::checkout_branch_from_commit(repo, branch, &previous_head_commit).await?;
 
     repositories::branches::set_head(repo, branch)?;
 

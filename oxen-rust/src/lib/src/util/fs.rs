@@ -255,10 +255,10 @@ pub fn version_path_from_hash_and_file_v0_10_0(
     let hash = hash.as_ref();
     let filename = filename.as_ref();
     let version_dir = version_dir_from_hash(dst, hash);
-    log::debug!(
-        "version_path_from_hash_and_file version_dir {:?}",
-        version_dir
-    );
+    // log::debug!(
+    //     "version_path_from_hash_and_file version_dir {:?}",
+    //     version_dir
+    // );
     let extension = extension_from_path(filename);
     version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
 }
@@ -271,10 +271,10 @@ pub fn version_path_from_hash_and_file(
     let hash = hash.as_ref();
     let filename = filename.as_ref();
     let version_dir = version_dir_from_hash(dst, hash);
-    log::debug!(
-        "version_path_from_hash_and_file version_dir {:?}",
-        version_dir
-    );
+    // log::debug!(
+    //     "version_path_from_hash_and_file version_dir {:?}",
+    //     version_dir
+    // );
     let extension = extension_from_path(filename);
     if extension.is_empty() {
         version_dir.join(VERSION_FILE_NAME)
