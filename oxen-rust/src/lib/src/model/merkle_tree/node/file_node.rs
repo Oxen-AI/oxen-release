@@ -132,9 +132,10 @@ impl fmt::Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "\"{}\" ({}) (commit {})",
+            "\"{}\" ({}) [{}] (commit {})",
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
+            self.hash.to_string(),
             self.last_commit_id
         )?;
         if let Some(metadata) = &self.metadata {

@@ -130,6 +130,7 @@ impl RefWriter {
     }
 
     pub fn set_head_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        log::debug!("set_head_commit_id {}", commit_id);
         // if we have head ref in HEAD file then write it to that db
         let head_val = self.read_head_ref()?; // could be branch name or commit ID
         if self.has_branch(&head_val) {
@@ -143,6 +144,7 @@ impl RefWriter {
 
     pub fn set_head_branch_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         let head_ref = self.read_head_ref()?;
+        log::debug!("set_head_branch_commit_id {} -> {}", head_ref, commit_id);
         self.set_branch_commit_id(&head_ref, commit_id)?;
         Ok(())
     }

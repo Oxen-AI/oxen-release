@@ -1,7 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::fetch;
+use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository};
@@ -53,10 +53,7 @@ impl CheckoutProgressBar {
     fn update_message(&mut self) {
         self.progress.set_message(format!(
             "🐂 checkout '{}' restored {}, modified {}, removed {}",
-            self.revision,
-            self.num_restored,
-            self.num_modified,
-            self.num_removed
+            self.revision, self.num_restored, self.num_modified, self.num_removed
         ));
     }
 }
@@ -158,7 +155,11 @@ pub async fn set_working_repo_to_commit(
 ) -> Result<(), OxenError> {
     let mut progress = CheckoutProgressBar::new(to_commit.id.clone());
 
-    log::debug!("set_working_repo_to_commit to_commit {} from_commit {:?}", to_commit, maybe_from_commit);
+    log::debug!(
+        "set_working_repo_to_commit to_commit {} from_commit {:?}",
+        to_commit,
+        maybe_from_commit
+    );
     let target_tree = CommitMerkleTree::from_commit(repo, to_commit)?;
     let from_tree = if let Some(from_commit) = maybe_from_commit {
         if from_commit.id == to_commit.id {
@@ -183,7 +184,13 @@ pub async fn set_working_repo_to_commit(
 
     // If we did it in one pass, we would not know if we should remove the file
     // or restore it.
-    r_restore_missing_or_modified_files(repo, &target_tree.root, &from_tree, Path::new(""), &mut progress)?;
+    r_restore_missing_or_modified_files(
+        repo,
+        &target_tree.root,
+        &from_tree,
+        Path::new(""),
+        &mut progress,
+    )?;
 
     Ok(())
 }
@@ -198,11 +205,6 @@ fn cleanup_removed_files(
     // If the file node is in the from tree, but not in the target tree, remove it
     let from_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&from_tree.root)?;
     log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
-
-    println!("from_tree");
-    from_tree.print();
-    println!("target_tree");
-    target_tree.print();
 
     r_remove_if_not_in_target(
         repo,
@@ -270,7 +272,10 @@ fn r_remove_if_not_in_target(
                     dir_node
                 );
                 if target_node.node.hash() == dir_node.hash {
-                    log::debug!("r_remove_if_not_in_target dir_path {:?} is the same as target_tree", dir_path);
+                    log::debug!(
+                        "r_remove_if_not_in_target dir_path {:?} is the same as target_tree",
+                        dir_path
+                    );
                     return Ok(());
                 }
             }
@@ -352,7 +357,13 @@ fn r_restore_missing_or_modified_files(
             let children = CommitMerkleTree::node_files_and_folders(node)?;
             let dir_path = path.join(&dir_node.name);
             for child_node in children {
-                r_restore_missing_or_modified_files(repo, &child_node, from_tree, &dir_path, progress)?;
+                r_restore_missing_or_modified_files(
+                    repo,
+                    &child_node,
+                    from_tree,
+                    &dir_path,
+                    progress,
+                )?;
             }
         }
         EMerkleTreeNode::Commit(_) => {

@@ -96,7 +96,8 @@ pub async fn pull_remote_branch(
 
     // TODO: this should ideally be in the repositories::pull module,
     // but I'm not sure how that will interact with the v0_10_0 code
-    repositories::branches::checkout_branch_from_commit(repo, branch, &previous_head_commit).await?;
+    repositories::branches::checkout_branch_from_commit(repo, branch, &previous_head_commit)
+        .await?;
 
     repositories::branches::set_head(repo, branch)?;
 

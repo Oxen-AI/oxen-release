@@ -9,7 +9,7 @@ use crate::core::v0_19_0::index::commit_writer;
 use crate::core::v0_19_0::{add, rm};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
-use crate::model::merkle_tree::node::FileNode;
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Branch, Commit, LocalRepository};
 use crate::opts::RmOpts;
 use crate::repositories;
@@ -379,53 +379,140 @@ fn fast_forward_merge(
     merge_commit: &Commit,
 ) -> Result<Commit, OxenError> {
     log::debug!("FF merge!");
-    let base_commit_node = CommitMerkleTree::from_commit(repo, base_commit)?;
-    let merge_commit_node = CommitMerkleTree::from_commit(repo, merge_commit)?;
+    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
+    let merge_tree = CommitMerkleTree::from_commit(repo, merge_commit)?;
 
-    let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from(""))?;
-    let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from(""))?;
+    println!("base_tree");
+    base_tree.print();
+    println!("merge_tree");
+    merge_tree.print();
 
-    // Make sure files_db is dropped before the merge commit is written
-    {
-        // Can just copy over all new versions since it is fast forward
-        for merge_entry in merge_entries.iter() {
-            let (merge_file_node, merge_path) = merge_entry;
-            log::debug!("Merge entry: {:?}", merge_path);
-            // Only copy over if hash is different or it doesn't exist for performance
-            if let Some(base_entry) = base_entries.get(merge_entry) {
-                let (base_file_node, _base_path) = base_entry;
-                if base_file_node.hash != merge_file_node.hash {
-                    log::debug!("Merge entry has changed, restore: {:?}", merge_path);
-                    update_entry(repo, merge_entry)?;
-                }
-            } else {
-                log::debug!("Merge entry is new, restore: {:?}", merge_path);
-                update_entry(repo, merge_entry)?;
-            }
-        }
+    let base_dir_node = CommitMerkleTree::get_root_dir_from_commit(&base_tree.root)?;
+    let merge_dir_node = CommitMerkleTree::get_root_dir_from_commit(&merge_tree.root)?;
 
-        // Remove all entries that are in HEAD but not in merge entries
-        for base_entry in base_entries.iter() {
-            let (_base_file_node, base_path) = base_entry;
-            log::debug!("Base entry: {:?}", base_path);
-            if !merge_entries.iter().any(|entry| entry.1 == base_entry.1) {
-                log::debug!("Removing Base Entry: {:?}", base_path);
-
-                let path = repo.path.join(base_path);
-                if path.exists() {
-                    util::fs::remove_file(path)?;
-                }
-            }
-        }
-    }
+    // Same logic here as restore, where we don't need to traverse if the hashes match
+    r_ff_merge_commit(
+        repo,
+        &merge_tree,
+        &base_tree,
+        &merge_dir_node,
+        PathBuf::from(""),
+    )?;
+    r_ff_base_dir(
+        repo,
+        &merge_tree,
+        &base_tree,
+        &base_dir_node,
+        PathBuf::from(""),
+    )?;
 
     // Move the HEAD forward to this commit
     let ref_writer = RefWriter::new(repo)?;
     ref_writer.set_head_commit_id(&merge_commit.id)?;
 
     Ok(merge_commit.clone())
+}
+
+fn r_ff_merge_commit(
+    repo: &LocalRepository,
+    merge_tree: &CommitMerkleTree,
+    base_tree: &CommitMerkleTree,
+    merge_node: &MerkleTreeNode,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    log::debug!("r_ff_merge_commit!");
+    let path = path.as_ref();
+    match &merge_node.node {
+        EMerkleTreeNode::File(merge_file_node) => {
+            let file_path = path.join(&merge_file_node.name);
+            log::debug!("r_ff_merge_commit file_path {:?}", file_path);
+            log::debug!("merge_node {}", merge_node);
+            log::debug!("merge_file_node {}", merge_file_node);
+
+            if let Some(base_file_node) = base_tree.get_by_path(&file_path)? {
+                log::debug!("base_file_node {}", base_file_node);
+                if merge_node.hash != base_file_node.hash {
+                    log::debug!("Merge entry has changed, restore: {:?}", file_path);
+                    update_entry(repo, &(merge_file_node.clone(), file_path))?;
+                }
+            } else {
+                log::debug!("Merge entry is new, restore: {:?}", file_path);
+                update_entry(repo, &(merge_file_node.clone(), file_path))?;
+            }
+        }
+        EMerkleTreeNode::Directory(dir_node) => {
+            let dir_path = path.join(&dir_node.name);
+            let merge_children = merge_tree.files_and_folders(&dir_path)?;
+
+            if let Some(base_node) = base_tree.get_by_path(&dir_path)? {
+                if base_node.node.hash() == dir_node.hash {
+                    log::debug!(
+                        "r_ff_merge_commit dir_path {:?} is the same as base_tree",
+                        dir_path
+                    );
+                    return Ok(());
+                }
+            }
+
+            for child in merge_children.iter() {
+                log::debug!("r_ff_merge_commit child_path {}", child);
+                r_ff_merge_commit(repo, merge_tree, base_tree, child, &dir_path)?;
+            }
+        }
+        _ => {
+            log::debug!("r_ff_merge_commit unknown node type");
+        }
+    }
+    Ok(())
+}
+
+fn r_ff_base_dir(
+    repo: &LocalRepository,
+    merge_tree: &CommitMerkleTree,
+    base_tree: &CommitMerkleTree,
+    base_node: &MerkleTreeNode,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    log::debug!("r_ff_base_dir!");
+    let path = path.as_ref();
+    match &base_node.node {
+        EMerkleTreeNode::File(base_file_node) => {
+            let file_path = path.join(&base_file_node.name);
+            log::debug!("r_ff_base_dir file_path {:?}", file_path);
+
+            // Remove all entries that are in HEAD but not in merge entries
+            if !merge_tree.has_path(&file_path)? {
+                log::debug!("Removing Base Entry: {:?}", file_path);
+                let path = repo.path.join(file_path);
+                if path.exists() {
+                    util::fs::remove_file(path)?;
+                }
+            }
+        }
+        EMerkleTreeNode::Directory(dir_node) => {
+            let dir_path = path.join(&dir_node.name);
+            let base_children = base_tree.files_and_folders(&dir_path)?;
+
+            if let Some(merge_node) = merge_tree.get_by_path(&dir_path)? {
+                if merge_node.node.hash() == dir_node.hash {
+                    log::debug!(
+                        "r_ff_base_dir dir_path {:?} is the same as merge_tree",
+                        dir_path
+                    );
+                    return Ok(());
+                }
+            }
+
+            for child in base_children.iter() {
+                log::debug!("r_ff_base_dir child_path {}", child);
+                r_ff_base_dir(repo, merge_tree, base_tree, child, &dir_path)?;
+            }
+        }
+        _ => {
+            log::debug!("r_ff_base_dir unknown node type");
+        }
+    }
+    Ok(())
 }
 
 fn merge_commits(

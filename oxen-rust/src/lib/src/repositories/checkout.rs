@@ -28,7 +28,8 @@ pub async fn checkout(
 
         println!("Checkout branch: {value}");
         let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
-        repositories::branches::checkout_branch_from_commit(repo, value, &previous_head_commit).await?;
+        repositories::branches::checkout_branch_from_commit(repo, value, &previous_head_commit)
+            .await?;
         repositories::branches::set_head(repo, value)?;
         repositories::branches::get_by_name(repo, value)
     } else {
@@ -42,7 +43,8 @@ pub async fn checkout(
             .ok_or(OxenError::revision_not_found(value.into()))?;
 
         let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
-        repositories::branches::checkout_commit_from_commit(repo, &commit, &previous_head_commit).await?;
+        repositories::branches::checkout_commit_from_commit(repo, &commit, &previous_head_commit)
+            .await?;
         repositories::branches::set_head(repo, value)?;
         Ok(None)
     }
