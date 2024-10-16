@@ -38,6 +38,10 @@ pub async fn fetch_remote_branch(
         return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
     };
 
+    // Write the new branch commit id to the local repo
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
+
     if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         if head_commit.id == remote_branch.commit_id {
             println!("Repository is up to date.");
@@ -74,10 +78,6 @@ pub async fn fetch_remote_branch(
         let directory = PathBuf::from("");
         r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
     }
-
-    // Make sure the branch now points to the latest commit
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
 
     // If we fetched all the data, we're no longer shallow
     repo.write_is_shallow(false)?;
