@@ -38,6 +38,13 @@ pub async fn fetch_remote_branch(
         return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
     };
 
+    if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
+        if head_commit.id == remote_branch.commit_id {
+            println!("Repository is up to date.");
+            return Ok(());
+        }
+    }
+
     fetch_full_tree_and_hashes(repo, remote_repo, &remote_branch).await?;
     let commits = repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?;
 
