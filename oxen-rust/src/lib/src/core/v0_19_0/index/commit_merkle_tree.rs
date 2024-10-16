@@ -313,10 +313,13 @@ impl CommitMerkleTree {
         path: impl AsRef<Path>,
     ) -> Result<HashSet<MerkleTreeNode>, OxenError> {
         let path = path.as_ref();
-        let node = self.root.get_by_path(path)?.ok_or(OxenError::basic_str(format!(
-            "Merkle tree hash not found for parent: {:?}",
-            path
-        )))?;
+        let node = self
+            .root
+            .get_by_path(path)?
+            .ok_or(OxenError::basic_str(format!(
+                "Merkle tree hash not found for parent: {:?}",
+                path
+            )))?;
         let mut children = HashSet::new();
         for child in &node.children {
             children.extend(child.children.iter().cloned());

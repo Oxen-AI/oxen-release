@@ -346,15 +346,14 @@ fn find_changes(
 
         if path.is_dir() {
             // If it's a directory, recursively find changes below it
-            let (sub_untracked, sub_modified, sub_removed) =
-                find_changes(
-                    repo,
-                    &relative_path,
-                    staged_db,
-                    dir_hashes,
-                    progress,
-                    total_entries,
-                )?;
+            let (sub_untracked, sub_modified, sub_removed) = find_changes(
+                repo,
+                &relative_path,
+                staged_db,
+                dir_hashes,
+                progress,
+                total_entries,
+            )?;
             untracked.merge(sub_untracked);
             modified.extend(sub_modified);
             removed.extend(sub_removed);

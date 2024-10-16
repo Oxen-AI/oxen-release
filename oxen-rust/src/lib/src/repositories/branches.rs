@@ -423,8 +423,7 @@ pub async fn set_working_repo_to_commit(
             panic!("set_working_repo_to_commit not implemented for oxen v0.10.0")
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, from_commit)
-                .await
+            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, from_commit).await
         }
     }
 }
