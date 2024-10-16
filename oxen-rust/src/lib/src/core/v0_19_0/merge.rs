@@ -395,14 +395,14 @@ fn fast_forward_merge(
         repo,
         &merge_tree,
         &base_tree,
-        &merge_dir_node,
+        merge_dir_node,
         PathBuf::from(""),
     )?;
     r_ff_base_dir(
         repo,
         &merge_tree,
         &base_tree,
-        &base_dir_node,
+        base_dir_node,
         PathBuf::from(""),
     )?;
 

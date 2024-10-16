@@ -605,11 +605,11 @@ mod tests {
                 let path = directory.join("bounding_box.csv");
                 let data = "{\"file\":\"d-o-double-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-                api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
 
                 let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
                         &remote_repo,
-                        &workspace_id,
+                        workspace_id,
                         &path,
                         data.to_string()
                     ).await?;
@@ -618,7 +618,7 @@ mod tests {
                     email: user.email.to_owned(),
                     message: "Appending d-o-double-g data".to_string(),
                 };
-                api::client::workspaces::commit(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id, &new_commit).await?;
+                api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &new_commit).await?;
 
                 // Pull in the changes
                 repositories::pull(&cloned_repo).await?;
@@ -640,11 +640,11 @@ mod tests {
                 let path = directory.join("bounding_box.csv");
                 let data = "{\"file\":\"d-o-triple-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-                api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
 
                 let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
                         &remote_repo,
-                        &workspace_id,
+                        workspace_id,
                         &path,
                         data.to_string()
                     ).await?;
@@ -653,7 +653,7 @@ mod tests {
                     email: user.email.to_owned(),
                     message: "Appending d-o-triple-g data".to_string(),
                 };
-                api::client::workspaces::commit(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id, &new_commit).await?;
+                api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &new_commit).await?;
 
                 // Pull in the changes
                 repositories::pull(&cloned_repo).await?;
@@ -683,7 +683,7 @@ mod tests {
 
                 // Read the initial data
                 let prompts_filename = Path::new("prompts.jsonl");
-                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let prompts_file = cloned_repo.path.join(prompts_filename);
                 let og_df = tabular::read_df(&prompts_file, DFOpts::empty())?;
 
                 // Update the file on the remote repo
@@ -702,15 +702,15 @@ mod tests {
 
                 api::client::workspaces::data_frames::index(
                     &remote_repo,
-                    &workspace_id,
-                    &prompts_filename,
+                    workspace_id,
+                    prompts_filename,
                 )
                 .await?;
 
                 let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
                     &remote_repo,
-                    &workspace_id,
-                    &prompts_filename,
+                    workspace_id,
+                    prompts_filename,
                     data.to_string(),
                 )
                 .await?;
@@ -721,8 +721,8 @@ mod tests {
                 };
                 api::client::workspaces::commit(
                     &remote_repo,
-                    &DEFAULT_BRANCH_NAME,
-                    &workspace_id,
+                    DEFAULT_BRANCH_NAME,
+                    workspace_id,
                     &new_commit,
                 )
                 .await?;
@@ -731,7 +731,7 @@ mod tests {
                 repositories::pull(&cloned_repo).await?;
 
                 // Check that we have the new data
-                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let prompts_file = cloned_repo.path.join(prompts_filename);
                 let df = tabular::read_df(&prompts_file, DFOpts::empty())?;
                 assert_eq!(df.height(), og_df.height() + 1);
 
@@ -751,15 +751,15 @@ mod tests {
 
                 api::client::workspaces::data_frames::index(
                     &remote_repo,
-                    &workspace_id,
-                    &prompts_filename,
+                    workspace_id,
+                    prompts_filename,
                 )
                 .await?;
 
                 let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
                     &remote_repo,
-                    &workspace_id,
-                    &prompts_filename,
+                    workspace_id,
+                    prompts_filename,
                     data.to_string(),
                 )
                 .await?;
@@ -770,8 +770,8 @@ mod tests {
                 };
                 api::client::workspaces::commit(
                     &remote_repo,
-                    &DEFAULT_BRANCH_NAME,
-                    &workspace_id,
+                    DEFAULT_BRANCH_NAME,
+                    workspace_id,
                     &new_commit,
                 )
                 .await?;
@@ -780,7 +780,7 @@ mod tests {
                 repositories::pull(&cloned_repo).await?;
 
                 // Check that we have the new data
-                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let prompts_file = cloned_repo.path.join(prompts_filename);
                 let df = tabular::read_df(&prompts_file, DFOpts::empty())?;
                 assert_eq!(df.height(), og_df.height() + 2);
 

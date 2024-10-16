@@ -604,6 +604,7 @@ fn split_into_vnodes(
                                 child.node.node.dtype(),
                                 child.node.maybe_path().unwrap()
                             );
+                            log::debug!("replaced child {}", child.node);
                             children.replace(child.clone());
                         }
                     }
@@ -1008,10 +1009,10 @@ fn compute_dir_node(
             let err_msg = format!("compute_dir_node No entries found for directory {:?}", path);
             return Err(OxenError::basic_str(err_msg));
         };
-
+        log::debug!("Aggregating dir {:?} with {} vnodes", path, vnodes.len());
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
-                log::debug!("Aggregating entry {}", entry);
+                log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
                     EMerkleTreeNode::Directory(node) => {
                         log::debug!("No need to aggregate dir {}", node.name);

@@ -100,7 +100,9 @@ fn export_tabular_data_frames(
                     // TODO: This is hacky - because we don't know if a file node is the full path or relative to the dir_path
                     // need a better way to distinguish
                     let mut node_path = PathBuf::from(file_node.name.clone());
-                    if !node_path.starts_with(&dir_path) {
+                    if !node_path.starts_with(&dir_path)
+                        || (dir_path == PathBuf::from("") && node_path.components().count() == 1)
+                    {
                         node_path = dir_path.join(node_path);
                     }
                     if file_node.data_type == EntryDataType::Tabular {
@@ -163,6 +165,11 @@ fn compute_staged_merkle_tree_node(
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
     let metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
 
+    // Compute the metadata hash and combined hash
+    let metadata_hash = util::hasher::get_metadata_hash(&metadata)?;
+    let combined_hash = util::hasher::get_combined_hash(Some(metadata_hash), hash.to_u128())?;
+    let combined_hash = MerkleHash::new(combined_hash);
+
     // Copy the file to the versioned directory
     let dst_dir = util::fs::version_dir_from_hash(&workspace.base_repo.path, hash.to_string());
     if !dst_dir.exists() {
@@ -179,6 +186,8 @@ fn compute_staged_merkle_tree_node(
     let relative_path_str = relative_path.to_str().unwrap();
     let file_node = FileNode {
         hash,
+        metadata_hash: Some(MerkleHash::new(metadata_hash)),
+        combined_hash,
         name: relative_path_str.to_string(),
         data_type,
         num_bytes,
