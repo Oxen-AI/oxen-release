@@ -135,8 +135,8 @@ impl fmt::Display for FileNode {
             "\"{}\" ({}) [{}] (commit {})",
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
-            self.hash.to_string(),
-            self.last_commit_id
+            self.hash.to_short_str(),
+            self.last_commit_id.to_short_str()
         )?;
         if let Some(metadata) = &self.metadata {
             write!(f, " {}", metadata)?;

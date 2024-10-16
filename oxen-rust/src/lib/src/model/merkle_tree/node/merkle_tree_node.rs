@@ -361,15 +361,15 @@ impl MerkleTreeNode {
                         }
                     }
                 }
-                Err(err) => {
+                Err(_) => {
                     // If the value is not found then Result::Err is returned,
                     // containing the index where a matching element could be inserted while maintaining sorted order.
-                    log::debug!(
-                        "get_by_path_helper {} could not find path: {:?} possible insert point: {:?}",
-                        self,
-                        target_name,
-                        err
-                    );
+                    // log::debug!(
+                    //     "get_by_path_helper {} could not find path: {:?} possible insert point: {:?}",
+                    //     self,
+                    //     target_name,
+                    //     err
+                    // );
                 }
             }
         }
@@ -519,7 +519,7 @@ impl fmt::Display for MerkleTreeNode {
                     f,
                     "[{:?}] {} {} ({} children)",
                     self.node.dtype(),
-                    self.hash,
+                    self.hash.to_short_str(),
                     vnode,
                     self.children.len()
                 )
@@ -529,19 +529,37 @@ impl fmt::Display for MerkleTreeNode {
                     f,
                     "[{:?}] {} {} ({} children)",
                     self.node.dtype(),
-                    self.hash,
+                    self.hash.to_short_str(),
                     dir,
                     self.children.len()
                 )
             }
             EMerkleTreeNode::File(file) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, file)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.node.dtype(),
+                    self.hash.to_short_str(),
+                    file
+                )
             }
             EMerkleTreeNode::FileChunk(file_chunk) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, file_chunk)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.node.dtype(),
+                    self.hash.to_short_str(),
+                    file_chunk
+                )
             }
             EMerkleTreeNode::Schema(schema) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, schema)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.node.dtype(),
+                    self.hash.to_short_str(),
+                    schema
+                )
             }
         }
     }

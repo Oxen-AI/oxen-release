@@ -1525,6 +1525,15 @@ pub fn populate_labels(repo_dir: &Path) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn populate_prompts(repo_dir: &Path) -> Result<(), OxenError> {
+    write_txt_file_to_path(
+        repo_dir.join("prompts.jsonl"),
+        "{\"prompt\": \"What is the meaning of life?\", \"label\": \"42\"}\n{\"prompt\": \"What is the best data version control system?\", \"label\": \"Oxen.ai\"}\n",
+    )?;
+
+    Ok(())
+}
+
 pub fn populate_large_files(repo_dir: &Path) -> Result<(), OxenError> {
     let large_dir = repo_dir.join("large_files");
     util::fs::create_dir_all(&large_dir)?;
@@ -1731,6 +1740,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     //     annotations.txt
     //   test/
     //     annotations.txt
+    // prompts.jsonl
     // labels.txt
     // LICENSE
     // README.md
@@ -1740,6 +1750,9 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
 
     // labels.txt
     populate_labels(repo_dir)?;
+
+    // prompts.jsonl
+    populate_prompts(repo_dir)?;
 
     // large_files/test.csv
     populate_large_files(repo_dir)?;

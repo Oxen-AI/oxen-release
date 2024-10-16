@@ -18,6 +18,17 @@ impl MerkleHash {
     pub fn to_u128(&self) -> u128 {
         self.0
     }
+
+    // only print the first N characters of the hash
+    pub fn to_short_str(&self) -> String {
+        const SHORT_STR_LEN: usize = 10;
+        let str = format!("{}", self);
+        if str.len() > SHORT_STR_LEN {
+            str[..SHORT_STR_LEN].to_string()
+        } else {
+            str
+        }
+    }
 }
 
 impl std::str::FromStr for MerkleHash {

@@ -984,8 +984,8 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
 
-            let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
             workspaces::data_frames::index(&repo, &workspace, &path)?;
+            let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
             workspaces::data_frames::rows::add(&repo, &workspace, &path, &json_data)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
