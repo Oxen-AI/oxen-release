@@ -104,7 +104,7 @@ impl fmt::Display for DirNode {
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
             self.num_files(),
-            self.last_commit_id
+            self.last_commit_id.to_short_str()
         )
     }
 }

@@ -984,7 +984,6 @@ mod tests {
                         .join("train")
                         .join("bounding_box.csv");
                     let bbox_file = cloned_repo_a.path.join(&bbox_filename);
-                    let og_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
                     let bbox_file = test::append_line_txt_file(
                         bbox_file,
                         "train/cat_13.jpg,cat,41.0,31.5,410,427",

@@ -561,11 +561,11 @@ impl CommitMerkleTree {
         recurse: bool,
     ) -> Result<(), OxenError> {
         let dtype = node.node.dtype();
-        log::debug!(
-            "read_children_from_node tree_db_dir: {:?} dtype {:?}",
-            node_db.path(),
-            dtype
-        );
+        // log::debug!(
+        //     "read_children_from_node tree_db_dir: {:?} dtype {:?}",
+        //     node_db.path(),
+        //     dtype
+        // );
 
         if dtype != MerkleTreeNodeType::Commit
             && dtype != MerkleTreeNodeType::Dir

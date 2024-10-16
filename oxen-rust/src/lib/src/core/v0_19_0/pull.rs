@@ -85,6 +85,11 @@ pub async fn pull_remote_branch(
 
     // Merge if there are changes
     if let Some(previous_head_commit) = &previous_head_commit {
+        log::debug!(
+            "checking if we need to merge previous {} new {}",
+            previous_head_commit.id,
+            new_head_commit.id
+        );
         if previous_head_commit.id != new_head_commit.id {
             repositories::merge::merge_commit_into_base(
                 repo,

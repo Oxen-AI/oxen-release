@@ -230,12 +230,14 @@ mod tests {
 
     use std::path::Path;
 
-    use crate::api;
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
+    use crate::core::df::tabular;
     use crate::error::OxenError;
+    use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::test;
+    use crate::{api, repositories};
 
     #[tokio::test]
     async fn test_get_by_resource() -> Result<(), OxenError> {
@@ -558,6 +560,234 @@ mod tests {
             assert_eq!(diff.view.size.height, 1);
 
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    // Test fast forward merge on pull
+    /*
+    oxen init
+    oxen add .
+    oxen commit -m "add data"
+    oxen push
+    # update data frame file on server
+    oxen pull repo_a (should be fast forward)
+    # update data frame file on server
+    oxen pull repo_a (should be fast forward)
+    */
+    #[tokio::test]
+    async fn test_update_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            test::run_empty_dir_test_async(|empty_dir| async move {
+                let cloned_repo_dir = empty_dir.join("repo_b");
+                let cloned_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &cloned_repo_dir).await?;
+
+                // Read the initial data
+                let bbox_filename = Path::new("annotations")
+                    .join("train")
+                    .join("bounding_box.csv");
+                let bbox_file = cloned_repo.path.join(&bbox_filename);
+                let og_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+
+                // Update the file on the remote repo
+                let user = UserConfig::get()?.to_user();
+                let workspace_id = "workspace_a";
+                let workspace =
+                    api::client::workspaces::create(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id)
+                        .await;
+                assert!(workspace.is_ok());
+
+                // train/d-o-double-g.jpg,dog,101.5,32.0,385,330
+                let directory = Path::new("annotations").join("train");
+                let path = directory.join("bounding_box.csv");
+                let data = "{\"file\":\"d-o-double-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+                api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
+                        &remote_repo,
+                        &workspace_id,
+                        &path,
+                        data.to_string()
+                    ).await?;
+                let new_commit = NewCommitBody {
+                    author: user.name.to_owned(),
+                    email: user.email.to_owned(),
+                    message: "Appending d-o-double-g data".to_string(),
+                };
+                api::client::workspaces::commit(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id, &new_commit).await?;
+
+                // Pull in the changes
+                repositories::pull(&cloned_repo).await?;
+
+                // Check that we have the new data
+                let bbox_file = cloned_repo.path.join(&bbox_filename);
+                let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+                assert_eq!(df.height(), og_df.height() + 1);
+
+                // Add a more rows on this branch
+                let workspace_id = "workspace_b";
+                let workspace =
+                    api::client::workspaces::create(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id)
+                        .await;
+                assert!(workspace.is_ok());
+
+                // train/d-o-triple-g.jpg,dog,101.5,32.0,385,330
+                let directory = Path::new("annotations").join("train");
+                let path = directory.join("bounding_box.csv");
+                let data = "{\"file\":\"d-o-triple-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+                api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
+                        &remote_repo,
+                        &workspace_id,
+                        &path,
+                        data.to_string()
+                    ).await?;
+                let new_commit = NewCommitBody {
+                    author: user.name.to_owned(),
+                    email: user.email.to_owned(),
+                    message: "Appending d-o-triple-g data".to_string(),
+                };
+                api::client::workspaces::commit(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id, &new_commit).await?;
+
+                // Pull in the changes
+                repositories::pull(&cloned_repo).await?;
+
+                // Check that we have the new data
+                let bbox_file = cloned_repo.path.join(&bbox_filename);
+                let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+                assert_eq!(df.height(), og_df.height() + 2);
+
+                Ok(empty_dir)
+            })
+            .await?;
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_update_root_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            test::run_empty_dir_test_async(|empty_dir| async move {
+                let cloned_repo_dir = empty_dir.join("repo_b");
+                let cloned_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &cloned_repo_dir).await?;
+
+                // Read the initial data
+                let prompts_filename = Path::new("prompts.jsonl");
+                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let og_df = tabular::read_df(&prompts_file, DFOpts::empty())?;
+
+                // Update the file on the remote repo
+                let user = UserConfig::get()?.to_user();
+                let workspace_id = "workspace_a";
+                let workspace = api::client::workspaces::create(
+                    &remote_repo,
+                    &DEFAULT_BRANCH_NAME,
+                    &workspace_id,
+                )
+                .await;
+                assert!(workspace.is_ok());
+
+                // Add a row to the prompts file
+                let data = "{\"prompt\": \"What is another meaning of life?\", \"label\": \"43\"}";
+
+                api::client::workspaces::data_frames::index(
+                    &remote_repo,
+                    &workspace_id,
+                    &prompts_filename,
+                )
+                .await?;
+
+                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &prompts_filename,
+                    data.to_string(),
+                )
+                .await?;
+                let new_commit = NewCommitBody {
+                    author: user.name.to_owned(),
+                    email: user.email.to_owned(),
+                    message: "Appending 43 data".to_string(),
+                };
+                api::client::workspaces::commit(
+                    &remote_repo,
+                    &DEFAULT_BRANCH_NAME,
+                    &workspace_id,
+                    &new_commit,
+                )
+                .await?;
+
+                // Pull in the changes
+                repositories::pull(&cloned_repo).await?;
+
+                // Check that we have the new data
+                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let df = tabular::read_df(&prompts_file, DFOpts::empty())?;
+                assert_eq!(df.height(), og_df.height() + 1);
+
+                // Add a more rows on this branch
+                let workspace_id = "workspace_b";
+                let workspace = api::client::workspaces::create(
+                    &remote_repo,
+                    &DEFAULT_BRANCH_NAME,
+                    &workspace_id,
+                )
+                .await;
+                assert!(workspace.is_ok());
+
+                // Add a row to the prompts file
+                let data =
+                    "{\"prompt\": \"What is another another meaning of life?\", \"label\": \"44\"}";
+
+                api::client::workspaces::data_frames::index(
+                    &remote_repo,
+                    &workspace_id,
+                    &prompts_filename,
+                )
+                .await?;
+
+                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &prompts_filename,
+                    data.to_string(),
+                )
+                .await?;
+                let new_commit = NewCommitBody {
+                    author: user.name.to_owned(),
+                    email: user.email.to_owned(),
+                    message: "Appending 44 data".to_string(),
+                };
+                api::client::workspaces::commit(
+                    &remote_repo,
+                    &DEFAULT_BRANCH_NAME,
+                    &workspace_id,
+                    &new_commit,
+                )
+                .await?;
+
+                // Pull in the changes
+                repositories::pull(&cloned_repo).await?;
+
+                // Check that we have the new data
+                let prompts_file = cloned_repo.path.join(&prompts_filename);
+                let df = tabular::read_df(&prompts_file, DFOpts::empty())?;
+                assert_eq!(df.height(), og_df.height() + 2);
+
+                Ok(empty_dir)
+            })
+            .await?;
+            Ok(remote_repo_copy)
         })
         .await
     }
