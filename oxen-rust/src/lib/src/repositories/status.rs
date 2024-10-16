@@ -119,7 +119,8 @@ mod tests {
             assert_eq!(repo_status.staged_files.len(), 0);
             // README.md
             // labels.txt
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            // prompts.jsonl
+            assert_eq!(repo_status.untracked_files.len(), 3);
             // train/
             // test/
             // nlp/
@@ -145,7 +146,8 @@ mod tests {
             // labels.txt
             assert_eq!(repo_status.staged_files.len(), 1);
             // README.md
-            assert_eq!(repo_status.untracked_files.len(), 1);
+            // prompts.jsonl
+            assert_eq!(repo_status.untracked_files.len(), 2);
             // train/
             // test/
             // nlp/
@@ -182,11 +184,12 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 5);
             // README.md
             // labels.txt
+            // prompts.jsonl
             // annotations/README.md
             // annotations/train/two_shot.csv
             // annotations/train/annotations.txt
             // annotations/train/bounding_box.csv
-            assert_eq!(repo_status.untracked_files.len(), 6);
+            assert_eq!(repo_status.untracked_files.len(), 7);
 
             Ok(())
         })

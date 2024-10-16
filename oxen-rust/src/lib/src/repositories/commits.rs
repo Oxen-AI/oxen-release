@@ -434,7 +434,7 @@ mod tests {
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_files.len(), 3);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
@@ -457,7 +457,7 @@ mod tests {
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_files.len(), 3);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
