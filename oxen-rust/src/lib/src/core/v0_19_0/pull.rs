@@ -94,7 +94,7 @@ pub async fn pull_remote_branch(
             repositories::merge::merge_commit_into_base(
                 repo,
                 &new_head_commit,
-                &previous_head_commit,
+                previous_head_commit,
             )?;
         }
     }

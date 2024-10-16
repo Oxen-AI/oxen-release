@@ -900,7 +900,7 @@ pub fn scan_df(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    log::debug!("Scanning df with total_rows: {}", total_rows);
+    log::debug!("Scanning df {:?}", path.as_ref());
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");

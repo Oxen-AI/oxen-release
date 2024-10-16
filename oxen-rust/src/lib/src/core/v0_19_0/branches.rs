@@ -140,10 +140,10 @@ pub async fn checkout_commit(
     }
 
     // Fetch entries if needed
-    fetch::maybe_fetch_missing_entries(repo, &to_commit).await?;
+    fetch::maybe_fetch_missing_entries(repo, to_commit).await?;
 
     // Set working repo to commit
-    set_working_repo_to_commit(repo, &to_commit, from_commit).await?;
+    set_working_repo_to_commit(repo, to_commit, from_commit).await?;
 
     Ok(())
 }
@@ -171,7 +171,7 @@ pub async fn set_working_repo_to_commit(
         }
 
         // Only cleanup removed files if we are checking out from an existing tree
-        let from_tree = CommitMerkleTree::from_commit(repo, &from_commit)?;
+        let from_tree = CommitMerkleTree::from_commit(repo, from_commit)?;
         cleanup_removed_files(repo, &target_tree, &from_tree, &mut progress)?;
         Some(from_tree)
     } else {
@@ -330,14 +330,14 @@ fn r_restore_missing_or_modified_files(
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
-                restore_file(repo, &file_node, &full_path)?;
+                restore_file(repo, file_node, &full_path)?;
                 progress.increment_restored();
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
                 if current_hash != file_node.hash.to_string() {
                     log::debug!("Updating modified file: {:?}", rel_path);
-                    restore_file(repo, &file_node, &full_path)?;
+                    restore_file(repo, file_node, &full_path)?;
                     progress.increment_modified();
                 }
             }
@@ -345,7 +345,7 @@ fn r_restore_missing_or_modified_files(
         EMerkleTreeNode::Directory(dir_node) => {
             // Early exit if the directory is the same in the from and target trees
             if let Some(from_tree) = from_tree {
-                if let Some(from_node) = from_tree.get_by_path(&path)? {
+                if let Some(from_node) = from_tree.get_by_path(path)? {
                     if from_node.node.hash() == dir_node.hash {
                         log::debug!("r_restore_missing_or_modified_files path {:?} is the same as from_tree", path);
                         return Ok(());
