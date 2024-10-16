@@ -158,7 +158,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commit = repositories::commits::head_commit(&repo)?;
             let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-            assert_eq!(schemas.len(), 7);
+            assert_eq!(schemas.len(), 8);
             let path = PathBuf::from("annotations")
                 .join("train")
                 .join("bounding_box.csv");
