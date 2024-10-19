@@ -146,13 +146,15 @@ async fn r_push_node(
 ) -> Result<(), OxenError> {
     // Recursively push the node and all its children
     // We want to push all the children before the commit at the root
+    log::debug!("r_push_node pre children: {}", node);
     for child in &node.children {
+        log::debug!("pushing child: {}", child);
         if !child.is_file() {
             Box::pin(r_push_node(repo, remote_repo, commit, child, progress)).await?;
         }
     }
 
-    log::debug!("r_push_node: {}", node);
+    log::debug!("r_push_node post children: {}", node);
 
     // Check if the node exists on the remote
     let has_node = api::client::tree::has_node(remote_repo, node.hash).await?;

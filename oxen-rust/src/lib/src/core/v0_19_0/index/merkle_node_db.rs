@@ -65,7 +65,7 @@ use crate::util;
 
 use crate::model::merkle_tree::node::{
     CommitNode, DirNode, EMerkleTreeNode, FileChunkNode, FileNode, MerkleTreeNode,
-    MerkleTreeNodeType, SchemaNode, TMerkleTreeNode, VNode,
+    MerkleTreeNodeType, TMerkleTreeNode, VNode,
 };
 
 const NODE_FILE: &str = "node";
@@ -234,9 +234,6 @@ impl MerkleNodeDB {
             MerkleTreeNodeType::Dir => Ok(EMerkleTreeNode::Directory(DirNode::deserialize(data)?)),
             MerkleTreeNodeType::File => Ok(EMerkleTreeNode::File(FileNode::deserialize(data)?)),
             MerkleTreeNodeType::VNode => Ok(EMerkleTreeNode::VNode(VNode::deserialize(data)?)),
-            MerkleTreeNodeType::Schema => {
-                Ok(EMerkleTreeNode::Schema(SchemaNode::deserialize(data)?))
-            }
             MerkleTreeNodeType::FileChunk => Ok(EMerkleTreeNode::FileChunk(
                 FileChunkNode::deserialize(data)?,
             )),

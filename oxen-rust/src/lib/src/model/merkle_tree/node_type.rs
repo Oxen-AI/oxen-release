@@ -1,6 +1,6 @@
 //! This is the type of node that we are storing in the merkle tree
 //!
-//! There are only 6 node types as of now, so can store in a u8, and would
+//! There are only 5 node types as of now, so can store in a u8, and would
 //! need a migration to change anyways.
 //!
 //! This value is stored at the top of a merkle tree db file
@@ -18,7 +18,6 @@ pub enum MerkleTreeNodeType {
     File,
     Dir,
     VNode,
-    Schema,
     FileChunk,
 }
 
@@ -29,8 +28,7 @@ impl MerkleTreeNodeType {
             MerkleTreeNodeType::Dir => 1u8,
             MerkleTreeNodeType::VNode => 2u8,
             MerkleTreeNodeType::File => 3u8,
-            MerkleTreeNodeType::Schema => 4u8,
-            MerkleTreeNodeType::FileChunk => 5u8,
+            MerkleTreeNodeType::FileChunk => 4u8,
         }
     }
 
@@ -40,8 +38,7 @@ impl MerkleTreeNodeType {
             1u8 => MerkleTreeNodeType::Dir,
             2u8 => MerkleTreeNodeType::VNode,
             3u8 => MerkleTreeNodeType::File,
-            4u8 => MerkleTreeNodeType::Schema,
-            5u8 => MerkleTreeNodeType::FileChunk,
+            4u8 => MerkleTreeNodeType::FileChunk,
             _ => panic!("Invalid MerkleTreeNodeType: {}", val),
         }
     }

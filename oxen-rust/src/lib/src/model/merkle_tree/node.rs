@@ -8,7 +8,6 @@ pub mod file_node;
 pub mod file_node_types;
 pub mod file_node_with_dir;
 pub mod merkle_tree_node;
-pub mod schema_node;
 pub mod vnode;
 
 pub use commit_node::CommitNode;
@@ -19,7 +18,6 @@ pub use file_node::FileNode;
 pub use file_node_types::{FileChunkType, FileStorageType};
 pub use file_node_with_dir::FileNodeWithDir;
 pub use merkle_tree_node::MerkleTreeNode;
-pub use schema_node::SchemaNode;
 pub use vnode::VNode;
 
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -33,7 +31,6 @@ pub enum EMerkleTreeNode {
     File(FileNode),
     Directory(DirNode),
     VNode(VNode),
-    Schema(SchemaNode),
     FileChunk(FileChunkNode),
     Commit(CommitNode),
 }
@@ -44,7 +41,6 @@ impl EMerkleTreeNode {
             EMerkleTreeNode::File(_) => MerkleTreeNodeType::File,
             EMerkleTreeNode::Directory(_) => MerkleTreeNodeType::Dir,
             EMerkleTreeNode::VNode(_) => MerkleTreeNodeType::VNode,
-            EMerkleTreeNode::Schema(_) => MerkleTreeNodeType::Schema,
             EMerkleTreeNode::FileChunk(_) => MerkleTreeNodeType::FileChunk,
             EMerkleTreeNode::Commit(_) => MerkleTreeNodeType::Commit,
         }
@@ -55,7 +51,6 @@ impl EMerkleTreeNode {
             EMerkleTreeNode::File(file) => file.hash,
             EMerkleTreeNode::Directory(dir) => dir.hash,
             EMerkleTreeNode::VNode(vnode) => vnode.hash,
-            EMerkleTreeNode::Schema(schema) => schema.hash,
             EMerkleTreeNode::FileChunk(file_chunk) => file_chunk.hash,
             EMerkleTreeNode::Commit(commit) => commit.hash,
         }
@@ -73,7 +68,6 @@ impl EMerkleTreeNode {
             EMerkleTreeNode::File(_) => true,
             EMerkleTreeNode::Directory(_) => false,
             EMerkleTreeNode::VNode(_) => false,
-            EMerkleTreeNode::Schema(_) => true,
             EMerkleTreeNode::FileChunk(_) => true,
             EMerkleTreeNode::Commit(_) => false,
         }
