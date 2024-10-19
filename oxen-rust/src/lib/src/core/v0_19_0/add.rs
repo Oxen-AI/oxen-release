@@ -359,6 +359,7 @@ pub fn process_add_file(
     let mut oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
+        log::debug!("got existing file_node: {:?}", file_node);
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
@@ -522,8 +523,9 @@ pub fn p_add_file_node_to_staged_db(
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = relative_path.as_ref();
     log::debug!(
-        "writing {:?} to staged db: {:?}",
+        "writing {:?} [{:?}] to staged db: {:?}",
         relative_path,
+        status,
         staged_db.path()
     );
     let staged_file_node = StagedMerkleTreeNode {

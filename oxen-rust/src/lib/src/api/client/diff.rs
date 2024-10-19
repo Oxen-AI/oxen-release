@@ -22,7 +22,6 @@ pub async fn list_diff_entries(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    log::debug!("list_page got body: {}", body);
     let response: Result<CompareEntriesResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val.compare),
@@ -47,7 +46,6 @@ pub async fn diff_entries(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    log::debug!("list_page got body: {}", body);
     let response: Result<CompareEntryResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val.compare),
