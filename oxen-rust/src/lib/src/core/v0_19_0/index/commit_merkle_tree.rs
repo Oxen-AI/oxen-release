@@ -539,9 +539,7 @@ impl CommitMerkleTree {
                     node.children.push(child);
                 }
                 // FileChunks and Schemas are leaf nodes
-                MerkleTreeNodeType::FileChunk
-                | MerkleTreeNodeType::Schema
-                | MerkleTreeNodeType::File => {
+                MerkleTreeNodeType::FileChunk | MerkleTreeNodeType::File => {
                     node.children.push(child);
                 }
             }
@@ -599,9 +597,7 @@ impl CommitMerkleTree {
                     node.children.push(child);
                 }
                 // FileChunks and Schemas are leaf nodes
-                MerkleTreeNodeType::FileChunk
-                | MerkleTreeNodeType::Schema
-                | MerkleTreeNodeType::File => {
+                MerkleTreeNodeType::FileChunk | MerkleTreeNodeType::File => {
                     node.children.push(child);
                 }
             }

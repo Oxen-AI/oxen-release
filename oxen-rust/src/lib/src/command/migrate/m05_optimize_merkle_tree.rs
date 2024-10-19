@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 
 use super::Migrate;
 
+use crate::config::RepositoryConfig;
 use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
@@ -16,9 +17,12 @@ use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
 use crate::core::v0_19_0::index::MerkleNodeDB;
+use crate::core::versions::MinOxenVersion;
 // use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::*;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::EntryDataType;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::{Commit, LocalRepository};
@@ -140,6 +144,12 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         bar.inc(1);
     }
 
+    // Set the oxen version to 0.19.0
+    let mut config = RepositoryConfig::from_repo(repo)?;
+    config.min_version = Some(MinOxenVersion::V0_19_0.as_str().to_string());
+    let path = util::fs::config_filepath(&repo.path);
+    config.save(&path)?;
+
     Ok(())
 }
 
@@ -171,10 +181,13 @@ fn migrate_merkle_tree(
     let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
 
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&db::key_val::opts::default(), dir_hashes_dir, false)?;
+        DBWithThreadMode::open(&db::key_val::opts::default(), dir_hashes_dir)?;
+
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
     let hash = hash.replace('"', "");
+    log::debug!("OG Dir hash for commit {} is {}", commit, hash);
     let hash = MerkleHash::from_str(&hash)?;
+    log::debug!("Dir hash for commit {} is {}", commit, hash);
 
     let dir_path = Path::new("");
 
@@ -184,6 +197,11 @@ fn migrate_merkle_tree(
         commit_entry_readers.push((c.clone(), reader));
     }
 
+    log::debug!(
+        "Got {} commit entry readers for commit {}",
+        commit_entry_readers.len(),
+        commit
+    );
     // Write the initial commit db
     let commit_id = MerkleHash::from_str(&commit.id)?;
     let parent_ids = commit
@@ -191,6 +209,7 @@ fn migrate_merkle_tree(
         .iter()
         .map(|id| MerkleHash::from_str(id).unwrap())
         .collect();
+    log::debug!("Parent ids for commit {} are {:?}", commit, parent_ids);
 
     // Create the root commit
     let node = CommitNode {
@@ -230,6 +249,13 @@ fn migrate_merkle_tree(
         dir_path,
         &hash,
     )?;
+
+    // Remove all the quotes from the db
+    let vals: Vec<(String, String)> = str_val_db::list(&dir_hashes_db)?;
+    for (key, val) in vals {
+        let val = val.replace('"', "");
+        str_val_db::put(&dir_hashes_db, key, &val)?;
+    }
 
     Ok(())
 }
@@ -323,8 +349,8 @@ fn migrate_dir(
 
     // log2(N / 10000)
     let total_children = children.len();
-    let num_vnodes = (total_children as f32 / 10000_f32).log2();
-    let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
+    let vnode_size = 10_000;
+    let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
     println!("{} VNodes for {} children", num_vnodes, total_children);
 
     // Group the children into their buckets
@@ -336,9 +362,13 @@ fn migrate_dir(
     }
 
     // Compute new hashes for each bucket
+    // TODO: Make sure we make these unique like in the commit writer
     let mut bucket_hashes: Vec<u128> = vec![0; num_vnodes as usize];
     for (i, bucket) in buckets.iter().enumerate() {
         let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+        hasher.update(b"vnode");
+        // generate a uuid for the vnode
+        hasher.update(dir_path.to_str().unwrap().as_bytes());
         for child in bucket {
             // TODO: child.hash() is a string and we should just use
             //       the u128 hash for speed and consistency
@@ -371,7 +401,7 @@ fn migrate_dir(
                 TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
                 TreeObjectChild::File { path, hash } => (MerkleTreeNodeType::File, hash, path),
                 TreeObjectChild::Dir { path, hash } => (MerkleTreeNodeType::Dir, hash, path),
-                TreeObjectChild::Schema { path, hash } => (MerkleTreeNodeType::Schema, hash, path),
+                TreeObjectChild::Schema { path: _, hash: _ } => continue,
             };
 
             // if j % 1000 == 0 {
@@ -395,10 +425,12 @@ fn migrate_dir(
                 }
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
+                    let current_commit = &commits[commit_idx];
                     write_file_node(
                         repo,
                         entry_reader,
                         &commit_entry_readers,
+                        current_commit,
                         &mut node_db,
                         path,
                         &child_hash,
@@ -429,16 +461,6 @@ fn migrate_dir(
                         path,
                         &child_hash,
                     )?;
-                }
-                MerkleTreeNodeType::Schema => {
-                    // Schema we can directly write
-                    let file_name = path.file_name().unwrap().to_str().unwrap();
-                    let val = SchemaNode {
-                        name: file_name.to_owned(),
-                        hash: child_hash,
-                        ..Default::default()
-                    };
-                    node_db.add_child(&val)?;
                 }
             }
         }
@@ -570,6 +592,7 @@ fn write_file_node(
     repo: &LocalRepository,
     entry_reader: &CommitEntryReader,
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
+    current_commit: &Commit,
     node_db: &mut MerkleNodeDB,
     path: &Path,
     hash: &MerkleHash,
@@ -626,11 +649,40 @@ fn write_file_node(
     let extension = file_name.split('.').last().unwrap_or_default().to_string();
     let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
 
+    // Look up schema metadata
+    let mut metadata = repositories::metadata::get_file_metadata(&version_path, &data_type)?;
+
+    // Look up existing schema metadata if it is tabular
+    if data_type == EntryDataType::Tabular {
+        let schema_reader =
+            core::v0_10_0::index::schema_reader::SchemaReader::new(repo, &current_commit.id)?;
+        let schema_metadata = schema_reader.get_schema_for_file(&path)?;
+        if let Some(schema) = schema_metadata {
+            match &mut metadata {
+                Some(GenericMetadata::MetadataTabular(m)) => {
+                    m.tabular.schema = schema;
+                }
+                _ => {
+                    return Err(OxenError::basic_str("Expected tabular metadata"));
+                }
+            }
+        }
+    };
+
+    let metadata_hash = util::hasher::maybe_get_metadata_hash(&metadata.clone())?;
+    let combined_hash = util::hasher::get_combined_hash(metadata_hash, hash.to_u128())?;
+    let combined_hash = MerkleHash::new(combined_hash);
+    let metadata_hash = metadata_hash.map(MerkleHash::new);
+
+    // Rename the version path file name to drop the extension
+    let new_version_path = version_path.with_extension("");
+    util::fs::rename(&version_path, &new_version_path)?;
+
     let val = FileNode {
         name: file_name.to_owned(),
         hash: *hash,
-        combined_hash: *hash,
-        metadata_hash: None,
+        combined_hash,
+        metadata_hash,
         num_bytes,
         chunk_type: FileChunkType::SingleFile,
         storage_backend: FileStorageType::Disk,
@@ -641,7 +693,7 @@ fn write_file_node(
         data_type,
         mime_type,
         extension,
-        metadata: None,
+        metadata,
         dtype: MerkleTreeNodeType::File,
     };
     node_db.add_child(&val)?;
