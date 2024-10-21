@@ -114,7 +114,7 @@ pub fn commit_with_cfg(
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
 
-    // log::debug!("🫧======================🫧");
+    // println!("🫧======================🫧");
 
     let new_commit = NewCommitBody {
         message: message.to_string(),
@@ -156,6 +156,7 @@ pub fn commit_with_cfg(
     ref_writer.set_head_commit_id(&commit_id)?;
 
     // Print that we finished
+
     println!(
         "🐂 commit {} in {}",
         commit.id,
@@ -164,6 +165,7 @@ pub fn commit_with_cfg(
         ))
     );
 
+    
     Ok(commit)
 }
 
@@ -370,9 +372,9 @@ pub fn commit_dir_entries(
     repo: &LocalRepository,
     dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
     new_commit: &NewCommitBody,
-    staged_db_path: &Path,
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
+
     log::debug!("commit_dir_entries got {} entries", dir_entries.len());
     for (path, entries) in &dir_entries {
         log::debug!(
@@ -471,9 +473,6 @@ pub fn commit_dir_entries(
     // Remove all the directories that are staged for removal
     cleanup_rm_dirs(&dir_hash_db, &dir_entries)?;
 
-    // Clear the staged db
-    util::fs::remove_dir_all(staged_db_path)?;
-
     Ok(node.to_commit())
 }
 
@@ -486,6 +485,7 @@ fn cleanup_rm_dirs(
             if let EMerkleTreeNode::Directory(dir_node) = &entry.node.node {
                 if entry.status == StagedEntryStatus::Removed {
                     let dir_path = path.join(&dir_node.name);
+                    log::debug!("dir path for cleanup: {dir_path:?}");
                     let key = dir_path.to_str().unwrap();
                     dir_hash_db.delete(key)?;
                 }
@@ -756,6 +756,8 @@ fn write_commit_entries(
         root_path,
         &mut total_written,
     )?;
+
+    log::debug!("R CREATE OVER LOL");
 
     Ok(())
 }
