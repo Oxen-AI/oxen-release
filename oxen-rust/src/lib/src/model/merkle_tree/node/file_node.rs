@@ -132,8 +132,9 @@ impl fmt::Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "\"{}\" ({}) [{}] (commit {})",
+            "\"{}\" ({}) {} [{}] (commit {})",
             self.name,
+            self.mime_type,
             bytesize::ByteSize::b(self.num_bytes),
             self.hash.to_short_str(),
             self.last_commit_id.to_short_str()
