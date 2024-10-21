@@ -532,7 +532,7 @@ fn write_dir_child(
         for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
             let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
             readers.push((c.clone(), reader));
-            log::debug!("Reader for commit: {}", c);
+            // log::debug!("Reader for commit: {}", c);
         }
 
         let entries = dir_entry_reader.list_entries()?;
@@ -662,7 +662,14 @@ fn write_file_node(
     let file_name = path.file_name().unwrap().to_str().unwrap();
 
     let version_path = util::fs::version_path(repo, &commit_entry);
-    let mime_type = util::fs::file_mime_type(&version_path);
+    log::debug!("write_file_node {:?} version_path: {:?}", path, version_path);
+    let mut mime_type = util::fs::file_mime_type(&version_path);
+
+    // Hack to get the mime type for README.md files
+    if file_name == "README.md" || file_name == "README.txt" || file_name == "README" {
+        mime_type = "text/markdown".to_string();
+    }
+
     let extension = file_name.split('.').last().unwrap_or_default().to_string();
     let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
 
