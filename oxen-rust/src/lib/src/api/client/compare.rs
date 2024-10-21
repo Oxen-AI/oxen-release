@@ -7,6 +7,7 @@ use crate::view::compare::{
     TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
     TabularCompareTargetBody,
 };
+use crate::view::diff::{DirDiffTreeSummary, DirTreeDiffResponse};
 use crate::view::JsonDataFrameViewResponse;
 use crate::view::{compare::CompareTabular, JsonDataFrameView};
 
@@ -149,6 +150,28 @@ pub async fn commits(
     }
 }
 
+pub async fn dir_tree(
+    remote_repo: &RemoteRepository,
+    base_commit_id: &MerkleHash,
+    head_commit_id: &MerkleHash,
+) -> Result<Vec<DirDiffTreeSummary>, OxenError> {
+    let base_commit_id = base_commit_id.to_string();
+    let head_commit_id = head_commit_id.to_string();
+    let uri = format!("/compare/dir_tree/{base_commit_id}..{head_commit_id}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<DirTreeDiffResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(dir_tree) => Ok(dir_tree.dirs),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "commits() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;
@@ -165,6 +188,10 @@ mod tests {
     use polars::lazy::frame::IntoLazy;
 
     use std::str::FromStr;
+
+    // TODO: Add test for dir_tree
+    // 1) Speed up sync with lots of commits (send more nodes/entries together)
+    // 2) README.md does not seem to get marked as markdown on initial migration
 
     #[tokio::test]
     async fn test_compare_commits() -> Result<(), OxenError> {

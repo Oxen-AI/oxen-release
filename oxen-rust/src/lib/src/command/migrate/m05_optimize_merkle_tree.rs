@@ -177,18 +177,6 @@ fn migrate_merkle_tree(
     // Get the entry reader for the commit
     let entry_reader = CommitEntryReader::new(repo, commit)?;
 
-    // Get the root hash
-    let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
-
-    let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&db::key_val::opts::default(), dir_hashes_dir)?;
-
-    let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
-    let hash = hash.replace('"', "");
-    log::debug!("OG Dir hash for commit {} is {}", commit, hash);
-    let hash = MerkleHash::from_str(&hash)?;
-    log::debug!("Dir hash for commit {} is {}", commit, hash);
-
     let dir_path = Path::new("");
 
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
@@ -223,6 +211,26 @@ fn migrate_merkle_tree(
     };
 
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, None)?;
+
+    // Get the root hash
+    let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
+
+    let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&db::key_val::opts::default(), dir_hashes_dir)?;
+
+    let hash: Option<String> = str_val_db::get(&dir_hashes_db, "")?;
+
+    // This failure just means we won't migrate the dir, but the commit db still gets written
+    // above so we're OK, I don't know how we get into this state
+    let Some(hash) = hash else {
+        log::warn!("No dir hash found for commit {}", commit);
+        return Ok(());
+    };
+
+    let hash = hash.replace('"', "");
+    log::debug!("OG Dir hash for commit {} is {}", commit, hash);
+    let hash = MerkleHash::from_str(&hash)?;
+    log::debug!("Dir hash for commit {} is {}", commit, hash);
 
     // Commit node has one child, the root dir
     println!("Writing commit node {:?} to {:?}", node, commit_db.path());
@@ -447,6 +455,12 @@ fn migrate_dir(
                         path,
                         &child_hash,
                     )?;
+
+                    if dir_node.last_commit_id == MerkleHash::new(0) {
+                        log::warn!("No last commit id found for path {:?}", path);
+                        return Ok(());
+                    }
+
                     // Recurse if it's a directory
                     let mut dir_db =
                         MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.hash))?;
@@ -584,7 +598,10 @@ fn write_dir_child(
         data_type_sizes,
     };
     println!("Writing dir node {:?} to {:?}", node, node_db.path());
-    node_db.add_child(&node)?;
+    if last_commit_id != 0 {
+        log::warn!("No last commit id found for path {:?}", path);
+        node_db.add_child(&node)?;
+    }
     Ok(node)
 }
 

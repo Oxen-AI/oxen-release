@@ -201,11 +201,11 @@ impl MerkleTreeNode {
             if let EMerkleTreeNode::File(_) = &child.node {
                 // Check if the file exists in the versions directory
                 let file_path = util::fs::version_path_from_hash(repo, child.hash.to_string());
-                log::debug!(
-                    "list_missing_file_hashes {} checking file_path: {:?}",
-                    self,
-                    file_path
-                );
+                // log::debug!(
+                //     "list_missing_file_hashes {} checking file_path: {:?}",
+                //     self,
+                //     file_path
+                // );
                 if !file_path.exists() {
                     missing_hashes.insert(child.hash);
                 }
