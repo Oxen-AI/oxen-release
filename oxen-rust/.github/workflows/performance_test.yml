@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  performance_test:
+    runs-on: macos-latest
 
     env:
       OXEN_API_KEY: ${{ secrets.DEV_OXEN_API_KEY }}
