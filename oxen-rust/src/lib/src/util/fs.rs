@@ -843,11 +843,11 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
     }
 }
 
-pub fn is_tabular(path: &Path) -> bool {
-    if has_ext(path, "json") {
+pub fn is_tabular_from_extension(data_path: &Path, file_path: &Path) -> bool {
+    if has_ext(file_path, "json") {
         // check if the first character in the file is '['
         // if so it is just a json array we can treat as tabular
-        if let Ok(c) = read_first_byte_from_file(path) {
+        if let Ok(c) = read_first_byte_from_file(data_path) {
             if "[" == c.to_string() {
                 return true;
             }
@@ -858,7 +858,11 @@ pub fn is_tabular(path: &Path) -> bool {
         .into_iter()
         .map(String::from)
         .collect();
-    contains_ext(path, &exts)
+    contains_ext(file_path, &exts)
+}
+
+pub fn is_tabular(path: &Path) -> bool {
+    is_tabular_from_extension(path, path)
 }
 
 pub fn is_image(path: &Path) -> bool {
@@ -934,17 +938,24 @@ pub fn data_type_from_extension(path: &Path) -> EntryDataType {
 }
 
 pub fn file_mime_type(path: &Path) -> String {
-    match infer::get_from_path(path) {
+    file_mime_type_from_extension(path, path)
+}
+
+// We have this split out because we get the mime type from the extension
+// but the data type from the contents
+// and the version path does not always have the extension in newer versions of oxen
+pub fn file_mime_type_from_extension(data_path: &Path, file_path: &Path) -> String {
+    match infer::get_from_path(data_path) {
         Ok(Some(kind)) => {
-            log::debug!("file_mime_type {:?} {}", path, kind.mime_type());
+            // log::debug!("file_mime_type {:?} {}", data_path, kind.mime_type());
             String::from(kind.mime_type())
         }
         _ => {
-            if is_markdown(path) {
+            if is_markdown(file_path) {
                 String::from("text/markdown")
-            } else if is_utf8(path) {
+            } else if is_utf8(data_path) {
                 String::from("text/plain")
-            } else if path.is_dir() {
+            } else if data_path.is_dir() {
                 String::from("inode/directory")
             } else {
                 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
@@ -958,7 +969,18 @@ pub fn file_mime_type(path: &Path) -> String {
     }
 }
 
-pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
+pub fn datatype_from_mimetype(data_path: &Path, mime_type: &str) -> EntryDataType {
+    datatype_from_mimetype_from_extension(data_path, data_path, mime_type)
+}
+
+// We have this split out because we get the mime type from the extension
+// but the data type from the contents
+// and the version path does not always have the extension in newer versions of oxen
+pub fn datatype_from_mimetype_from_extension(
+    data_path: &Path,
+    file_path: &Path,
+    mime_type: &str,
+) -> EntryDataType {
     match mime_type {
         // Image
         "image/jpeg" => EntryDataType::Image,
@@ -995,13 +1017,14 @@ pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
         "audio/x-ape" => EntryDataType::Audio,
 
         mime_type => {
-            log::debug!(
-                "datatype_from_mimetype trying to infer {:?} {}",
-                path,
-                mime_type
-            );
+            // log::debug!(
+            //     "datatype_from_mimetype trying to infer {:?} {:?} {}",
+            //     data_path,
+            //     file_path,
+            //     mime_type
+            // );
             // Catch text and dataframe types from file extension
-            if is_tabular(path) {
+            if is_tabular_from_extension(data_path, file_path) {
                 EntryDataType::Tabular
             } else if "text/plain" == mime_type || "text/markdown" == mime_type {
                 EntryDataType::Text

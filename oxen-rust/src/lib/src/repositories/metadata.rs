@@ -161,10 +161,10 @@ pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
     Ok(metadata.len())
 }
 
-/// Returns metadata based on data_type
-pub fn get_file_metadata(
+pub fn get_file_metadata_with_extension(
     path: impl AsRef<Path>,
     data_type: &EntryDataType,
+    extension: &str,
 ) -> Result<Option<GenericMetadata>, OxenError> {
     match data_type {
         // dir should not be passed in here
@@ -197,7 +197,7 @@ pub fn get_file_metadata(
                 Ok(None)
             }
         },
-        EntryDataType::Tabular => match tabular::get_metadata(path) {
+        EntryDataType::Tabular => match tabular::get_metadata_with_extension(path, extension) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataTabular(metadata))),
             Err(err) => {
                 log::warn!("could not compute tabular metadata: {}", err);
@@ -206,6 +206,15 @@ pub fn get_file_metadata(
         },
         _ => Ok(None),
     }
+}
+
+/// Returns metadata based on data_type
+pub fn get_file_metadata(
+    path: impl AsRef<Path>,
+    data_type: &EntryDataType,
+) -> Result<Option<GenericMetadata>, OxenError> {
+    let path = path.as_ref();
+    get_file_metadata_with_extension(path, data_type, &util::fs::file_extension(path))
 }
 
 #[cfg(test)]

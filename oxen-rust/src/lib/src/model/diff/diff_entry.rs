@@ -286,7 +286,7 @@ impl DiffEntry {
             }
         }
 
-        log::debug!("fall through .... not doing full diff for tabular");
+        // log::debug!("fall through .... not doing full diff for tabular");
         Ok(DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
