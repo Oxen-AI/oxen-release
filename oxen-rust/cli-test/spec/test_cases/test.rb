@@ -3,7 +3,7 @@ require 'dotenv'
 
 RSpec.describe 'test', type: :aruba do
   before(:each) do
-    aruba.config.exit_timeout = 6000 # Set the timeout to 6000 seconds
+    aruba.config.exit_timeout = 6000 # Set the timeout to 600 0seconds
   end
 
   after(:each) do
@@ -16,7 +16,7 @@ RSpec.describe 'test', type: :aruba do
     cd 'test-small-repo'
 
     # Generate image repository
-    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 1 --num_dirs 1 --image_size 128 128')
+    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 100000 --num_dirs 10 --image_size 128 128')
 
     # Initialize the repository
     init_time = measure_time('oxen init')
