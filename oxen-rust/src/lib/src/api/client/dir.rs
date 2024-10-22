@@ -4,6 +4,8 @@ use crate::api;
 use crate::api::client;
 use crate::constants;
 use crate::error::OxenError;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::metadata::MetadataDir;
 use crate::model::RemoteRepository;
 use crate::view::PaginatedDirEntries;
 
@@ -20,11 +22,12 @@ pub async fn list_root(remote_repo: &RemoteRepository) -> Result<PaginatedDirEnt
 
 pub async fn list(
     remote_repo: &RemoteRepository,
-    revision: &str,
+    revision: impl AsRef<str>,
     path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
 ) -> Result<PaginatedDirEntries, OxenError> {
+    let revision = revision.as_ref();
     let path = path.as_ref().to_string_lossy();
     let uri = format!("/dir/{revision}/{path}?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -32,12 +35,31 @@ pub async fn list(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    log::debug!("list_page got body: {}", body);
     let response: Result<PaginatedDirEntries, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val),
         Err(err) => Err(OxenError::basic_str(format!(
             "api::dir::list_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
+
+pub async fn file_counts(
+    remote_repo: &RemoteRepository,
+    revision: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<MetadataDir, OxenError> {
+    let path_str = path.as_ref().to_string_lossy();
+    let response = list(remote_repo, revision, &path, 1, 1).await?;
+    match response.dir {
+        Some(dir) => match dir.metadata {
+            Some(GenericMetadata::MetadataDir(metadata)) => Ok(metadata),
+            _ => Err(OxenError::basic_str(format!(
+                "No metadata on directory found at {path_str}"
+            ))),
+        },
+        None => Err(OxenError::basic_str(format!(
+            "No directory found at {path_str}"
         ))),
     }
 }
