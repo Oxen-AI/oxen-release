@@ -743,11 +743,11 @@ pub fn df_hash_rows_on_cols(
 
                         let mut hashes = vec![];
                         for i in 0..num_rows {
-                            log::debug!("row: {:?}", i);
+                            // log::debug!("row: {:?}", i);
                             let mut buffer: Vec<u8> = vec![];
                             for series in s_a.iter() {
                                 let elem = series.get(i).unwrap();
-                                log::debug!("\telem: {:?}", elem);
+                                // log::debug!("\telem: {:?}", elem);
                                 let mut elem_bytes = any_val_to_bytes(&elem);
                                 buffer.append(&mut elem_bytes);
                             }
@@ -816,6 +816,8 @@ pub fn read_df_with_extension(
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
+
+    log::debug!("Reading df with extension {:?} {:?}", extension, path);
 
     let df = match extension {
         "ndjson" => read_df_jsonl(path),
