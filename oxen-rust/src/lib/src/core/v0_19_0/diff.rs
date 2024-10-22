@@ -326,11 +326,43 @@ pub fn list_diff_entries(
 }
 
 pub fn list_changed_dirs(
-    _repo: &LocalRepository,
-    _base_commit: &Commit,
-    _head_commit: &Commit,
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
-    todo!()
+    let mut changed_dirs: Vec<(PathBuf, DiffEntryStatus)> = vec![];
+
+    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
+    let head_tree = CommitMerkleTree::from_commit(repo, head_commit)?;
+
+    let base_dirs = repositories::tree::list_all_dirs(&base_tree)?;
+    let head_dirs = repositories::tree::list_all_dirs(&head_tree)?;
+
+    let added_dirs = head_dirs.difference(&base_dirs).collect::<HashSet<_>>();
+    let removed_dirs = base_dirs.difference(&head_dirs).collect::<HashSet<_>>();
+    let modified_or_unchanged_dirs = head_dirs.intersection(&base_dirs).collect::<HashSet<_>>();
+
+    for dir in added_dirs.iter() {
+        changed_dirs.push((dir.path.clone(), DiffEntryStatus::Added));
+    }
+
+    for dir in removed_dirs.iter() {
+        changed_dirs.push((dir.path.clone(), DiffEntryStatus::Removed));
+    }
+
+    for dir in modified_or_unchanged_dirs.iter() {
+        let base_dir_hash = dir.dir_node.hash;
+        let head_dir_hash = dir.dir_node.hash;
+
+        if base_dir_hash != head_dir_hash {
+            changed_dirs.push((dir.path.clone(), DiffEntryStatus::Modified));
+        }
+    }
+
+    // Sort by path for consistency
+    changed_dirs.sort_by(|a, b| a.0.cmp(&b.0));
+
+    Ok(changed_dirs)
 }
 
 pub fn diff_entries(

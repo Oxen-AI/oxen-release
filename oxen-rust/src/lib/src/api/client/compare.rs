@@ -179,19 +179,18 @@ mod tests {
     use crate::constants;
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
+    use crate::model::diff::diff_entry_status::DiffEntryStatus;
     use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
+    use crate::util;
     use crate::view::compare::{TabularCompareFieldBody, TabularCompareTargetBody};
     use polars::lazy::dsl::col;
     use polars::lazy::dsl::lit;
     use polars::lazy::frame::IntoLazy;
 
+    use std::path::PathBuf;
     use std::str::FromStr;
-
-    // TODO: Add test for dir_tree
-    // 1) Speed up sync with lots of commits (send more nodes/entries together)
-    // 2) README.md does not seem to get marked as markdown on initial migration
 
     #[tokio::test]
     async fn test_compare_commits() -> Result<(), OxenError> {
@@ -230,6 +229,57 @@ mod tests {
                 api::client::compare::commits(&remote_repo, &base_commit_id, &head_commit_id)
                     .await?;
             assert_eq!(commits.len(), 2);
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_dir_tree() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // Keep track of the commit ids
+            let mut commit_ids = Vec::new();
+
+            // Create 5 commits with 5 new directories
+            let total_dirs = 5;
+            for i in 0..total_dirs {
+                // Write a file
+                let dir_path = format!("dir_{i}");
+                let file_path = PathBuf::from(dir_path).join(format!("file_{i}.txt"));
+                let full_path = local_repo.path.join(file_path);
+
+                // Create the directory
+                util::fs::create_dir_all(full_path.parent().unwrap())?;
+
+                test::write_txt_file_to_path(full_path, format!("File content {}", i))?;
+                repositories::add(&local_repo, &local_repo.path)?;
+
+                let commit_message = format!("Commit {}", i);
+                let commit = repositories::commit(&local_repo, &commit_message)?;
+                commit_ids.push(commit.id);
+            }
+
+            // Set remote
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+
+            // Push the commits to the remote
+            repositories::push(&local_repo).await?;
+
+            let base_commit_id = MerkleHash::from_str(&commit_ids[1])?;
+            let head_commit_id = MerkleHash::from_str(&commit_ids[3])?;
+            let results =
+                api::client::compare::dir_tree(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            println!("results: {:?}", results);
+            assert_eq!(results.len(), 1);
+            let first = results.first().unwrap();
+            assert_eq!(first.name, PathBuf::from(""));
+            assert_eq!(first.status, DiffEntryStatus::Modified);
+            assert_eq!(first.children.len(), 2);
             Ok(remote_repo)
         })
         .await

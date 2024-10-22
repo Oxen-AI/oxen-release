@@ -123,6 +123,10 @@ impl ObjectsSchemaReader {
 
         log::debug!("got version path {:?}", version_path);
 
+        if !version_path.exists() {
+            return Ok(None);
+        }
+
         let schema: Result<Schema, serde_json::Error> =
             serde_json::from_reader(std::fs::File::open(version_path)?);
 
