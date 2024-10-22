@@ -16,7 +16,7 @@ RSpec.describe 'test', type: :aruba do
     cd 'test-small-repo'
 
     # Generate image repository
-    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 100000 --num_dirs 10 --image_size 128 128')
+    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 10000 --num_dirs 10 --image_size 128 128')
 
     # Initialize the repository
     puts "oxen init command took: #{measure_time('oxen init')} seconds"
