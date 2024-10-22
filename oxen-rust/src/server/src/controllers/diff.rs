@@ -245,6 +245,9 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
+    log::debug!("base_commit: {:?}", base_commit);
+    log::debug!("head_commit: {:?}", head_commit);
+    log::debug!("resource: {:?}", resource);
     let base_entry = repositories::entries::get_file(&repository, &base_commit, &resource)?;
     let head_entry = repositories::entries::get_file(&repository, &head_commit, &resource)?;
 
@@ -322,7 +325,7 @@ pub async fn create_df_diff(
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
     let node_2 =
-        repositories::entries::get_file(&repository, &commit_1, &resource_2)?.ok_or_else(|| {
+        repositories::entries::get_file(&repository, &commit_2, &resource_2)?.ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
 
