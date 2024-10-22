@@ -1,18 +1,24 @@
+use crate::core::db;
+use crate::core::db::key_val::path_db;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_commit_entry::DiffCommitEntry;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
+use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Commit, CommitEntry, DiffEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;
 
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use super::index::ObjectDBReader;
 
 pub fn diff_entries(
     repo: &LocalRepository,
@@ -270,6 +276,75 @@ pub fn list_diff_entries_in_dir_top_level(
         counts,
         pagination,
     })
+}
+
+pub fn get_dir_diff_entry_with_summary(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+    summary: GenericDiffSummary,
+) -> Result<Option<DiffEntry>, OxenError> {
+    // Dir hashes db is cheaper to open than objects reader
+    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::key_val::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::key_val::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
+    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
+
+    match (maybe_base_dir_hash, maybe_head_dir_hash) {
+        (Some(base_dir_hash), Some(head_dir_hash)) => {
+            let base_dir_hash = base_dir_hash.to_string();
+            let head_dir_hash = head_dir_hash.to_string();
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir_with_summary(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    summary,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            None,
+            base_commit,
+            Some(&dir),
+            head_commit,
+            summary,
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            Some(&dir),
+            base_commit,
+            None,
+            head_commit,
+            summary,
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
+    }
 }
 
 pub fn list_diff_entries(

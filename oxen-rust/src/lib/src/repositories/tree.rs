@@ -146,7 +146,7 @@ pub fn child_hashes(
 /// Collect MerkleTree into Directories
 pub fn list_all_dirs(tree: &CommitMerkleTree) -> Result<HashSet<DirNodeWithPath>, OxenError> {
     let mut dir_nodes = HashSet::new();
-    r_list_all_dirs(&tree.root, PathBuf::new(), &mut dir_nodes)?;
+    r_list_all_dirs(&tree.root, PathBuf::from(""), &mut dir_nodes)?;
     Ok(dir_nodes)
 }
 
@@ -161,12 +161,10 @@ fn r_list_all_dirs(
         match &child.node {
             EMerkleTreeNode::Directory(dir_node) => {
                 let new_path = traversed_path.join(&dir_node.name);
-                if new_path != PathBuf::from("") {
-                    dir_nodes.insert(DirNodeWithPath {
-                        dir_node: dir_node.to_owned(),
-                        path: new_path.to_owned(),
-                    });
-                }
+                dir_nodes.insert(DirNodeWithPath {
+                    dir_node: dir_node.to_owned(),
+                    path: new_path.to_owned(),
+                });
                 r_list_all_dirs(child, new_path, dir_nodes)?;
             }
             EMerkleTreeNode::VNode(_) => {

@@ -3,6 +3,7 @@ use crate::error::OxenError;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::diff_file_node::DiffFileNode;
+use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::merkle_tree::node::{DirNodeWithPath, FileNode, FileNodeWithDir};
 use crate::model::{Commit, DiffEntry, LocalRepository};
@@ -351,8 +352,28 @@ pub fn list_changed_dirs(
     }
 
     for dir in modified_or_unchanged_dirs.iter() {
-        let base_dir_hash = dir.dir_node.hash;
-        let head_dir_hash = dir.dir_node.hash;
+        let head_dir = head_tree.get_by_path(&dir.path)?;
+        let base_dir = base_tree.get_by_path(&dir.path)?;
+
+        let base_dir_hash = match base_dir {
+            Some(base_dir) => base_dir.hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: base_dir_hash not found for dir {:?} in commit {}",
+                    dir, base_commit.id)
+                ))
+            }
+        };
+
+        let head_dir_hash = match head_dir {
+            Some(head_dir) => head_dir.hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: head_dir_hash not found for dir {:?} in commit {}",
+                    dir, head_commit.id)
+                ))
+            }
+        };
 
         if base_dir_hash != head_dir_hash {
             changed_dirs.push((dir.path.clone(), DiffEntryStatus::Modified));
@@ -363,6 +384,62 @@ pub fn list_changed_dirs(
     changed_dirs.sort_by(|a, b| a.0.cmp(&b.0));
 
     Ok(changed_dirs)
+}
+
+pub fn get_dir_diff_entry_with_summary(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+    summary: GenericDiffSummary,
+) -> Result<Option<DiffEntry>, OxenError> {
+    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
+    let head_tree = CommitMerkleTree::from_commit(repo, head_commit)?;
+
+    let maybe_base_dir = base_tree.get_by_path(&dir)?;
+    let maybe_head_dir = head_tree.get_by_path(&dir)?;
+
+    match (maybe_base_dir, maybe_head_dir) {
+        (Some(base_dir), Some(head_dir)) => {
+            let base_dir_hash = base_dir.hash;
+            let head_dir_hash = head_dir.hash;
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir_with_summary(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    summary,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            None,
+            base_commit,
+            Some(&dir),
+            head_commit,
+            summary,
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            Some(&dir),
+            base_commit,
+            None,
+            head_commit,
+            summary,
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
+    }
 }
 
 pub fn diff_entries(

@@ -239,8 +239,12 @@ impl DiffEntry {
             let base_entry = base_entry.clone().unwrap();
             (base_entry.clone(), base_entry.data_type.clone())
         };
-        let base_resource = DiffEntry::resource_from_file_node(base_entry.clone(), &file_path);
-        let head_resource = DiffEntry::resource_from_file_node(head_entry.clone(), &file_path);
+        let base_version = base_commit.id.to_string();
+        let head_version = head_commit.id.to_string();
+        let base_resource =
+            DiffEntry::resource_from_file_node(base_entry.clone(), &file_path, &base_version);
+        let head_resource =
+            DiffEntry::resource_from_file_node(head_entry.clone(), &file_path, &head_version);
 
         let mut base_meta_entry =
             MetadataEntry::from_file_node(repo, base_entry.clone(), base_commit);
@@ -418,14 +422,15 @@ impl DiffEntry {
     fn resource_from_file_node(
         node: Option<FileNode>,
         file_path: impl AsRef<Path>,
+        version: impl AsRef<str>,
     ) -> Option<ParsedResource> {
         let path = file_path.as_ref().to_path_buf();
-        node.map(|node| ParsedResource {
+        node.map(|_| ParsedResource {
             commit: None,
             branch: None,
-            version: PathBuf::from(node.last_commit_id.to_string()),
+            version: PathBuf::from(version.as_ref()),
             path: path.clone(),
-            resource: PathBuf::from(node.last_commit_id.to_string()).join(path),
+            resource: PathBuf::from(version.as_ref()).join(path),
         })
     }
 

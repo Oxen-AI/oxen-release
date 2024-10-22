@@ -143,6 +143,7 @@ pub async fn dir_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenH
 
     let dir_diffs =
         repositories::diffs::list_changed_dirs(&repository, &base_commit, &head_commit)?;
+    log::debug!("dir_diffs: {:?}", dir_diffs);
 
     let dir_diff_tree = group_dir_diffs_by_dir(dir_diffs);
 
@@ -189,12 +190,16 @@ pub async fn dir_entries(
         page_size,
     )?;
 
+    log::debug!("entries_diff: {:?}", entries_diff);
+
     // For this view, exclude anything that isn't a direct child of the directory in question
     let summary = GenericDiffSummary::DirDiffSummary(DirDiffSummary {
         dir: DirDiffSummaryImpl {
             file_counts: entries_diff.counts.clone(),
         },
     });
+
+    log::debug!("summary: {:?}", summary);
 
     // let filtered_diff = subset_diff_to_direct_children(entries_diff, dir.clone())?;
 
@@ -205,6 +210,8 @@ pub async fn dir_entries(
         &head_commit,
         summary,
     )?;
+
+    log::debug!("self_entry: {:?}", self_entry);
 
     let compare = CompareEntries {
         base_commit,

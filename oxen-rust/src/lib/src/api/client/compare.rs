@@ -2,14 +2,14 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::{Commit, MerkleHash, RemoteRepository};
-use crate::view::compare::{CompareCommitsResponse, CompareTabularResponse};
+use crate::view::compare::{CompareCommitsResponse, CompareEntries, CompareTabularResponse};
 use crate::view::compare::{
     TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
     TabularCompareTargetBody,
 };
 use crate::view::diff::{DirDiffTreeSummary, DirTreeDiffResponse};
-use crate::view::JsonDataFrameViewResponse;
 use crate::view::{compare::CompareTabular, JsonDataFrameView};
+use crate::view::{CompareEntriesResponse, JsonDataFrameViewResponse};
 
 use serde_json::json;
 
@@ -172,6 +172,28 @@ pub async fn dir_tree(
     }
 }
 
+pub async fn entries(
+    remote_repo: &RemoteRepository,
+    base_commit_id: &MerkleHash,
+    head_commit_id: &MerkleHash,
+) -> Result<CompareEntries, OxenError> {
+    let base_commit_id = base_commit_id.to_string();
+    let head_commit_id = head_commit_id.to_string();
+    let uri = format!("/compare/entries/{base_commit_id}..{head_commit_id}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<CompareEntriesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(entries) => Ok(entries.compare),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "commits() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;
@@ -235,7 +257,146 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compare_dir_tree() -> Result<(), OxenError> {
+    async fn test_compare_change_at_root_dir_tree() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|mut local_repo, remote_repo| async move {
+            let og_commit = repositories::commits::head_commit(&local_repo)?;
+
+            // Write a file
+            let file_path = PathBuf::from("test_me_out.txt");
+            let full_path = &local_repo.path.join(file_path);
+
+            test::write_txt_file_to_path(full_path, "i am the contents of test_me_out.txt")?;
+            repositories::add(&local_repo, &local_repo.path)?;
+
+            let commit_message = "add test_me_out.txt";
+            let new_commit = repositories::commit(&local_repo, commit_message)?;
+
+            // Set remote
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+
+            // Push the commits to the remote
+            repositories::push(&local_repo).await?;
+
+            let base_commit_id = MerkleHash::from_str(&og_commit.id)?;
+            let head_commit_id = MerkleHash::from_str(&new_commit.id)?;
+            let results =
+                api::client::compare::dir_tree(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            println!("results: {:?}", results);
+            assert_eq!(results.len(), 1);
+            let first = results.first().unwrap();
+            assert_eq!(first.name, PathBuf::from(""));
+            assert_eq!(first.status, DiffEntryStatus::Modified);
+            assert_eq!(first.children.len(), 0);
+
+            let results =
+                api::client::compare::entries(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            println!("results: {:?}", results);
+            assert_eq!(results.entries.len(), 1);
+            let first = results.entries.first().unwrap();
+            assert_eq!(first.filename, "test_me_out.txt");
+            assert_eq!(first.status, "added");
+            assert!(first.base_resource.is_none());
+            assert!(first.head_resource.is_some());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_change_tabular_at_root_dir_tree() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|mut local_repo, remote_repo| async move {
+            // Write a file
+            let file_path = PathBuf::from("test_me_out.csv");
+            let full_path = &local_repo.path.join(file_path);
+
+            test::write_txt_file_to_path(full_path, "image,label\n1,2\n3,4\n5,6")?;
+            repositories::add(&local_repo, &local_repo.path)?;
+
+            let commit_message = "add test_me_out.csv";
+            let og_commit = repositories::commit(&local_repo, commit_message)?;
+
+            // Add another row
+            test::write_txt_file_to_path(full_path, "image,label\n1,2\n3,4\n5,6\n7,8")?;
+            repositories::add(&local_repo, &local_repo.path)?;
+            let new_commit = repositories::commit(&local_repo, commit_message)?;
+
+            // Set remote
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+
+            // Push the commits to the remote
+            repositories::push(&local_repo).await?;
+
+            let base_commit_id = MerkleHash::from_str(&og_commit.id)?;
+            let head_commit_id = MerkleHash::from_str(&new_commit.id)?;
+            let results =
+                api::client::compare::dir_tree(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            println!("results: {:?}", results);
+            assert_eq!(results.len(), 1);
+            let first = results.first().unwrap();
+            assert_eq!(first.name, PathBuf::from(""));
+            assert_eq!(first.status, DiffEntryStatus::Modified);
+            assert_eq!(first.children.len(), 0);
+
+            let results =
+                api::client::compare::entries(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            println!("results: {:?}", results);
+            assert_eq!(results.entries.len(), 1);
+            let first = results.entries.first().unwrap();
+            assert_eq!(first.filename, "test_me_out.csv");
+            assert_eq!(first.status, "modified");
+            assert!(first.base_resource.is_some());
+            assert!(first.head_resource.is_some());
+
+            // The resource version should be different
+            assert_ne!(
+                first.base_resource.as_ref().unwrap().version,
+                first.head_resource.as_ref().unwrap().version
+            );
+
+            assert!(first.base_entry.is_some());
+            assert!(first.head_entry.is_some());
+            println!("\n\nbase_entry: {:?}\n\n", first.base_entry);
+            println!("\n\nhead_entry: {:?}\n\n", first.head_entry);
+            // The entry resource version should be different
+            assert_ne!(
+                first
+                    .base_entry
+                    .as_ref()
+                    .unwrap()
+                    .resource
+                    .as_ref()
+                    .unwrap()
+                    .version,
+                first
+                    .head_entry
+                    .as_ref()
+                    .unwrap()
+                    .resource
+                    .as_ref()
+                    .unwrap()
+                    .version
+            );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_nested_dir_tree() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
             // Keep track of the commit ids
             let mut commit_ids = Vec::new();
