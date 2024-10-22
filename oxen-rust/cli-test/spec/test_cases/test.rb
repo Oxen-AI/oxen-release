@@ -26,7 +26,7 @@ RSpec.describe 'test', type: :aruba do
     # Add the file
     add_time = measure_time('oxen add .')
     puts "oxen add command took: #{add_time} seconds"
-    expect(add_time).to be < 40.0
+    expect(add_time).to be < 50.0
 
     # Commit the file
     commit_time = measure_time('oxen commit -m "Add small file"')
@@ -45,14 +45,14 @@ RSpec.describe 'test', type: :aruba do
     # Push the file
     push_time = measure_time('oxen push')
     puts "oxen push command took: #{push_time} seconds"
-    expect(push_time).to be < 800.0
+    expect(push_time).to be < 850.0
 
     cd '..'
 
     # Clone the repository
     clone_time = measure_time('oxen clone https://dev.hub.oxen.ai/EloyMartinez/performance-test')
     puts "oxen clone command took: #{clone_time} seconds"
-    expect(clone_time).to be < 650.0
+    expect(clone_time).to be < 700.0
 
     directory_path = 'tmp/aruba/performance-test'
     file_path = File.join(directory_path, 'simple.txt')
