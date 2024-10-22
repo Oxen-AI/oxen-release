@@ -327,7 +327,7 @@ where
 /// Test syncing between local and remote, where both exist, and both are empty
 pub async fn run_one_commit_sync_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&LocalRepository, RemoteRepository) -> Fut,
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
@@ -355,7 +355,7 @@ where
 
     // Run test to see if it panic'd
     log::info!(">>>>> run_one_commit_sync_repo_test running test");
-    let result = match test(&local_repo, remote_repo).await {
+    let result = match test(local_repo, remote_repo).await {
         Ok(remote_repo) => {
             // Cleanup remote repo
             api::client::repositories::delete(&remote_repo).await?;

@@ -442,6 +442,7 @@ mod tests {
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
 
+            // Post a parquet file
             let path = test::test_1k_parquet();
             let result = api::client::workspaces::files::post_file(
                 &remote_repo,
@@ -452,19 +453,79 @@ mod tests {
             .await;
             assert!(result.is_ok());
 
+            // Post an image file
+            let path = test::test_img_file();
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                path,
+            )
+            .await;
+            assert!(result.is_ok());
+
             let body = NewCommitBody {
-                message: "Add one data frame".to_string(),
+                message: "Add one data frame and one image".to_string(),
                 author: "Test User".to_string(),
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
                 api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
                     .await?;
-            assert!(commit.message.contains("Add one data frame"));
+            assert!(commit.message.contains("Add one data frame and one image"));
 
             // List the schemas on that branch
             let schemas = api::client::schemas::list(&remote_repo, branch_name).await?;
             assert_eq!(schemas.len(), original_schemas.len() + 1);
+
+            // List the file counts on that branch in that directory
+            let file_counts =
+                api::client::dir::file_counts(&remote_repo, branch_name, directory_name).await?;
+            assert_eq!(file_counts.dir.data_types.len(), 2);
+            assert_eq!(
+                file_counts
+                    .dir
+                    .data_types
+                    .iter()
+                    .find(|dt| dt.data_type == "image")
+                    .unwrap()
+                    .count,
+                1
+            );
+            assert_eq!(
+                file_counts
+                    .dir
+                    .data_types
+                    .iter()
+                    .find(|dt| dt.data_type == "tabular")
+                    .unwrap()
+                    .count,
+                1
+            );
+
+            // List the file counts on that branch in the root directory
+            let file_counts = api::client::dir::file_counts(&remote_repo, branch_name, "").await?;
+            assert_eq!(file_counts.dir.data_types.len(), 2);
+            assert_eq!(
+                file_counts
+                    .dir
+                    .data_types
+                    .iter()
+                    .find(|dt| dt.data_type == "image")
+                    .unwrap()
+                    .count,
+                1
+            );
+            assert_eq!(
+                file_counts
+                    .dir
+                    .data_types
+                    .iter()
+                    .find(|dt| dt.data_type == "tabular")
+                    .unwrap()
+                    .count,
+                2
+            );
 
             Ok(remote_repo)
         })

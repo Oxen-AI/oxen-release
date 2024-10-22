@@ -2,6 +2,7 @@ use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::DiffEntry;
 use crate::view::Pagination;
 
+#[derive(Debug)]
 pub struct DiffEntriesCounts {
     pub entries: Vec<DiffEntry>,
     pub counts: AddRemoveModifyCounts,

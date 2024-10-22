@@ -201,6 +201,11 @@ impl MerkleTreeNode {
             if let EMerkleTreeNode::File(_) = &child.node {
                 // Check if the file exists in the versions directory
                 let file_path = util::fs::version_path_from_hash(repo, child.hash.to_string());
+                // log::debug!(
+                //     "list_missing_file_hashes {} checking file_path: {:?}",
+                //     self,
+                //     file_path
+                // );
                 if !file_path.exists() {
                     missing_hashes.insert(child.hash);
                 }
@@ -412,7 +417,6 @@ impl MerkleTreeNode {
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
             }
-            MerkleTreeNodeType::Schema => SchemaNode::deserialize(data).map(|schema| schema.hash),
         }
     }
 
@@ -462,16 +466,6 @@ impl MerkleTreeNode {
         } else {
             Err(OxenError::basic_str(
                 "MerkleTreeNode::file_chunk called on non-file_chunk node",
-            ))
-        }
-    }
-
-    pub fn schema(&self) -> Result<SchemaNode, OxenError> {
-        if let EMerkleTreeNode::Schema(schema_node) = &self.node {
-            Ok(schema_node.clone())
-        } else {
-            Err(OxenError::basic_str(
-                "MerkleTreeNode::schema called on non-schema node",
             ))
         }
     }
@@ -550,15 +544,6 @@ impl fmt::Display for MerkleTreeNode {
                     self.node.dtype(),
                     self.hash.to_short_str(),
                     file_chunk
-                )
-            }
-            EMerkleTreeNode::Schema(schema) => {
-                write!(
-                    f,
-                    "[{:?}] {} {}",
-                    self.node.dtype(),
-                    self.hash.to_short_str(),
-                    schema
                 )
             }
         }

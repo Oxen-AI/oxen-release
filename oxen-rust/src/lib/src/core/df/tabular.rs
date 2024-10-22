@@ -743,11 +743,11 @@ pub fn df_hash_rows_on_cols(
 
                         let mut hashes = vec![];
                         for i in 0..num_rows {
-                            log::debug!("row: {:?}", i);
+                            // log::debug!("row: {:?}", i);
                             let mut buffer: Vec<u8> = vec![];
                             for series in s_a.iter() {
                                 let elem = series.get(i).unwrap();
-                                log::debug!("\telem: {:?}", elem);
+                                // log::debug!("\telem: {:?}", elem);
                                 let mut elem_bytes = any_val_to_bytes(&elem);
                                 buffer.append(&mut elem_bytes);
                             }
@@ -816,6 +816,8 @@ pub fn read_df_with_extension(
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
+
+    log::debug!("Reading df with extension {:?} {:?}", extension, path);
 
     let df = match extension {
         "ndjson" => read_df_jsonl(path),
@@ -900,9 +902,24 @@ pub fn scan_df(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    log::debug!("Scanning df {:?}", path.as_ref());
     let input_path = path.as_ref();
+    log::debug!("Scanning df {:?}", input_path);
     let extension = input_path.extension().and_then(OsStr::to_str);
+    scan_df_with_extension(input_path, extension, opts, total_rows)
+}
+
+pub fn scan_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
+    let input_path = path.as_ref();
+    log::debug!(
+        "Scanning df {:?} with extension {:?}",
+        input_path,
+        extension
+    );
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
@@ -924,16 +941,30 @@ pub fn scan_df(
 }
 
 pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
+    let input_path = path.as_ref();
+    let extension = input_path.extension().and_then(OsStr::to_str);
+    get_size_with_extension(input_path, extension)
+}
+
+pub fn get_size_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<DataFrameSize, OxenError> {
+    let input_path = path.as_ref();
+    log::debug!(
+        "Getting size of df {:?} with extension {:?}",
+        input_path,
+        extension
+    );
+
     // Don't need that many rows to get the width
     let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
-    let mut lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
+    let mut lazy_df = scan_df_with_extension(&path, extension, &DFOpts::empty(), num_scan_rows)?;
     let schema = lazy_df
         .collect_schema()
         .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     let width = schema.len();
 
-    let input_path = path.as_ref();
-    let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type get_size {input_path:?} {extension:?}");
 
     match extension {
@@ -1118,6 +1149,20 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
         println!("{pretty_df}");
     }
     Ok(df)
+}
+
+pub fn get_schema_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<crate::model::Schema, OxenError> {
+    let input_path = path.as_ref();
+    let opts = DFOpts::empty();
+    let total_rows = constants::DEFAULT_PAGE_SIZE;
+    let mut df = scan_df_with_extension(input_path, extension, &opts, total_rows)?;
+    let schema = df
+        .collect_schema()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    Ok(crate::model::Schema::from_polars(&schema))
 }
 
 pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {

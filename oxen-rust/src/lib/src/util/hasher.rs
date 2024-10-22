@@ -120,6 +120,19 @@ pub fn get_combined_hash(
     }
 }
 
+pub fn maybe_get_metadata_hash(
+    oxen_metadata: &Option<GenericMetadata>,
+) -> Result<Option<u128>, OxenError> {
+    if let Some(metadata) = oxen_metadata {
+        let mut hasher = Xxh3::new();
+        let metadata_str = serde_json::to_string(&metadata).unwrap();
+        hasher.update(metadata_str.as_bytes());
+        Ok(Some(hasher.digest128()))
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn get_metadata_hash(oxen_metadata: &Option<GenericMetadata>) -> Result<u128, OxenError> {
     let mut hasher = Xxh3::new();
     let metadata_str = serde_json::to_string(&oxen_metadata).unwrap();

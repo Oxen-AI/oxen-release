@@ -124,8 +124,11 @@ fn export_tabular_data_frames(
                         log::debug!("exported path: {:?}", exported_path);
 
                         // Update the metadata in the new staged merkle tree node
-                        let new_staged_merkle_tree_node =
-                            compute_staged_merkle_tree_node(workspace, &exported_path)?;
+                        let new_staged_merkle_tree_node = compute_staged_merkle_tree_node(
+                            workspace,
+                            &exported_path,
+                            dir_entry.status,
+                        )?;
                         new_dir_entries
                             .entry(dir_path.to_path_buf())
                             .or_default()
@@ -152,6 +155,7 @@ fn export_tabular_data_frames(
 fn compute_staged_merkle_tree_node(
     workspace: &Workspace,
     path: &PathBuf,
+    status: StagedEntryStatus,
 ) -> Result<StagedMerkleTreeNode, OxenError> {
     // This logic is copied from add.rs but add has some optimizations that make it hard to be reused here
     let metadata = util::fs::metadata(path)?;
@@ -200,7 +204,7 @@ fn compute_staged_merkle_tree_node(
     };
 
     Ok(StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
+        status,
         node: MerkleTreeNode::from_file(file_node),
     })
 }
