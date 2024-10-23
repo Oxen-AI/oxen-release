@@ -9,11 +9,13 @@ use liboxen::core::v0_19_0::index::merkle_node_db::node_db_path;
 use liboxen::core::v0_19_0::index::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use std::collections::HashSet;
 use std::path::Path;
 use tar::Archive;
 
@@ -44,6 +46,67 @@ pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse,
     node_to_json(node)
 }
 
+pub async fn list_missing_node_hashes(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let request: MerkleHashes = serde_json::from_slice(&bytes)?;
+    log::debug!(
+        "list_missing_node_hashes checking {} node ids",
+        request.hashes.len()
+    );
+    let hashes = repositories::tree::list_missing_node_hashes(&repository, &request.hashes)?;
+    log::debug!(
+        "list_missing_node_hashes found {} missing node ids",
+        hashes.len()
+    );
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
+}
+
+pub async fn list_missing_file_hashes_from_commits(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let request: MerkleHashes = serde_json::from_slice(&bytes)?;
+    log::debug!(
+        "list_missing_file_hashes_from_commits checking {} commit ids",
+        request.hashes.len()
+    );
+    let hashes =
+        repositories::tree::list_missing_file_hashes_from_commits(&repository, &request.hashes)?;
+    log::debug!(
+        "list_missing_file_hashes_from_commits found {} missing node ids",
+        hashes.len()
+    );
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
+}
+
 pub async fn list_missing_file_hashes(
     req: HttpRequest,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -66,7 +129,7 @@ pub async fn list_missing_file_hashes(
     }))
 }
 
-pub async fn create_node(
+pub async fn create_nodes(
     req: HttpRequest,
     mut body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -85,7 +148,7 @@ pub async fn create_node(
         ByteSize::b(bytes.len() as u64)
     );
 
-    let mut hash: Option<MerkleHash> = None;
+    let mut hashes: HashSet<MerkleHash> = HashSet::new();
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
     let Ok(entries) = archive.entries() else {
         return Err(OxenHttpError::BadRequest(
@@ -121,18 +184,14 @@ pub async fn create_node(
                 .into_iter()
                 .rev()
                 .collect::<String>();
-            hash = Some(MerkleHash::from_str(&id)?);
+            hashes.insert(MerkleHash::from_str(&id)?);
         }
     }
 
-    if let Some(hash) = hash {
-        let node = repositories::tree::get_node_by_id(&repository, &hash)?
-            .ok_or(OxenHttpError::NotFound)?;
-        node_to_json(node)
-    } else {
-        log::error!("No hash found in archive");
-        Err(OxenHttpError::BadRequest("No hash found in archive".into()))
-    }
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
 }
 
 pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

@@ -8,6 +8,7 @@ use crate::model::merkle_tree::node::{
     DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
 };
 use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash};
+use crate::{repositories, util};
 
 pub fn get_by_commit(
     repo: &LocalRepository,
@@ -115,6 +116,32 @@ pub fn list_missing_file_hashes(
     node.list_missing_file_hashes(repo)
 }
 
+/// Given a set of commit ids, return the hashes that are missing from the tree
+pub fn list_missing_file_hashes_from_commits(
+    repo: &LocalRepository,
+    commit_ids: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let mut candidate_hashes: HashSet<MerkleHash> = HashSet::new();
+    for commit_id in commit_ids {
+        let commit_id_str = commit_id.to_string();
+        let Some(commit) = repositories::commits::get_by_id(repo, &commit_id_str)? else {
+            return Err(OxenError::revision_not_found(commit_id_str.into()));
+        };
+        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+        tree.walk_tree(|node| {
+            if node.is_file() {
+                candidate_hashes.insert(node.hash);
+            }
+        });
+    }
+    log::debug!(
+        "list_missing_file_hashes_from_commits candidate_hashes: {:?}",
+        candidate_hashes
+    );
+    list_missing_file_hashes_from_hashes(repo, &candidate_hashes)
+}
+
+// Given a set of hashes, return the hashes that are missing from the tree
 pub fn list_missing_node_hashes(
     repo: &LocalRepository,
     hashes: &HashSet<MerkleHash>,
@@ -122,7 +149,21 @@ pub fn list_missing_node_hashes(
     let mut results = HashSet::new();
     for hash in hashes {
         let dir_prefix = node_db_path(repo, hash);
-        if dir_prefix.exists() {
+        if !(dir_prefix.join("node").exists() && dir_prefix.join("children").exists()) {
+            results.insert(*hash);
+        }
+    }
+    Ok(results)
+}
+
+fn list_missing_file_hashes_from_hashes(
+    repo: &LocalRepository,
+    hashes: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let mut results = HashSet::new();
+    for hash in hashes {
+        let version_path = util::fs::version_path_from_hash(repo, hash.to_string());
+        if !version_path.exists() {
             results.insert(*hash);
         }
     }

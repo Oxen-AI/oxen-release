@@ -7,7 +7,15 @@ pub fn tree() -> Scope {
     web::scope("/tree")
         .service(
             web::scope("/nodes")
-                .route("", web::post().to(controllers::tree::create_node))
+                .route("", web::post().to(controllers::tree::create_nodes))
+                .route(
+                    "/missing_node_hashes",
+                    web::post().to(controllers::tree::list_missing_node_hashes),
+                )
+                .route(
+                    "/missing_file_hashes_from_commits",
+                    web::post().to(controllers::tree::list_missing_file_hashes_from_commits),
+                )
                 .service(
                     web::scope("/{hash}")
                         .route("", web::get().to(controllers::tree::get_node_by_id))

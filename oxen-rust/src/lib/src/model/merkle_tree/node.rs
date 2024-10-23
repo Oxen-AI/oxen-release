@@ -64,12 +64,6 @@ impl EMerkleTreeNode {
     }
 
     pub fn is_leaf(&self) -> bool {
-        match self {
-            EMerkleTreeNode::File(_) => true,
-            EMerkleTreeNode::Directory(_) => false,
-            EMerkleTreeNode::VNode(_) => false,
-            EMerkleTreeNode::FileChunk(_) => true,
-            EMerkleTreeNode::Commit(_) => false,
-        }
+        matches!(&self, EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_))
     }
 }
