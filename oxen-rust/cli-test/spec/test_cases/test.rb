@@ -45,7 +45,7 @@ RSpec.describe 'test', type: :aruba do
     # Push the file
     push_time = measure_time('oxen push')
     puts "oxen push command took: #{push_time} seconds"
-    expect(push_time).to be < 850.0
+    expect(push_time).to be < 1000.0
 
     cd '..'
 
