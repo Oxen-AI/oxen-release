@@ -48,6 +48,8 @@ pub async fn fetch_remote_branch(
     if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         if head_commit.id == remote_branch.commit_id {
             println!("Repository is up to date.");
+            let ref_writer = RefWriter::new(repo)?;
+            ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
             return Ok(());
         }
 
@@ -130,12 +132,12 @@ pub async fn fetch_remote_branch(
     }
 
     // Write the new branch commit id to the local repo
-    let ref_writer = RefWriter::new(repo)?;
     log::debug!(
         "Setting branch {} commit id to {}",
         remote_branch.name,
         remote_branch.commit_id
     );
+    let ref_writer = RefWriter::new(repo)?;
     ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
 
     pull_progress.finish();

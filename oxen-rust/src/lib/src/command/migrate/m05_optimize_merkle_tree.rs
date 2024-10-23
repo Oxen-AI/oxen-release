@@ -588,10 +588,17 @@ fn write_dir_child(
         }
 
         let entries = dir_entry_reader.list_entries()?;
+        log::debug!("Processing {} entries for path [{:?}]", entries.len(), path);
         for entry in entries {
             num_bytes += entry.num_bytes;
 
             let mut last_hash = "".to_string();
+            log::debug!(
+                "Getting latest commit for {:?} in subdir {:?} of {:?}",
+                entry.path,
+                dir,
+                path
+            );
             for (commit, commit_entry_reader) in &readers {
                 let file_name = entry.path.file_name().unwrap().to_str().unwrap();
 
