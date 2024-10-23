@@ -31,8 +31,8 @@ pub fn tree() -> Scope {
             web::get().to(controllers::tree::download_commits),
         )
         .route(
-            "/download/{hash}",
-            web::get().to(controllers::tree::download_tree_from),
+            "/download/{base_head}",
+            web::get().to(controllers::tree::download_tree_nodes),
         )
         .route("/download", web::get().to(controllers::tree::download_tree))
 }

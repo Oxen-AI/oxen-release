@@ -15,6 +15,23 @@ pub enum Entry {
     SchemaEntry(SchemaEntry),
 }
 
+impl Hash for Entry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Entry::CommitEntry(entry) => entry.hash.hash(state),
+            Entry::SchemaEntry(entry) => entry.hash.hash(state),
+        }
+    }
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Entry) -> bool {
+        self.hash() == other.hash()
+    }
+}
+
+impl Eq for Entry {}
+
 impl Entry {
     pub fn commit_id(&self) -> String {
         match self {
