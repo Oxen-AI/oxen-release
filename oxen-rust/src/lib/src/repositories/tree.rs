@@ -184,6 +184,40 @@ pub fn child_hashes(
     Ok(children)
 }
 
+pub fn list_all_files(tree: &CommitMerkleTree) -> Result<HashSet<FileNodeWithDir>, OxenError> {
+    let mut file_nodes = HashSet::new();
+    r_list_all_files(&tree.root, PathBuf::from(""), &mut file_nodes)?;
+    Ok(file_nodes)
+}
+
+fn r_list_all_files(
+    node: &MerkleTreeNode,
+    traversed_path: impl AsRef<Path>,
+    file_nodes: &mut HashSet<FileNodeWithDir>,
+) -> Result<(), OxenError> {
+    let traversed_path = traversed_path.as_ref();
+    for child in &node.children {
+        // log::debug!("Found child: {child}");
+        match &child.node {
+            EMerkleTreeNode::File(file_node) => {
+                file_nodes.insert(FileNodeWithDir {
+                    file_node: file_node.to_owned(),
+                    dir: traversed_path.to_owned(),
+                });
+            }
+            EMerkleTreeNode::Directory(dir_node) => {
+                let new_path = traversed_path.join(&dir_node.name);
+                r_list_all_files(child, new_path, file_nodes)?;
+            }
+            EMerkleTreeNode::VNode(_) => {
+                r_list_all_files(child, traversed_path, file_nodes)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// Collect MerkleTree into Directories
 pub fn list_all_dirs(tree: &CommitMerkleTree) -> Result<HashSet<DirNodeWithPath>, OxenError> {
     let mut dir_nodes = HashSet::new();

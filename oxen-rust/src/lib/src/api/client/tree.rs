@@ -211,6 +211,53 @@ pub async fn download_commits_between(
     Ok(commits)
 }
 
+pub async fn download_trees_from(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_id: impl AsRef<str>,
+) -> Result<Vec<Commit>, OxenError> {
+    let commit_id = commit_id.as_ref();
+    let uri = format!("/tree/download/{commit_id}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading trees {} from {}", commit_id, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked trees {}", commit_id);
+
+    // Return the commits we downloaded
+    let commits = repositories::commits::list_from(local_repo, commit_id)?;
+
+    Ok(commits)
+}
+
+pub async fn download_trees_between(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    base_id: impl AsRef<str>,
+    head_id: impl AsRef<str>,
+) -> Result<Vec<Commit>, OxenError> {
+    let base_id = base_id.as_ref();
+    let head_id = head_id.as_ref();
+    let base_head = format!("{base_id}..{head_id}");
+    let uri = format!("/tree/download/{base_head}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading trees {} from {}", base_head, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked trees {}", base_head);
+
+    // Return the commits we downloaded
+    let base_commit = repositories::commits::get_by_id(local_repo, base_id)?.unwrap();
+    let head_commit = repositories::commits::get_by_id(local_repo, head_id)?.unwrap();
+    let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
+
+    Ok(commits)
+}
+
 pub async fn download_commits_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,

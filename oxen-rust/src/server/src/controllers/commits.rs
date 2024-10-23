@@ -553,7 +553,11 @@ pub async fn download_dir_hashes_db(
         let head_commit = repositories::revisions::get(&repository, head_commit_id)?
             .ok_or(OxenError::revision_not_found(head_commit_id.into()))?;
 
-        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
+        let commits = repositories::commits::list_between(&repository, &base_commit, &head_commit)?;
+        for commit in &commits {
+            log::debug!("download_dir_hashes_db: list_between commit: {}", commit);
+        }
+        commits
     } else {
         repositories::commits::list_from(&repository, &base_head)?
     };

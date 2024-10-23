@@ -650,50 +650,56 @@ pub async fn download_dir_hashes_from_url(
 
             let full_unpacked_path = path;
 
-            // TODO: This is to avoid a race condition caused by another process initializing the
-            // dirs db while the tarball is being unpacked, leading to an error.
+            // // TODO: This is to avoid a race condition caused by another process initializing the
+            // // dirs db while the tarball is being unpacked, leading to an error.
 
-            // Find out what is causing this, then revert this to unpack directly in the final path
-            let tmp_path = path.join("tmp").join("commits_db");
+            // // Find out what is causing this, then revert this to unpack directly in the final path
+            // let tmp_path = path.join("tmp").join("commits_db");
 
-            // create the temp path if it doesn't exist
-            if !tmp_path.exists() {
-                util::fs::create_dir_all(&tmp_path)?;
-            }
+            // // create the temp path if it doesn't exist
+            // if !tmp_path.exists() {
+            //     util::fs::create_dir_all(&tmp_path)?;
+            // }
 
-            let archive_result = archive.unpack(&tmp_path).await;
+            log::debug!("unpacking to {:?}", full_unpacked_path);
+            let archive_result = archive.unpack(&full_unpacked_path).await;
             log::debug!("archive_result for url {} is {:?}", url, archive_result);
             archive_result?;
 
-            if !full_unpacked_path.exists() {
-                log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
-                if let Some(parent) = full_unpacked_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                } else {
-                    log::error!(
-                        "{} no parent found for {:?}",
-                        current_function!(),
-                        full_unpacked_path
-                    );
-                }
-            }
+            // if !full_unpacked_path.exists() {
+            //     log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
+            //     if let Some(parent) = full_unpacked_path.parent() {
+            //         util::fs::create_dir_all(parent)?;
+            //     } else {
+            //         log::error!(
+            //             "{} no parent found for {:?}",
+            //             current_function!(),
+            //             full_unpacked_path
+            //         );
+            //     }
+            // }
 
-            // Move the tmp path to the full path
-            let tmp_path = tmp_path.join(HISTORY_DIR);
-            log::debug!("copying all tmp {:?} to {:?}", tmp_path, full_unpacked_path);
+            // // Move the tmp path to the full path
+            // let tmp_path = tmp_path.join(HISTORY_DIR);
+            // log::debug!("copying all tmp {:?} to {:?}", tmp_path, full_unpacked_path);
 
-            for entry in std::fs::read_dir(&tmp_path)? {
-                let entry = entry?;
-                let target = full_unpacked_path.join(HISTORY_DIR).join(entry.file_name());
-                if !target.exists() {
-                    log::debug!("copying {:?} to {:?}", entry.path(), target);
-                    util::fs::rename(entry.path(), &target)?;
-                } else {
-                    log::debug!("skipping copying {:?} to {:?}", entry.path(), target);
-                }
-            }
+            // for entry in std::fs::read_dir(&tmp_path)? {
+            //     let entry = entry?;
+            //     let target = full_unpacked_path.join(HISTORY_DIR).join(entry.file_name());
+            //     if !target.exists() {
+            //         log::debug!("copying {:?} to {:?}", entry.path(), target);
+            //         if let Some(parent) = target.parent() {
+            //             if !parent.exists() {
+            //                 util::fs::create_dir_all(parent)?;
+            //             }
+            //         }
+            //         util::fs::rename(entry.path(), &target)?;
+            //     } else {
+            //         log::debug!("skipping copying {:?} to {:?}", entry.path(), target);
+            //     }
+            // }
 
-            log::debug!("{} writing to {:?}", current_function!(), path);
+            // log::debug!("{} writing to {:?}", current_function!(), path);
 
             Ok(path.to_path_buf())
         }

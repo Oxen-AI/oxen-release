@@ -122,14 +122,14 @@ async fn push_to_new_branch(
 fn collect_missing_files(
     node: &MerkleTreeNode,
     hashes: &HashSet<MerkleHash>,
-    entries: &mut Vec<Entry>,
+    entries: &mut HashSet<Entry>,
 ) -> Result<(), OxenError> {
     for child in &node.children {
         if let EMerkleTreeNode::File(file_node) = &child.node {
             if !hashes.contains(&child.hash) {
                 continue;
             }
-            entries.push(Entry::CommitEntry(CommitEntry {
+            entries.insert(Entry::CommitEntry(CommitEntry {
                 commit_id: file_node.last_commit_id.to_string(),
                 path: PathBuf::from(&file_node.name),
                 hash: child.hash.to_string(),
@@ -246,11 +246,12 @@ async fn push_commits(
     .await?;
     progress.set_message(format!("Pushing {} files...", missing_file_hashes.len()));
 
-    let mut missing_files: Vec<Entry> = Vec::new();
+    let mut missing_files: HashSet<Entry> = HashSet::new();
     for node in missing_nodes {
         collect_missing_files(&node, &missing_file_hashes, &mut missing_files)?;
     }
 
+    let missing_files: Vec<Entry> = missing_files.into_iter().collect();
     log::debug!("pushing {} entries", missing_files.len());
     let commit = &history.last().unwrap();
     core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &missing_files, commit, progress)

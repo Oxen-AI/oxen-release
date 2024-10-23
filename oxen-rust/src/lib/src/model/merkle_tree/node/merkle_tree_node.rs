@@ -36,7 +36,10 @@ impl MerkleTreeNode {
 
     /// Check if the node is a leaf node (i.e. it has no children)
     pub fn is_leaf(&self) -> bool {
-        matches!(&self.node, EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_))
+        matches!(
+            &self.node,
+            EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_)
+        )
     }
 
     /// Check if the node has children

@@ -188,6 +188,7 @@ fn list_recursive(
         return Ok(());
     }
 
+    log::debug!("list_recursive: commit: {}", commit);
     results.push(commit.clone());
 
     if stop_at.is_some() && &commit == stop_at.unwrap() {
@@ -317,7 +318,7 @@ pub fn list_between(
     base: &Commit,
     head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("list_between() base: {:?} head: {:?}", base, head);
+    log::debug!("list_between() base: {} head: {}", base, head);
     let mut results = vec![];
     list_recursive(
         repo,

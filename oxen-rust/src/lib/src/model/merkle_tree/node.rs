@@ -64,6 +64,9 @@ impl EMerkleTreeNode {
     }
 
     pub fn is_leaf(&self) -> bool {
-        matches!(&self, EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_))
+        matches!(
+            &self,
+            EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_)
+        )
     }
 }
