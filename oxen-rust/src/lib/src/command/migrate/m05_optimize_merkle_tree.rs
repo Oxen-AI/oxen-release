@@ -112,8 +112,11 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Setup these object readers and entry readers to help pre-compute of latest commit for each file
     let mut object_readers: Vec<Arc<ObjectDBReader>> = Vec::new();
     for commit in &all_commits {
+        log::debug!("Getting object reader for commit: {}", commit);
         object_readers.push(get_object_reader(repo, &commit.id)?);
     }
+
+    log::debug!("Got {} object readers", object_readers.len());
 
     // Clear tree dir if exists (in order to run migration many times)
     let tree_dir = repo

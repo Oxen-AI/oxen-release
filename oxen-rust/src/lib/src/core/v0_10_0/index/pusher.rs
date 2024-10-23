@@ -192,8 +192,7 @@ pub async fn try_push_remote_repo(
     let unsynced_db_commits =
         api::client::commits::get_commits_with_unsynced_dbs(remote_repo, &branch).await?;
 
-    api::client::commits::post_tree_objects_to_server(local_repo, remote_repo, &head_commit)
-        .await?;
+    api::client::commits::post_tree_objects_to_server(local_repo, remote_repo).await?;
 
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
 
@@ -1012,7 +1011,7 @@ async fn upload_large_file_chunks(
                     total_size,
                     remote_repo,
                     entry_hash,
-                    commit,
+                    _commit,
                     file_name,
                 ) = item;
                 let size = buffer.len() as u64;
@@ -1032,7 +1031,6 @@ async fn upload_large_file_chunks(
                 let is_compressed = false;
                 match api::client::commits::upload_data_chunk_to_server_with_retry(
                     &remote_repo,
-                    &commit,
                     &buffer,
                     &entry_hash,
                     &params,
@@ -1133,7 +1131,7 @@ async fn bundle_and_send_small_entries(
         let bar = Arc::clone(progress);
         tokio::spawn(async move {
             loop {
-                let (chunk, repo, commit, remote_repo) = queue.pop().await;
+                let (chunk, repo, _commit, remote_repo) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -1190,7 +1188,6 @@ async fn bundle_and_send_small_entries(
 
                 match api::client::commits::post_data_to_server(
                     &remote_repo,
-                    &commit,
                     buffer,
                     is_compressed,
                     &file_name,
