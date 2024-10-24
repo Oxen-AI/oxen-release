@@ -158,7 +158,7 @@ pub fn commit_with_cfg(
     // Print that we finished
     println!(
         "🐂 commit {} in {}",
-        commit.id,
+        commit,
         humantime::format_duration(Duration::from_millis(
             start_time.elapsed().as_millis() as u64
         ))

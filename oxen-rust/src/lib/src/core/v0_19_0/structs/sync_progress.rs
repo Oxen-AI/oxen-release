@@ -1,7 +1,10 @@
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
+use std::{
+    borrow::Cow,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 pub enum SyncType {
@@ -37,6 +40,10 @@ impl SyncProgress {
             file_counter: Arc::new(AtomicU64::new(0)),
             progress_bar,
         })
+    }
+
+    pub fn set_message(&self, message: impl Into<Cow<'static, str>>) {
+        self.progress_bar.set_message(message);
     }
 
     pub fn update_message(&self) {

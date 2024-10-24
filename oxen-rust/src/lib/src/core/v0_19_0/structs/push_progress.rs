@@ -1,5 +1,5 @@
 use crate::core::v0_19_0::structs::sync_progress::{SyncProgress, SyncType};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 pub struct PushProgress {
     sync_progress: Arc<SyncProgress>,
@@ -10,6 +10,10 @@ impl PushProgress {
         Arc::new(PushProgress {
             sync_progress: SyncProgress::new(SyncType::Push),
         })
+    }
+
+    pub fn set_message(&self, message: impl Into<Cow<'static, str>>) {
+        self.sync_progress.set_message(message);
     }
 
     pub fn update_message(&self) {

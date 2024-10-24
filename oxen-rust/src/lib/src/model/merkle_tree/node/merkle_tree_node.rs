@@ -36,7 +36,10 @@ impl MerkleTreeNode {
 
     /// Check if the node is a leaf node (i.e. it has no children)
     pub fn is_leaf(&self) -> bool {
-        self.children.is_empty()
+        matches!(
+            &self.node,
+            EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_)
+        )
     }
 
     /// Check if the node has children
@@ -154,14 +157,6 @@ impl MerkleTreeNode {
             "MerkleTreeNode::maybe_path called on non-file or non-dir node: {:?}",
             self
         )))
-    }
-
-    /// Walk the tree
-    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
-        f(self);
-        for child in &self.children {
-            child.walk_tree(&f);
-        }
     }
 
     /// List all the directories in the tree
@@ -467,6 +462,28 @@ impl MerkleTreeNode {
             Err(OxenError::basic_str(
                 "MerkleTreeNode::file_chunk called on non-file_chunk node",
             ))
+        }
+    }
+
+    pub fn walk_tree(&self, mut f: impl FnMut(&MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter().rev() {
+                stack.push(child);
+            }
+        }
+    }
+
+    pub fn walk_tree_without_leaves(&self, mut f: impl FnMut(&MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter().rev() {
+                if !child.is_leaf() {
+                    stack.push(child);
+                }
+            }
         }
     }
 }
