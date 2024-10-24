@@ -382,10 +382,10 @@ fn fast_forward_merge(
     let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
     let merge_tree = CommitMerkleTree::from_commit(repo, merge_commit)?;
 
-    println!("base_tree");
-    base_tree.print();
-    println!("merge_tree");
-    merge_tree.print();
+    // println!("base_tree");
+    // base_tree.print();
+    // println!("merge_tree");
+    // merge_tree.print();
 
     let base_dir_node = CommitMerkleTree::get_root_dir_from_commit(&base_tree.root)?;
     let merge_dir_node = CommitMerkleTree::get_root_dir_from_commit(&merge_tree.root)?;

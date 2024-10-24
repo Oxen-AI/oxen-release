@@ -352,6 +352,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::error::OxenError;
+    use crate::model::EntryDataType;
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
     use crate::repositories;
@@ -900,5 +901,30 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_commit_invalid_parquet_file() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+            let invalid_parquet_file = test::test_invalid_parquet_file();
+            let full_path = repo.path.join("invalid.parquet");
+            util::fs::copy(&invalid_parquet_file, &full_path)?;
+
+            repositories::add(&repo, &full_path)?;
+            let commit = repositories::commit(&repo, "Adding invalid parquet file")?;
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            tree.print();
+
+            let file_node = tree.get_by_path(PathBuf::from("invalid.parquet"))?;
+            assert!(file_node.is_some());
+
+            let file_entry = file_node.unwrap();
+            let file_node = file_entry.file()?;
+            assert_eq!(file_node.data_type, EntryDataType::Binary);
+
+            Ok(())
+        })
+        .await
     }
 }

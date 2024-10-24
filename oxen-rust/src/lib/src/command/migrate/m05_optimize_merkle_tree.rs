@@ -579,12 +579,16 @@ fn write_dir_child(
         log::debug!("processing path [{:?}] sub dir: {:?}", path, dir);
         let dir_entry_reader =
             CommitDirEntryReader::new(repo, &commit.id, &dir, object_readers[commit_idx].clone())?;
-
+        log::debug!(
+            "Got dir entry reader for path [{:?}] subdir [{:?}]",
+            path,
+            dir
+        );
         let mut readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
         for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
             let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
             readers.push((c.clone(), reader));
-            // log::debug!("Reader for commit: {}", c);
+            log::debug!("Got reader [{}] for commit: {}", i, c);
         }
 
         let entries = dir_entry_reader.list_entries()?;
@@ -616,17 +620,22 @@ fn write_dir_child(
 
             entries_processed += 1;
             let version_path = util::fs::version_path(repo, &entry);
-            let mime_type = util::fs::file_mime_type(&version_path);
-            let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
-            let data_type_str = format!("{}", data_type);
-            data_type_counts
-                .entry(data_type_str.clone())
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
-            data_type_sizes
-                .entry(data_type_str.clone())
-                .and_modify(|size| *size += entry.num_bytes)
-                .or_insert(entry.num_bytes);
+
+            if version_path.exists() {
+                let mime_type = util::fs::file_mime_type(&version_path);
+                let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
+                let data_type_str = format!("{}", data_type);
+                data_type_counts
+                    .entry(data_type_str.clone())
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1);
+                data_type_sizes
+                    .entry(data_type_str.clone())
+                    .and_modify(|size| *size += entry.num_bytes)
+                    .or_insert(entry.num_bytes);
+            } else {
+                log::warn!("Version path does not exist: {:?}", version_path);
+            }
 
             if last_modified_seconds < entry.last_modified_seconds {
                 last_modified_seconds = entry.last_modified_seconds;
@@ -730,9 +739,14 @@ fn write_file_node(
     // Because we rename the file to drop the extension halfway through the migration
 
     let version_path = util::fs::version_path(repo, &commit_entry);
+    if !version_path.exists() {
+        log::warn!("Version path does not exist: {:?}", version_path);
+        return Ok(());
+    }
+
     let extension = file_name.split('.').last().unwrap_or_default().to_string();
-    let mime_type = util::fs::file_mime_type_from_extension(&version_path, path);
-    let data_type =
+    let mut mime_type = util::fs::file_mime_type_from_extension(&version_path, path);
+    let mut data_type =
         util::fs::datatype_from_mimetype_from_extension(&version_path, path, &mime_type);
     log::debug!(
         "write_file_node {:?} version_path: {:?} extension: {:?} mime_type: {:?} data_type: {:?}",
@@ -760,13 +774,12 @@ fn write_file_node(
                 Some(GenericMetadata::MetadataTabular(m)) => {
                     m.tabular.schema = schema;
                 }
-                metadata => {
-                    log::error!("Expected tabular metadata for path {:?}", path);
-                    log::error!("Got {:?}", metadata);
-                    return Err(OxenError::basic_str(format!(
-                        "Expected tabular metadata for path {:?}",
-                        path
-                    )));
+                m_metadata => {
+                    log::warn!("Expected tabular metadata for path {:?}", path);
+                    log::warn!("Got {:?}", m_metadata);
+                    metadata = None;
+                    data_type = EntryDataType::Binary;
+                    mime_type = "application/octet-stream".to_string();
                 }
             }
         }
