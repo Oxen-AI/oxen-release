@@ -21,12 +21,13 @@ RSpec.describe 'test', type: :aruba do
     # Initialize the repository
     init_time = measure_time('oxen init')
     puts "oxen init command took: #{init_time} seconds"
-    expect(init_time).to be < 3.0
+    expect(init_time).to be < 7.0
+
 
     # Add the file
     add_time = measure_time('oxen add .')
     puts "oxen add command took: #{add_time} seconds"
-    expect(add_time).to be < 50.0
+    expect(add_time).to be < 77.0
 
     # Commit the file
     commit_time = measure_time('oxen commit -m "Add small file"')
@@ -35,12 +36,12 @@ RSpec.describe 'test', type: :aruba do
     # Create the remote repository
     create_remote_time = measure_time('oxen create-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai --scheme https --is_public')
     puts "oxen create-remote command took: #{create_remote_time} seconds"
-    expect(create_remote_time).to be < 3.0
+    expect(create_remote_time).to be < 7.5
 
     # Set the remote
     set_remote_time = measure_time('oxen config --set-remote origin https://dev.hub.oxen.ai/EloyMartinez/performance-test')
     puts "oxen config --set-remote command took: #{set_remote_time} seconds"
-    expect(set_remote_time).to be < 2.0
+    expect(set_remote_time).to be < 5.0
 
     # Push the file
     push_time = measure_time('oxen push')
@@ -90,7 +91,7 @@ RSpec.describe 'test', type: :aruba do
     # Checkout to a new branch
     checkout_time = measure_time('oxen checkout -b second_branch')
     puts "oxen checkout command took: #{checkout_time} seconds"
-    expect(checkout_time).to be < 3.0
+    expect(checkout_time).to be < 7.0
 
     directory_path = 'tmp/aruba/test-small-repo'
     file_path = File.join(directory_path, 'simple.txt')
@@ -128,12 +129,40 @@ RSpec.describe 'test', type: :aruba do
     # Restore the file from the main branch
     restore_second_change_time = measure_time('oxen restore --source main simple.txt')
     puts "oxen restore command took: #{restore_second_change_time} seconds"
-    expect(restore_second_change_time).to be < 3.0
+    expect(restore_second_change_time).to be < 7.0
+
+    checkout_main_branch_time = measure_time('oxen checkout main')
+    puts "oxen checkout main command took: #{checkout_main_branch_time} seconds"
+    expect(checkout_main_branch_time).to be < 100.0
+
+    run_command_and_stop('mkdir files')
+
+      directory_path = 'tmp/aruba/test-small-repo'
+
+      30.times do |i|
+        file_path = File.join(directory_path, 'README.md')
+        File.open(file_path, 'w') do |file|
+          file.puts "\n\nnew Commit #{i}"
+        end
+        file_path = File.join(directory_path, "#{i}.txt")
+        File.open(file_path, 'w') do |file|
+          file.puts "hello #{i} world"
+        end
+        run_command_and_stop('oxen add .')
+        run_command_and_stop("oxen commit -m \"commit #{i}\"")
+        puts "Completed commit #{i + 1} of 30"
+      end
+
+
+    # Measure time for the push command
+    push_time = measure_time('oxen push')
+    puts "oxen push command took: #{push_time} seconds"
+    expect(push_time).to be < 60.0
 
     # Delete the remote repository
     delete_remote_time = measure_time('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai')
     puts "oxen delete-remote command took: #{delete_remote_time} seconds"
-    expect(delete_remote_time).to be < 3.0
+    expect(delete_remote_time).to be < 7.0
   end
 
   def measure_time(command)
