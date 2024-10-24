@@ -199,64 +199,69 @@ pub fn process_add_dir(
     };
 
     let walker = WalkDir::new(&path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        let entry = entry.unwrap();
-        let dir = entry.path();
+    walker
+        .filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
+        .par_bridge()
+        .try_for_each(|entry| -> Result<(), OxenError> {
+            let entry = entry.unwrap();
+            let dir = entry.path();
 
-        log::debug!("Entry is: {entry:?}");
+            log::debug!("Entry is: {dir:?}");
 
-        let byte_counter_clone = Arc::clone(&byte_counter);
-        let added_file_counter_clone = Arc::clone(&added_file_counter);
-        let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
+            let byte_counter_clone = Arc::clone(&byte_counter);
+            let added_file_counter_clone = Arc::clone(&added_file_counter);
+            let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-        let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
-        let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
-        let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
+            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
+            let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-        add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
+            // Change the closure to return a Result
+            add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
 
-        let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-        entries.par_iter().for_each(|dir_entry| {
-            log::debug!("Dir Entry is: {dir_entry:?}");
-            let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-            let path = dir_entry.path();
-            let duration = start.elapsed().as_secs_f32();
-            let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+            let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
 
-            progress_1.set_message(format!(
-                "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                added_file_counter_clone.load(Ordering::Relaxed),
-                unchanged_file_counter_clone.load(Ordering::Relaxed),
-                bytesize::ByteSize::b(total_bytes),
-                mbps
-            ));
+            entries.par_iter().for_each(|dir_entry| {
+                log::debug!("Dir Entry is: {dir_entry:?}");
+                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+                let path = dir_entry.path();
+                let duration = start.elapsed().as_secs_f32();
+                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
-            let seen_dirs_clone = Arc::clone(&seen_dirs);
-            match process_add_file(
-                &repo,
-                &repo_path,
-                versions_path,
-                staged_db,
-                &dir_node,
-                &path,
-                &seen_dirs_clone,
-            ) {
-                Ok(Some(node)) => {
-                    if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                        byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                        added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                progress_1.set_message(format!(
+                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                    added_file_counter_clone.load(Ordering::Relaxed),
+                    unchanged_file_counter_clone.load(Ordering::Relaxed),
+                    bytesize::ByteSize::b(total_bytes),
+                    mbps
+                ));
+
+                let seen_dirs_clone = Arc::clone(&seen_dirs);
+                match process_add_file(
+                    &repo,
+                    &repo_path,
+                    versions_path,
+                    staged_db,
+                    &dir_node,
+                    &path,
+                    &seen_dirs_clone,
+                ) {
+                    Ok(Some(node)) => {
+                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                    Ok(None) => {
+                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        log::error!("Error adding file: {:?}", e);
                     }
                 }
-                Ok(None) => {
-                    unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                }
-                Err(e) => {
-                    log::error!("Error adding file: {:?}", e);
-                }
-            }
-        });
-    }
+            });
+            Ok(())
+        })?;
 
     progress_1_clone.finish_and_clear();
     cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
