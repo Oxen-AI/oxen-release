@@ -17,6 +17,7 @@ use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
 use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
+use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::{api, constants, repositories};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
@@ -142,12 +143,18 @@ pub async fn list_all(remote_repo: &RemoteRepository) -> Result<Vec<Commit>, Oxe
 
 pub async fn list_missing_hashes(
     remote_repo: &RemoteRepository,
-    commit_hashes: &HashSet<MerkleHash>,
+    commit_hashes: HashSet<MerkleHash>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let uri = "/commits/missing".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
-    let res = client.post(&url).json(&commit_hashes).send().await?;
+    let res = client
+        .post(&url)
+        .json(&MerkleHashes {
+            hashes: commit_hashes,
+        })
+        .send()
+        .await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
@@ -454,15 +461,7 @@ pub async fn can_push(
 
     log::debug!("posting data to server...");
 
-    post_data_to_server(
-        remote_repo,
-        local_head,
-        buffer,
-        is_compressed,
-        &filename,
-        quiet_bar,
-    )
-    .await?;
+    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await?;
 
     // Delete tmp tree
     util::fs::remove_dir_all(&tmp_tree_path)?;
@@ -651,50 +650,56 @@ pub async fn download_dir_hashes_from_url(
 
             let full_unpacked_path = path;
 
-            // TODO: This is to avoid a race condition caused by another process initializing the
-            // dirs db while the tarball is being unpacked, leading to an error.
+            // // TODO: This is to avoid a race condition caused by another process initializing the
+            // // dirs db while the tarball is being unpacked, leading to an error.
 
-            // Find out what is causing this, then revert this to unpack directly in the final path
-            let tmp_path = path.join("tmp").join("commits_db");
+            // // Find out what is causing this, then revert this to unpack directly in the final path
+            // let tmp_path = path.join("tmp").join("commits_db");
 
-            // create the temp path if it doesn't exist
-            if !tmp_path.exists() {
-                util::fs::create_dir_all(&tmp_path)?;
-            }
+            // // create the temp path if it doesn't exist
+            // if !tmp_path.exists() {
+            //     util::fs::create_dir_all(&tmp_path)?;
+            // }
 
-            let archive_result = archive.unpack(&tmp_path).await;
+            log::debug!("unpacking to {:?}", full_unpacked_path);
+            let archive_result = archive.unpack(&full_unpacked_path).await;
             log::debug!("archive_result for url {} is {:?}", url, archive_result);
             archive_result?;
 
-            if !full_unpacked_path.exists() {
-                log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
-                if let Some(parent) = full_unpacked_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                } else {
-                    log::error!(
-                        "{} no parent found for {:?}",
-                        current_function!(),
-                        full_unpacked_path
-                    );
-                }
-            }
+            // if !full_unpacked_path.exists() {
+            //     log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
+            //     if let Some(parent) = full_unpacked_path.parent() {
+            //         util::fs::create_dir_all(parent)?;
+            //     } else {
+            //         log::error!(
+            //             "{} no parent found for {:?}",
+            //             current_function!(),
+            //             full_unpacked_path
+            //         );
+            //     }
+            // }
 
-            // Move the tmp path to the full path
-            let tmp_path = tmp_path.join(HISTORY_DIR);
-            log::debug!("copying all tmp {:?} to {:?}", tmp_path, full_unpacked_path);
+            // // Move the tmp path to the full path
+            // let tmp_path = tmp_path.join(HISTORY_DIR);
+            // log::debug!("copying all tmp {:?} to {:?}", tmp_path, full_unpacked_path);
 
-            for entry in std::fs::read_dir(&tmp_path)? {
-                let entry = entry?;
-                let target = full_unpacked_path.join(HISTORY_DIR).join(entry.file_name());
-                if !target.exists() {
-                    log::debug!("copying {:?} to {:?}", entry.path(), target);
-                    util::fs::rename(entry.path(), &target)?;
-                } else {
-                    log::debug!("skipping copying {:?} to {:?}", entry.path(), target);
-                }
-            }
+            // for entry in std::fs::read_dir(&tmp_path)? {
+            //     let entry = entry?;
+            //     let target = full_unpacked_path.join(HISTORY_DIR).join(entry.file_name());
+            //     if !target.exists() {
+            //         log::debug!("copying {:?} to {:?}", entry.path(), target);
+            //         if let Some(parent) = target.parent() {
+            //             if !parent.exists() {
+            //                 util::fs::create_dir_all(parent)?;
+            //             }
+            //         }
+            //         util::fs::rename(entry.path(), &target)?;
+            //     } else {
+            //         log::debug!("skipping copying {:?} to {:?}", entry.path(), target);
+            //     }
+            // }
 
-            log::debug!("{} writing to {:?}", current_function!(), path);
+            // log::debug!("{} writing to {:?}", current_function!(), path);
 
             Ok(path.to_path_buf())
         }
@@ -963,7 +968,6 @@ pub async fn post_commits_to_server(
 pub async fn post_tree_objects_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    commit: &Commit,
 ) -> Result<(), OxenError> {
     let objects_dir = util::fs::oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
 
@@ -989,15 +993,7 @@ pub async fn post_tree_objects_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    post_data_to_server(
-        remote_repo,
-        commit,
-        buffer,
-        is_compressed,
-        &filename,
-        quiet_bar,
-    )
-    .await
+    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
 }
 
 pub async fn post_commit_dir_hashes_to_server(
@@ -1035,15 +1031,47 @@ pub async fn post_commit_dir_hashes_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    post_data_to_server(
-        remote_repo,
-        commit,
-        buffer,
-        is_compressed,
-        &filename,
-        quiet_bar,
-    )
-    .await
+    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
+}
+
+pub async fn post_commits_dir_hashes_to_server(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commits: &Vec<Commit>,
+) -> Result<(), OxenError> {
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    for commit in commits {
+        let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+            .join(HISTORY_DIR)
+            .join(commit.id.clone());
+
+        // This will be the subdir within the tarball
+        let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
+
+        // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
+        let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
+
+        for dir in &dirs_to_compress {
+            let full_path = commit_dir.join(dir);
+            let tar_path = tar_subdir.join(dir);
+            if full_path.exists() {
+                tar.append_dir_all(&tar_path, full_path)?;
+            }
+        }
+    }
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+    let filename = None;
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
 }
 
 pub async fn bulk_create_commit_obj_on_server(
@@ -1073,7 +1101,6 @@ pub async fn bulk_create_commit_obj_on_server(
 
 pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: Vec<u8>,
     is_compressed: bool,
     filename: &Option<String>,
@@ -1082,31 +1109,23 @@ pub async fn post_data_to_server(
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
 
     if buffer.len() > chunk_size {
-        upload_data_to_server_in_chunks(
-            remote_repo,
-            commit,
-            &buffer,
-            chunk_size,
-            is_compressed,
-            filename,
-        )
-        .await?;
+        upload_data_to_server_in_chunks(remote_repo, &buffer, chunk_size, is_compressed, filename)
+            .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, bar).await?;
+        upload_single_tarball_to_server_with_retry(remote_repo, &buffer, bar).await?;
     }
     Ok(())
 }
 
 pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: &[u8],
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
+        match upload_single_tarball_to_server(remote_repo, buffer, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -1129,11 +1148,10 @@ pub async fn upload_single_tarball_to_server_with_retry(
 
 async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: &[u8],
     bar: Arc<ProgressBar>,
 ) -> Result<StatusMessage, OxenError> {
-    let uri = format!("/commits/{}/data", commit.id);
+    let uri = "/commits/upload".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
@@ -1164,7 +1182,6 @@ async fn upload_single_tarball_to_server(
 
 async fn upload_data_to_server_in_chunks(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: &[u8],
     chunk_size: usize,
     is_compressed: bool,
@@ -1197,7 +1214,6 @@ async fn upload_data_to_server_in_chunks(
         };
         match upload_data_chunk_to_server_with_retry(
             remote_repo,
-            commit,
             chunk,
             &hash,
             &params,
@@ -1219,7 +1235,6 @@ async fn upload_data_to_server_in_chunks(
 
 pub async fn upload_data_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
@@ -1229,16 +1244,8 @@ pub async fn upload_data_chunk_to_server_with_retry(
     let mut total_tries = 0;
     let mut last_error = String::from("");
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_data_chunk_to_server(
-            remote_repo,
-            commit,
-            chunk,
-            hash,
-            params,
-            is_compressed,
-            filename,
-        )
-        .await
+        match upload_data_chunk_to_server(remote_repo, chunk, hash, params, is_compressed, filename)
+            .await
         {
             Ok(_) => {
                 return Ok(());
@@ -1266,7 +1273,6 @@ pub async fn upload_data_chunk_to_server_with_retry(
 
 async fn upload_data_chunk_to_server(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
@@ -1287,8 +1293,8 @@ async fn upload_data_chunk_to_server(
     };
 
     let uri = format!(
-        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
+        "/commits/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
+        params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let total_size = chunk.len() as u64;
     log::debug!(
@@ -1323,6 +1329,8 @@ async fn upload_data_chunk_to_server(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -1331,8 +1339,11 @@ mod tests {
 
     use crate::model::entry::commit_entry::Entry;
     use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
+    use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
+
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
@@ -1649,6 +1660,53 @@ mod tests {
             assert_eq!(remote_commits.len(), 4);
 
             api::client::repositories::delete(&remote_repo).await?;
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_missing_commit_hashes() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let commit_hash = MerkleHash::from_str(&commit.id)?;
+
+            println!("first commit_hash: {}", commit_hash);
+
+            let missing_commit_hashes = api::client::commits::list_missing_hashes(
+                &remote_repo,
+                HashSet::from([commit_hash]),
+            )
+            .await?;
+
+            for hash in missing_commit_hashes.iter() {
+                println!("missing commit hash: {}", hash);
+            }
+
+            assert_eq!(missing_commit_hashes.len(), 0);
+
+            // Add and commit a new file
+            let file_path = local_repo.path.join("test.txt");
+            let file_path = test::write_txt_file_to_path(file_path, "image,label\n1,2\n3,4\n5,6")?;
+            repositories::add(&local_repo, &file_path)?;
+            let commit = repositories::commit(&local_repo, "test")?;
+            let commit_hash = MerkleHash::from_str(&commit.id)?;
+
+            println!("second commit_hash: {}", commit_hash);
+
+            let missing_node_hashes = api::client::commits::list_missing_hashes(
+                &remote_repo,
+                HashSet::from([commit_hash]),
+            )
+            .await?;
+
+            for hash in missing_node_hashes.iter() {
+                println!("missing commit hash: {}", hash);
+            }
+
+            assert_eq!(missing_node_hashes.len(), 1);
+            assert!(missing_node_hashes.contains(&commit_hash));
 
             Ok(remote_repo)
         })

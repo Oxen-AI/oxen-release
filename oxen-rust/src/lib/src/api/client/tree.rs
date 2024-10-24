@@ -13,6 +13,7 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
+use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, repositories, util};
 
@@ -43,28 +44,29 @@ pub async fn has_node(
 }
 
 /// Upload a node to the remote repository merkle tree
-pub async fn create_node(
+pub async fn create_nodes(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    node: &MerkleTreeNode,
+    nodes: HashSet<MerkleTreeNode>,
 ) -> Result<(), OxenError> {
     // Compress the node
-    let node_dir = node_db_path(local_repo, &node.hash);
-    let tree_dir = local_repo
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(TREE_DIR)
-        .join(NODES_DIR);
-    let sub_dir = util::fs::path_relative_to_dir(&node_dir, &tree_dir)?;
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
-
-    log::debug!(
-        "create_node appending objects dir {:?} to tar at path {:?}",
-        sub_dir,
-        node_dir
-    );
-    tar.append_dir_all(sub_dir, node_dir)?;
+    for node in nodes {
+        let node_dir = node_db_path(local_repo, &node.hash);
+        let tree_dir = local_repo
+            .path
+            .join(OXEN_HIDDEN_DIR)
+            .join(TREE_DIR)
+            .join(NODES_DIR);
+        let sub_dir = util::fs::path_relative_to_dir(&node_dir, &tree_dir)?;
+        log::debug!(
+            "create_nodes appending objects dir {:?} to tar at path {:?}",
+            sub_dir,
+            node_dir
+        );
+        tar.append_dir_all(sub_dir, node_dir)?;
+    }
 
     tar.finish()?;
 
@@ -209,6 +211,53 @@ pub async fn download_commits_between(
     Ok(commits)
 }
 
+pub async fn download_trees_from(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_id: impl AsRef<str>,
+) -> Result<Vec<Commit>, OxenError> {
+    let commit_id = commit_id.as_ref();
+    let uri = format!("/tree/download/{commit_id}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading trees {} from {}", commit_id, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked trees {}", commit_id);
+
+    // Return the commits we downloaded
+    let commits = repositories::commits::list_from(local_repo, commit_id)?;
+
+    Ok(commits)
+}
+
+pub async fn download_trees_between(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    base_id: impl AsRef<str>,
+    head_id: impl AsRef<str>,
+) -> Result<Vec<Commit>, OxenError> {
+    let base_id = base_id.as_ref();
+    let head_id = head_id.as_ref();
+    let base_head = format!("{base_id}..{head_id}");
+    let uri = format!("/tree/download/{base_head}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading trees {} from {}", base_head, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked trees {}", base_head);
+
+    // Return the commits we downloaded
+    let base_commit = repositories::commits::get_by_id(local_repo, base_id)?.unwrap();
+    let head_commit = repositories::commits::get_by_id(local_repo, head_id)?.unwrap();
+    let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
+
+    Ok(commits)
+}
+
 pub async fn download_commits_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -263,6 +312,25 @@ async fn node_download_request(
     Ok(())
 }
 
+pub async fn list_missing_node_hashes(
+    remote_repo: &RemoteRepository,
+    node_ids: HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let uri = "/tree/nodes/missing_node_hashes".to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let node_hashes = MerkleHashes { hashes: node_ids };
+    let res = client.post(&url).json(&node_hashes).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response.hashes),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::tree::list_missing_file_hashes() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
 pub async fn list_missing_file_hashes(
     remote_repo: &RemoteRepository,
     node_id: &MerkleHash,
@@ -278,5 +346,81 @@ pub async fn list_missing_file_hashes(
         Err(err) => Err(OxenError::basic_str(format!(
             "api::client::tree::list_missing_file_hashes() Could not deserialize response [{err}]\n{body}"
         ))),
+    }
+}
+
+pub async fn list_missing_file_hashes_from_commits(
+    remote_repo: &RemoteRepository,
+    commit_ids: HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let uri = "/tree/nodes/missing_file_hashes_from_commits".to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let commit_hashes = MerkleHashes { hashes: commit_ids };
+    let res = client.post(&url).json(&commit_hashes).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response.hashes),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::tree::list_missing_file_hashes_from_commits() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api;
+    use crate::error::OxenError;
+    use crate::model::MerkleHash;
+    use crate::repositories;
+    use crate::test;
+
+    use std::collections::HashSet;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_has_node() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let commit_hash = MerkleHash::from_str(&commit.id)?;
+            let has_node = api::client::tree::has_node(&remote_repo, commit_hash).await?;
+            assert!(has_node);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_missing_node_hashes() -> Result<(), OxenError> {
+        test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let commit_hash = MerkleHash::from_str(&commit.id)?;
+            let missing_node_hashes = api::client::tree::list_missing_node_hashes(
+                &remote_repo,
+                HashSet::from([commit_hash]),
+            )
+            .await?;
+            assert_eq!(missing_node_hashes.len(), 0);
+
+            // Add and commit a new file
+            let file_path = local_repo.path.join("test.txt");
+            let file_path = test::write_txt_file_to_path(file_path, "image,label\n1,2\n3,4\n5,6")?;
+            repositories::add(&local_repo, &file_path)?;
+            let commit = repositories::commit(&local_repo, "test")?;
+            let commit_hash = MerkleHash::from_str(&commit.id)?;
+
+            let missing_node_hashes = api::client::tree::list_missing_node_hashes(
+                &remote_repo,
+                HashSet::from([commit_hash]),
+            )
+            .await?;
+            assert_eq!(missing_node_hashes.len(), 1);
+            assert!(missing_node_hashes.contains(&commit_hash));
+
+            Ok(remote_repo)
+        })
+        .await
     }
 }

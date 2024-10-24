@@ -32,7 +32,6 @@ use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
 use liboxen::view::commit::CommitTreeValidationResponse;
-use liboxen::view::commit::UploadCommitResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -40,6 +39,7 @@ use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
+use liboxen::view::MerkleHashesResponse;
 use liboxen::view::{
     CommitResponse, IsValidStatusMessage, ListCommitResponse, PaginatedCommits, Pagination,
     RootCommitResponse, StatusMessage,
@@ -181,12 +181,25 @@ pub async fn list_missing(
     // Parse commit ids from a body and return the missing ids
     let data: Result<MerkleHashes, serde_json::Error> = serde_json::from_str(&body);
     let Ok(merkle_hashes) = data else {
+        log::error!("list_missing invalid JSON: {:?}", body);
         return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Invalid JSON")));
     };
 
+    log::debug!(
+        "list_missing checking {} commit hashes",
+        merkle_hashes.hashes.len()
+    );
     let missing_commits =
         repositories::tree::list_missing_node_hashes(&repo, &merkle_hashes.hashes)?;
-    Ok(HttpResponse::Ok().json(missing_commits))
+    log::debug!(
+        "list_missing found {} missing commits",
+        missing_commits.len()
+    );
+    let response = MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes: missing_commits,
+    };
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -540,7 +553,11 @@ pub async fn download_dir_hashes_db(
         let head_commit = repositories::revisions::get(&repository, head_commit_id)?
             .ok_or(OxenError::revision_not_found(head_commit_id.into()))?;
 
-        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
+        let commits = repositories::commits::list_between(&repository, &base_commit, &head_commit)?;
+        for commit in &commits {
+            log::debug!("download_dir_hashes_db: list_between commit: {}", commit);
+        }
+        commits
     } else {
         repositories::commits::list_from(&repository, &base_head)?
     };
@@ -756,7 +773,6 @@ pub async fn upload_chunk(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
-    let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
@@ -766,7 +782,7 @@ pub async fn upload_chunk(
     let total_chunks = query.total_chunks;
 
     log::debug!(
-        "upload_chunk {commit_id} got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
+        "upload_chunk got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
     );
 
     // Create a tmp dir for this upload
@@ -1122,8 +1138,7 @@ pub async fn upload(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
-    let commit_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, name)?;
+    let repo = get_repo(&app_data.path, &namespace, &name)?;
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
@@ -1136,8 +1151,9 @@ pub async fn upload(
     // Compute total size as u64
     let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
     log::debug!(
-        "Got compressed data for commit {} -> {}",
-        commit_id,
+        "Got compressed data for repo {}/{} -> {}",
+        namespace,
+        name,
         ByteSize::b(total_size)
     );
 
@@ -1150,12 +1166,7 @@ pub async fn upload(
     unpack_entry_tarball(&hidden_dir, &mut archive);
     // });
 
-    let commit = repositories::commits::get_by_id(&repo, &commit_id)?;
-
-    Ok(HttpResponse::Ok().json(UploadCommitResponse {
-        status: StatusMessage::resource_created(),
-        commit,
-    }))
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -1410,7 +1421,6 @@ mod tests {
     use actix_web::{web, App};
     use flate2::write::GzEncoder;
     use flate2::Compression;
-    use liboxen::view::commit::UploadCommitResponse;
     use std::path::Path;
     use std::thread;
 
@@ -1418,7 +1428,7 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;
-    use liboxen::view::ListCommitResponse;
+    use liboxen::view::{ListCommitResponse, StatusMessage};
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
@@ -1613,13 +1623,14 @@ mod tests {
         tar.append_dir_all(&path_to_compress, commit_dir)?;
         tar.finish()?;
         let payload: Vec<u8> = tar.into_inner()?.finish()?;
+        println!("Uploading commit {}... {} bytes", commit.id, payload.len());
 
-        let uri = format!("/oxen/{}/{}/commits/{}", namespace, repo_name, commit.id);
+        let uri = format!("/oxen/{}/{}/commits/upload", namespace, repo_name);
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData::new(sync_dir.clone(), queue))
                 .route(
-                    "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
+                    "/oxen/{namespace}/{repo_name}/commits/upload",
                     web::post().to(controllers::commits::upload),
                 ),
         )
@@ -1633,17 +1644,9 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        let resp: UploadCommitResponse = serde_json::from_str(body)?;
-
-        let Some(commit) = resp.commit else {
-            return Err(OxenError::basic_str("Commit not found"));
-        };
-
-        // Make sure commit gets populated
-        assert_eq!(commit.id, commit.id);
-        assert_eq!(commit.message, commit.message);
-        assert_eq!(commit.author, commit.author);
-        assert_eq!(commit.parent_ids.len(), commit.parent_ids.len());
+        println!("Upload response: {}", body);
+        let resp: StatusMessage = serde_json::from_str(body)?;
+        assert_eq!(resp.status, "success");
 
         // We unzip in a background thread, so give it a second
         thread::sleep(std::time::Duration::from_secs(1));

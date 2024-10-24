@@ -548,8 +548,12 @@ impl CommitMerkleTree {
         Ok(())
     }
 
-    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
+    pub fn walk_tree(&self, f: impl FnMut(&MerkleTreeNode)) {
         self.root.walk_tree(f);
+    }
+
+    pub fn walk_tree_without_leaves(&self, f: impl FnMut(&MerkleTreeNode)) {
+        self.root.walk_tree_without_leaves(f);
     }
 
     fn read_children_from_node(
