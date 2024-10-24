@@ -778,12 +778,16 @@ fn write_file_node(
                     log::warn!("Expected tabular metadata for path {:?}", path);
                     log::warn!("Got {:?}", m_metadata);
                     metadata = None;
-                    data_type = EntryDataType::Binary;
-                    mime_type = "application/octet-stream".to_string();
                 }
             }
         }
     };
+
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        log::warn!("No metadata found for path {:?}", path);
+        data_type = EntryDataType::Binary;
+        mime_type = "application/octet-stream".to_string();
+    }
 
     let metadata_hash = util::hasher::maybe_get_metadata_hash(&metadata.clone())?;
     let combined_hash = util::hasher::get_combined_hash(metadata_hash, hash.to_u128())?;
