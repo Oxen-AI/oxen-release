@@ -406,6 +406,7 @@ pub fn process_add_file(
         )
     };
 
+    // TODO: Move this out of this function so we don't check for conflicts on every file
     if let Some(_file_node) = &maybe_file_node {
         let conflicts = repositories::merge::list_conflicts(repo)?;
         for conflict in conflicts {
@@ -426,7 +427,7 @@ pub fn process_add_file(
 
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
-    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
     let metadata = match &oxen_metadata {
         Some(oxen_metadata) => {
             let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
@@ -434,6 +435,12 @@ pub fn process_add_file(
         }
         None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
     };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
 
     // Add the file to the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix

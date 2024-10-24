@@ -1452,6 +1452,13 @@ pub fn test_img_file() -> PathBuf {
         .join("dwight_vince.jpeg")
 }
 
+pub fn test_invalid_parquet_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("data")
+        .join("invalid.parquet")
+}
+
 pub fn test_csv_file_with_name(name: &str) -> PathBuf {
     PathBuf::from("data").join("test").join("csvs").join(name)
 }
