@@ -1,15 +1,21 @@
 use crate::core::v0_19_0::structs::sync_progress::{SyncProgress, SyncType};
-use std::{borrow::Cow, sync::Arc};
+use std::borrow::Cow;
 
 pub struct PullProgress {
-    sync_progress: Arc<SyncProgress>,
+    sync_progress: SyncProgress,
 }
 
 impl PullProgress {
-    pub fn new() -> Arc<Self> {
-        Arc::new(PullProgress {
+    pub fn new() -> Self {
+        PullProgress {
             sync_progress: SyncProgress::new(SyncType::Pull),
-        })
+        }
+    }
+
+    pub fn new_with_totals(total_files: u64, total_bytes: u64) -> Self {
+        PullProgress {
+            sync_progress: SyncProgress::new_with_totals(SyncType::Pull, total_files, total_bytes),
+        }
     }
 
     pub fn set_message(&self, message: impl Into<Cow<'static, str>>) {

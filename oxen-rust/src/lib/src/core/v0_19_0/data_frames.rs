@@ -25,6 +25,8 @@ pub fn get_slice(
     let file_node = repositories::tree::get_file_by_path(repo, commit, &path)?
         .ok_or(OxenError::path_does_not_exist(path.as_ref()))?;
 
+    log::debug!("get_slice file_node {:?}", file_node);
+
     let metadata: Result<MetadataTabularImpl, OxenError> = match file_node.metadata {
         Some(metadata) => match metadata {
             GenericMetadata::MetadataTabular(metadata) => Ok(metadata.tabular),

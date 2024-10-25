@@ -82,20 +82,16 @@ async fn push_local_branch_to_remote_repo(
     // Notify the server that we are starting a push
     api::client::repositories::pre_push(remote_repo, local_branch, &commit.id).await?;
 
-    let progress = PushProgress::new();
-
     // Check if the remote branch exists, and either push to it or create a new one
     match api::client::branches::get_by_name(remote_repo, &local_branch.name).await? {
         Some(remote_branch) => {
             push_to_existing_branch(repo, &commit, remote_repo, &remote_branch).await?
         }
-        None => push_to_new_branch(repo, remote_repo, local_branch, &commit, &progress).await?,
+        None => push_to_new_branch(repo, remote_repo, local_branch, &commit).await?,
     }
 
     // Notify the server that we are done pushing
     api::client::repositories::post_push(remote_repo, local_branch, &commit.id).await?;
-
-    progress.finish();
 
     Ok(())
 }
@@ -105,13 +101,12 @@ async fn push_to_new_branch(
     remote_repo: &RemoteRepository,
     branch: &Branch,
     commit: &Commit,
-    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // We need to find all the commits that need to be pushed
     let history = repositories::commits::list_from(repo, &commit.id)?;
 
     // Push the commits
-    push_commits(repo, remote_repo, &history, progress).await?;
+    push_commits(repo, remote_repo, &history).await?;
 
     // Create the remote branch from the commit
     api::client::branches::create_from_commit(remote_repo, &branch.name, commit).await?;
@@ -171,9 +166,7 @@ async fn push_to_existing_branch(
     let mut commits = repositories::commits::list_between(repo, commit, &latest_remote_commit)?;
     commits.reverse();
 
-    let progress_bar = PushProgress::new();
-
-    push_commits(repo, remote_repo, &commits, &progress_bar).await?;
+    push_commits(repo, remote_repo, &commits).await?;
 
     // Update the remote branch to point to the latest commit
     api::client::branches::update(remote_repo, &remote_branch.name, commit).await?;
@@ -185,7 +178,6 @@ async fn push_commits(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     history: &[Commit],
-    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // We need to find all the commits that need to be pushed
     let node_hashes = history
@@ -203,6 +195,7 @@ async fn push_commits(
         .collect();
 
     // Collect all the nodes that could be missing from the server
+    let progress = Arc::new(PushProgress::new());
     progress.set_message("Collecting missing nodes...");
     let mut candidate_nodes: HashSet<MerkleTreeNode> = HashSet::new();
     for commit in &commits {
@@ -252,10 +245,23 @@ async fn push_commits(
     }
 
     let missing_files: Vec<Entry> = missing_files.into_iter().collect();
+    let total_bytes = missing_files.iter().map(|e| e.num_bytes()).sum();
+    progress.finish();
+    let progress = Arc::new(PushProgress::new_with_totals(
+        missing_files.len() as u64,
+        total_bytes,
+    ));
     log::debug!("pushing {} entries", missing_files.len());
     let commit = &history.last().unwrap();
-    core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &missing_files, commit, progress)
-        .await?;
+    core::v0_10_0::index::pusher::push_entries(
+        repo,
+        remote_repo,
+        &missing_files,
+        commit,
+        &progress,
+    )
+    .await?;
+    progress.finish();
 
     Ok(())
 }

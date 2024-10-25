@@ -1,3 +1,4 @@
+use chrono::Local;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,6 +23,7 @@ use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::*;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::CommitEntry;
 use crate::model::EntryDataType;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
@@ -159,12 +161,19 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 fn migrate_merkle_tree(
     repo: &LocalRepository,
     commit_reader: &CommitReader,
-    commits: &Vec<Commit>,
+    commits: &[Commit],
     commit_idx: usize,
     object_readers: &Vec<Arc<ObjectDBReader>>,
 ) -> Result<(), OxenError> {
     let commit = &commits[commit_idx];
-    println!("== START Migrating merkle tree for commit: {} ==", commit);
+    let current_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    println!(
+        "[{}] == START Migrating merkle tree for commit ({}/{}) {} ==",
+        current_time,
+        commit_idx,
+        object_readers.len(),
+        commit
+    );
     let commit_dir = repo
         .path
         .join(constants::OXEN_HIDDEN_DIR)
@@ -236,13 +245,13 @@ fn migrate_merkle_tree(
     log::debug!("Dir hash for commit {} is {}", commit, hash);
 
     // Commit node has one child, the root dir
-    println!("Writing commit node {:?} to {:?}", node, commit_db.path());
+    println!("Writing commit node {} to {:?}", node, commit_db.path());
     let dir_node = write_dir_child(
         repo,
         commit_idx,
         &entry_reader,
         object_readers,
-        &commit_entry_readers,
+        &commits,
         &mut commit_db,
         dir_path,
         &hash,
@@ -275,7 +284,7 @@ fn migrate_merkle_tree(
 #[allow(clippy::too_many_arguments)]
 fn migrate_dir(
     repo: &LocalRepository,
-    commits: &Vec<Commit>,
+    commits: &[Commit],
     commit_idx: usize,
     commit_reader: &CommitReader,
     entry_reader: &CommitEntryReader,
@@ -444,12 +453,23 @@ fn migrate_dir(
     }
 
     // Re-Write the N vnodes
+    println!(
+        "Writing {} buckets for path [{:?}] on commit {}",
+        buckets.len(),
+        dir_path,
+        commit
+    );
     for (i, bucket) in buckets.iter().enumerate() {
         let vnode = &vnode_nodes[i];
 
         // Write the children of the VNodes
         let mut node_db = MerkleNodeDB::open_read_write(repo, vnode, Some(*dir_hash))?;
-        println!("Writing vnodes to path: {:?}", node_db.path());
+        println!(
+            "Writing {} vnodes for bucket {} to path: {:?}",
+            bucket.len(),
+            i,
+            node_db.path()
+        );
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
                 TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
@@ -502,7 +522,7 @@ fn migrate_dir(
                         commit_idx,
                         entry_reader,
                         object_readers,
-                        &commit_entry_readers,
+                        &commits,
                         &mut node_db,
                         path,
                         &child_hash,
@@ -540,14 +560,21 @@ fn write_dir_child(
     commit_idx: usize,
     entry_reader: &CommitEntryReader,
     object_readers: &[Arc<ObjectDBReader>],
-    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
+    commits: &[Commit],
     node_db: &mut MerkleNodeDB,
     path: &Path,
     hash: &MerkleHash,
 ) -> Result<DirNode, OxenError> {
-    println!("Write dir node for path [{:?}] and hash [{}]", path, hash);
+    let commit = &commits[commit_idx];
+    println!(
+        "Write dir node for path [{:?}] and hash [{}/{}] on commit[{}] {}",
+        path,
+        hash,
+        commit_idx,
+        commits.len(),
+        commit
+    );
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
-    let commit = &commit_entry_readers[commit_idx].0;
 
     let mut num_bytes = 0;
     let mut last_commit_id = 0;
@@ -569,11 +596,41 @@ fn write_dir_child(
         .collect();
 
     // Compute total size and data type counts
-    let progress_bar = spinner_with_msg("Processing dir children");
-    println!(
+    let progress_bar = spinner_with_msg(format!(
+        "Processing {} subdirs for path [{:?}]",
+        dirs.len(),
+        path
+    ));
+    log::debug!(
         "Processing subdirs for path [{:?}] children {:?}",
-        path, dirs
+        path,
+        dirs
     );
+
+    // This is an insane data structure, but it's the fastest way to get the
+    // latest commit for each entry in the directory
+
+    // If you make a joint key of dir path + commit id, you can save on loading all the readers
+    // multiple times
+    type DirReaderKey = (PathBuf, String);
+    let mut dir_readers: HashMap<DirReaderKey, HashMap<PathBuf, CommitEntry>> = HashMap::new();
+    for dir in &dirs {
+        // let mut readers: Vec<(Commit, HashMap<PathBuf, CommitEntry>)> = Vec::new();
+        for (i, c) in commits.iter().enumerate() {
+            if dir_readers.contains_key(&(dir.clone(), c.id.clone())) {
+                continue;
+            }
+            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
+            let entry_paths: HashMap<PathBuf, CommitEntry> = reader
+                .list_entries_set()?
+                .iter()
+                .map(|e| (e.path.clone(), e.clone()))
+                .collect();
+            // readers.push((c.clone(), entry_paths));
+            log::debug!("Got reader [{}] for commit: {}", i, c);
+            dir_readers.insert((dir.clone(), c.id.clone()), entry_paths);
+        }
+    }
 
     for dir in dirs {
         log::debug!("processing path [{:?}] sub dir: {:?}", path, dir);
@@ -584,12 +641,14 @@ fn write_dir_child(
             path,
             dir
         );
-        let mut readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-        for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
-            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
-            readers.push((c.clone(), reader));
-            log::debug!("Got reader [{}] for commit: {}", i, c);
-        }
+        // let mut readers: Vec<(Commit, HashMap<PathBuf, CommitEntry>)> = Vec::new();
+        // for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
+        //     let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
+        //     let entry_paths: HashMap<PathBuf, CommitEntry> = reader
+        //         .list_entries_set()?.iter().map(|e| (e.path.clone(), e.clone())).collect();
+        //     readers.push((c.clone(), entry_paths));
+        //     log::debug!("Got reader [{}] for commit: {}", i, c);
+        // }
 
         let entries = dir_entry_reader.list_entries()?;
         log::debug!("Processing {} entries for path [{:?}]", entries.len(), path);
@@ -603,10 +662,12 @@ fn write_dir_child(
                 dir,
                 path
             );
-            for (commit, commit_entry_reader) in &readers {
-                let file_name = entry.path.file_name().unwrap().to_str().unwrap();
-
-                if let Some(ce) = commit_entry_reader.get_entry(file_name)? {
+            for c in commits {
+                // let file_name = entry.path.file_name().unwrap().to_str().unwrap();
+                let key = (dir.clone(), c.id.clone());
+                let entries = dir_readers.get(&key).unwrap();
+                // if let Some(ce) = entries.get_entry(file_name)? {
+                if let Some(ce) = entries.get(&entry.path) {
                     // log::debug!("Got entry for {:?} in subdir {:?} of {:?} for commit {}", entry.path, dir, path, commit);
                     if commit.timestamp > last_commit_timestamp && ce.hash != last_hash {
                         // log::debug!("Updating last commit id for {:?} in subdir {:?} of {:?} to {} because it changed from {} to {}", entry.path, dir, path, commit.id, last_hash, ce.hash);
@@ -669,7 +730,7 @@ fn write_dir_child(
         log::warn!("No last commit id found for path {:?}", path);
         node.last_commit_id = MerkleHash::from_str(&commit.id)?;
     }
-    println!("Writing dir node {:?} to {:?}", node, node_db.path());
+    println!("Writing dir node {} to {:?}", node, node_db.path());
     node_db.add_child(&node)?;
     Ok(node)
 }
