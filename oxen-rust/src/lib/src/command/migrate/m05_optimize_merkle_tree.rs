@@ -256,7 +256,7 @@ fn migrate_merkle_tree(
         commit_idx,
         &entry_reader,
         object_readers,
-        &commits,
+        commits,
         &mut commit_db,
         dir_path,
         &hash,
@@ -529,7 +529,7 @@ fn migrate_dir(
                         commit_idx,
                         entry_reader,
                         object_readers,
-                        &commits,
+                        commits,
                         &mut node_db,
                         path,
                         &child_hash,
@@ -623,7 +623,7 @@ fn write_dir_child(
             if dir_readers.contains_key(&(dir.clone(), c.id.clone())) {
                 continue;
             }
-            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
+            let reader = CommitDirEntryReader::new(repo, &c.id, dir, object_readers[i].clone())?;
             let entry_paths: HashMap<PathBuf, CommitEntry> = reader
                 .list_entries_set()?
                 .iter()

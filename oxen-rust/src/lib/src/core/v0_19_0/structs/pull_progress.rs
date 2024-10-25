@@ -5,6 +5,12 @@ pub struct PullProgress {
     sync_progress: SyncProgress,
 }
 
+impl Default for PullProgress {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PullProgress {
     pub fn new() -> Self {
         PullProgress {

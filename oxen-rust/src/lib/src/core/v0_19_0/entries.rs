@@ -1,3 +1,4 @@
+use crate::core;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -281,8 +282,8 @@ fn file_node_to_metadata_entry(
 
     let is_indexed = if *data_type == EntryDataType::Tabular {
         Some(
-            repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, &file_path, commit,
+            core::v0_19_0::workspaces::data_frames::is_queryable_data_frame_indexed_from_file_node(
+                repo, file_node, &file_path,
             )?,
         )
     } else {
