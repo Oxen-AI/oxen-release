@@ -33,7 +33,7 @@ pub async fn fetch_remote_branch(
     let start = std::time::Instant::now();
 
     // Keep track of how many bytes we have downloaded
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
     pull_progress.set_message(format!("Fetching remote branch {}", remote_branch.branch));
 
     // Find the head commit on the remote branch
@@ -115,6 +115,12 @@ pub async fn fetch_remote_branch(
 
     let missing_entries = collect_missing_entries(repo, &commits)?;
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
+    pull_progress.finish();
+    let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();
+    let pull_progress = Arc::new(PullProgress::new_with_totals(
+        missing_entries.len() as u64,
+        total_bytes,
+    ));
     core::v0_10_0::index::puller::pull_entries_to_versions_dir(
         remote_repo,
         &missing_entries,
@@ -144,7 +150,7 @@ pub async fn fetch_remote_branch(
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
 
     println!(
-        "🐂 oxen fetched {} ({} files) in {}",
+        "🐂 oxen downloaded {} ({} files) in {}",
         bytesize::ByteSize::b(pull_progress.get_num_bytes()),
         pull_progress.get_num_files(),
         humantime::format_duration(duration)
@@ -175,85 +181,6 @@ fn collect_missing_entries(
     }
     Ok(missing_entries)
 }
-
-/*pub async fn fetch_remote_branch(
-    repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    remote_branch: &RemoteBranch,
-    all: bool,
-) -> Result<(), OxenError> {
-    log::debug!(
-        "fetching remote branch {} --all {}",
-        remote_branch.branch,
-        all
-    );
-
-    // Start the timer
-    let start = std::time::Instant::now();
-
-    // Find the head commit on the remote branch
-    let Some(remote_branch) =
-        api::client::branches::get_by_name(remote_repo, &remote_branch.branch).await?
-    else {
-        return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
-    };
-
-    // Write the new branch commit id to the local repo
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
-
-    if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
-        if head_commit.id == remote_branch.commit_id {
-            println!("Repository is up to date.");
-            return Ok(());
-        }
-    }
-
-    fetch_full_tree_and_hashes(repo, remote_repo, &remote_branch).await?;
-    let commits = repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?;
-
-    // Keep track of how many bytes we have downloaded
-    let pull_progress = PullProgress::new();
-
-    // Recursively download the entries
-    if all {
-        log::debug!("fetching all {} commits", commits.len());
-        for commit in commits {
-            log::debug!("fetching all commits {}", commit);
-            let hash = MerkleHash::from_str(&commit.id)?;
-            api::client::tree::download_tree(repo, remote_repo).await?;
-            let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
-            r_download_entries(
-                repo,
-                remote_repo,
-                &commit_node,
-                &PathBuf::from(""),
-                &pull_progress,
-            )
-            .await?;
-        }
-    } else {
-        let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
-        let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
-        let directory = PathBuf::from("");
-        r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
-    }
-
-    // If we fetched all the data, we're no longer shallow
-    repo.write_is_shallow(false)?;
-
-    pull_progress.finish();
-    let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
-
-    println!(
-        "🐂 oxen fetched {} ({} files) in {}",
-        bytesize::ByteSize::b(pull_progress.get_num_bytes()),
-        pull_progress.get_num_files(),
-        humantime::format_duration(duration)
-    );
-
-    Ok(())
-}*/
 
 pub async fn fetch_tree_and_hashes_for_commit_id(
     repo: &LocalRepository,
@@ -364,7 +291,7 @@ pub async fn maybe_fetch_missing_entries(
     // shouldn't show the PullProgress
 
     // Keep track of how many bytes we have downloaded
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
 
     // Recursively download the entries
     let directory = PathBuf::from("");

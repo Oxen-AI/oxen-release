@@ -729,7 +729,7 @@ async fn push_missing_commit_entries(
             entries: unsynced_entries,
         };
 
-        let bar = PushProgress::new();
+        let bar = Arc::new(PushProgress::new());
         push_entries(
             local_repo,
             remote_repo,

@@ -21,6 +21,7 @@ use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Returns the metadata given a file path
 pub async fn get_entry(
@@ -181,7 +182,7 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &pull_progress).await?;
 
     Ok(())

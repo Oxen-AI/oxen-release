@@ -37,7 +37,7 @@ pub async fn download_dir(
 
     // Create local directory to pull entries into
     let directory = PathBuf::from("");
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
 
     // Recursively pull entries
     r_download_entries(
