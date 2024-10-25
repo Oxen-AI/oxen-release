@@ -26,13 +26,13 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataAudio, OxenError> 
                 ))
             }
             Err(err) => {
-                log::error!("Could not read audio stream: {}", err);
-                Err(OxenError::basic_str("Could not read audio stream"))
+                let error_str = format!("Could not read audio stream from {:?} {}", path, err);
+                Err(OxenError::basic_str(error_str))
             }
         },
         Err(err) => {
-            log::error!("Could not open audio stream: {}", err);
-            Err(OxenError::basic_str("Could not open audio stream"))
+            let error_str = format!("Could not probe audio stream from {:?}: {}", path, err);
+            Err(OxenError::basic_str(error_str))
         }
     }
 }

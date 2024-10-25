@@ -813,6 +813,17 @@ pub fn read_df_with_extension(
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let extension = extension.as_ref();
+    std::panic::catch_unwind(|| p_read_df_with_extension(path, extension, opts))
+        .map_err(|e| OxenError::basic_str(format!("Error reading df {:?}: {e:?}", path)))?
+}
+
+fn p_read_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: impl AsRef<str>,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let extension = extension.as_ref();
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
@@ -914,6 +925,17 @@ pub fn scan_df_with_extension(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
+    let path = path.as_ref();
+    std::panic::catch_unwind(|| p_scan_df_with_extension(path, extension, opts, total_rows))
+        .map_err(|e| OxenError::basic_str(format!("Error scanning df {:?}: {e:?}", path)))?
+}
+
+fn p_scan_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     log::debug!(
         "Scanning df {:?} with extension {:?}",
@@ -947,6 +969,15 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
 }
 
 pub fn get_size_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<DataFrameSize, OxenError> {
+    let path = path.as_ref();
+    std::panic::catch_unwind(|| p_get_size_with_extension(path, extension))
+        .map_err(|e| OxenError::basic_str(format!("Error getting size of df {:?}: {e:?}", path)))?
+}
+
+fn p_get_size_with_extension(
     path: impl AsRef<Path>,
     extension: Option<&str>,
 ) -> Result<DataFrameSize, OxenError> {

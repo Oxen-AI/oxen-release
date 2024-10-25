@@ -70,9 +70,15 @@ impl Migrate for UpdateVersionFilesMigration {
                     continue;
                 }
 
+                // Skip the resized ima
+                if filename.starts_with("x") {
+                    continue;
+                }
+
                 if filename.starts_with(constants::VERSION_FILE_NAME) {
                     return Ok(false);
                 }
+                println!("Version file needs migration {:?}", path);
                 return Ok(true);
             }
         }

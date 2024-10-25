@@ -222,6 +222,12 @@ fn migrate_merkle_tree(
         ..Default::default()
     };
 
+    println!(
+        "Writing commit [{}/{}] node {}",
+        commit_idx,
+        commits.len(),
+        commit
+    );
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, None)?;
 
     // Get the root hash
@@ -245,7 +251,6 @@ fn migrate_merkle_tree(
     log::debug!("Dir hash for commit {} is {}", commit, hash);
 
     // Commit node has one child, the root dir
-    println!("Writing commit node {} to {:?}", node, commit_db.path());
     let dir_node = write_dir_child(
         repo,
         commit_idx,
@@ -353,7 +358,7 @@ fn migrate_dir(
 
     let commit = &commits[commit_idx];
 
-    println!("MIGRATE_DIR: path {:?} for commit {}", dir_path, commit);
+    log::debug!("MIGRATE_DIR: path {:?} for commit {}", dir_path, commit);
 
     // Write all the VNodes
     let mut children: Vec<TreeObjectChild> = Vec::new();
@@ -401,7 +406,7 @@ fn migrate_dir(
         }
     }
 
-    println!(
+    log::debug!(
         "MIGRATE_DIR: path {:?} got {} children",
         dir_path,
         children.len()
@@ -411,9 +416,11 @@ fn migrate_dir(
     let total_children = children.len();
     let vnode_size = 10_000;
     let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
-    println!(
+    log::debug!(
         "MIGRATE_DIR: path {:?} {} VNodes for {} children",
-        dir_path, num_vnodes, total_children
+        dir_path,
+        num_vnodes,
+        total_children
     );
 
     // Group the children into their buckets
@@ -443,7 +450,7 @@ fn migrate_dir(
     // Add all vnodes as children of the dir
     let mut vnode_nodes: Vec<VNode> = Vec::new();
     for (i, bhash) in bucket_hashes.iter().enumerate() {
-        println!("Bucket [{}] for {:x}", i, bhash);
+        log::debug!("Bucket [{}] for {:x}", i, bhash);
         let node = VNode {
             hash: MerkleHash::new(*bhash),
             ..Default::default()
@@ -453,7 +460,7 @@ fn migrate_dir(
     }
 
     // Re-Write the N vnodes
-    println!(
+    log::debug!(
         "Writing {} buckets for path [{:?}] on commit {}",
         buckets.len(),
         dir_path,
@@ -464,7 +471,7 @@ fn migrate_dir(
 
         // Write the children of the VNodes
         let mut node_db = MerkleNodeDB::open_read_write(repo, vnode, Some(*dir_hash))?;
-        println!(
+        log::debug!(
             "Writing {} vnodes for bucket {} to path: {:?}",
             bucket.len(),
             i,
@@ -597,15 +604,11 @@ fn write_dir_child(
 
     // Compute total size and data type counts
     let progress_bar = spinner_with_msg(format!(
-        "Processing {} subdirs for path [{:?}]",
+        "Processing {} subdirs for path [{:?}] {:?}",
         dirs.len(),
-        path
-    ));
-    log::debug!(
-        "Processing subdirs for path [{:?}] children {:?}",
         path,
         dirs
-    );
+    ));
 
     // This is an insane data structure, but it's the fastest way to get the
     // latest commit for each entry in the directory
