@@ -6,6 +6,12 @@ pub struct PushProgress {
     sync_progress: SyncProgress,
 }
 
+impl Default for PushProgress {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PushProgress {
     pub fn new() -> Self {
         PushProgress {

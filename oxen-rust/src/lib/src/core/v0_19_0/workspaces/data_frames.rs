@@ -29,6 +29,47 @@ pub fn is_queryable_data_frame_indexed(
     }
 }
 
+// Annoying that we have to pass in the path and the file node here
+pub fn is_queryable_data_frame_indexed_from_file_node(
+    repo: &LocalRepository,
+    file_node: &FileNode,
+    path: &Path,
+) -> Result<bool, OxenError> {
+    match get_queryable_data_frame_workspace_from_file_node(repo, file_node, path) {
+        Ok(_workspace) => Ok(true),
+        Err(e) => match e {
+            OxenError::QueryableWorkspaceNotFound() => Ok(false),
+            _ => Err(e),
+        },
+    }
+}
+
+pub fn get_queryable_data_frame_workspace_from_file_node(
+    repo: &LocalRepository,
+    file_node: &FileNode,
+    path: &Path,
+) -> Result<Workspace, OxenError> {
+    let workspaces = repositories::workspaces::list(repo)?;
+    let latest_commit_id = file_node.last_commit_id;
+
+    for workspace in workspaces {
+        // Ensure the workspace is not editable and matches the commit ID of the resource
+        if !workspace.is_editable && workspace.commit.id == latest_commit_id.to_string() {
+            // Construct the path to the DuckDB resource within the workspace
+            let workspace_file_db_path =
+                repositories::workspaces::data_frames::duckdb_path(&workspace, path);
+
+            // Check if the DuckDB file exists in the workspace's directory
+            if workspace_file_db_path.exists() {
+                // The file exists in this non-editable workspace, and the commit IDs match
+                return Ok(workspace);
+            }
+        }
+    }
+
+    Err(OxenError::QueryableWorkspaceNotFound())
+}
+
 pub fn get_queryable_data_frame_workspace(
     repo: &LocalRepository,
     path: impl AsRef<Path>,
@@ -43,24 +84,7 @@ pub fn get_queryable_data_frame_workspace(
             "File format not supported, must be tabular.",
         ));
     }
-    let workspaces = repositories::workspaces::list(repo)?;
-
-    for workspace in workspaces {
-        // Ensure the workspace is not editable and matches the commit ID of the resource
-        if !workspace.is_editable && workspace.commit == *commit {
-            // Construct the path to the DuckDB resource within the workspace
-            let workspace_file_db_path =
-                repositories::workspaces::data_frames::duckdb_path(&workspace, path);
-
-            // Check if the DuckDB file exists in the workspace's directory
-            if workspace_file_db_path.exists() {
-                // The file exists in this non-editable workspace, and the commit IDs match
-                return Ok(workspace);
-            }
-        }
-    }
-
-    Err(OxenError::QueryableWorkspaceNotFound())
+    get_queryable_data_frame_workspace_from_file_node(repo, &file_node, path)
 }
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
