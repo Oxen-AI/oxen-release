@@ -114,6 +114,21 @@ pub fn commit_id_exists(
     get_by_id(repo, commit_id.as_ref()).map(|commit| commit.is_some())
 }
 
+/// Create an empty commit off of the head commit of a branch
+pub fn create_empty_commit(
+    repo: &LocalRepository,
+    branch_name: impl AsRef<str>,
+    commit: &Commit,
+) -> Result<Commit, OxenError> {
+    let branch_name = branch_name.as_ref();
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("create_empty_commit not supported in v0.10.0"),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::commits::create_empty_commit(repo, branch_name, commit)
+        }
+    }
+}
+
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
@@ -266,6 +281,11 @@ pub fn list_from_paginated(
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
     let commits = list_from(repo, revision)?;
+    log::info!(
+        "list_from_paginated {} got {} commits before pagination",
+        revision,
+        commits.len()
+    );
     let (commits, pagination) = util::paginate(commits, pagination.page_num, pagination.page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),

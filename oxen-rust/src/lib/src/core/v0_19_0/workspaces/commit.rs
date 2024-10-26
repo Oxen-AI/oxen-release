@@ -7,7 +7,7 @@ use crate::core::db;
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::core::v0_19_0::workspaces;
-use crate::error::{OxenError, StringError};
+use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{
     Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
@@ -25,13 +25,22 @@ pub fn commit(
     branch_name: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     let branch_name = branch_name.as_ref();
+    let repo = &workspace.base_repo;
+    let commit = &workspace.commit;
 
-    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)?
-    else {
-        return Err(OxenError::BranchNotFound(Box::new(StringError::from(
-            branch_name.to_string(),
-        ))));
-    };
+    let mut branch = repositories::branches::get_by_name(repo, branch_name)?;
+    log::debug!("commit looking up branch: {:#?}", &branch);
+
+    if branch.is_none() {
+        log::debug!("commit creating branch: {}", branch_name);
+        branch = Some(repositories::branches::create(
+            repo,
+            branch_name,
+            &commit.id,
+        )?);
+    }
+
+    let branch = branch.unwrap();
 
     let workspace_commit = &workspace.commit;
     if branch.commit_id != workspace_commit.id {
@@ -61,11 +70,13 @@ pub fn commit(
 
     let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
 
-    let commit = core::v0_19_0::index::commit_writer::commit_dir_entries(
+    let parent_commits = vec![commit.id.to_owned()];
+    let commit = core::v0_19_0::index::commit_writer::commit_dir_entries_with_parents(
         &workspace.base_repo,
+        parent_commits,
         dir_entries,
         new_commit,
-        &staged_db_path,
+        staged_db,
         &commit_progress_bar,
     )?;
 
@@ -78,6 +89,9 @@ pub fn commit(
     let ref_writer = RefWriter::new(&workspace.base_repo)?;
     let commit_id = commit.id.to_owned();
     ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
+
+    // Cleanup workspace on commit
+    repositories::workspaces::delete(workspace)?;
 
     Ok(commit)
 }

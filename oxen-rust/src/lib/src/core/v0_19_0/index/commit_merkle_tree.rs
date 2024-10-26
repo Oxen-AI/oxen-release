@@ -48,6 +48,9 @@ impl CommitMerkleTree {
     }
 
     pub fn from_commit(repo: &LocalRepository, commit: &Commit) -> Result<Self, OxenError> {
+        // This debug log is to help make sure we don't load the tree too many times
+        // if you see it in the logs being called too much, it could be why the code is slow.
+        log::debug!("Load tree from commit: {} in repo: {:?}", commit, repo.path);
         let node_hash = MerkleHash::from_str(&commit.id)?;
         let root =
             CommitMerkleTree::read_node(repo, &node_hash, true)?.ok_or(OxenError::basic_str(

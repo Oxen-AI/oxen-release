@@ -2,12 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use glob::Pattern;
+use time::OffsetDateTime;
 
 use crate::core;
-use crate::core::refs::RefReader;
+use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::{CommitNode, EMerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash, User};
 use crate::opts::PaginateOpts;
 use crate::view::{PaginatedCommits, StatusMessage};
@@ -18,6 +19,8 @@ use std::str;
 use std::str::FromStr;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
+
+use super::index::MerkleNodeDB;
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     super::index::commit_writer::commit(repo, message)
@@ -153,6 +156,10 @@ pub fn get_by_id(
 ) -> Result<Option<Commit>, OxenError> {
     let commit_id_str = commit_id_str.as_ref();
     let Ok(commit_id) = MerkleHash::from_str(commit_id_str) else {
+        log::debug!(
+            "get_by_id could not create commit_id from [{}]",
+            commit_id_str
+        );
         return Ok(None);
     };
     get_by_hash(repo, &commit_id)
@@ -164,6 +171,52 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
     };
     let commit = commit_data.commit()?;
     Ok(Some(commit.to_commit()))
+}
+
+pub fn create_empty_commit(
+    repo: &LocalRepository,
+    branch_name: impl AsRef<str>,
+    new_commit: &Commit,
+) -> Result<Commit, OxenError> {
+    let branch_name = branch_name.as_ref();
+    let Some(existing_commit) = repositories::revisions::get(repo, branch_name)? else {
+        return Err(OxenError::revision_not_found(branch_name.into()));
+    };
+    let existing_commit_id = MerkleHash::from_str(&existing_commit.id)?;
+    let existing_node = CommitMerkleTree::read_depth(repo, &existing_commit_id, 1)?.ok_or(
+        OxenError::basic_str(format!(
+            "Merkle tree node not found for commit: '{}'",
+            existing_commit.id
+        )),
+    )?;
+    let timestamp = OffsetDateTime::now_utc();
+    let commit_node = CommitNode {
+        hash: MerkleHash::from_str(&new_commit.id)?,
+        dtype: existing_node.node.dtype(),
+        parent_ids: vec![existing_commit_id],
+        message: new_commit.message.clone(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+    };
+    let parent_id = Some(existing_node.hash);
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &commit_node, parent_id)?;
+    // There should always be one child, the root directory
+    let dir_node = existing_node.children.first().unwrap().dir()?;
+    commit_db.add_child(&dir_node)?;
+
+    // Copy the dir hashes db to the new commit
+    let old_dir_hashes_path =
+        CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, existing_commit_id.to_owned());
+    let new_dir_hashes_path =
+        CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_node.hash.to_owned());
+    util::fs::copy_dir_all(old_dir_hashes_path, new_dir_hashes_path)?;
+
+    // Update the ref
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_branch_commit_id(branch_name, commit_node.hash.to_string())?;
+
+    Ok(commit_node.to_commit())
 }
 
 /// List commits on the current branch from HEAD
@@ -373,7 +426,12 @@ pub fn list_by_path_from_paginated(
         }
     };
     let last_commit_id = last_commit_id.to_string();
-    let commits = list_from(repo, last_commit_id)?;
+    let commits = list_from(repo, &last_commit_id)?;
+    log::info!(
+        "list_by_path_from_paginated {} got {} commits before pagination",
+        last_commit_id,
+        commits.len()
+    );
     let (commits, pagination) = util::paginate(commits, pagination.page_num, pagination.page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),
