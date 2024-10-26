@@ -12,7 +12,6 @@ use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use liboxen::core::v0_10_0::cache::cachers::content_validator;
 use liboxen::core::v0_10_0::cache::commit_cacher;
-use liboxen::core::v0_10_0::commits::create_commit_object;
 use liboxen::core::v0_10_0::commits::create_commit_object_with_committers;
 use liboxen::core::v0_10_0::commits::head_commits_have_conflicts;
 use liboxen::core::v0_10_0::commits::list_with_missing_dbs;
@@ -133,6 +132,7 @@ pub async fn commit_history(
                 &resource.path,
                 pagination,
             )?;
+            log::debug!("commit_history got {} commits", commits.commits.len());
             Ok(HttpResponse::Ok().json(commits))
         }
         _ => {
@@ -142,6 +142,7 @@ pub async fn commit_history(
             if let Some(revision_id) = revision_id {
                 let commits =
                     repositories::commits::list_from_paginated(&repo, revision_id, pagination)?;
+                log::debug!("commit_history got {} commits", commits.commits.len());
                 Ok(HttpResponse::Ok().json(commits))
             } else {
                 Err(OxenHttpError::NotFound)
@@ -663,7 +664,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     Ok(buffer)
 }
 
-/// TODO: Depreciate this (should send the commit as part of the tree)
+/// This creates an empty commit on the given branch
 pub async fn create(
     req: HttpRequest,
     body: String,
@@ -675,10 +676,14 @@ pub async fn create(
     let repo_name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let commit: Commit = match serde_json::from_str(&body) {
+    let new_commit: Commit = match serde_json::from_str(&body) {
         Ok(commit) => commit,
-        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
+        Err(_) => {
+            log::error!("commits create got invalid commit data {}", body);
+            return Err(OxenHttpError::BadRequest("Invalid commit data".into()));
+        }
     };
+    log::debug!("commits create got new commit: {:?}", new_commit);
 
     let bn: BranchName =
         match serde_json::from_str(&body) {
@@ -690,8 +695,8 @@ pub async fn create(
         };
 
     // Create Commit from uri params
-    match create_commit_object(&repository.path, bn.branch_name, &commit) {
-        Ok(_) => Ok(HttpResponse::Ok().json(CommitResponse {
+    match repositories::commits::create_empty_commit(&repository, bn.branch_name, &new_commit) {
+        Ok(commit) => Ok(HttpResponse::Ok().json(CommitResponse {
             status: StatusMessage::resource_created(),
             commit: commit.to_owned(),
         })),

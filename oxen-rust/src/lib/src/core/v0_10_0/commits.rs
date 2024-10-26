@@ -231,31 +231,6 @@ pub fn create_commit_object_with_committers(
     Ok(())
 }
 
-pub fn create_commit_object(
-    repo_dir: &Path,
-    branch_name: impl AsRef<str>,
-    commit: &Commit,
-) -> Result<(), OxenError> {
-    log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
-
-    // Instantiate repo from dir
-    let repo = LocalRepository::from_dir(repo_dir)?;
-
-    // Create readers and writers
-    let commit_reader = CommitReader::new(&repo)?;
-    let commit_writer = CommitWriter::new(&repo)?;
-    let ref_writer = RefWriter::new(&repo)?;
-
-    create_commit_object_with_committers(
-        repo_dir,
-        branch_name,
-        commit,
-        &commit_reader,
-        &commit_writer,
-        &ref_writer,
-    )
-}
-
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
