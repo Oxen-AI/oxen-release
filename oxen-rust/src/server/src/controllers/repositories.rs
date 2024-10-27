@@ -213,6 +213,9 @@ pub async fn transfer_namespace(
     let name = path_param(&req, "repo_name")?;
     let data: NamespaceView = serde_json::from_str(&body)?;
     let to_namespace = data.namespace;
+
+    log::debug!("transfer_namespace from: {} to: {}", from_namespace, to_namespace);
+
     repositories::transfer_namespace(&app_data.path, &name, &from_namespace, &to_namespace)?;
     let repo =
         repositories::get_by_namespace_and_name(&app_data.path, &to_namespace, &name)?.unwrap();
