@@ -45,7 +45,7 @@ impl MerkleTreeNodeType {
 }
 
 pub trait MerkleTreeNodeIdType {
-    fn dtype(&self) -> MerkleTreeNodeType;
+    fn node_type(&self) -> MerkleTreeNodeType;
     fn hash(&self) -> MerkleHash;
 }
 

@@ -1186,30 +1186,11 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
         Ok(Some(repo)) => {
             match repositories::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
-                    // Kick off processing in background thread because could take awhile
-                    std::thread::spawn(move || {
-                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                        let force = false;
-                        match commit_cacher::run_all(&repo, &commit, force) {
-                            Ok(_) => {
-                                log::debug!(
-                                    "Success processing commit {:?} on repo {:?}",
-                                    commit,
-                                    repo.path
-                                );
-                            }
-                            Err(err) => {
-                                log::error!(
-                                    "Could not process commit {:?} on repo {:?}: {}",
-                                    commit,
-                                    repo.path,
-                                    err
-                                );
-                            }
-                        }
-                    });
-
-                    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+                    let response = CommitResponse {
+                        status: StatusMessage::resource_created(),
+                        commit: commit.clone(),
+                    };
+                    Ok(HttpResponse::Ok().json(response))
                 }
                 Ok(None) => {
                     log::error!("Could not find commit [{}]", commit_id);

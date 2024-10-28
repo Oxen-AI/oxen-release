@@ -12,7 +12,7 @@ use std::fmt;
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct FileChunkNode {
     pub data: Vec<u8>,
-    pub dtype: MerkleTreeNodeType,
+    pub node_type: MerkleTreeNodeType,
     pub hash: MerkleHash,
 }
 
@@ -27,15 +27,15 @@ impl Default for FileChunkNode {
     fn default() -> Self {
         FileChunkNode {
             data: vec![],
-            dtype: MerkleTreeNodeType::FileChunk,
+            node_type: MerkleTreeNodeType::FileChunk,
             hash: MerkleHash::new(0),
         }
     }
 }
 
 impl MerkleTreeNodeIdType for FileChunkNode {
-    fn dtype(&self) -> MerkleTreeNodeType {
-        self.dtype
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {

@@ -9,7 +9,7 @@ use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkle
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct CommitNode {
     pub hash: MerkleHash,
-    pub dtype: MerkleTreeNodeType,
+    pub node_type: MerkleTreeNodeType,
     pub parent_ids: Vec<MerkleHash>,
     pub message: String,
     pub author: String,
@@ -40,7 +40,7 @@ impl Default for CommitNode {
     fn default() -> Self {
         CommitNode {
             hash: MerkleHash::new(0),
-            dtype: MerkleTreeNodeType::Commit,
+            node_type: MerkleTreeNodeType::Commit,
             parent_ids: vec![],
             message: "".to_string(),
             author: "".to_string(),
@@ -51,8 +51,8 @@ impl Default for CommitNode {
 }
 
 impl MerkleTreeNodeIdType for CommitNode {
-    fn dtype(&self) -> MerkleTreeNodeType {
-        self.dtype
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {

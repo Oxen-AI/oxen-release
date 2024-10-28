@@ -13,7 +13,7 @@ use crate::view::DataTypeCount;
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DirNode {
     // The type of the node
-    pub dtype: MerkleTreeNodeType,
+    pub node_type: MerkleTreeNodeType,
 
     // The name of the directory
     pub name: String,
@@ -57,7 +57,7 @@ impl DirNode {
 impl Default for DirNode {
     fn default() -> Self {
         DirNode {
-            dtype: MerkleTreeNodeType::Dir,
+            node_type: MerkleTreeNodeType::Dir,
             name: "".to_string(),
             hash: MerkleHash::new(0),
             num_bytes: 0,
@@ -71,8 +71,8 @@ impl Default for DirNode {
 }
 
 impl MerkleTreeNodeIdType for DirNode {
-    fn dtype(&self) -> MerkleTreeNodeType {
-        self.dtype
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {

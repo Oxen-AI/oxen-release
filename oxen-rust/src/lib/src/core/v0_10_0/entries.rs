@@ -48,7 +48,7 @@ pub fn get_directory(
     };
 
     let node = DirNode {
-        dtype: MerkleTreeNodeType::Dir,
+        node_type: MerkleTreeNodeType::Dir,
         name: entry
             .path
             .file_name()
@@ -86,7 +86,7 @@ pub fn get_file(
     let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
 
     let node = FileNode {
-        dtype: MerkleTreeNodeType::File,
+        node_type: MerkleTreeNodeType::File,
         name: entry
             .path
             .file_name()

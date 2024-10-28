@@ -234,7 +234,7 @@ impl MerkleTreeNode {
             )));
         };
 
-        if MerkleTreeNodeType::Dir != node.node.dtype() {
+        if MerkleTreeNodeType::Dir != node.node.node_type() {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
                 path
@@ -491,7 +491,7 @@ impl MerkleTreeNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "[{:?}]", self.node.dtype())?;
+        writeln!(f, "[{:?}]", self.node.node_type())?;
         writeln!(f, "hash: {}", self.hash)?;
         writeln!(f, "node: {:?}", self.node)?;
         writeln!(
@@ -523,13 +523,13 @@ impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.node {
             EMerkleTreeNode::Commit(commit) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, commit)
+                write!(f, "[{:?}] {} {}", self.node.node_type(), self.hash, commit)
             }
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
                     "[{:?}] {} {} ({} children)",
-                    self.node.dtype(),
+                    self.node.node_type(),
                     self.hash.to_short_str(),
                     vnode,
                     self.children.len()
@@ -539,7 +539,7 @@ impl fmt::Display for MerkleTreeNode {
                 write!(
                     f,
                     "[{:?}] {} {} ({} children)",
-                    self.node.dtype(),
+                    self.node.node_type(),
                     self.hash.to_short_str(),
                     dir,
                     self.children.len()
@@ -549,7 +549,7 @@ impl fmt::Display for MerkleTreeNode {
                 write!(
                     f,
                     "[{:?}] {} {}",
-                    self.node.dtype(),
+                    self.node.node_type(),
                     self.hash.to_short_str(),
                     file
                 )
@@ -558,7 +558,7 @@ impl fmt::Display for MerkleTreeNode {
                 write!(
                     f,
                     "[{:?}] {} {}",
-                    self.node.dtype(),
+                    self.node.node_type(),
                     self.hash.to_short_str(),
                     file_chunk
                 )

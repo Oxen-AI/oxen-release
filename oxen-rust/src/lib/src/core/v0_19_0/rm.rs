@@ -607,7 +607,7 @@ fn r_process_remove_dir(
         _ => {
             return Err(OxenError::basic_str(format!(
                 "Unexpected node type: {:?}",
-                node.node.dtype()
+                node.node.node_type()
             )))
         }
     }

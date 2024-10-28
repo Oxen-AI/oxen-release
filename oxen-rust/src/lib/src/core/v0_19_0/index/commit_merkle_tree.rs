@@ -331,10 +331,10 @@ impl CommitMerkleTree {
     }
 
     pub fn node_files_and_folders(node: &MerkleTreeNode) -> Result<Vec<MerkleTreeNode>, OxenError> {
-        if MerkleTreeNodeType::Dir != node.node.dtype() {
+        if MerkleTreeNodeType::Dir != node.node.node_type() {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
-                node.node.dtype()
+                node.node.node_type()
             )));
         }
 
@@ -350,10 +350,10 @@ impl CommitMerkleTree {
 
     /// Get the root directory node given a commit node
     pub fn get_root_dir_from_commit(node: &MerkleTreeNode) -> Result<&MerkleTreeNode, OxenError> {
-        if node.node.dtype() != MerkleTreeNodeType::Commit {
+        if node.node.node_type() != MerkleTreeNodeType::Commit {
             return Err(OxenError::basic_str(format!(
                 "Expected a commit node, but got: '{:?}'",
-                node.node.dtype()
+                node.node.node_type()
             )));
         }
 
@@ -365,10 +365,10 @@ impl CommitMerkleTree {
         }
 
         let root_dir = &node.children[0];
-        if root_dir.node.dtype() != MerkleTreeNodeType::Dir {
+        if root_dir.node.node_type() != MerkleTreeNodeType::Dir {
             return Err(OxenError::basic_str(format!(
                 "The child of a commit node should be a directory, but got: '{:?}'",
-                root_dir.node.dtype()
+                root_dir.node.node_type()
             )));
         }
 
@@ -400,7 +400,7 @@ impl CommitMerkleTree {
             EMerkleTreeNode::File(file_node) => Ok(vec![file_node.clone()]),
             _ => Err(OxenError::basic_str(format!(
                 "Unexpected node type: {:?}",
-                node.node.dtype()
+                node.node.node_type()
             ))),
         }
     }
@@ -439,7 +439,7 @@ impl CommitMerkleTree {
             _ => {
                 return Err(OxenError::basic_str(format!(
                     "Unexpected node type: {:?}",
-                    node.node.dtype()
+                    node.node.node_type()
                 )))
             }
         }
@@ -495,7 +495,7 @@ impl CommitMerkleTree {
         node: &mut MerkleTreeNode,
         depth: i32,
     ) -> Result<(), OxenError> {
-        let dtype = node.node.dtype();
+        let dtype = node.node.node_type();
         // log::debug!(
         //     "read_children_until_depth {} tree_db_dir: {:?} dtype {:?}",
         //     depth,
@@ -525,7 +525,7 @@ impl CommitMerkleTree {
             //     key,
             //     child
             // );
-            match &child.node.dtype() {
+            match &child.node.node_type() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
@@ -565,7 +565,7 @@ impl CommitMerkleTree {
         node: &mut MerkleTreeNode,
         recurse: bool,
     ) -> Result<(), OxenError> {
-        let dtype = node.node.dtype();
+        let dtype = node.node.node_type();
         // log::debug!(
         //     "read_children_from_node tree_db_dir: {:?} dtype {:?}",
         //     node_db.path(),
@@ -585,7 +585,7 @@ impl CommitMerkleTree {
         for (_key, child) in children {
             let mut child = child.to_owned();
             // log::debug!("read_children_from_node child: {} -> {}", key, child);
-            match &child.node.dtype() {
+            match &child.node.node_type() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
@@ -736,7 +736,7 @@ mod tests {
             for (_, node) in loaded_nodes {
                 println!("node: {}", node);
                 CommitMerkleTree::print_node_depth(&node, 1);
-                assert!(node.node.dtype() == MerkleTreeNodeType::Dir);
+                assert!(node.node.node_type() == MerkleTreeNodeType::Dir);
                 assert!(node.parent_id.is_some());
                 assert!(!node.children.is_empty());
                 let dir = node.dir().unwrap();
