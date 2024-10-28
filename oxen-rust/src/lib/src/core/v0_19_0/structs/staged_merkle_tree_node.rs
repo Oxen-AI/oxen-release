@@ -25,7 +25,7 @@ impl Display for StagedMerkleTreeNode {
             f,
             "StagedMerkleTreeNode {{ hash: {}, data_type: {:?}, metadata: {:?}, name: {:?}, status: {:?} }}",
             self.node.hash,
-            self.node.node.dtype(),
+            self.node.node.node_type(),
             self.node.node.metadata(),
             self.node.maybe_path(),
             self.status

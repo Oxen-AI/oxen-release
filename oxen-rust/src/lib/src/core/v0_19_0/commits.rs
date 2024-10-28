@@ -192,7 +192,7 @@ pub fn create_empty_commit(
     let timestamp = OffsetDateTime::now_utc();
     let commit_node = CommitNode {
         hash: MerkleHash::from_str(&new_commit.id)?,
-        dtype: existing_node.node.dtype(),
+        node_type: existing_node.node.node_type(),
         parent_ids: vec![existing_commit_id],
         message: new_commit.message.clone(),
         author: new_commit.author.clone(),

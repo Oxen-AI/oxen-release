@@ -36,7 +36,7 @@ pub enum EMerkleTreeNode {
 }
 
 impl EMerkleTreeNode {
-    pub fn dtype(&self) -> MerkleTreeNodeType {
+    pub fn node_type(&self) -> MerkleTreeNodeType {
         match self {
             EMerkleTreeNode::File(_) => MerkleTreeNodeType::File,
             EMerkleTreeNode::Directory(_) => MerkleTreeNodeType::Dir,

@@ -719,7 +719,7 @@ fn write_dir_child(
     }
 
     let mut node = DirNode {
-        dtype: MerkleTreeNodeType::Dir,
+        node_type: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
         hash: *hash,
         num_bytes,
@@ -878,7 +878,7 @@ fn write_file_node(
         mime_type,
         extension,
         metadata,
-        dtype: MerkleTreeNodeType::File,
+        node_type: MerkleTreeNodeType::File,
     };
     node_db.add_child(&val)?;
 

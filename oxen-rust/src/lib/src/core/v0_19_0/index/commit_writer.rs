@@ -500,7 +500,7 @@ fn node_data_to_staged_node(
     node: &MerkleTreeNode,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let base_dir = base_dir.as_ref();
-    match node.node.dtype() {
+    match node.node.node_type() {
         MerkleTreeNodeType::Dir => {
             let mut dir_node = node.dir()?;
             let path = base_dir.join(dir_node.name);
@@ -576,7 +576,7 @@ fn split_into_vnodes(
         for child in new_children.iter() {
             log::debug!(
                 "new_child {:?} {:?}",
-                child.node.node.dtype(),
+                child.node.node.node_type(),
                 child.node.maybe_path()
             );
 
@@ -588,20 +588,18 @@ fn split_into_vnodes(
                     match child.status {
                         StagedEntryStatus::Removed => {
                             log::debug!(
-                                "removing child {:?} {:?} with {:?} {:?}",
-                                child.node.node.dtype(),
+                                "removing child {:?} {:?} with {:?}",
+                                child.node.node.node_type(),
                                 path,
-                                child.node.node.dtype(),
                                 child.node.maybe_path().unwrap()
                             );
                             children.remove(child);
                         }
                         _ => {
                             log::debug!(
-                                "replacing child {:?} {:?} with {:?} {:?}",
-                                child.node.node.dtype(),
+                                "replacing child {:?} {:?} with {:?}",
+                                child.node.node.node_type(),
                                 path,
-                                child.node.node.dtype(),
                                 child.node.maybe_path().unwrap()
                             );
                             log::debug!("replaced child {}", child.node);
@@ -616,7 +614,7 @@ fn split_into_vnodes(
         for child in children.iter() {
             log::debug!(
                 "child populated {:?} {:?} status {:?}",
-                child.node.node.dtype(),
+                child.node.node.node_type(),
                 child.node.maybe_path().unwrap(),
                 child.status
             );
@@ -703,7 +701,7 @@ fn split_into_vnodes(
             for entry in vnode.entries.iter() {
                 log::debug!(
                     "    entry {:?} [{}] `{:?}` with status {:?}",
-                    entry.node.node.dtype(),
+                    entry.node.node.node_type(),
                     entry.node.node.hash(),
                     entry.node.maybe_path(),
                     entry.status
@@ -1072,7 +1070,7 @@ fn compute_dir_node(
     );
 
     let node = DirNode {
-        dtype: MerkleTreeNodeType::Dir,
+        node_type: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
         hash,
         num_bytes,

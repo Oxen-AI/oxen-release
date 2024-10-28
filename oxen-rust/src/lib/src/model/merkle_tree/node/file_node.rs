@@ -14,7 +14,7 @@ use std::hash::{Hash, Hasher};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct FileNode {
-    pub dtype: MerkleTreeNodeType,
+    pub node_type: MerkleTreeNodeType,
 
     // The name of the file
     pub name: String,
@@ -59,7 +59,7 @@ impl FileNode {
 impl Default for FileNode {
     fn default() -> Self {
         FileNode {
-            dtype: MerkleTreeNodeType::File,
+            node_type: MerkleTreeNodeType::File,
             name: "".to_string(),
             hash: MerkleHash::new(0),
             combined_hash: MerkleHash::new(0),
@@ -80,8 +80,8 @@ impl Default for FileNode {
 }
 
 impl MerkleTreeNodeIdType for FileNode {
-    fn dtype(&self) -> MerkleTreeNodeType {
-        self.dtype
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {
