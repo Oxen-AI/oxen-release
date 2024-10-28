@@ -198,7 +198,14 @@ pub fn dir_entries(
         found_commits,
         &mut entries,
     )?;
+
     log::debug!("dir_entries got {} entries", entries.len());
+
+    // Sort entries by is_dir first, then by filename
+    entries.sort_by(|a, b| {
+        b.is_dir.cmp(&a.is_dir).then_with(|| a.filename.cmp(&b.filename))
+    });
+
     Ok(entries)
 }
 
