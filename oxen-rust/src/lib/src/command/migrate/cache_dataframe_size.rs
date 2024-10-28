@@ -17,24 +17,26 @@ impl Migrate for CacheDataFrameSizeMigration {
     fn name(&self) -> &'static str {
         "cache_data_frame_size"
     }
+
+    // WE CAN REMOVE THIS MIGRATION AS WE NOW USE A DIFFERENT MERKLEE TREE STRUCTURE
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
-        if all {
-            cache_data_frame_size_for_all_repos_up(path)?;
-        } else {
-            let repo = LocalRepository::new(path)?;
-            cache_data_frame_size_up(&repo)?;
-        }
+        // if all {
+        //     cache_data_frame_size_for_all_repos_up(path)?;
+        // } else {
+        //     let repo = LocalRepository::new(path)?;
+        //     cache_data_frame_size_up(&repo)?;
+        // }
         Ok(())
     }
 
     fn down(&self, path: &Path, all: bool) -> Result<(), OxenError> {
-        if all {
-            cache_data_frame_size_for_all_repos_down(path)?;
-        } else {
-            println!("Running down migration");
-            let repo = LocalRepository::new(path)?;
-            cache_data_frame_size_down(&repo)?;
-        }
+        // if all {
+        //     cache_data_frame_size_for_all_repos_down(path)?;
+        // } else {
+        //     println!("Running down migration");
+        //     let repo = LocalRepository::new(path)?;
+        //     cache_data_frame_size_down(&repo)?;
+        // }
         Ok(())
     }
 
