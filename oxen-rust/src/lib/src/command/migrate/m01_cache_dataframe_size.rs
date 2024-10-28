@@ -89,7 +89,16 @@ pub fn cache_data_frame_size_up(repo: &LocalRepository) -> Result<(), OxenError>
     let all_commits = reader.list_all_sorted_by_timestamp()?;
 
     for current_commit in &all_commits {
-        cachers::df_size::compute(repo, current_commit)?;
+        match cachers::df_size::compute(repo, current_commit) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!(
+                    "Error computing dataframe size for commit {}: {}",
+                    current_commit.id,
+                    e
+                );
+            }
+        }
     }
 
     Ok(())
