@@ -4,8 +4,8 @@ use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
 use liboxen::model::Branch;
 use liboxen::view::http::{
-    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_NOT_FOUND,
-    MSG_UPDATE_REQUIRED, STATUS_ERROR,
+    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_INTERNAL_SERVER_ERROR, MSG_RESOURCE_ALREADY_EXISTS,
+    MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
 };
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
@@ -34,18 +34,11 @@ pub enum OxenHttpError {
     ActixError(actix_web::Error),
     SerdeError(serde_json::Error),
     RedisError(redis::RedisError),
-    PolarsError(polars::error::PolarsError),
 }
 
 impl From<OxenError> for OxenHttpError {
     fn from(error: OxenError) -> Self {
         OxenHttpError::InternalOxenError(error)
-    }
-}
-
-impl From<polars::error::PolarsError> for OxenHttpError {
-    fn from(error: polars::error::PolarsError) -> Self {
-        OxenHttpError::PolarsError(error)
     }
 }
 
@@ -81,6 +74,7 @@ impl From<std::string::FromUtf8Error> for OxenHttpError {
 
 impl error::ResponseError for OxenHttpError {
     fn error_response(&self) -> HttpResponse {
+        log::error!("OxenHttpError: {:?}", self);
         match self {
             OxenHttpError::InternalServerError => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -170,10 +164,6 @@ impl error::ResponseError for OxenHttpError {
                 HttpResponse::BadRequest().json(error_json)
             }
             OxenHttpError::ActixError(_) => {
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-            OxenHttpError::PolarsError(error) => {
-                log::error!("Polars processing error: {}", error);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
             OxenHttpError::SerdeError(_) => {
@@ -396,6 +386,33 @@ impl error::ResponseError for OxenHttpError {
                         });
                         HttpResponse::BadRequest().json(error_json)
                     }
+                    OxenError::PolarsError(error) => {
+                        log::error!("Polars error: {:?}", error);
+                        let error_json = json!({
+                            "error": {
+                                "type": "data_frame_error",
+                                "title": "Error Reading DataFrame",
+                                "detail":
+                                    format!("{}", error),
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::InternalServerError().json(error_json)
+                    }
+                    OxenError::DataFrameError(error) => {
+                        log::error!("DataFrame error: {}", error);
+                        let error_json = json!({
+                            "error": {
+                                "type": "data_frame_error",
+                                "title": "Error Reading DataFrame",
+                                "detail": format!("{}", error),
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_INTERNAL_SERVER_ERROR,
+                        });
+                        HttpResponse::InternalServerError().json(error_json)
+                    }
                     err => {
                         log::error!("Internal server error: {:?}", err);
                         HttpResponse::InternalServerError()
@@ -423,7 +440,6 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            OxenHttpError::PolarsError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,
