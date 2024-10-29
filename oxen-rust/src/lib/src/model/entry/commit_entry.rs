@@ -1,4 +1,5 @@
 use crate::constants::VERSION_FILE_NAME;
+use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::{Commit, ContentHashable, LocalRepository, RemoteEntry, Schema};
 use crate::util;
 
@@ -13,6 +14,23 @@ pub enum Entry {
     CommitEntry(CommitEntry),
     SchemaEntry(SchemaEntry),
 }
+
+impl Hash for Entry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Entry::CommitEntry(entry) => entry.hash.hash(state),
+            Entry::SchemaEntry(entry) => entry.hash.hash(state),
+        }
+    }
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Entry) -> bool {
+        self.hash() == other.hash()
+    }
+}
+
+impl Eq for Entry {}
 
 impl Entry {
     pub fn commit_id(&self) -> String {
@@ -144,6 +162,28 @@ impl CommitEntry {
             num_bytes: 0,
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
+        }
+    }
+
+    pub fn from_file_node(file_node: &FileNode) -> CommitEntry {
+        CommitEntry {
+            commit_id: file_node.last_commit_id.to_string(),
+            path: PathBuf::from(file_node.name.clone()),
+            hash: file_node.hash.to_string(),
+            num_bytes: file_node.num_bytes,
+            last_modified_seconds: file_node.last_modified_seconds,
+            last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+        }
+    }
+
+    pub fn from_dir_node(dir_node: &DirNode) -> CommitEntry {
+        CommitEntry {
+            commit_id: dir_node.last_commit_id.to_string(),
+            path: PathBuf::from(dir_node.name.clone()),
+            hash: dir_node.hash.to_string(),
+            num_bytes: dir_node.num_bytes,
+            last_modified_seconds: dir_node.last_modified_seconds,
+            last_modified_nanoseconds: dir_node.last_modified_nanoseconds,
         }
     }
 

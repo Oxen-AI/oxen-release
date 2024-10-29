@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 
+use dialoguer::Confirm;
 use liboxen::api;
-use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
+use liboxen::constants::DEFAULT_HOST;
 use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
@@ -23,57 +24,59 @@ impl RunCmd for DeleteRemoteCmd {
             Arg::new("name")
                 .long("name")
                 .short('n')
-                .help("The namespace/name of the remote repository you want to delete. For example: 'ox/my_repo'")
+                .help("The namespace/name of the remote repository you want to create. For example: 'ox/my_repo'")
                 .required(true)
                 .action(clap::ArgAction::Set),
         )
         .arg(
             Arg::new("host")
                 .long("host")
-                .help("The host you want to delete the remote repository on. For example: 'hub.oxen.ai'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("The remote you want to delete the repository on. For example: 'origin'")
+                .help("The host you want to create the remote repository on. For example: 'hub.oxen.ai'")
                 .action(clap::ArgAction::Set),
         )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
+        // Parse Args
         let Some(namespace_name) = args.get_one::<String>("name") else {
             return Err(OxenError::basic_str(
                 "Must supply a namespace/name for the remote repository.",
             ));
         };
-
+        // Default the host to the oxen.ai hub
         let host = args
             .get_one::<String>("host")
             .map(String::from)
             .unwrap_or(DEFAULT_HOST.to_string());
 
-        let remote = args
-            .get_one::<String>("remote")
-            .map(String::from)
-            .unwrap_or(DEFAULT_REMOTE_NAME.to_string());
+        let Some(remote_repo) =
+            api::client::repositories::get_by_name_and_host(namespace_name, host).await?
+        else {
+            return Err(OxenError::basic_str(format!(
+                "Remote repository not found: {namespace_name}"
+            )));
+        };
 
-        let parts: Vec<&str> = namespace_name.split('/').collect();
-        if parts.len() != 2 {
-            return Err(OxenError::basic_str(
-                "Invalid name format. Must be namespace/name",
-            ));
-        }
-
-        if let Some(remote_repo) =
-            api::remote::repositories::get_by_name_host_and_remote(&namespace_name, &host, &remote)
-                .await?
+        // Confirm the user wants to delete the remote repository
+        match Confirm::new()
+            .with_prompt(format!(
+                "Are you sure you want to delete the remote repository: {namespace_name}?"
+            ))
+            .interact()
         {
-            api::remote::repositories::delete(&remote_repo).await?;
-            println!("Deleted remote repository: {}", namespace_name);
-        } else {
-            eprintln!("Repository does not exist {}", namespace_name);
+            Ok(true) => {
+                api::client::repositories::delete(&remote_repo).await?;
+            }
+            Ok(false) => {
+                return Ok(());
+            }
+            Err(e) => {
+                return Err(OxenError::basic_str(format!(
+                    "Error confirming deletion: {e}"
+                )));
+            }
         }
+
         Ok(())
     }
 }
