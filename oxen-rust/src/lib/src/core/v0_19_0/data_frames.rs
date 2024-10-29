@@ -111,9 +111,8 @@ fn handle_sql_querying(
         let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
         let mut conn = df_db::get_connection(db_path)?;
 
-        let mut slice_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(sql, &mut conn)?;
-
+        log::debug!("handle_sql_querying got df {:?}", df.height());
         let paginated_df = transform_new(df.clone().lazy(), opts.clone())?.collect()?;
 
         let source_schema = if let Some(schema) =
@@ -124,6 +123,7 @@ fn handle_sql_querying(
             Schema::from_polars(&paginated_df.schema())
         };
 
+        let mut slice_schema = Schema::from_polars(&df.schema());
         slice_schema.update_metadata_from_schema(&source_schema);
 
         return Ok(DataFrameSlice {
