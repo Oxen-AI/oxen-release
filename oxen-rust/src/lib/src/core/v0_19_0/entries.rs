@@ -203,7 +203,9 @@ pub fn dir_entries(
 
     // Sort entries by is_dir first, then by filename
     entries.sort_by(|a, b| {
-        b.is_dir.cmp(&a.is_dir).then_with(|| a.filename.cmp(&b.filename))
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.filename.cmp(&b.filename))
     });
 
     Ok(entries)
