@@ -1,7 +1,7 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, SCHEMAS_TREE_PREFIX};
 use crate::core::db;
-use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::{path_db, str_val_db};
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::v0_10_0::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
@@ -78,11 +78,9 @@ impl ObjectsSchemaReader {
         log::debug!("in get_schema_for_file path {:?}", path.as_ref());
         let schema_path = Path::new(SCHEMAS_TREE_PREFIX).join(&path);
         let path_parent = path.as_ref().parent().unwrap_or(Path::new(""));
-
-        let parent_dir_hash: Option<String> = path_db::get_entry(
-            &self.dir_hashes_db,
-            path_parent.to_str().unwrap().replace('\\', "/"),
-        )?;
+        let path_parent_str = path_parent.to_str().unwrap().replace('\\', "/");
+        let parent_dir_hash: Option<String> =
+            str_val_db::get(&self.dir_hashes_db, path_parent_str)?;
 
         if parent_dir_hash.is_none() {
             return Ok(None);
