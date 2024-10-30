@@ -1,4 +1,3 @@
-use crate::constants::DUCKDB_DF_TABLE_NAME;
 use crate::core::db::data_frames::df_db;
 use crate::core::df::tabular::transform_new;
 use crate::core::df::{sql, tabular};

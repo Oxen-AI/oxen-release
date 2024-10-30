@@ -59,12 +59,12 @@ impl Migrate for OptimizeMerkleTreesMigration {
     }
 
     fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let objects_dir = repo
+        let nodes_dir = repo
             .path
             .join(constants::OXEN_HIDDEN_DIR)
             .join(constants::TREE_DIR)
             .join(constants::NODES_DIR);
-        if !objects_dir.exists() {
+        if !nodes_dir.exists() {
             return Ok(true);
         }
         // This may need a more elaborate check for migrations that are aborted with a single repo...
@@ -136,6 +136,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
     // let commit_writer = CommitWriter::new(repo)?;
+    log::debug!("Migrating {} commits", all_commits.len());
     for (commit_idx, _) in all_commits.iter().enumerate() {
         // Populate the global merkle tree from the old objects dir
         migrate_merkle_tree(
@@ -193,8 +194,11 @@ fn migrate_merkle_tree(
 
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
     for (i, c) in commits.iter().enumerate() {
+        log::debug!("Getting commit entry reader for commit {}", c);
         let reader = CommitDirEntryReader::new(repo, &c.id, dir_path, object_readers[i].clone())?;
+        log::debug!("Got commit entry reader for commit {}", c);
         commit_entry_readers.push((c.clone(), reader));
+        log::debug!("total commit entry readers: {}", commit_entry_readers.len());
     }
 
     log::debug!(
@@ -203,6 +207,7 @@ fn migrate_merkle_tree(
         commit
     );
     // Write the initial commit db
+    log::debug!("Migrating commit {}", commit);
     let commit_id = MerkleHash::from_str(&commit.id)?;
     let parent_ids = commit
         .parent_ids
