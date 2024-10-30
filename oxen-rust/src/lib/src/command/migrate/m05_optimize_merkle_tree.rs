@@ -837,6 +837,7 @@ fn write_file_node(
     if data_type == EntryDataType::Tabular {
         let schema_reader =
             core::v0_10_0::index::schema_reader::SchemaReader::new(repo, &current_commit.id)?;
+        log::debug!("Getting schema for path {:?}", path);
         let schema_metadata = schema_reader.get_schema_for_file(path)?;
         if let Some(schema) = schema_metadata {
             match &mut metadata {

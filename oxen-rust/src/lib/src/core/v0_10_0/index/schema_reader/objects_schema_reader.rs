@@ -75,7 +75,7 @@ impl ObjectsSchemaReader {
         &self,
         path: P,
     ) -> Result<Option<Schema>, OxenError> {
-        log::debug!("in get_schema_for_file path {:?}", path.as_ref());
+        // log::debug!("in get_schema_for_file path {:?}", path.as_ref());
         let schema_path = Path::new(SCHEMAS_TREE_PREFIX).join(&path);
         let path_parent = path.as_ref().parent().unwrap_or(Path::new(""));
         let path_parent_str = path_parent.to_str().unwrap().replace('\\', "/");
@@ -87,6 +87,9 @@ impl ObjectsSchemaReader {
         }
 
         let parent_dir_hash = parent_dir_hash.unwrap();
+        // log::debug!("parent_dir_hash {:?}", parent_dir_hash);
+        let parent_dir_hash = parent_dir_hash.replace('"', "");
+        // log::debug!("parent_dir_hash after replace {:?}", parent_dir_hash);
         let parent_dir_obj: TreeObject = self.object_reader.get_dir(&parent_dir_hash)?.unwrap();
         let full_path_str = schema_path.to_str().unwrap().replace('\\', "/");
         let schema_path_hash_prefix = util::hasher::hash_path_name(full_path_str)[0..2].to_string();
