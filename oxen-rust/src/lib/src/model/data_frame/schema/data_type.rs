@@ -19,10 +19,10 @@ pub enum DataType {
     String,
     Date,
     Time,
+    Datetime,
     List(Box<DataType>),
     // TODO: implement these when needed...
     // Object(&'static str),
-    // Datetime,
     // Duration,
     Null,
     Unknown,
@@ -53,6 +53,7 @@ impl DataType {
             "f64" => DataType::Float64,
             "str" => DataType::String,
             "date" => DataType::Date,
+            "datetime" => DataType::Datetime,
             "time" => DataType::Time,
             "null" => DataType::Null,
             "list[bool]" => DataType::List(Box::new(DataType::Boolean)),
@@ -89,6 +90,7 @@ impl DataType {
             DataType::Float64 => "f64",
             DataType::String => "str",
             DataType::Date => "date",
+            DataType::Datetime => "datetime",
             DataType::Time => "time",
             DataType::List(val) => match **val {
                 DataType::Boolean => "list[bool]",
@@ -108,7 +110,10 @@ impl DataType {
                 _ => "list[?]",
             },
             DataType::Null => "null",
-            DataType::Unknown => "?",
+            DataType::Unknown => {
+                log::error!("TODO: as_str unknown DataType::Unknown type {}", self);
+                "?"
+            }
         }
     }
 
@@ -128,6 +133,7 @@ impl DataType {
             DataType::String => polars::prelude::DataType::String,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
+            DataType::Datetime => polars::prelude::DataType::Datetime(polars::prelude::TimeUnit::Milliseconds, None),
             DataType::List(val) => polars::prelude::DataType::List(Box::new(val.to_polars())),
             DataType::Null => polars::prelude::DataType::Null,
             DataType::Unknown => {
@@ -171,6 +177,7 @@ impl DataType {
             DataType::String => "VARCHAR", // variable-length character string
             DataType::Date => "DATE",     // calendar date (year, month day)
             DataType::Time => "TIME",     // time of day (no time zone)
+            DataType::Datetime => "DATETIME", // combination of time and date
             DataType::List(dtype) => match dtype.as_ref() {
                 DataType::Boolean => "BOOL[]",
                 DataType::UInt8 => "UTINYINT[]",
@@ -186,6 +193,7 @@ impl DataType {
                 DataType::String => "VARCHAR[]",
                 DataType::Date => "DATE[]",
                 DataType::Time => "TIME[]",
+                DataType::Datetime => "DATETIME[]",
                 _ => {
                     log::error!("TODO: to_sql unknown SQL DataType::List type {}", dtype);
                     "UNKNOWN[]"
@@ -215,6 +223,10 @@ impl DataType {
             "VARCHAR" => DataType::String, // variable-length character string
             "DATE" => DataType::Date,     // calendar date (year, month day)
             "TIME" => DataType::Time,     // time of day (no time zone)
+            "TIMESTAMP" => DataType::Datetime, // combination of time and date
+            "DATETIME" => DataType::Datetime, // combination of time and date
+            "TIMESTAMP WITH TIME ZONE" => DataType::Datetime, // combination of time and date that uses the current time zone
+            "TIMESTAMPTZ" => DataType::Datetime, // combination of time and date that uses the current time zone
             "NULL" => DataType::Null,     // null value
             "UUID" => DataType::String,
             "BOOLEAN" => DataType::Boolean,
@@ -232,7 +244,10 @@ impl DataType {
             "VARCHAR[]" => DataType::List(Box::new(DataType::String)),
             "DATE[]" => DataType::List(Box::new(DataType::Date)),
             "TIME[]" => DataType::List(Box::new(DataType::Time)),
-            _ => DataType::Unknown,
+            _ => {
+                log::error!("TODO: from_sql unknown SQL type {}", s.as_ref());
+                DataType::Unknown
+            }
         }
     }
 }

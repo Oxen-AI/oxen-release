@@ -495,6 +495,7 @@ pub fn record_batches_to_polars_df_explicit_nulls(
 
     Ok(df)
 }
+
 #[cfg(test)]
 mod tests {
     use crate::test;
