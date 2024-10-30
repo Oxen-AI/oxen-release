@@ -108,12 +108,13 @@ impl CommitDirEntryReader {
         }
 
         let dir_hash: Option<String> = object_reader.get_dir_hash(dir)?;
+        let dir_hash_str = dir_hash.map(|h| h.replace('"', ""));
         log::debug!(
             "CommitDirEntryReader::new_from_path dir: {:?} dir_hash: {:?}",
             dir,
-            dir_hash
+            dir_hash_str
         );
-        let dir_object: TreeObject = match dir_hash {
+        let dir_object: TreeObject = match dir_hash_str {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,
                 None => {
