@@ -13,16 +13,26 @@ pyo3 = "0.21.0"
 # pyo3-asyncio = { version = "0.22.0", features = ["attributes", "tokio-runtime"] }
 pyo3-asyncio = { git = "https://github.com/jopemachine/pyo3-asyncio.git", rev = "d1ec64076dd1b5c797db4b7b811f588466956d20", features = ["attributes", "tokio-runtime"] }
 log = "0.4.17"
-pyo3-log = "0.10.0"
+pyo3-log = "0.11.0"
 tokio = { version = "1", features = ["full"] }
-pyo3-polars = "0.15.0"
+pyo3-polars = { version = "0.18.0", features = [
+    "dtype-full",
+] }
+polars = { version = "0.44.0", features = [
+    "lazy",
+    "parquet",
+    "json",
+    "ipc",
+    "ipc_streaming",
+    "dtype-full",
+] }
 serde_json = "1.0.106"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
-liboxen = "0.18.2"
+liboxen = "0.19.0"
 # liboxen = { path = "../../Oxen/src/lib" }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
-bindgen = { version = "0.69.1", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.70.1", default-features = false, features = ["runtime"] }
 glob = "0.3"
 pkg-config = { version = "0.3", optional = true }

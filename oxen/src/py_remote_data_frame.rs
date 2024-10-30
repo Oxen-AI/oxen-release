@@ -26,7 +26,7 @@ impl PyRemoteDataFrame {
             let mut opts = DFOpts::empty();
             opts.slice = Some("0..1".to_string());
 
-            let response = api::remote::data_frames::get(
+            let response = api::client::data_frames::get(
                 &self.repo.repo,
                 &self.repo.revision,
                 &self.path,
@@ -43,7 +43,7 @@ impl PyRemoteDataFrame {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", row, row+1));
 
-            let response = api::remote::data_frames::get(
+            let response = api::client::data_frames::get(
                 &self.repo.repo,
                 &self.repo.revision,
                 &self.path,
@@ -76,7 +76,7 @@ impl PyRemoteDataFrame {
                 opts.columns = Some(columns);
             }
 
-            let response = api::remote::data_frames::get(
+            let response = api::client::data_frames::get(
                 &self.repo.repo,
                 &self.repo.revision,
                 &self.path,

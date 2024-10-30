@@ -16,7 +16,7 @@ pub fn is_indexed(workspace: PyWorkspace, workspace_id: String, path: PathBuf) -
     let repo = workspace.repo.repo;
     let data = pyo3_asyncio::tokio::get_runtime()
         .block_on(async {
-            api::remote::workspaces::data_frames::is_indexed(
+            api::client::workspaces::data_frames::is_indexed(
                 &repo,
                 &workspace_id,
                 &path
@@ -30,7 +30,7 @@ pub fn index(workspace: PyWorkspace, workspace_id: String, path: PathBuf) -> Res
     let repo = workspace.repo.repo;
     pyo3_asyncio::tokio::get_runtime()
         .block_on(async {
-            api::remote::workspaces::data_frames::index(
+            api::client::workspaces::data_frames::index(
                 &repo,
                 &workspace_id,
                 &path
@@ -49,7 +49,7 @@ fn _get(
 
     let data = pyo3_asyncio::tokio::get_runtime()
         .block_on(async {
-            api::remote::workspaces::data_frames::get(repo, &workspace_id, path, opts).await 
+            api::client::workspaces::data_frames::get(repo, &workspace_id, path, opts).await 
         })?;
 
     let Some(data_frame) = data.data_frame else {
@@ -100,7 +100,7 @@ impl PyWorkspaceDataFrame {
     pub fn is_indexed(&self) -> Result<bool, PyOxenError> {
         let is_indexed = pyo3_asyncio::tokio::get_runtime()
             .block_on(async { 
-                api::remote::workspaces::data_frames::is_indexed(
+                api::client::workspaces::data_frames::is_indexed(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -113,7 +113,7 @@ impl PyWorkspaceDataFrame {
     pub fn index(&self) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime()
             .block_on(async { 
-                api::remote::workspaces::data_frames::index(
+                api::client::workspaces::data_frames::index(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -130,7 +130,7 @@ impl PyWorkspaceDataFrame {
 
         let data = pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::workspaces::data_frames::get(
+                api::client::workspaces::data_frames::get(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -149,7 +149,7 @@ impl PyWorkspaceDataFrame {
     fn get_row_by_id(&self, id: String) -> Result<String, PyOxenError> {
         let data = pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::workspaces::data_frames::rows::get(
+                api::client::workspaces::data_frames::rows::get(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -171,7 +171,7 @@ impl PyWorkspaceDataFrame {
 
         let (_, Some(row_id)) = pyo3_asyncio::tokio::get_runtime()
             .block_on(async { 
-                api::remote::workspaces::data_frames::rows::add(
+                api::client::workspaces::data_frames::rows::add(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -192,7 +192,7 @@ impl PyWorkspaceDataFrame {
 
         let view = pyo3_asyncio::tokio::get_runtime()
             .block_on(async { 
-                api::remote::workspaces::data_frames::rows::update(
+                api::client::workspaces::data_frames::rows::update(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -210,7 +210,7 @@ impl PyWorkspaceDataFrame {
     fn delete_row(&self, id: String) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::workspaces::data_frames::rows::delete(
+                api::client::workspaces::data_frames::rows::delete(
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
@@ -226,7 +226,7 @@ impl PyWorkspaceDataFrame {
 
         pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::workspaces::data_frames::restore(
+                api::client::workspaces::data_frames::restore(
                     repo,
                     &self.workspace.id,
                     &self.path
@@ -248,7 +248,7 @@ impl PyWorkspaceDataFrame {
 
         let commit = pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::workspaces::commit(
+                api::client::workspaces::commit(
                     repo,
                     branch,
                     &self.workspace.id,

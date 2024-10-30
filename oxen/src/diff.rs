@@ -2,7 +2,7 @@
 use pyo3::prelude::*;
 use std::path::PathBuf;
 
-use liboxen::command;
+use liboxen::repositories;
 use crate::error::PyOxenError;
 use crate::py_diff::PyDiff;
 
@@ -23,7 +23,7 @@ pub fn diff_paths(
     revision_1: Option<String>,
     revision_2: Option<String>
 ) -> Result<PyDiff, PyOxenError> {
-    let result = command::diff(
+    let result = repositories::diffs::diff(
         path_1,
         path_2,
         keys,
