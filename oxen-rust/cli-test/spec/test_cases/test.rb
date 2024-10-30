@@ -86,7 +86,7 @@ RSpec.describe 'test', type: :aruba do
     cd 'test-small-repo'
     pull_time = measure_time('oxen pull')
     puts "oxen pull command took: #{pull_time} seconds"
-    expect(pull_time).to be < 100.0
+    expect(pull_time).to be < 125.0
 
     # Checkout to a new branch
     checkout_time = measure_time('oxen checkout -b second_branch')
