@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
 use liboxen::model::{Remote, RemoteRepository, RepoNew};
-use liboxen::{api, command};
+use liboxen::{api, repositories};
 
 use pyo3::exceptions::PyValueError;
 use std::path::PathBuf;
@@ -51,6 +51,8 @@ impl PyRemoteRepo {
                     ),
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
+                is_empty: false,
+                min_version: Some(liboxen::constants::MIN_OXEN_VERSION.to_string()),
             },
             revision: revision.to_string(),
             scheme: scheme.to_string(),
@@ -96,7 +98,7 @@ impl PyRemoteRepo {
                 );
                 repo.is_public = Some(is_public);
                 repo.scheme = Some(self.scheme.clone());
-                api::remote::repositories::create_empty(repo).await
+                api::client::repositories::create_empty(repo).await
             } else {
                 let config = UserConfig::get()?;
                 let user = config.to_user();
@@ -109,7 +111,7 @@ impl PyRemoteRepo {
                 repo.host = Some(self.host.clone());
                 repo.is_public = Some(is_public);
                 repo.scheme = Some(self.scheme.clone());
-                api::remote::repositories::create(repo).await
+                api::client::repositories::create(repo).await
             }
         })?;
 
@@ -125,14 +127,14 @@ impl PyRemoteRepo {
 
     fn exists(&self) -> Result<bool, PyOxenError> {
         let exists = pyo3_asyncio::tokio::get_runtime()
-            .block_on(async { api::remote::repositories::exists(&self.repo).await })?;
+            .block_on(async { api::client::repositories::exists(&self.repo).await })?;
 
         Ok(exists)
     }
 
     fn delete(&self) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime()
-            .block_on(async { api::remote::repositories::delete(&self.repo).await })?;
+            .block_on(async { api::client::repositories::delete(&self.repo).await })?;
 
         Ok(())
     }
@@ -140,9 +142,9 @@ impl PyRemoteRepo {
     fn download(&self, remote_path: PathBuf, local_path: PathBuf, revision: &str) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             if !revision.is_empty() {
-                command::download(&self.repo, &remote_path, &local_path, revision).await
+                repositories::download(&self.repo, &remote_path, &local_path, revision).await
             } else {
-                command::download(&self.repo, &remote_path, &local_path, &self.revision).await
+                repositories::download(&self.repo, &remote_path, &local_path, &self.revision).await
             }
         })?;
 
@@ -151,23 +153,23 @@ impl PyRemoteRepo {
 
     fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let log = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::commits::list_commit_history(&self.repo, &self.revision).await
+            api::client::commits::list_commit_history(&self.repo, &self.revision).await
         })?;
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
         let branches = pyo3_asyncio::tokio::get_runtime()
-            .block_on(async { api::remote::branches::list(&self.repo).await })?;
+            .block_on(async { api::client::branches::list(&self.repo).await })?;
         Ok(branches
             .iter()
-            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone(), false))
+            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone()))
             .collect())
     }
 
     fn ls(&self, path: PathBuf, page_num: usize, page_size: usize) -> Result<PyPaginatedDirEntries, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::dir::list(
+            api::client::dir::list(
                 &self.repo,
                 &self.revision,
                 &path,
@@ -186,7 +188,7 @@ impl PyRemoteRepo {
 
         let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
             log::info!("From repo... {}", self.repo.remote.url);
-            api::remote::branches::get_by_name(&self.repo, &branch_name).await
+            api::client::branches::get_by_name(&self.repo, &branch_name).await
         });
 
         match branch {
@@ -197,7 +199,7 @@ impl PyRemoteRepo {
 
     fn get_commit(&self, commit_id: String) -> PyResult<PyCommit> {
         let commit = pyo3_asyncio::tokio::get_runtime()
-            .block_on(async { api::remote::commits::get_by_id(&self.repo, &commit_id).await });
+            .block_on(async { api::client::commits::get_by_id(&self.repo, &commit_id).await });
         match commit {
             Ok(Some(commit)) => Ok(PyCommit { commit }),
             _ => Err(PyValueError::new_err("could not get commit id {commit_id}")),
@@ -206,7 +208,7 @@ impl PyRemoteRepo {
 
     fn create_branch(&self, new_name: String) -> PyResult<PyBranch> {
         let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::branches::create_from_or_get(&self.repo, &new_name, &self.revision).await
+            api::client::branches::create_from_branch(&self.repo, &new_name, &self.revision).await
         });
 
         match branch {

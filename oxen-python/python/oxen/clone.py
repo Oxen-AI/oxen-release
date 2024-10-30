@@ -34,17 +34,23 @@ def clone(
         [Repo](/python-api/repo)
             A Repo object that can be used to interact with the cloned repo.
     """
-    # Verify repo_id format
-    if "/" not in repo_id:
-        raise ValueError(f"Invalid repo_id format: {repo_id}")
-    # Get repo name from repo_id
-    repo_name = repo_id.split("/")[1]
     # Get path from repo_name if not provided
+    # Get repo name from repo_id
+    repo_name = repo_id.split("/")[-1]
     if path is None:
         path = repo_name
-    # Get repo url
-    repo_url = f"{scheme}://{host}/{repo_id}"
-    # Clone repo
-    repo = Repo(path)
-    repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
+
+    if repo_id.startswith("http"):
+        # Clone repo
+        repo = Repo(path)
+        repo.clone(repo_id, branch=branch, shallow=shallow, all=all)
+    else:
+        # Verify repo_id format
+        if "/" not in repo_id:
+            raise ValueError(f"Invalid repo_id format: {repo_id}")
+        # Get repo url
+        repo_url = f"{scheme}://{host}/{repo_id}"
+        # Clone repo
+        repo = Repo(path)
+        repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
     return repo

@@ -118,7 +118,7 @@ class Repo:
         """
         self._repo.add_schema_metadata(path, column_name, metadata)
 
-    def rm(self, path: str, recursive=False, staged=False, remote=False):
+    def rm(self, path: str, recursive=False, staged=False):
         """
         Remove a file or directory from being tracked.
         This will not delete the file or directory.
@@ -135,7 +135,7 @@ class Repo:
                 Whether to remove the file or directory from a remote workspace.
                 Default: False
         """
-        self._repo.rm(path, recursive, staged, remote)
+        self._repo.rm(path, recursive, staged)
 
     def status(self):
         """

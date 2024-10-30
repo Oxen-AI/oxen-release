@@ -13,7 +13,7 @@ use crate::py_remote_repo::PyRemoteRepo;
 #[pyo3(signature = (name, host, scheme="https"))]
 pub fn get_repo(name: String, host: String, scheme: &str) -> Result<Option<PyRemoteRepo>, PyOxenError> {
     let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-        liboxen::api::remote::repositories::get_by_name_and_host(name, &host).await
+        liboxen::api::client::repositories::get_by_name_and_host(name, &host).await
     })?;
 
     if let Some(repo) = result {
@@ -60,7 +60,7 @@ pub fn create_repo(
             repo.is_public = Some(is_public);
             repo.scheme = Some(scheme.clone());
 
-            liboxen::api::remote::repositories::create_empty(repo).await
+            liboxen::api::client::repositories::create_empty(repo).await
         } else {
             let files: Vec<FileNew> = files.iter().map(|(path, contents)| {
                 FileNew {
@@ -76,7 +76,7 @@ pub fn create_repo(
             repo.is_public = Some(is_public);
             repo.scheme = Some(scheme.clone());
 
-            liboxen::api::remote::repositories::create(repo).await
+            liboxen::api::client::repositories::create(repo).await
         }
     })?;
     Ok(PyRemoteRepo {

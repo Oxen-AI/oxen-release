@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3_polars::PyDataFrame;
 
 use liboxen::model::diff::AddRemoveModifyCounts;
-use liboxen::model::schema::Schema;
+use liboxen::model::data_frame::schema::Schema;
 
 #[pyclass]
 pub struct PyTabularDiffMods {

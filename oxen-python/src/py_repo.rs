@@ -9,7 +9,7 @@ use liboxen::opts::RmOpts;
 use pyo3::prelude::*;
 
 use liboxen::api;
-use liboxen::command;
+use liboxen::repositories;
 
 use std::path::PathBuf;
 
@@ -37,7 +37,7 @@ impl PyRepo {
     }
 
     pub fn init(&self) -> Result<(), PyOxenError> {
-        command::init(&self.path)?;
+        repositories::init(&self.path)?;
         Ok(())
     }
 
@@ -50,7 +50,7 @@ impl PyRepo {
                 shallow,
                 all
             };
-            command::clone(&opts).await
+            repositories::clone(&opts).await
         })?;
 
         // cd repo_path
@@ -61,13 +61,13 @@ impl PyRepo {
 
     fn current_branch(&self) -> Result<Option<PyBranch>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let branch = api::local::branches::current_branch(&repo)?.map(PyBranch::from);
+        let branch = repositories::branches::current_branch(&repo)?.map(PyBranch::from);
         Ok(branch)
     }
 
     pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        command::add(&repo, path).unwrap();
+        repositories::add(&repo, path).unwrap();
         Ok(())
     }
 
@@ -84,7 +84,7 @@ impl PyRepo {
         })?;
     
         for (path, schema) in
-            command::schemas::add_column_metadata(&repo, path, column, &metadata)?
+            repositories::data_frames::schemas::add_column_metadata(&repo, path, column, &metadata)?
         {
             println!("{:?}\n{}", path, schema.verbose_str());
         }
@@ -92,40 +92,37 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool, remote: bool) -> Result<(), PyOxenError> {
+    pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let rm_opts = RmOpts {
             path,
             recursive,
             staged,
-            remote,
         };
 
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
-            command::rm(&repo, &rm_opts).await
-        })?;
+        repositories::rm(&repo, &rm_opts)?;
 
         Ok(())
     }
 
     pub fn status(&self) -> Result<PyStagedData, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let status = command::status(&repo)?;
+        let status = repositories::status(&repo)?;
         Ok(PyStagedData { data: status })
     }
 
     pub fn commit(&self, message: &str) -> Result<PyCommit, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let commit = command::commit(&repo, message)?;
+        let commit = repositories::commit(&repo, message)?;
         Ok(PyCommit { commit })
     }
 
     pub fn branch(&self, name: &str, delete: bool) -> Result<PyBranch, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let branch = if delete {
-            api::local::branches::delete(&repo, name)
+            repositories::branches::delete(&repo, name)
         } else {
-            api::local::branches::get_by_name(&repo, name)?
+            repositories::branches::get_by_name(&repo, name)?
                 .ok_or(OxenError::local_branch_not_found(name))
         };
         Ok(PyBranch::from(branch?))
@@ -134,10 +131,10 @@ impl PyRepo {
     pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let branch = if create {
-            api::local::branches::create_checkout(&repo, revision)?
+            repositories::branches::create_checkout(&repo, revision)?
         } else {
             pyo3_asyncio::tokio::get_runtime().block_on(async {
-                command::checkout(&repo, revision)
+                repositories::checkout(&repo, revision)
                     .await?
                     .ok_or(OxenError::local_branch_not_found(revision))
             })?
@@ -148,7 +145,7 @@ impl PyRepo {
 
     pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let commits = api::local::commits::list(&repo)?;
+        let commits = repositories::commits::list(&repo)?;
         Ok(commits
             .iter()
             .map(|c| PyCommit { commit: c.clone() })
@@ -157,16 +154,16 @@ impl PyRepo {
 
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let branches = api::local::branches::list(&repo)?;
+        let branches = repositories::branches::list(&repo)?;
         Ok(branches
             .iter()
-            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone(), false))
+            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone()))
             .collect())
     }
 
     pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
         let mut repo = LocalRepository::from_dir(&self.path)?;
-        command::config::set_remote(&mut repo, name, url)?;
+        liboxen::command::config::set_remote(&mut repo, name, url)?;
         Ok(())
     }
 
@@ -175,10 +172,10 @@ impl PyRepo {
             let repo = LocalRepository::from_dir(&self.path)?;
             if delete {
                 // Delete the remote branch
-                api::remote::branches::delete_remote(&repo, remote, branch).await
+                api::client::branches::delete_remote(&repo, remote, branch).await
             } else {
                 // Push to the remote branch
-                command::push_remote_branch(&repo, remote, branch).await
+                repositories::push::push_remote_branch(&repo, remote, branch).await
             }
         });
 
@@ -189,7 +186,7 @@ impl PyRepo {
     pub fn pull(&self, remote: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
-            command::pull_remote_branch(&repo, remote, branch, all).await
+            repositories::pull_remote_branch(&repo, remote, branch, all).await
         })?;
         Ok(())
     }
