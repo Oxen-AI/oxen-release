@@ -226,6 +226,7 @@ pub fn select_str(
     sql.push_str(&pagination_clause);
     log::debug!("select_str() running sql: {}", sql);
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
+    log::debug!("select_str() got raw df {:?}", df);
     Ok(df)
 }
 

@@ -43,7 +43,9 @@ where
     match db.get(bytes) {
         Ok(Some(value)) => {
             // found it
+            // log::debug!("str_json_db::get({:?}) found value {:?}", key, value);
             let str_val = str::from_utf8(&value)?;
+            // log::debug!("str_json_db::get({:?}) got str_val {:?}", key, str_val);
             let entry = serde_json::from_str(str_val)?;
             // log::debug!("str_json_db::get({:?}) got entry {:?}", key, str_val);
             Ok(Some(entry))
