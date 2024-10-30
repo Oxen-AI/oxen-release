@@ -58,17 +58,16 @@ impl Migrate for OptimizeMerkleTreesMigration {
         Ok(())
     }
 
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let nodes_dir = repo
-            .path
-            .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::TREE_DIR)
-            .join(constants::NODES_DIR);
-        if !nodes_dir.exists() {
-            return Ok(true);
-        }
-        // This may need a more elaborate check for migrations that are aborted with a single repo...
-        // but it's too computationally expensive to parse through all the trees.
+    fn is_needed(&self, _repo: &LocalRepository) -> Result<bool, OxenError> {
+        // let nodes_dir = repo
+        //     .path
+        //     .join(constants::OXEN_HIDDEN_DIR)
+        //     .join(constants::TREE_DIR)
+        //     .join(constants::NODES_DIR);
+        // if !nodes_dir.exists() {
+        //     return Ok(true);
+        // }
+        // Just returning false from now on, because this migration can be destructive for newer repos
         Ok(false)
     }
 }
