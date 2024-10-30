@@ -133,7 +133,9 @@ impl DataType {
             DataType::String => polars::prelude::DataType::String,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
-            DataType::Datetime => polars::prelude::DataType::Datetime(polars::prelude::TimeUnit::Milliseconds, None),
+            DataType::Datetime => {
+                polars::prelude::DataType::Datetime(polars::prelude::TimeUnit::Milliseconds, None)
+            }
             DataType::List(val) => polars::prelude::DataType::List(Box::new(val.to_polars())),
             DataType::Null => polars::prelude::DataType::Null,
             DataType::Unknown => {
@@ -227,7 +229,7 @@ impl DataType {
             "DATETIME" => DataType::Datetime, // combination of time and date
             "TIMESTAMP WITH TIME ZONE" => DataType::Datetime, // combination of time and date that uses the current time zone
             "TIMESTAMPTZ" => DataType::Datetime, // combination of time and date that uses the current time zone
-            "NULL" => DataType::Null,     // null value
+            "NULL" => DataType::Null,            // null value
             "UUID" => DataType::String,
             "BOOLEAN" => DataType::Boolean,
             "BOOL[]" => DataType::List(Box::new(DataType::Boolean)),
