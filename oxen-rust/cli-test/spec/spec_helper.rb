@@ -28,7 +28,7 @@ RSpec.configure do |config|
   config.after(:each) do
     # Ensure the remote repository is deleted after each test
 
-    run_command_and_stop('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai')
+    run_command_and_stop('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai -y')
   rescue StandardError => e
     # Log the error or ignore it
     puts "Warning: Failed to delete remote repository - #{e.message}"
