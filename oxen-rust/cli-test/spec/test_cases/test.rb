@@ -160,7 +160,7 @@ RSpec.describe 'test', type: :aruba do
     expect(push_time).to be < 60.0
 
     # Delete the remote repository
-    delete_remote_time = measure_time('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai')
+    delete_remote_time = measure_time('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai -y')
     puts "oxen delete-remote command took: #{delete_remote_time} seconds"
     expect(delete_remote_time).to be < 7.0
   end
