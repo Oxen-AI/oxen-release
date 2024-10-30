@@ -28,7 +28,7 @@ impl PyWorkspace {
         });
 
         let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::workspaces::create_with_path(
+            api::client::workspaces::create_with_path(
                 &repo.repo,
                 &branch_name,
                 &name,
@@ -50,7 +50,7 @@ impl PyWorkspace {
 
     fn status(&self, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
         let remote_status = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::workspaces::changes::list(
+            api::client::workspaces::changes::list(
                 &self.repo.repo,
                 &self.id,
                 &path,
@@ -66,7 +66,7 @@ impl PyWorkspace {
 
     fn add(&self, src: PathBuf, dst: String) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::workspaces::files::add(
+            api::client::workspaces::files::post_file(
                 &self.repo.repo,
                 &self.id,
                 &dst,
@@ -79,7 +79,7 @@ impl PyWorkspace {
 
     fn rm(&self, path: PathBuf) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::workspaces::files::rm(&self.repo.repo, &self.id, path).await
+            api::client::workspaces::files::rm(&self.repo.repo, &self.id, path).await
         })?;
         Ok(())
     }
@@ -89,7 +89,7 @@ impl PyWorkspace {
         let user = UserConfig::get()?.to_user();
         let commit = NewCommitBody { message, author: user.name, email: user.email };
         let commit = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            let commit = api::remote::workspaces::commit(
+            let commit = api::client::workspaces::commit(
                 &self.repo.repo,
                 &branch_name,
                 &self.id,
@@ -102,7 +102,7 @@ impl PyWorkspace {
             // Commit will delete the workspace, since they are tied to commits
             // so we create a new one off the branch if success
             pyo3_asyncio::tokio::get_runtime().block_on(async {
-                api::remote::workspaces::create(
+                api::client::workspaces::create(
                     &self.repo.repo,
                     &branch_name,
                     &self.id,
