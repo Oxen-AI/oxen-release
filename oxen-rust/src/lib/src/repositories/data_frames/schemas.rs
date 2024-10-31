@@ -51,6 +51,43 @@ pub fn get_staged(
     }
 }
 
+pub fn restore_schema(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    og_schema: &Schema,
+    before_column: &str,
+    after_column: &str,
+) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            return Err(OxenError::basic_str("Not implemented for v0.10.0"));
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::restore_schema(
+            repo,
+            path,
+            og_schema,
+            before_column,
+            after_column,
+        ),
+    }
+}
+
+pub fn update_schema(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    og_schema: &Schema,
+    before_column: &str,
+    after_column: &str,
+) -> Result<(), OxenError> {
+    core::v0_19_0::data_frames::schemas::update_schema(
+        repo,
+        path,
+        og_schema,
+        before_column,
+        after_column,
+    )
+}
+
 /// List all the staged schemas
 pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {

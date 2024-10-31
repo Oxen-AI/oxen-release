@@ -10,6 +10,10 @@ pub fn columns() -> Scope {
             web::post().to(controllers::workspaces::data_frames::columns::create),
         )
         .route(
+            "/schema/metadata/{path:.*}",
+            web::post().to(controllers::workspaces::data_frames::columns::add_column_metadata),
+        )
+        .route(
             "{column_name:.*}/resource/{path:.*}",
             web::delete().to(controllers::workspaces::data_frames::columns::delete),
         )
