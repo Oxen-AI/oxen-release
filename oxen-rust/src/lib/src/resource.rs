@@ -91,10 +91,10 @@ pub fn parse_resource_from_path_v0_19_0(
                 //     branch_name
                 // );
 
-                let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+                let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?;
                 file_path = PathBuf::from("");
                 return Ok(Some(ParsedResource {
-                    commit: Some(commit),
+                    commit,
                     branch: Some(branch.clone()),
                     path: file_path,
                     version: PathBuf::from(branch.name),
@@ -123,9 +123,9 @@ pub fn parse_resource_from_path_v0_19_0(
                 file_path
             );
 
-            let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+            let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?;
             return Ok(Some(ParsedResource {
-                commit: Some(commit),
+                commit,
                 branch: Some(branch.clone()),
                 path: file_path,
                 version: PathBuf::from(branch.name),

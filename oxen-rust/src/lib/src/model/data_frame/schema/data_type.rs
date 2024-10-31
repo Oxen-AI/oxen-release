@@ -1,6 +1,7 @@
 //! Core Oxen data types to convert between Polars and DuckDB DataFrames and Schemas
 //!
 
+use crate::model::data_frame::schema::Field;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,9 +22,8 @@ pub enum DataType {
     Time,
     Datetime,
     List(Box<DataType>),
-    // TODO: implement these when needed...
-    // Object(&'static str),
-    // Duration,
+    Struct(Box<Vec<Field>>),
+    Duration,
     Null,
     Unknown,
 }
@@ -55,6 +55,8 @@ impl DataType {
             "date" => DataType::Date,
             "datetime" => DataType::Datetime,
             "time" => DataType::Time,
+            "duration" => DataType::Duration,
+            "struct" => DataType::Struct(Box::default()),
             "null" => DataType::Null,
             "list[bool]" => DataType::List(Box::new(DataType::Boolean)),
             "list[uint8]" => DataType::List(Box::new(DataType::UInt8)),
@@ -92,6 +94,8 @@ impl DataType {
             DataType::Date => "date",
             DataType::Datetime => "datetime",
             DataType::Time => "time",
+            DataType::Duration => "duration",
+            DataType::Struct(_) => "struct",
             DataType::List(val) => match **val {
                 DataType::Boolean => "list[bool]",
                 DataType::UInt8 => "list[uint8]",
@@ -133,6 +137,12 @@ impl DataType {
             DataType::String => polars::prelude::DataType::String,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
+            DataType::Duration => {
+                polars::prelude::DataType::Duration(polars::prelude::TimeUnit::Milliseconds)
+            }
+            DataType::Struct(vals) => {
+                polars::prelude::DataType::Struct(vals.iter().map(|f| f.to_polars()).collect())
+            }
             DataType::Datetime => {
                 polars::prelude::DataType::Datetime(polars::prelude::TimeUnit::Milliseconds, None)
             }
@@ -180,6 +190,8 @@ impl DataType {
             DataType::Date => "DATE",     // calendar date (year, month day)
             DataType::Time => "TIME",     // time of day (no time zone)
             DataType::Datetime => "DATETIME", // combination of time and date
+            DataType::Duration => "INTERVAL",
+            DataType::Struct(_) => "JSON",
             DataType::List(dtype) => match dtype.as_ref() {
                 DataType::Boolean => "BOOL[]",
                 DataType::UInt8 => "UTINYINT[]",
@@ -201,7 +213,7 @@ impl DataType {
                     "UNKNOWN[]"
                 }
             }, // https://duckdb.org/docs/sql/data_types/list
-            DataType::Null => "NULL",     // null value
+            DataType::Null => "NULL", // null value
             DataType::Unknown => {
                 log::error!("TODO: to_sql unknown SQL DataType::Unknown type {}", self);
                 "UNKNOWN"
@@ -232,6 +244,8 @@ impl DataType {
             "NULL" => DataType::Null,            // null value
             "UUID" => DataType::String,
             "BOOLEAN" => DataType::Boolean,
+            "INTERVAL" => DataType::Duration,
+            "JSON" => DataType::Struct(Box::default()),
             "BOOL[]" => DataType::List(Box::new(DataType::Boolean)),
             "UTINYINT[]" => DataType::List(Box::new(DataType::UInt8)),
             "USMALLINT[]" => DataType::List(Box::new(DataType::UInt16)),
