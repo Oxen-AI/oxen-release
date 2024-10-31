@@ -78,6 +78,7 @@ pub fn commit(
         new_commit,
         staged_db,
         &commit_progress_bar,
+        branch_name,
     )?;
 
     // DEBUG

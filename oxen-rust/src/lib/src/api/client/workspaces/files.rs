@@ -238,7 +238,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
+    use crate::model::{EntryDataType, NewCommitBody};
     use crate::opts::CloneOpts;
     use crate::{api, constants};
     use crate::{repositories, test};
@@ -336,6 +336,269 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 2);
             assert_eq!(entries.added_files.total_entries, 2);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_create_remote_readme_repo_and_commit_multiple_data_frames(
+    ) -> Result<(), OxenError> {
+        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let file_to_post = test::test_1k_parquet();
+            let directory_name = "";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add another data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 1);
+
+            // Upload a new data frame
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+            let file_to_post = test::test_csv_file_with_name("emojis.csv");
+            let directory_name = "moare_data";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add emojis data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 2);
+            println!("entries: {:?}", entries);
+
+            // Upload a new broken data frame
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+            let file_to_post = test::test_invalid_parquet_file();
+            let directory_name = "broken_data";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add broken data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 2);
+            println!("entries: {:?}", entries);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_multiple_data_frames() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let file_to_post = test::test_1k_parquet();
+            let directory_name = "";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add another data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 1);
+
+            // Upload a new data frame
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+            let file_to_post = test::test_csv_file_with_name("emojis.csv");
+            let directory_name = "moare_data";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add emojis data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 2);
+            println!("entries: {:?}", entries);
+
+            // Upload a new broken data frame
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+            let file_to_post = test::test_invalid_parquet_file();
+            let directory_name = "broken_data";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add broken data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                DEFAULT_BRANCH_NAME,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 2);
+            println!("entries: {:?}", entries);
 
             Ok(remote_repo)
         })
