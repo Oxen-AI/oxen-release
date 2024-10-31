@@ -1,6 +1,6 @@
 use duckdb::Connection;
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, TABLE_NAME};
 use crate::core::db::data_frames::df_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use sql_query_builder::Delete;
@@ -245,7 +245,7 @@ pub fn extract_file_node_to_working_dir(
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest() to {:?}", path);
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -267,7 +267,7 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv() to {:?}", path);
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -291,7 +291,7 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv() to {:?}", path);
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -309,7 +309,7 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet() to {:?}", path);
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
