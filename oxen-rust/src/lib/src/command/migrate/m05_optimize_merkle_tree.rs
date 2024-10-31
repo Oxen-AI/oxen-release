@@ -517,7 +517,7 @@ fn migrate_dir(
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
                     let current_commit = &commits[commit_idx];
-                    write_file_node(
+                    match write_file_node(
                         repo,
                         entry_reader,
                         &commit_entry_readers,
@@ -525,7 +525,10 @@ fn migrate_dir(
                         &mut node_db,
                         path,
                         &child_hash,
-                    )?;
+                    ) {
+                        Ok(_) => (),
+                        Err(e) => log::warn!("Error writing file node: {:?}", e),
+                    }
                 }
                 MerkleTreeNodeType::Dir => {
                     let dir_node = write_dir_child(
