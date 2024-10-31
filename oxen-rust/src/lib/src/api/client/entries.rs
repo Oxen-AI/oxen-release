@@ -696,9 +696,17 @@ mod tests {
             )
             .await?;
             assert_eq!(entries.len(), 2);
-            assert_eq!(entries[0].filename, "sample.csv");
+
+            // Order is not guaranteed
+            assert!(
+                entries[0].filename == "sample.csv"
+                    || entries[0].filename == "annotations/bounding_box.csv"
+            );
+            assert!(
+                entries[1].filename == "sample.csv"
+                    || entries[1].filename == "annotations/bounding_box.csv"
+            );
             assert!(entries[0].resource.is_some());
-            assert_eq!(entries[1].filename, "annotations/bounding_box.csv");
             assert!(entries[1].resource.is_some());
 
             Ok(remote_repo)
