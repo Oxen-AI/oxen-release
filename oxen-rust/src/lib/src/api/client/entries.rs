@@ -47,9 +47,9 @@ pub async fn list_entries_with_type(
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let uri = if path == "" || path == "/" {
-        format!("/{}/{}", data_type.to_string(), revision)
+        format!("/{}/{}", data_type, revision)
     } else {
-        format!("/{}/{}/{}", data_type.to_string(), revision, path)
+        format!("/{}/{}/{}", data_type, revision, path)
     };
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -677,7 +677,7 @@ mod tests {
 
             // Write the csv to the directory
             let dir_file_path = local_repo.path.join("annotations").join("bounding_box.csv");
-            util::fs::create_dir_all(&dir_file_path.parent().unwrap())?;
+            util::fs::create_dir_all(dir_file_path.parent().unwrap())?;
             util::fs::write_to_path(&dir_file_path, "col13,col23,col33\n13,23,33\n43,53,63")?;
 
             // Commit the changes
