@@ -72,12 +72,6 @@ jobs:
       - name: Build oxen
         run: cargo build --release
 
-      - name: Upload to crates.io
-        run: |
-          cd src/lib
-          cargo login ${{ secrets.CRATES_IO_TOKEN }}
-          cargo publish
-
       - name: Package Oxen Server
         run: |
           fpm \
@@ -124,6 +118,11 @@ jobs:
           asset_name: oxen-ubuntu-latest.deb
           tag: ${{ github.ref }}
 
+      - name: Upload to crates.io
+        run: |
+          cd src/lib
+          cargo login ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish
 
   release_ubuntu_22_04:
     runs-on: ubuntu-22.04
