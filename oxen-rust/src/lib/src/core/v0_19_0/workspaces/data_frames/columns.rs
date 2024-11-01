@@ -145,8 +145,8 @@ pub fn update(
         &file_path,
     )?;
 
-    repositories::data_frames::schemas::update_schema(
-        &workspace.workspace_repo,
+    repositories::workspaces::data_frames::schemas::update_schema(
+        &workspace,
         file_path,
         &og_schema.ok_or(OxenError::basic_str("Original schema not found"))?,
         &column_to_update.name,
