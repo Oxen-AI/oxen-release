@@ -58,16 +58,14 @@ impl Migrate for OptimizeMerkleTreesMigration {
         Ok(())
     }
 
-    fn is_needed(&self, _repo: &LocalRepository) -> Result<bool, OxenError> {
-        // let nodes_dir = repo
-        //     .path
-        //     .join(constants::OXEN_HIDDEN_DIR)
-        //     .join(constants::TREE_DIR)
-        //     .join(constants::NODES_DIR);
-        // if !nodes_dir.exists() {
-        //     return Ok(true);
-        // }
-        // Just returning false from now on, because this migration can be destructive for newer repos
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+        let tree_dir = repo
+            .path
+            .join(constants::OXEN_HIDDEN_DIR)
+            .join(constants::TREE_DIR);
+        if !tree_dir.exists() {
+            return Ok(true);
+        }
         Ok(false)
     }
 }
@@ -126,8 +124,8 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         .join(constants::TREE_DIR);
 
     if tree_dir.exists() {
-        println!("Clearing tree dir: {:?}", tree_dir);
-        util::fs::remove_dir_all(&tree_dir)?;
+        println!("Tree dir already exists: {:?}", tree_dir);
+        return Ok(());
     } else {
         // Create tree dir
         util::fs::create_dir_all(&tree_dir)?;
