@@ -142,11 +142,11 @@ pub fn update(
     let og_schema = repositories::data_frames::schemas::get_by_path(
         &workspace.base_repo,
         &workspace.commit,
-        &file_path,
+        file_path,
     )?;
 
     repositories::workspaces::data_frames::schemas::update_schema(
-        &workspace,
+        workspace,
         file_path,
         &og_schema.ok_or(OxenError::basic_str("Original schema not found"))?,
         &column_to_update.name,
@@ -177,7 +177,7 @@ pub fn restore(
     let og_schema = repositories::data_frames::schemas::get_by_path(
         &workspace.base_repo,
         &workspace.commit,
-        &file_path,
+        file_path,
     )?;
 
     if let Some(change) =
@@ -297,7 +297,7 @@ pub fn restore(
 
                 repositories::data_frames::schemas::restore_schema(
                     &workspace.workspace_repo,
-                    &file_path,
+                    file_path,
                     &og_schema,
                     &change
                         .column_before

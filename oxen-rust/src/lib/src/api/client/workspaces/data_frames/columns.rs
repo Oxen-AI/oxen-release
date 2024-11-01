@@ -760,7 +760,7 @@ mod tests {
 
             api::client::workspaces::commit(
                 &remote_repo,
-                &branch_name,
+                branch_name,
                 &workspace_id,
                 &commit_body,
             )

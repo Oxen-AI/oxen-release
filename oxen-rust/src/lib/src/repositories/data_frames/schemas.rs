@@ -60,7 +60,7 @@ pub fn restore_schema(
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            return Err(OxenError::basic_str("Not implemented for v0.10.0"));
+            Err(OxenError::basic_str("Not implemented for v0.10.0"))
         }
         MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::restore_schema(
             repo,

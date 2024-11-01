@@ -291,7 +291,7 @@ pub async fn add_column_metadata(
         &workspace,
         path.into(),
         column_name.to_string(),
-        &column_metadata,
+        column_metadata,
     )?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
