@@ -246,11 +246,7 @@ pub fn extract_file_node_to_working_dir(
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest() to {:?}", path);
-    let excluded_cols = EXCLUDE_OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
         excluded_cols,
@@ -268,11 +264,7 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv() to {:?}", path);
-    let excluded_cols = EXCLUDE_OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
         excluded_cols,
@@ -292,11 +284,7 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv() to {:?}", path);
-    let excluded_cols = EXCLUDE_OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
         excluded_cols,
@@ -310,11 +298,7 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet() to {:?}", path);
-    let excluded_cols = EXCLUDE_OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
 
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
@@ -325,4 +309,26 @@ fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     conn.execute(&query, [])?;
 
     Ok(())
+}
+fn get_existing_excluded_columns(conn: &Connection, table_name: &str) -> Result<String, OxenError> {
+    // Query to get existing columns in the table
+    let existing_cols_query = format!(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = '{}'",
+        table_name
+    );
+
+    let mut stmt = conn.prepare(&existing_cols_query)?;
+    let existing_cols: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .filter_map(Result::ok)
+        .collect();
+
+    // Filter excluded columns to only those that exist in the table
+    let filtered_excluded_cols: Vec<String> = EXCLUDE_OXEN_COLS
+        .iter()
+        .filter(|col| existing_cols.contains(&col.to_string()))
+        .map(|col| format!("\"{}\"", col))
+        .collect();
+
+    Ok(filtered_excluded_cols.join(", "))
 }
