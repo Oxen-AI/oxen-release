@@ -78,7 +78,8 @@ pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
 
     let schema = full_staged_table_schema(conn)?;
 
-    let res = df_db::select(conn, &select, true, Some(&schema), None)?;
+    let with_explicit_nulls = true;
+    let res = df_db::select(conn, &select, with_explicit_nulls, Some(&schema), None)?;
 
     Ok(res)
 }

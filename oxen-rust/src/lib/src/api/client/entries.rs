@@ -6,9 +6,10 @@ use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
-use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
+use crate::model::{EntryDataType, MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
 use crate::repositories;
+use crate::view::entries::PaginatedMetadataEntriesResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -35,6 +36,28 @@ pub async fn get_entry(
     let entry = response.entry;
 
     Ok(entry)
+}
+
+pub async fn list_entries_with_type(
+    remote_repo: &RemoteRepository,
+    path: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    data_type: &EntryDataType,
+) -> Result<Vec<MetadataEntry>, OxenError> {
+    let path = path.as_ref().to_string_lossy();
+    let revision = revision.as_ref();
+    let uri = if path == "" || path == "/" {
+        format!("/{}/{}", data_type, revision)
+    } else {
+        format!("/{}/{}/{}", data_type, revision, path)
+    };
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let response = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    let paginated_response: PaginatedMetadataEntriesResponse = serde_json::from_str(&body)?;
+    Ok(paginated_response.entries.entries)
 }
 
 pub async fn upload_entries(
@@ -615,10 +638,81 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::test;
+    use crate::model::EntryDataType;
     use crate::{api, util};
+    use crate::{repositories, test};
 
     use std::path::Path;
+
+    #[tokio::test]
+    async fn test_list_tabular_entries() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            // Add a tabular file at the root and one in a directory
+            let revision = DEFAULT_BRANCH_NAME;
+            let root_path = Path::new("");
+            let root_file_path = root_path.join("sample.csv");
+
+            // Write a csv to the root
+            let root_file_path = local_repo.path.join(root_file_path);
+            util::fs::write_to_path(&root_file_path, "col1,col2,col3\n1,2,3\n4,5,6")?;
+
+            // Commit the changes
+            repositories::add(&local_repo, &root_file_path)?;
+            repositories::commit(&local_repo, "adding sample.csv")?;
+
+            // Push the changes to the remote
+            repositories::push(&local_repo).await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                revision,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].filename, "sample.csv");
+            assert!(entries[0].resource.is_some());
+
+            // Write the csv to the directory
+            let dir_file_path = local_repo.path.join("annotations").join("bounding_box.csv");
+            util::fs::create_dir_all(dir_file_path.parent().unwrap())?;
+            util::fs::write_to_path(&dir_file_path, "col13,col23,col33\n13,23,33\n43,53,63")?;
+
+            // Commit the changes
+            repositories::add(&local_repo, &dir_file_path)?;
+            repositories::commit(&local_repo, "adding bounding_box.csv")?;
+
+            // Push the changes to the remote
+            repositories::push(&local_repo).await?;
+
+            // List the entries
+            let entries = api::client::entries::list_entries_with_type(
+                &remote_repo,
+                "",
+                revision,
+                &EntryDataType::Tabular,
+            )
+            .await?;
+            assert_eq!(entries.len(), 2);
+
+            // Order is not guaranteed
+            assert!(
+                entries[0].filename == "sample.csv"
+                    || entries[0].filename == "annotations/bounding_box.csv"
+            );
+            assert!(
+                entries[1].filename == "sample.csv"
+                    || entries[1].filename == "annotations/bounding_box.csv"
+            );
+            assert!(entries[0].resource.is_some());
+            assert!(entries[1].resource.is_some());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_download_file_large() -> Result<(), OxenError> {

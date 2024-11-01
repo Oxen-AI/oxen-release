@@ -131,6 +131,9 @@ pub fn commit_with_cfg(
             &new_commit,
             staged_db,
             &commit_progress_bar,
+            maybe_branch_name
+                .clone()
+                .unwrap_or(DEFAULT_BRANCH_NAME.to_string()),
         )?
     } else {
         commit_dir_entries_new(
@@ -174,15 +177,16 @@ pub fn commit_dir_entries_with_parents(
     new_commit: &NewCommitBody,
     staged_db: DBWithThreadMode<SingleThreaded>,
     commit_progress_bar: &ProgressBar,
+    target_branch: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     let message = &new_commit.message;
+    let target_branch = target_branch.as_ref();
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
 
     let maybe_head_commit = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        Some(commit)
+        repositories::revisions::get(repo, target_branch)?
     } else {
         None
     };

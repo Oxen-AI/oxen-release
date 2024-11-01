@@ -59,16 +59,13 @@ impl Migrate for OptimizeMerkleTreesMigration {
     }
 
     fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let nodes_dir = repo
+        let tree_dir = repo
             .path
             .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::TREE_DIR)
-            .join(constants::NODES_DIR);
-        if !nodes_dir.exists() {
+            .join(constants::TREE_DIR);
+        if !tree_dir.exists() {
             return Ok(true);
         }
-        // This may need a more elaborate check for migrations that are aborted with a single repo...
-        // but it's too computationally expensive to parse through all the trees.
         Ok(false)
     }
 }
@@ -127,8 +124,8 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         .join(constants::TREE_DIR);
 
     if tree_dir.exists() {
-        println!("Clearing tree dir: {:?}", tree_dir);
-        util::fs::remove_dir_all(&tree_dir)?;
+        println!("Tree dir already exists: {:?}", tree_dir);
+        return Ok(());
     } else {
         // Create tree dir
         util::fs::create_dir_all(&tree_dir)?;
@@ -518,7 +515,7 @@ fn migrate_dir(
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
                     let current_commit = &commits[commit_idx];
-                    write_file_node(
+                    match write_file_node(
                         repo,
                         entry_reader,
                         &commit_entry_readers,
@@ -526,7 +523,10 @@ fn migrate_dir(
                         &mut node_db,
                         path,
                         &child_hash,
-                    )?;
+                    ) {
+                        Ok(_) => (),
+                        Err(e) => log::warn!("Error writing file node: {:?}", e),
+                    }
                 }
                 MerkleTreeNodeType::Dir => {
                     let dir_node = write_dir_child(
