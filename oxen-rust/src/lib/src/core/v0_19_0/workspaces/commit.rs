@@ -185,7 +185,7 @@ fn compute_staged_merkle_tree_node(
 
     // Here we give priority to the staged schema, as it can contained metadata that was changed during the
     let staged_schema =
-        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, &path)?;
+        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, path)?;
 
     if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
         if let Some(staged_schema) = staged_schema {

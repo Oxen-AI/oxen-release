@@ -467,7 +467,7 @@ pub fn get_staged_db_read_only(
     let opts = db::key_val::opts::default();
 
     if !path.exists() {
-        return Ok(None);
+        Ok(None)
     } else {
         match DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&path), false) {
             Ok(db) => Ok(Some(db)),
