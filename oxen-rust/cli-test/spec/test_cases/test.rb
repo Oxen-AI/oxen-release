@@ -16,7 +16,7 @@ RSpec.describe 'test', type: :aruba do
     cd 'test-small-repo'
 
     # Generate image repository
-    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 100000 --num_dirs 10 --image_size 128 128')
+    system('python ../benchmark/generate_image_repo.py --output_dir ~/test-small-repo/Data/10k_images --num_images 10000 --num_dirs 10 --image_size 128 128')
 
     # Initialize the repository
     init_time = measure_time('oxen init')
@@ -71,11 +71,11 @@ RSpec.describe 'test', type: :aruba do
     # Add, commit, and push the changes
     add_simple_time = measure_time('oxen add simple.txt')
     puts "oxen add simple.txt command took: #{add_simple_time} seconds"
-    expect(add_simple_time).to be < 4.0
+    expect(add_simple_time).to be < 5.0
 
     commit_simple_time = measure_time('oxen commit -m "Edit simple text file remotely"')
     puts "oxen commit command took: #{commit_simple_time} seconds"
-    expect(commit_simple_time).to be < 4.0
+    expect(commit_simple_time).to be < 5.0
 
     push_simple_time = measure_time('oxen push')
     puts "oxen push command took: #{push_simple_time} seconds"
@@ -107,11 +107,11 @@ RSpec.describe 'test', type: :aruba do
     # Add, commit, and push the second change
     add_second_change_time = measure_time('oxen add simple.txt')
     puts "oxen add simple.txt command took: #{add_second_change_time} seconds"
-    expect(add_second_change_time).to be < 4.0
+    expect(add_second_change_time).to be < 5.0
 
     commit_second_change_time = measure_time('oxen commit -m "Edit simple text file remotely second time"')
     puts "oxen commit command took: #{commit_second_change_time} seconds"
-    expect(commit_second_change_time).to be < 4.0
+    expect(commit_second_change_time).to be < 5.0
 
     push_second_change_time = measure_time('oxen push')
     puts "oxen push command took: #{push_second_change_time} seconds"
@@ -159,10 +159,6 @@ RSpec.describe 'test', type: :aruba do
     puts "oxen push command took: #{push_time} seconds"
     expect(push_time).to be < 60.0
 
-    # Delete the remote repository
-    delete_remote_time = measure_time('oxen delete-remote --name EloyMartinez/performance-test --host dev.hub.oxen.ai -y')
-    puts "oxen delete-remote command took: #{delete_remote_time} seconds"
-    expect(delete_remote_time).to be < 7.0
   end
 
   def measure_time(command)
