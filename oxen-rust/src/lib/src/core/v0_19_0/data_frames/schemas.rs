@@ -128,7 +128,7 @@ pub fn restore_schema(
     let staged_schema = get_staged(repo, &path)?;
     let mut staged_schema = match staged_schema {
         Some(schema) => schema,
-        None => return Err(OxenError::basic_str("Staged schema not found")),
+        None => return Ok(()),
     };
 
     for field in &mut staged_schema.fields {
@@ -491,58 +491,4 @@ pub fn staged_db_path(path: &Path) -> Result<PathBuf, OxenError> {
 pub fn staged_db_path_no_side_effects(path: &Path) -> Result<PathBuf, OxenError> {
     let path = util::fs::oxen_hidden_dir(path).join(Path::new(constants::STAGED_DIR));
     Ok(path)
-}
-
-/// Updates the staged schema by changing the column name from `before_column` to `after_column`
-/// and updating the metadata from the original schema.
-pub fn update_schema(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-    og_schema: &Schema,
-    before_column: &str,
-    after_column: &str,
-) -> Result<(), OxenError> {
-    let mut schema = og_schema.clone();
-    if let Some(og_field) = og_schema.fields.iter().find(|f| f.name == before_column) {
-        for field in &mut schema.fields {
-            if field.name == before_column {
-                field.name = after_column.to_string();
-                field.metadata = og_field.metadata.clone();
-                break;
-            }
-        }
-    }
-
-    let db = get_staged_db(repo)?;
-    let key = path.as_ref().to_string_lossy();
-
-    let data = db.get(key.as_bytes())?;
-
-    let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
-        rmp_serde::from_slice(data.unwrap().as_slice());
-
-    let mut file_node = val.unwrap().node.file()?;
-    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata {
-        file_node.metadata = Some(GenericMetadata::MetadataTabular(MetadataTabular::new(
-            tabular_metadata.tabular.width,
-            tabular_metadata.tabular.height,
-            schema,
-        )));
-    } else {
-        return Err(OxenError::basic_str("Expected tabular metadata"));
-    }
-
-    let staged_entry_node = MerkleTreeNode::from_file(file_node.clone());
-    let staged_entry = StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
-        node: staged_entry_node.clone(),
-    };
-
-    let mut buf = Vec::new();
-    staged_entry
-        .serialize(&mut Serializer::new(&mut buf))
-        .unwrap();
-    db.put(key.as_bytes(), &buf)?;
-
-    Ok(())
 }

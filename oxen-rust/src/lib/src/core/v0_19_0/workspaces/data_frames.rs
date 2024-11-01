@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 pub mod columns;
 pub mod rows;
+pub mod schemas;
 
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
