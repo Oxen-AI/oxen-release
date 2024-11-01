@@ -9,6 +9,7 @@ use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::core::v0_19_0::workspaces;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{
     Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
 };
@@ -67,9 +68,7 @@ pub fn commit(
         &staged_db,
         &commit_progress_bar,
     )?;
-
     let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
-
     let parent_commits = vec![commit.id.to_owned()];
     let commit = core::v0_19_0::index::commit_writer::commit_dir_entries_with_parents(
         &workspace.base_repo,
@@ -182,7 +181,17 @@ fn compute_staged_merkle_tree_node(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+    let mut metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+
+    // Here we give priority to the staged schema, as it can contained metadata that was changed during the
+    let staged_schema =
+        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, &path)?;
+
+    if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
+        if let Some(staged_schema) = staged_schema {
+            metadata.tabular.schema = staged_schema;
+        }
+    }
 
     // Compute the metadata hash and combined hash
     let metadata_hash = util::hasher::get_metadata_hash(&metadata)?;

@@ -24,12 +24,22 @@ pub fn update_schema(
     before_column: &str,
     after_column: &str,
 ) -> Result<(), OxenError> {
-    let mut schema = og_schema.clone();
-    if let Some(og_field) = og_schema.fields.iter().find(|f| f.name == before_column) {
+    let staged_schema =
+        v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, &path)?;
+    let ref_schema = if let Some(schema) = staged_schema {
+        schema
+    } else {
+        og_schema.clone()
+    };
+
+    // Here we give priority to the staged schema, as it can contained metadata that was changed during the
+    // df editing process.
+    let mut schema = ref_schema.clone();
+    if let Some(ref_schema) = ref_schema.fields.iter().find(|f| f.name == before_column) {
         for field in &mut schema.fields {
             if field.name == before_column {
                 field.name = after_column.to_string();
-                field.metadata = og_field.metadata.clone();
+                field.metadata = ref_schema.metadata.clone();
                 break;
             }
         }
