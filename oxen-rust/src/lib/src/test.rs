@@ -11,8 +11,10 @@ use crate::core::refs::RefWriter;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
+use crate::model::file::FileNew;
 use crate::model::RepoNew;
 use crate::model::Schema;
+use crate::model::User;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::opts::RmOpts;
 use crate::repositories;
@@ -720,6 +722,54 @@ where
 
     // Cleanup Local
     util::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Test interacting with a remote repo that has nothing synced
+pub async fn run_remote_created_and_readme_remote_repo_test<T, Fut>(
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    log::info!("<<<<< run_remote_created_and_readme_remote_repo_test start");
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let user = User {
+        name: "Test User".to_string(),
+        email: "test@oxen.ai".to_string(),
+    };
+    let files: Vec<FileNew> = vec![FileNew {
+        path: PathBuf::from("README.md"),
+        contents: format!("# {}\n", &name),
+        user: user.clone(),
+    }];
+    let mut repo = RepoNew::from_files(namespace, &name, files);
+    repo.host = Some(test_host());
+    repo.is_public = Some(true);
+    repo.scheme = Some("http".to_string());
+    let remote_repo = api::client::repositories::create(repo).await?;
+
+    println!("REMOTE REPO: {remote_repo:?}");
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_empty_remote_repo_test running test");
+    let result = match test(remote_repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1495,7 +1545,7 @@ pub fn test_1k_parquet() -> PathBuf {
         .join("wiki_1k.parquet")
 }
 
-/// Returns: data/test/nlp/classification/annotations/test.tsv
+/// Returns: nlp/classification/annotations/test.tsv
 pub fn test_nlp_classification_csv() -> PathBuf {
     Path::new("nlp")
         .join("classification")

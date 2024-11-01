@@ -9,10 +9,10 @@ use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
+use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource};
 use crate::util;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub mod audio;
 pub mod image;
@@ -113,7 +113,13 @@ pub fn from_file_node(
         hash: node.hash.to_string(),
         is_dir: false,
         latest_commit: Some(commit.to_owned()),
-        resource: None,
+        resource: Some(ParsedResource {
+            commit: Some(commit.to_owned()),
+            branch: None,
+            path: PathBuf::from(node.name.clone()),
+            version: PathBuf::from(commit.id.to_string()),
+            resource: PathBuf::from(commit.id.to_string()).join(node.name.clone()),
+        }),
         size: node.num_bytes,
         data_type: node.data_type.clone(),
         mime_type: node.mime_type.clone(),
