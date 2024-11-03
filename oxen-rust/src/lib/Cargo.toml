@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.19.2"
+version = "0.19.3"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -75,7 +75,7 @@ mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.4.0"
-polars = { git = "https://github.com/pola-rs/polars", rev = "f55658b17d0b27c71a84511b578604ccf9d01cd2", features = [
+polars = { version = "0.44.2", features = [
     "lazy",
     "parquet",
     "json",

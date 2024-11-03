@@ -41,7 +41,7 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
         .with_truncate_ragged_lines(true)
         .with_separator(delimiter)
         .with_eol_char(b'\n')
-        .with_quote_char(Some(b'"'))
+        .with_quote_char(None)
         .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
 }
@@ -781,7 +781,10 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
     }
 
     match qsv_sniffer::Sniffer::new().sniff_path(&path) {
-        Ok(metadata) => Ok(metadata.dialect.delimiter),
+        Ok(metadata) => {
+            log::debug!("Sniffed csv dialect: {:?}", metadata.dialect);
+            Ok(metadata.dialect.delimiter)
+        }
         Err(err) => {
             let err = format!("Error sniffing csv {:?} -> {:?}", path.as_ref(), err);
             log::warn!("{}", err);
