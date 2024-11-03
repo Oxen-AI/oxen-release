@@ -750,34 +750,13 @@ mod tests {
                 email: "test@test.com".to_string(),
             };
 
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                DFOpts::empty(),
-            )
-            .await?;
-
-            api::client::workspaces::commit(
-                &remote_repo,
-                branch_name,
-                &workspace_id,
-                &commit_body,
-            )
-            .await?;
+            api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &commit_body)
+                .await?;
 
             let _new_workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
 
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                DFOpts::empty(),
-            )
-            .await?;
 
             let new_name = "renamed_column";
             let data = format!(r#"{{"new_name":"{}"}}"#, new_name);
