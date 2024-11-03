@@ -7,6 +7,7 @@ use crate::opts::DFOpts;
 use crate::view::entries::PaginatedMetadataEntriesResponse;
 use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
+use crate::util;
 
 use crate::model::RemoteRepository;
 use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
@@ -103,6 +104,7 @@ pub async fn index(
     workspace_id: &str,
     path: &Path,
 ) -> Result<StatusMessage, OxenError> {
+    let path = util::fs::linux_path(&path);
     put(
         remote_repo,
         workspace_id,
