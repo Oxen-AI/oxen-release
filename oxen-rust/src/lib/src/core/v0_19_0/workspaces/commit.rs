@@ -50,7 +50,7 @@ pub fn commit(
     let opts = db::key_val::opts::default();
     let commit = {
         let staged_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
+            DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
 
         let commit_progress_bar = ProgressBar::new_spinner();
 

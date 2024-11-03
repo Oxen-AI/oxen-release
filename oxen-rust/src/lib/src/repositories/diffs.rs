@@ -1330,7 +1330,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             println!("ROUNT #");
             println!("entries: {entries:?}");
 
-            let bounding_box_path = Path::new("annotations").join(Path::new("train")).join(Path::new("bounding_box.csv"));
+            let bounding_box_path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
             let bounding_box_filename = bounding_box_path.to_str().unwrap();
 
             let bounding_box_entry = entries

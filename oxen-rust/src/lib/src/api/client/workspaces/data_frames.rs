@@ -4,10 +4,10 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
+use crate::util;
 use crate::view::entries::PaginatedMetadataEntriesResponse;
 use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
-use crate::util;
 
 use crate::model::RemoteRepository;
 use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
@@ -104,7 +104,7 @@ pub async fn index(
     workspace_id: &str,
     path: &Path,
 ) -> Result<StatusMessage, OxenError> {
-    let path = util::fs::linux_path(&path);
+    let path = util::fs::linux_path(path);
     put(
         remote_repo,
         workspace_id,
@@ -276,7 +276,9 @@ mod tests {
     #[tokio::test]
     async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let path = Path::new("annotations").join(Path::new("train")).join(Path::new("bounding_box.csv"));
+            let path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
             let workspace_id = "some_workspace";
             let workspace =
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
