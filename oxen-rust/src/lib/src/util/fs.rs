@@ -1340,6 +1340,12 @@ pub fn linux_path_str(string: &str) -> String {
     String::from_utf8(new_bytes).unwrap()
 } 
 
+pub fn linux_path(path: &Path) -> PathBuf {
+    // Convert string to bytes, replacing '\\' with '/' if necessary
+    let string = path.to_str().unwrap();
+    Path::new(&linux_path_str(&string)).to_path_buf()
+} 
+
 pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
     log::debug!("disk_usage_for_path: {:?}", path);
     let disks = sysinfo::Disks::new_with_refreshed_list();
