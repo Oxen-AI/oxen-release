@@ -1,4 +1,5 @@
 use crate::constants::TABLE_NAME;
+use crate::core;
 use crate::core::db::data_frames::df_db;
 use crate::error::OxenError;
 use crate::model::{Schema, Workspace};
@@ -12,4 +13,20 @@ pub fn get_by_path(workspace: &Workspace, path: impl AsRef<Path>) -> Result<Sche
     let conn = df_db::get_connection(staged_db_path)?;
     let df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
     Ok(df_schema)
+}
+
+pub fn update_schema(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    og_schema: &Schema,
+    before_column: &str,
+    after_column: &str,
+) -> Result<(), OxenError> {
+    core::v0_19_0::workspaces::data_frames::schemas::update_schema(
+        workspace,
+        path,
+        og_schema,
+        before_column,
+        after_column,
+    )
 }

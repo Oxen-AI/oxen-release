@@ -22,6 +22,7 @@ use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::metadata::MetadataTabular;
 use crate::model::MerkleHash;
 use crate::model::StagedEntryStatus;
 use crate::model::{Commit, LocalRepository, Schema};
@@ -94,7 +95,12 @@ pub fn get_staged(
     let path = path.as_ref();
     let path = util::fs::path_relative_to_dir(path, &repo.path)?;
     let key = path.to_string_lossy();
-    let db = get_staged_db(repo)?;
+    let db = if let Some(db) = get_staged_db_read_only(repo)? {
+        db
+    } else {
+        return Ok(None);
+    };
+
     log::debug!("get_staged({:?}) from db {:?}", key, db.path());
     let bytes = key.as_bytes();
     match db.get(bytes) {
@@ -107,6 +113,69 @@ pub fn get_staged(
             Ok(None)
         }
     }
+}
+
+/// Restores the staged schema to its original state by comparing the original schema
+/// and the column differences. It updates the column name and metadata in the staged schema
+/// to match the original schema.
+pub fn restore_schema(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    og_schema: &Schema,
+    before_column: &str,
+    after_column: &str,
+) -> Result<(), OxenError> {
+    let staged_schema = get_staged(repo, &path)?;
+    let mut staged_schema = match staged_schema {
+        Some(schema) => schema,
+        None => return Ok(()),
+    };
+
+    for field in &mut staged_schema.fields {
+        if field.name == after_column {
+            field.name = before_column.to_string();
+
+            for og_field in &og_schema.fields {
+                if og_field.name == before_column {
+                    field.metadata = og_field.metadata.clone();
+                }
+            }
+            break;
+        }
+    }
+
+    let db = get_staged_db(repo)?;
+    let key = path.as_ref().to_string_lossy();
+
+    let data = db.get(key.as_bytes())?;
+
+    let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
+        rmp_serde::from_slice(data.unwrap().as_slice());
+
+    let mut file_node = val.unwrap().node.file()?;
+    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata {
+        file_node.metadata = Some(GenericMetadata::MetadataTabular(MetadataTabular::new(
+            tabular_metadata.tabular.width,
+            tabular_metadata.tabular.height,
+            staged_schema,
+        )));
+    } else {
+        return Err(OxenError::basic_str("Expected tabular metadata"));
+    }
+
+    let staged_entry_node = MerkleTreeNode::from_file(file_node.clone());
+    let staged_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Modified,
+        node: staged_entry_node.clone(),
+    };
+
+    let mut buf = Vec::new();
+    staged_entry
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
+    db.put(key.as_bytes(), &buf)?;
+
+    Ok(())
 }
 
 /// List all the staged schemas
@@ -383,12 +452,31 @@ pub fn add_column_metadata(
     Ok(results)
 }
 
-fn get_staged_db(repo: &LocalRepository) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+pub fn get_staged_db(repo: &LocalRepository) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
     let path = staged_db_path(&repo.path)?;
     let opts = db::key_val::opts::default();
     let db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
     Ok(db)
+}
+
+pub fn get_staged_db_read_only(
+    repo: &LocalRepository,
+) -> Result<Option<DBWithThreadMode<MultiThreaded>>, OxenError> {
+    let path = staged_db_path_no_side_effects(&repo.path)?;
+    let opts = db::key_val::opts::default();
+
+    if !path.exists() {
+        Ok(None)
+    } else {
+        match DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&path), false) {
+            Ok(db) => Ok(Some(db)),
+            Err(err) => {
+                log::debug!("Failed to open database in read-only mode: {:?}", err);
+                Ok(None)
+            }
+        }
+    }
 }
 
 pub fn staged_db_path(path: &Path) -> Result<PathBuf, OxenError> {
@@ -397,5 +485,10 @@ pub fn staged_db_path(path: &Path) -> Result<PathBuf, OxenError> {
     if !path.exists() {
         std::fs::create_dir_all(&path)?;
     }
+    Ok(path)
+}
+
+pub fn staged_db_path_no_side_effects(path: &Path) -> Result<PathBuf, OxenError> {
+    let path = util::fs::oxen_hidden_dir(path).join(Path::new(constants::STAGED_DIR));
     Ok(path)
 }

@@ -80,8 +80,6 @@ pub fn record_column_change(
         }
     }
 
-    println!("column_before: {:?}", column_before);
-
     let change = DataFrameColumnChange {
         operation,
         column_before: column_before.clone(),
