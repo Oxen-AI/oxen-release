@@ -105,12 +105,12 @@ pub fn parse_resource_from_path_v0_19_0(
             branch_path = branch_path.join(component_path);
         }
 
-        let branch_name = branch_path.to_str().unwrap();
+        let branch_name = util::fs::linux_path_str(branch_path.to_str().unwrap());
         log::debug!(
             "parse_resource_from_path_v0_19_0 looking for branch [{}]",
             branch_name
         );
-        if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
+        if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
             log::debug!(
                 "parse_resource_from_path_v0_19_0 got branch [{}] and filepath [{:?}]",
                 branch_name,

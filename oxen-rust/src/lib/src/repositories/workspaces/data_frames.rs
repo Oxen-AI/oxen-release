@@ -194,7 +194,7 @@ pub fn full_diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffRe
 }
 
 pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path = path.as_ref();
+    let path = util::fs::linux_path(path.as_ref());
     log::debug!(
         "duckdb_path path: {:?} workspace: {:?}",
         path,
