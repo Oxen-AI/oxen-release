@@ -165,7 +165,6 @@ pub fn commit_with_cfg(
         ))
     );
 
-    
     Ok(commit)
 }
 
@@ -374,7 +373,6 @@ pub fn commit_dir_entries(
     new_commit: &NewCommitBody,
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
-
     log::debug!("commit_dir_entries got {} entries", dir_entries.len());
     for (path, entries) in &dir_entries {
         log::debug!(
