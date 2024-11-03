@@ -264,6 +264,39 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn add_column_metadata(
+    req: HttpRequest,
+    body: String,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let path = path_param(&req, "path")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+
+    let parsed_json: serde_json::Value = serde_json::from_str(&body)?;
+
+    // Extract the column_name and metadata from the parsed JSON
+    let column_name = parsed_json["column_name"]
+        .as_str()
+        .ok_or(OxenHttpError::BasicError("column_name is required".into()))?;
+    let column_metadata = &parsed_json["metadata"];
+
+    repositories::workspaces::data_frames::columns::add_column_metadata(
+        &repo,
+        &workspace,
+        path.into(),
+        column_name.to_string(),
+        column_metadata,
+    )?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
+}
+
 pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
