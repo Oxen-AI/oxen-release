@@ -274,14 +274,14 @@ mod tests {
     #[tokio::test]
     async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let path = Path::new("annotations/train/bounding_box.csv");
+            let path = Path::new("annotations").join(Path::new("train")).join(Path::new("bounding_box.csv"));
             let workspace_id = "some_workspace";
             let workspace =
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
                     .await;
             assert!(workspace.is_ok());
 
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, path).await?;
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
 
             let res = api::client::workspaces::data_frames::list(
                 &remote_repo,

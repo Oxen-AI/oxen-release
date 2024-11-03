@@ -6,6 +6,8 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, ParsedResource};
 use crate::repositories;
 
+use crate::util;
+
 use std::path::{Path, PathBuf};
 
 pub fn parse_resource_from_path(
@@ -76,8 +78,8 @@ pub fn parse_resource_from_path_v0_19_0(
         );
         // if we have no components, looking at base dir within that branch
         if components.is_empty() {
-            let branch_name = file_path.to_str().unwrap();
-            if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
+            let branch_name = util::fs::linux_path_str(file_path.to_str().unwrap());
+            if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
                 // log::debug!(
                 //     "parse_resource got branch [{}] with no file path",
                 //     branch_name
