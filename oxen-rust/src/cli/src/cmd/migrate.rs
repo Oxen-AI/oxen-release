@@ -111,7 +111,7 @@ impl RunCmd for MigrateCmd {
                 if direction == "up" {
                     let repo = LocalRepository::new(path)?;
                     if migration.is_needed(&repo)? {
-                        migration.up(&path, all)?;
+                        migration.up(path, all)?;
                     } else {
                         println!("Migration already applied: {}", migration.name());
                     }
