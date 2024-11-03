@@ -103,13 +103,14 @@ pub fn create(
 /// # Create a branch and check it out in one go
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
-pub fn create_checkout(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, OxenError> {
-    let name = name.as_ref();
+pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+    let name = util::fs::linux_path_str(name);
+    println!("name: {name:?}");
     println!("Create and checkout branch: {name}");
     let head_commit = repositories::commits::head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
-    let branch = ref_writer.create_branch(name, &head_commit.id)?;
+    let branch = ref_writer.create_branch(&name, &head_commit.id)?;
     ref_writer.set_head(name);
     Ok(branch)
 }

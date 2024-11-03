@@ -1325,6 +1325,21 @@ pub fn path_relative_to_dir(
     Ok(result)
 }
 
+
+pub fn linux_path_str(string: &str) -> String {
+    // Convert string to bytes, replacing '\\' with '/' if necessary
+    let bytes = string.as_bytes();
+    let mut new_bytes: Vec<u8> = Vec::new(); 
+    for byte in bytes.iter() {
+        if *byte == 92 {
+            new_bytes.push(47);
+        } else {
+            new_bytes.push(*byte);
+        }
+    }
+    String::from_utf8(new_bytes).unwrap()
+} 
+
 pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
     log::debug!("disk_usage_for_path: {:?}", path);
     let disks = sysinfo::Disks::new_with_refreshed_list();
