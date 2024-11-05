@@ -105,6 +105,7 @@ mod tests {
     use crate::test;
     use crate::util;
 
+    use std::collections::HashSet;
     use std::path::Path;
     use std::path::PathBuf;
 
@@ -271,6 +272,43 @@ mod tests {
             assert!(repo_status
                 .modified_files
                 .contains(&one_shot_relative_path.to_path_buf()));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_ignore_directory_with_modified_files() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Modify a deep file
+            let one_shot_relative_path = Path::new("annotations/train/one_shot.csv");
+            let one_shot_path = repo.path.join(one_shot_relative_path);
+            test::modify_txt_file(&one_shot_path, "new one shot coming in hot")?;
+
+            // Modify a shallow file
+            let labels_relative_path = Path::new("labels.txt");
+            let labels_path = repo.path.join(labels_relative_path);
+            test::modify_txt_file(&labels_path, "new labels coming in hot")?;
+
+            let opts = StagedDataOpts {
+                ignore: Some(HashSet::from([repo.path.join(Path::new("annotations"))])),
+                ..Default::default()
+            };
+
+            let repo_status = repositories::status::status_from_opts(&repo, &opts)?;
+            repo_status.print();
+
+            // Make sure that we only see the modified files
+            assert_eq!(repo_status.staged_dirs.len(), 0);
+            assert_eq!(repo_status.staged_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            // We should only see the modified file in the annotations/train/ directory
+            assert_eq!(repo_status.modified_files.len(), 1);
+            assert!(repo_status
+                .modified_files
+                .contains(&labels_relative_path.to_path_buf()));
 
             Ok(())
         })

@@ -72,6 +72,7 @@ pub fn status_from_opts(
         let relative_dir = util::fs::path_relative_to_dir(dir, &repo.path)?;
         let (sub_untracked, sub_modified, sub_removed) = find_changes(
             repo,
+            opts,
             &relative_dir,
             &staged_db_maybe,
             &dir_hashes,
@@ -334,6 +335,7 @@ pub fn read_staged_entries_below_path(
 
 fn find_changes(
     repo: &LocalRepository,
+    opts: &StagedDataOpts,
     relative_path: impl AsRef<Path>,
     staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
@@ -341,13 +343,23 @@ fn find_changes(
     total_entries: &mut u64,
 ) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
     let relative_path = relative_path.as_ref();
-    log::debug!("find_changes dir: {:?}", relative_path);
+    let full_path = repo.path.join(relative_path);
+    log::debug!(
+        "find_changes relative_path: {:?} full_path: {:?}",
+        relative_path,
+        full_path
+    );
+
+    if let Some(ignore) = &opts.ignore {
+        if ignore.contains(relative_path) || ignore.contains(&full_path) {
+            return Ok((UntrackedData::new(), HashSet::new(), HashSet::new()));
+        }
+    }
+
     let mut untracked = UntrackedData::new();
     let mut modified = HashSet::new();
     let mut removed = HashSet::new();
     let gitignore = oxenignore::create(repo);
-
-    let full_path = repo.path.join(relative_path);
 
     let mut entries: Vec<PathBuf> = Vec::new();
     if full_path.is_dir() {
@@ -367,6 +379,7 @@ fn find_changes(
     let dir_node = maybe_get_dir_node(repo, dir_hashes, relative_path)?;
 
     for path in entries {
+        log::debug!("find_changes entry path: {:?}", path);
         progress.set_message(format!(
             "🐂 checking ({total_entries} files) scanning {:?}",
             relative_path
@@ -382,6 +395,7 @@ fn find_changes(
             // If it's a directory, recursively find changes below it
             let (sub_untracked, sub_modified, sub_removed) = find_changes(
                 repo,
+                opts,
                 &relative_path,
                 staged_db,
                 dir_hashes,
@@ -587,6 +601,10 @@ fn maybe_get_child_node(
 }
 
 fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<bool, OxenError> {
+    if !full_path.as_ref().exists() {
+        return Ok(false);
+    }
+
     // Check the file timestamps vs the commit timestamps
     let metadata = std::fs::metadata(&full_path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
