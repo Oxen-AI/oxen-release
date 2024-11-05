@@ -143,9 +143,9 @@ impl RunCmd for ConfigCmd {
 impl ConfigCmd {
     fn strip_host(host: &str) -> Result<String, OxenError> {
         Ok(url::Url::parse(host)?
-           .host_str()
-           .ok_or_else(|| OxenError::basic_str("Unable to parse host."))?
-           .to_string())
+            .host_str()
+            .ok_or_else(|| OxenError::basic_str("Unable to parse host."))?
+            .to_string())
     }
 
     pub fn set_remote(
