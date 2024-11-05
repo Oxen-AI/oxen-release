@@ -1,5 +1,6 @@
 use crate::core::db;
 use crate::error::OxenError;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 use crate::repositories;
@@ -116,7 +117,9 @@ fn list_modified_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
 ) -> Result<Vec<PathBuf>, OxenError> {
-    let status = repositories::status(repo)?;
+    let paths_vec: Vec<PathBuf> = paths.iter().map(|p| repo.path.join(p)).collect();
+    let opts = StagedDataOpts::from_paths(&paths_vec);
+    let status = repositories::status::status_from_opts(repo, &opts)?;
     log::debug!("status modified_files: {:?}", status.modified_files);
     log::debug!("paths: {:?}", paths);
     let modified: Vec<PathBuf> = status

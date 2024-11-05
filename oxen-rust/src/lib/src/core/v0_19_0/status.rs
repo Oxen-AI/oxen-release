@@ -6,6 +6,7 @@ use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::{
     Commit, LocalRepository, MerkleHash, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus, StagedSchema, SummarizedStagedDirStats,
@@ -28,12 +29,23 @@ use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
-    status_from_dir(repo, Path::new(""))
+    status_from_dir(repo, &repo.path)
 }
 
 pub fn status_from_dir(
     repo: &LocalRepository,
     dir: impl AsRef<Path>,
+) -> Result<StagedData, OxenError> {
+    let opts = StagedDataOpts {
+        paths: vec![dir.as_ref().to_path_buf()],
+        ..StagedDataOpts::default()
+    };
+    status_from_opts(repo, &opts)
+}
+
+pub fn status_from_opts(
+    repo: &LocalRepository,
+    opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
     if repo.is_shallow_clone() {
         return Err(OxenError::basic_str(
@@ -41,25 +53,36 @@ pub fn status_from_dir(
         ));
     }
 
-    log::debug!("status_from_dir {:?}", dir.as_ref());
+    log::debug!("status_from_opts {:?}", opts.paths);
     let staged_db_maybe = open_staged_db(repo)?;
     let head_commit = repositories::commits::head_commit_maybe(repo)?;
     let dir_hashes = get_dir_hashes(repo, &head_commit)?;
-    let relative_dir = util::fs::path_relative_to_dir(dir.as_ref(), &repo.path)?;
 
     let read_progress = ProgressBar::new_spinner();
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
     let mut total_entries = 0;
-    let (untracked, modified, removed) = find_changes(
-        repo,
-        &relative_dir,
-        &staged_db_maybe,
-        &dir_hashes,
-        &read_progress,
-        &mut total_entries,
-    )?;
+
+    let mut untracked = UntrackedData::new();
+    let mut modified = HashSet::new();
+    let mut removed = HashSet::new();
+
+    for dir in opts.paths.iter() {
+        let relative_dir = util::fs::path_relative_to_dir(dir, &repo.path)?;
+        let (sub_untracked, sub_modified, sub_removed) = find_changes(
+            repo,
+            opts,
+            &relative_dir,
+            &staged_db_maybe,
+            &dir_hashes,
+            &read_progress,
+            &mut total_entries,
+        )?;
+        untracked.merge(sub_untracked);
+        modified.extend(sub_modified);
+        removed.extend(sub_removed);
+    }
 
     log::debug!("find_changes untracked: {:?}", untracked);
     log::debug!("find_changes modified: {:?}", modified);
@@ -85,8 +108,13 @@ pub fn status_from_dir(
         return Ok(staged_data);
     };
 
-    let (dir_entries, _) = read_staged_entries_below_path(repo, &staged_db, &dir, &read_progress)?;
-    // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
+    let mut dir_entries = HashMap::new();
+    for dir in opts.paths.iter() {
+        let (sub_dir_entries, _) =
+            read_staged_entries_below_path(repo, &staged_db, dir, &read_progress)?;
+        dir_entries.extend(sub_dir_entries);
+        // log::debug!("status_from_dir dir_entries: {:?}", dir_entries);
+    }
     read_progress.finish_and_clear();
 
     status_from_dir_entries(&mut staged_data, dir_entries)
@@ -307,37 +335,56 @@ pub fn read_staged_entries_below_path(
 
 fn find_changes(
     repo: &LocalRepository,
-    relative_dir: impl AsRef<Path>,
+    opts: &StagedDataOpts,
+    relative_path: impl AsRef<Path>,
     staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
     progress: &ProgressBar,
     total_entries: &mut u64,
 ) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
-    let relative_dir = relative_dir.as_ref();
-    log::debug!("find_changes dir: {:?}", relative_dir);
+    let relative_path = relative_path.as_ref();
+    let full_path = repo.path.join(relative_path);
+    log::debug!(
+        "find_changes relative_path: {:?} full_path: {:?}",
+        relative_path,
+        full_path
+    );
+
+    if let Some(ignore) = &opts.ignore {
+        if ignore.contains(relative_path) || ignore.contains(&full_path) {
+            return Ok((UntrackedData::new(), HashSet::new(), HashSet::new()));
+        }
+    }
+
     let mut untracked = UntrackedData::new();
     let mut modified = HashSet::new();
     let mut removed = HashSet::new();
     let gitignore = oxenignore::create(repo);
 
-    let full_dir = repo.path.join(relative_dir);
-
-    let Ok(entries) = std::fs::read_dir(&full_dir) else {
-        return Err(OxenError::basic_str(format!(
-            "Could not read dir {:?}",
-            full_dir
-        )));
-    };
+    let mut entries: Vec<PathBuf> = Vec::new();
+    if full_path.is_dir() {
+        let Ok(dir_entries) = std::fs::read_dir(&full_path) else {
+            return Err(OxenError::basic_str(format!(
+                "Could not read dir {:?}",
+                full_path
+            )));
+        };
+        for entry in dir_entries {
+            entries.push(entry?.path());
+        }
+    } else {
+        entries.push(full_path.to_owned());
+    }
     let mut untracked_count = 0;
-    let dir_node = get_dir_node(repo, dir_hashes, relative_dir)?;
+    let dir_node = maybe_get_dir_node(repo, dir_hashes, relative_path)?;
 
-    for entry in entries.flatten() {
+    for path in entries {
+        log::debug!("find_changes entry path: {:?}", path);
         progress.set_message(format!(
             "🐂 checking ({total_entries} files) scanning {:?}",
-            relative_dir
+            relative_path
         ));
         *total_entries += 1;
-        let path = entry.path();
         let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
 
         if is_ignored(&relative_path, &gitignore, path.is_dir()) {
@@ -348,6 +395,7 @@ fn find_changes(
             // If it's a directory, recursively find changes below it
             let (sub_untracked, sub_modified, sub_removed) = find_changes(
                 repo,
+                opts,
                 &relative_path,
                 staged_db,
                 dir_hashes,
@@ -373,37 +421,45 @@ fn find_changes(
                 modified.insert(relative_path.clone());
             }
         } else {
-            // If it's none of the above conditions, then it's untracked
-            untracked.add_file(relative_path.clone());
-            untracked_count += 1;
+            // If it's none of the above conditions
+            // then check if it's untracked or modified
+            if let Some(node) = CommitMerkleTree::read_file(repo, dir_hashes, &relative_path)? {
+                if is_modified(&node, &path)? {
+                    modified.insert(relative_path.clone());
+                }
+            } else {
+                untracked.add_file(relative_path.clone());
+                untracked_count += 1;
+            }
         }
     }
 
     // Only add the untracked directory if it's not the root directory
     // and it's not staged
     if untracked.all_untracked
-        && relative_dir != Path::new("")
-        && !is_staged(relative_dir, staged_db)?
+        && relative_path != Path::new("")
+        && !is_staged(relative_path, staged_db)?
+        && full_path.is_dir()
     {
-        untracked.add_dir(relative_dir.to_path_buf(), untracked_count);
+        untracked.add_dir(relative_path.to_path_buf(), untracked_count);
         // Clear individual files as they're now represented by the directory
         untracked.files.clear();
     }
 
     // Check for removed files
-    if let Some(dir_hash) = dir_hashes.get(relative_dir) {
+    if let Some(dir_hash) = dir_hashes.get(relative_path) {
         let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 2)?;
         if let Some(node) = dir_node {
             for child in CommitMerkleTree::node_files_and_folders(&node)? {
                 if let EMerkleTreeNode::File(file) = &child.node {
-                    let file_path = full_dir.join(&file.name);
+                    let file_path = full_path.join(&file.name);
                     if !file_path.exists() {
-                        removed.insert(relative_dir.join(&file.name));
+                        removed.insert(relative_path.join(&file.name));
                     }
                 } else if let EMerkleTreeNode::Directory(dir) = &child.node {
-                    let dir_path = full_dir.join(&dir.name);
+                    let dir_path = full_path.join(&dir.name);
                     if !dir_path.exists() {
-                        removed.insert(relative_dir.join(&dir.name));
+                        removed.insert(relative_path.join(&dir.name));
                     }
                 }
             }
@@ -440,7 +496,7 @@ fn get_dir_hashes(
     }
 }
 
-fn get_dir_node(
+fn maybe_get_dir_node(
     repo: &LocalRepository,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
     dir: impl AsRef<Path>,
@@ -545,6 +601,10 @@ fn maybe_get_child_node(
 }
 
 fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<bool, OxenError> {
+    if !full_path.as_ref().exists() {
+        return Ok(false);
+    }
+
     // Check the file timestamps vs the commit timestamps
     let metadata = std::fs::metadata(&full_path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);

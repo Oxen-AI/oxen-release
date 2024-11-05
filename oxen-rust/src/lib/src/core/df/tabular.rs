@@ -1615,4 +1615,12 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_parse_file_with_unmatched_quotes() -> Result<(), OxenError> {
+        let df = tabular::read_df("data/test/csvs/spam_ham_data_w_quote.tsv", DFOpts::empty())?;
+        assert_eq!(df.width(), 2);
+        assert_eq!(df.height(), 100);
+        Ok(())
+    }
 }
