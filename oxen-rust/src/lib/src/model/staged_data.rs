@@ -26,19 +26,32 @@ pub const MSG_OXEN_SHOW_SCHEMA_STAGED: &str =
 
 #[derive(Debug, Clone)]
 pub struct StagedDataOpts {
+    pub paths: Vec<PathBuf>, // Paths to start the search at
     pub skip: usize,
     pub limit: usize,
     pub print_all: bool,
     pub is_remote: bool,
+    pub ignore: Option<HashSet<PathBuf>>,
+}
+
+impl StagedDataOpts {
+    pub fn from_paths(paths: &[PathBuf]) -> StagedDataOpts {
+        StagedDataOpts {
+            paths: paths.to_owned(),
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for StagedDataOpts {
     fn default() -> StagedDataOpts {
         StagedDataOpts {
+            paths: vec![PathBuf::from("")],
             skip: 0,
             limit: 10,
             print_all: false,
             is_remote: false,
+            ignore: None,
         }
     }
 }

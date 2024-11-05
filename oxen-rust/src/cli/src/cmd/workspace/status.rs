@@ -83,10 +83,12 @@ impl RunCmd for WorkspaceStatusCmd {
 
         let is_remote = true;
         let opts = StagedDataOpts {
+            paths: vec![PathBuf::from("")],
             skip,
             limit,
             print_all,
             is_remote,
+            ignore: None,
         };
 
         let repo_dir = util::fs::get_repo_root_from_current_dir()

@@ -448,7 +448,7 @@ impl CommitMerkleTree {
     }
 
     /// This uses the dir_hashes db to skip right to a file in the tree
-    fn read_file(
+    pub fn read_file(
         repo: &LocalRepository,
         dir_hashes: &HashMap<PathBuf, MerkleHash>,
         path: impl AsRef<Path>,
@@ -468,18 +468,12 @@ impl CommitMerkleTree {
         // Look up the directory hash
         let node_hash: Option<MerkleHash> = dir_hashes.get(parent_path).cloned();
         let Some(node_hash) = node_hash else {
-            return Err(OxenError::basic_str(format!(
-                "Merkle tree hash not found for parent: {:?}",
-                parent_path
-            )));
+            return Ok(None);
         };
 
         // Read the directory node at depth 2 to get all the vnodes and their children
         let Some(dir_node) = CommitMerkleTree::read_depth(repo, &node_hash, 2)? else {
-            return Err(OxenError::basic_str(format!(
-                "Merkle tree hash not found for parent: {:?}",
-                parent_path
-            )));
+            return Ok(None);
         };
         // log::debug!(
         //     "read_file got {} dir_node children",
