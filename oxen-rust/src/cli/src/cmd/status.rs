@@ -1,10 +1,12 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
+use glob::glob;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::repositories;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::helpers::check_repo_migration_needed;
@@ -38,18 +40,29 @@ impl RunCmd for StatusCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
+                Arg::new("ignore")
+                    .long("ignore")
+                    .short('i')
+                    .help("Ignore files at this path.")
+                    .action(clap::ArgAction::Set)
+                    .required(false),
+            )
+            .arg(
                 Arg::new("print_all")
                     .long("print_all")
                     .short('a')
                     .help("If present, does not truncate the output of status at all.")
                     .action(clap::ArgAction::SetTrue),
             )
-            .arg(Arg::new("path").required(false))
+            .arg(
+                Arg::new("paths")
+                    .num_args(0..)
+                    .trailing_var_arg(true)  // Collect all remaining args as paths
+                    .help("Specify one or more paths")
+            )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-        let directory = args.get_one::<String>("path").map(PathBuf::from);
-
         let skip = args
             .get_one::<String>("skip")
             .expect("Must supply skip")
@@ -62,19 +75,24 @@ impl RunCmd for StatusCmd {
             .expect("limit must be a valid integer.");
         let print_all = args.get_flag("print_all");
 
+        let repository = LocalRepository::from_current_dir()?;
+        check_repo_migration_needed(&repository)?;
+
+        let paths = args
+            .get_many::<String>("paths")
+            .map(|vals| vals.map(|v| repository.path.join(v)).collect())
+            .unwrap_or_else(|| vec![repository.path.clone()]);
         let is_remote = false;
         let opts = StagedDataOpts {
+            paths,
             skip,
             limit,
             print_all,
             is_remote,
+            ignore: parse_ignore_files(args.get_one::<String>("ignore")),
         };
 
-        let repository = LocalRepository::from_current_dir()?;
-        check_repo_migration_needed(&repository)?;
-
-        let directory = directory.unwrap_or(repository.path.clone());
-        let repo_status = repositories::status_from_dir(&repository, &directory)?;
+        let repo_status = repositories::status::status_from_opts(&repository, &opts)?;
 
         if let Some(current_branch) = repositories::branches::current_branch(&repository)? {
             println!(
@@ -91,5 +109,23 @@ impl RunCmd for StatusCmd {
         repo_status.print_with_params(&opts);
 
         Ok(())
+    }
+}
+
+fn parse_ignore_files(paths: Option<&String>) -> Option<HashSet<PathBuf>> {
+    let paths_str = paths?;
+
+    match glob(paths_str) {
+        Ok(paths) => {
+            let mut results: HashSet<PathBuf> = HashSet::new();
+            for path in paths.flatten() {
+                results.insert(path);
+            }
+            Some(results)
+        }
+        Err(err) => {
+            log::error!("Err: {err:?}");
+            None
+        }
     }
 }

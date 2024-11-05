@@ -9,6 +9,7 @@ use std::path::Path;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::{LocalRepository, StagedData};
 
 /// # oxen status
@@ -73,6 +74,16 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     }
 }
 
+pub fn status_from_opts(
+    repo: &LocalRepository,
+    opts: &StagedDataOpts,
+) -> Result<StagedData, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("v10 not supported"),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_opts(repo, opts),
+    }
+}
+
 pub fn status_from_dir(
     repo: &LocalRepository,
     dir: impl AsRef<Path>,
@@ -86,6 +97,7 @@ pub fn status_from_dir(
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
+    use crate::model::staged_data::StagedDataOpts;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
@@ -190,6 +202,123 @@ mod tests {
             // annotations/train/annotations.txt
             // annotations/train/bounding_box.csv
             assert_eq!(repo_status.untracked_files.len(), 7);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_modified_files_status_with_search_paths() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Modify a deep file
+            let one_shot_relative_path = Path::new("annotations/train/one_shot.csv");
+            let one_shot_path = repo.path.join(one_shot_relative_path);
+            test::modify_txt_file(&one_shot_path, "new one shot coming in hot")?;
+
+            // Modify a shallow file
+            let labels_path = repo.path.join(Path::new("labels.txt"));
+            test::modify_txt_file(&labels_path, "new labels coming in hot")?;
+
+            let opts =
+                StagedDataOpts::from_paths(&[repo.path.join(Path::new("annotations/train"))]);
+
+            let repo_status = repositories::status::status_from_opts(&repo, &opts)?;
+            repo_status.print();
+
+            // Make sure that we only see the modified files
+            assert_eq!(repo_status.staged_dirs.len(), 0);
+            assert_eq!(repo_status.staged_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            // We should only see the modified file in the annotations/train/ directory
+            assert_eq!(repo_status.modified_files.len(), 1);
+            assert!(repo_status
+                .modified_files
+                .contains(&one_shot_relative_path.to_path_buf()));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_modified_files_status_with_file_search_paths() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Modify a deep file
+            let one_shot_relative_path = Path::new("annotations/train/one_shot.csv");
+            let one_shot_path = repo.path.join(one_shot_relative_path);
+            test::modify_txt_file(&one_shot_path, "new one shot coming in hot")?;
+
+            // Modify a shallow file
+            let labels_path = repo.path.join(Path::new("labels.txt"));
+            test::modify_txt_file(&labels_path, "new labels coming in hot")?;
+
+            let opts = StagedDataOpts::from_paths(&[repo
+                .path
+                .join(Path::new("annotations/train/one_shot.csv"))]);
+
+            let repo_status = repositories::status::status_from_opts(&repo, &opts)?;
+            repo_status.print();
+
+            // Make sure that we only see the modified files
+            assert_eq!(repo_status.staged_dirs.len(), 0);
+            assert_eq!(repo_status.staged_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            // We should only see the modified file in the annotations/train/ directory
+            assert_eq!(repo_status.modified_files.len(), 1);
+            assert!(repo_status
+                .modified_files
+                .contains(&one_shot_relative_path.to_path_buf()));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_added_files_status_with_search_paths() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Add a deep file
+            let one_shot_relative_path = Path::new("annotations/train/one_shot.csv");
+            let one_shot_path = repo.path.join(one_shot_relative_path);
+            test::modify_txt_file(&one_shot_path, "new one shot coming in hot")?;
+
+            repositories::add(&repo, &one_shot_path)?;
+
+            // Modify a deep file
+            let two_shot_relative_path = Path::new("annotations/train/two_shot.csv");
+            let two_shot_path = repo.path.join(two_shot_relative_path);
+            test::modify_txt_file(&two_shot_path, "new two shot coming in hot")?;
+
+            // Write an untracked file
+            let untracked_relative_path = Path::new("untracked.txt");
+            let untracked_path = repo.path.join(untracked_relative_path);
+            test::modify_txt_file(&untracked_path, "I'm sneaking in there untracked")?;
+
+            let opts =
+                StagedDataOpts::from_paths(&[repo.path.join(Path::new("annotations/train"))]);
+
+            let repo_status = repositories::status::status_from_opts(&repo, &opts)?;
+            repo_status.print();
+
+            // Make sure that we only see the modified files
+            assert_eq!(repo_status.staged_dirs.len(), 1);
+            assert_eq!(repo_status.staged_files.len(), 1);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            // We should only see the modified file in the annotations/train/ directory
+            assert_eq!(repo_status.modified_files.len(), 1);
+            assert!(repo_status
+                .modified_files
+                .contains(&two_shot_relative_path.to_path_buf()));
+
+            // Make sure we can see the staged file
+            assert_eq!(repo_status.staged_files.len(), 1);
+            assert!(repo_status
+                .staged_files
+                .contains_key(&one_shot_relative_path.to_path_buf()));
 
             Ok(())
         })
@@ -389,7 +518,7 @@ mod tests {
     #[tokio::test]
     async fn test_status_move_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            // Move train to to new_train/train2
+            // Move train/ to to new_train/train2
             let og_basename = PathBuf::from("train");
             let og_dir = repo.path.join(og_basename);
             let new_basename = PathBuf::from("new_train").join("train2");
@@ -577,7 +706,9 @@ mod tests {
             let _base_file_3 = test::add_txt_file_to_dir(repo_path, "Hello 3")?;
 
             // At first there should be 3 untracked
-            let untracked_dirs = repositories::status(&repo)?.untracked_dirs;
+            let status = repositories::status(&repo)?;
+            status.print();
+            let untracked_dirs = status.untracked_dirs;
             assert_eq!(untracked_dirs.len(), 3);
 
             // Add the directory
