@@ -683,11 +683,6 @@ mod tests {
                 data.to_string(),
             ).await;
 
-
-
-            println!("result: {:?}", result);
-
-            // Assert that the result is OK
             assert!(result.is_ok());
 
             // Retrieve the DataFrame to check if the row exists
