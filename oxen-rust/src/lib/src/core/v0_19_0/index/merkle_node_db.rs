@@ -65,7 +65,7 @@ use crate::util;
 
 use crate::model::merkle_tree::node::{
     CommitNode, DirNode, EMerkleTreeNode, FileChunkNode, FileNode, MerkleTreeNode,
-    MerkleTreeNodeType, SchemaNode, TMerkleTreeNode, VNode,
+    MerkleTreeNodeType, TMerkleTreeNode, VNode,
 };
 
 const NODE_FILE: &str = "node";
@@ -234,9 +234,6 @@ impl MerkleNodeDB {
             MerkleTreeNodeType::Dir => Ok(EMerkleTreeNode::Directory(DirNode::deserialize(data)?)),
             MerkleTreeNodeType::File => Ok(EMerkleTreeNode::File(FileNode::deserialize(data)?)),
             MerkleTreeNodeType::VNode => Ok(EMerkleTreeNode::VNode(VNode::deserialize(data)?)),
-            MerkleTreeNodeType::Schema => {
-                Ok(EMerkleTreeNode::Schema(SchemaNode::deserialize(data)?))
-            }
             MerkleTreeNodeType::FileChunk => Ok(EMerkleTreeNode::FileChunk(
                 FileChunkNode::deserialize(data)?,
             )),
@@ -386,7 +383,7 @@ impl MerkleNodeDB {
         // log::debug!("write_node node: {}", node);
 
         // Write data type
-        node_file.write_all(&node.dtype().to_u8().to_le_bytes())?;
+        node_file.write_all(&node.node_type().to_u8().to_le_bytes())?;
 
         // Write parent id
         if let Some(parent_id) = parent_id {
@@ -405,13 +402,13 @@ impl MerkleNodeDB {
         // Write data
         node_file.write_all(&buf)?;
 
-        self.dtype = node.dtype();
+        self.dtype = node.node_type();
         self.node_id = node.hash();
         self.parent_id = parent_id;
         // log::debug!(
         //     "write_node wrote id {} dtype: {:?}",
         //     node.hash(),
-        //     node.dtype()
+        //     node.node_type()
         // );
         Ok(())
     }
@@ -439,7 +436,7 @@ impl MerkleNodeDB {
         // log::debug!("--add_child-- data_len {}", data_len);
         log::debug!("--add_child-- child {}", item);
 
-        node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
+        node_file.write_all(&item.node_type().to_u8().to_le_bytes())?;
         node_file.write_all(&item.hash().to_le_bytes())?; // id of child
         node_file.write_all(&self.data_offset.to_le_bytes())?;
         node_file.write_all(&data_len.to_le_bytes())?;

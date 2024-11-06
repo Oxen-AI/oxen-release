@@ -80,6 +80,7 @@ pub fn commit(
             &workspace.base_repo,
             dir_entries,
             new_commit,
+            branch_name,
             &commit_progress_bar,
         )?
     };

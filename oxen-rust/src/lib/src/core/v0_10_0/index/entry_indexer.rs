@@ -670,7 +670,7 @@ impl EntryIndexer {
         });
 
         log::debug!("about to pull the entires to the versions dir");
-        let progress_bar = PullProgress::new();
+        let progress_bar = Arc::new(PullProgress::new());
 
         puller::pull_entries_to_versions_dir(
             remote_repo,
@@ -738,7 +738,7 @@ impl EntryIndexer {
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
         // Pull all the entries to the versions dir and then hydrate them into the working dir
-        let progress_bar = PullProgress::new();
+        let progress_bar = Arc::new(PullProgress::new());
         puller::pull_entries_to_versions_dir(
             remote_repo,
             &entries,

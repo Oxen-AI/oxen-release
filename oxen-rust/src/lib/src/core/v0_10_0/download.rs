@@ -10,6 +10,7 @@ use crate::model::MetadataEntry;
 use crate::model::RemoteRepository;
 use crate::util;
 use std::path::Path;
+use std::sync::Arc;
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
@@ -49,7 +50,7 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &pull_progress).await?;
 
     Ok(())

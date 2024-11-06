@@ -26,12 +26,18 @@ pub async fn download_dir(
     let tmp_repo = LocalRepository::new(local_path)?;
 
     // Find and download dir node and its children from remote repo
-    let hash = MerkleHash::from_str(&entry.hash)?;
-    let dir_node = api::client::tree::download_tree_from(&tmp_repo, remote_repo, &hash).await?;
+    let hash = MerkleHash::from_str(&entry.latest_commit.as_ref().unwrap().id)?;
+    let commit_node = api::client::tree::download_tree_from(&tmp_repo, remote_repo, &hash).await?;
+    let Some(dir_node) = commit_node.get_by_path(&entry.filename)? else {
+        return Err(OxenError::basic_str(format!(
+            "Directory not found: {}",
+            entry.filename
+        )));
+    };
 
     // Create local directory to pull entries into
     let directory = PathBuf::from("");
-    let pull_progress = PullProgress::new();
+    let pull_progress = Arc::new(PullProgress::new());
 
     // Recursively pull entries
     r_download_entries(

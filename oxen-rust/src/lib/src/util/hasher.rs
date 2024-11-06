@@ -9,8 +9,6 @@ use std::io::BufReader;
 use std::path::Path;
 use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 
-use super::progress_bar::spinner_with_msg;
-
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let val = xxh3_128(buffer);
     format!("{val:x}")
@@ -120,6 +118,19 @@ pub fn get_combined_hash(
     }
 }
 
+pub fn maybe_get_metadata_hash(
+    oxen_metadata: &Option<GenericMetadata>,
+) -> Result<Option<u128>, OxenError> {
+    if let Some(metadata) = oxen_metadata {
+        let mut hasher = Xxh3::new();
+        let metadata_str = serde_json::to_string(&metadata).unwrap();
+        hasher.update(metadata_str.as_bytes());
+        Ok(Some(hasher.digest128()))
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn get_metadata_hash(oxen_metadata: &Option<GenericMetadata>) -> Result<u128, OxenError> {
     let mut hasher = Xxh3::new();
     let metadata_str = serde_json::to_string(&oxen_metadata).unwrap();
@@ -193,12 +204,9 @@ fn hash_large_file_contents(path: &Path) -> Result<u128, OxenError> {
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path, err))
     })?;
 
-    let progress = spinner_with_msg("Hashing large file...");
-
     let mut reader = BufReader::new(file);
     let mut hasher = Xxh3::new();
     let mut buffer = [0; 4096];
-    let mut total_bytes: u64 = 0;
 
     loop {
         let count = reader.read(&mut buffer).map_err(|_| {
@@ -211,13 +219,6 @@ fn hash_large_file_contents(path: &Path) -> Result<u128, OxenError> {
         }
 
         hasher.update(&buffer[..count]);
-        progress.inc(count as u64);
-        total_bytes += count as u64;
-        progress.set_message(format!(
-            "Hashing {:?} bytes {:?}",
-            bytesize::ByteSize::b(total_bytes),
-            path
-        ));
     }
 
     Ok(hasher.digest128())

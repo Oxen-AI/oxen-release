@@ -35,7 +35,10 @@ pub fn parse_resource_from_path_v0_19_0(
     if let Some(first_component) = components.first() {
         let base_path: &Path = first_component.as_ref();
         let maybe_commit_id = base_path.to_str().unwrap();
-        // log::debug!("parse_resource looking at component {}", maybe_commit_id);
+        log::debug!(
+            "parse_resource_from_path_v0_19_0 looking at component {}",
+            maybe_commit_id
+        );
         if let Some(commit) = repositories::commits::get_by_id(repo, maybe_commit_id)? {
             let mut file_path = PathBuf::new();
             for (i, component) in components.iter().enumerate() {
@@ -56,6 +59,11 @@ pub fn parse_resource_from_path_v0_19_0(
                 version: PathBuf::from(commit.id.to_string()),
                 resource: path.to_owned(),
             }));
+        } else {
+            log::debug!(
+                "parse_resource_from_path_v0_19_0 did not find commit [{}]",
+                maybe_commit_id
+            );
         }
     }
 
@@ -85,10 +93,10 @@ pub fn parse_resource_from_path_v0_19_0(
                 //     branch_name
                 // );
 
-                let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+                let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?;
                 file_path = PathBuf::from("");
                 return Ok(Some(ParsedResource {
-                    commit: Some(commit),
+                    commit,
                     branch: Some(branch.clone()),
                     path: file_path,
                     version: PathBuf::from(branch.name),
@@ -117,9 +125,9 @@ pub fn parse_resource_from_path_v0_19_0(
                 file_path
             );
 
-            let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+            let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?;
             return Ok(Some(ParsedResource {
-                commit: Some(commit),
+                commit,
                 branch: Some(branch.clone()),
                 path: file_path,
                 version: PathBuf::from(branch.name),

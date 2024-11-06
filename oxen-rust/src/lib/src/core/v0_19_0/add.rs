@@ -199,64 +199,69 @@ pub fn process_add_dir(
     };
 
     let walker = WalkDir::new(&path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        let entry = entry.unwrap();
-        let dir = entry.path();
+    walker
+        .filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
+        .par_bridge()
+        .try_for_each(|entry| -> Result<(), OxenError> {
+            let entry = entry.unwrap();
+            let dir = entry.path();
 
-        log::debug!("Entry is: {entry:?}");
+            log::debug!("Entry is: {dir:?}");
 
-        let byte_counter_clone = Arc::clone(&byte_counter);
-        let added_file_counter_clone = Arc::clone(&added_file_counter);
-        let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
+            let byte_counter_clone = Arc::clone(&byte_counter);
+            let added_file_counter_clone = Arc::clone(&added_file_counter);
+            let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-        let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
-        let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
-        let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
+            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
+            let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-        add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
+            // Change the closure to return a Result
+            add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
 
-        let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-        entries.par_iter().for_each(|dir_entry| {
-            log::debug!("Dir Entry is: {dir_entry:?}");
-            let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-            let path = dir_entry.path();
-            let duration = start.elapsed().as_secs_f32();
-            let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+            let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
 
-            progress_1.set_message(format!(
-                "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                added_file_counter_clone.load(Ordering::Relaxed),
-                unchanged_file_counter_clone.load(Ordering::Relaxed),
-                bytesize::ByteSize::b(total_bytes),
-                mbps
-            ));
+            entries.par_iter().for_each(|dir_entry| {
+                log::debug!("Dir Entry is: {dir_entry:?}");
+                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+                let path = dir_entry.path();
+                let duration = start.elapsed().as_secs_f32();
+                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
-            let seen_dirs_clone = Arc::clone(&seen_dirs);
-            match process_add_file(
-                &repo,
-                &repo_path,
-                versions_path,
-                staged_db,
-                &dir_node,
-                &path,
-                &seen_dirs_clone,
-            ) {
-                Ok(Some(node)) => {
-                    if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                        byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                        added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                progress_1.set_message(format!(
+                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                    added_file_counter_clone.load(Ordering::Relaxed),
+                    unchanged_file_counter_clone.load(Ordering::Relaxed),
+                    bytesize::ByteSize::b(total_bytes),
+                    mbps
+                ));
+
+                let seen_dirs_clone = Arc::clone(&seen_dirs);
+                match process_add_file(
+                    &repo,
+                    &repo_path,
+                    versions_path,
+                    staged_db,
+                    &dir_node,
+                    &path,
+                    &seen_dirs_clone,
+                ) {
+                    Ok(Some(node)) => {
+                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                    Ok(None) => {
+                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        log::error!("Error adding file: {:?}", e);
                     }
                 }
-                Ok(None) => {
-                    unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                }
-                Err(e) => {
-                    log::error!("Error adding file: {:?}", e);
-                }
-            }
-        });
-    }
+            });
+            Ok(())
+        })?;
 
     progress_1_clone.finish_and_clear();
     cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
@@ -359,6 +364,7 @@ pub fn process_add_file(
     let mut oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
+        log::debug!("got existing file_node: {:?}", file_node);
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
@@ -400,6 +406,7 @@ pub fn process_add_file(
         )
     };
 
+    // TODO: Move this out of this function so we don't check for conflicts on every file
     if let Some(_file_node) = &maybe_file_node {
         let conflicts = repositories::merge::list_conflicts(repo)?;
         for conflict in conflicts {
@@ -420,7 +427,7 @@ pub fn process_add_file(
 
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
-    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
     let metadata = match &oxen_metadata {
         Some(oxen_metadata) => {
             let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
@@ -428,6 +435,12 @@ pub fn process_add_file(
         }
         None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
     };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
 
     // Add the file to the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
@@ -522,8 +535,9 @@ pub fn p_add_file_node_to_staged_db(
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = relative_path.as_ref();
     log::debug!(
-        "writing {:?} to staged db: {:?}",
+        "writing {:?} [{:?}] to staged db: {:?}",
         relative_path,
+        status,
         staged_db.path()
     );
     let staged_file_node = StagedMerkleTreeNode {

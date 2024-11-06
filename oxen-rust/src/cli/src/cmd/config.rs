@@ -141,6 +141,13 @@ impl RunCmd for ConfigCmd {
 }
 
 impl ConfigCmd {
+    fn strip_host(host: &str) -> Result<String, OxenError> {
+        Ok(url::Url::parse(host)?
+            .host_str()
+            .ok_or_else(|| OxenError::basic_str("Unable to parse host."))?
+            .to_string())
+    }
+
     pub fn set_remote(
         &self,
         repo: &mut LocalRepository,
@@ -159,21 +166,24 @@ impl ConfigCmd {
     }
 
     pub fn set_auth_token(&self, host: &str, token: &str) -> Result<(), OxenError> {
+        let host = Self::strip_host(host)?;
         let mut config = AuthConfig::get_or_create()?;
-        config.add_host_auth_token(host, token);
+        config.add_host_auth_token(host.as_ref(), token);
         config.save_default()?;
         println!("Authentication token set for host: {host}");
         Ok(())
     }
 
     pub fn set_default_host(&self, host: &str) -> Result<(), OxenError> {
+        let host = Self::strip_host(host)?;
         let mut config = AuthConfig::get_or_create()?;
         if host.is_empty() {
             config.default_host = None;
         } else {
-            config.default_host = Some(String::from(host));
+            config.default_host = Some(host.clone());
         }
         config.save_default()?;
+        println!("Default host set to: {host}");
         Ok(())
     }
 

@@ -54,8 +54,6 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     let schema = full_staged_table_schema(conn)?;
     let inserted_df = insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
 
-    log::debug!("staged_df_db::append_row() inserted_df: {:?}", inserted_df);
-
     Ok(inserted_df)
 
     // Proceed with appending `new_df` to the database
@@ -281,8 +279,7 @@ pub fn insert_polars_df(
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
 
         let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
-
-        result_df = if df.height() == 0 {
+        result_df = if df.height() == 0 || result_df.height() == 0 {
             df
         } else {
             result_df.vstack(&df).unwrap()

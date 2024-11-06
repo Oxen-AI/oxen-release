@@ -51,6 +51,25 @@ pub fn get_staged(
     }
 }
 
+pub fn restore_schema(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    og_schema: &Schema,
+    before_column: &str,
+    after_column: &str,
+) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("Not implemented for v0.10.0")),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::restore_schema(
+            repo,
+            path,
+            og_schema,
+            before_column,
+            after_column,
+        ),
+    }
+}
+
 /// List all the staged schemas
 pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
@@ -158,7 +177,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commit = repositories::commits::head_commit(&repo)?;
             let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-            assert_eq!(schemas.len(), 7);
+            assert_eq!(schemas.len(), 8);
             let path = PathBuf::from("annotations")
                 .join("train")
                 .join("bounding_box.csv");

@@ -8,6 +8,7 @@ use liboxen::{
         OptimizeMerkleTreesMigration, PropagateSchemasMigration, UpdateVersionFilesMigration,
     },
     error::OxenError,
+    model::LocalRepository,
 };
 
 use crate::cmd::RunCmd;
@@ -108,7 +109,12 @@ impl RunCmd for MigrateCmd {
                 let all = sub_matches.get_flag("all");
 
                 if direction == "up" {
-                    migration.up(path, all)?;
+                    let repo = LocalRepository::new(path)?;
+                    if migration.is_needed(&repo)? {
+                        migration.up(path, all)?;
+                    } else {
+                        println!("Migration already applied: {}", migration.name());
+                    }
                 } else if direction == "down" {
                     migration.down(path, all)?;
                 } else {

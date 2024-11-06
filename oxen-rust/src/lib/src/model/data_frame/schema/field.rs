@@ -1,3 +1,4 @@
+use polars::prelude::PlSmallStr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -45,6 +46,13 @@ impl Field {
     pub fn to_sql(&self) -> String {
         let dtype = DataType::from_string(&self.dtype).to_sql();
         format!("{} {}", self.name, dtype)
+    }
+
+    pub fn to_polars(&self) -> polars::prelude::Field {
+        polars::prelude::Field::new(
+            PlSmallStr::from(self.name.to_owned()),
+            DataType::from_string(&self.dtype).to_polars(),
+        )
     }
 
     pub fn all_fields_to_string<V: AsRef<Vec<Field>>>(fields: V) -> String {

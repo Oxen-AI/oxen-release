@@ -105,7 +105,6 @@ pub fn create(
 /// then switches HEAD to point to the branch
 pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     let name = util::fs::linux_path_str(name);
-    println!("name: {name:?}");
     println!("Create and checkout branch: {name}");
     let head_commit = repositories::commits::head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
@@ -318,25 +317,30 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 }
 
 /// Checkout a branch
-pub async fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+pub async fn checkout_branch_from_commit(
+    repo: &LocalRepository,
+    name: &str,
+    from_commit: &Option<Commit>,
+) -> Result<(), OxenError> {
     log::debug!("checkout_branch {}", name);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name, from_commit).await,
     }
 }
 
-/// Checkout a commit id
-pub async fn checkout_commit_id(
+/// Checkout a commit
+pub async fn checkout_commit_from_commit(
     repo: &LocalRepository,
-    commit_id: impl AsRef<str>,
+    commit: &Commit,
+    from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::branches::checkout_commit_id(repo, commit_id).await
+            core::v0_10_0::branches::checkout_commit_id(repo, &commit.id).await
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_commit_id(repo, commit_id).await
+            core::v0_19_0::branches::checkout_commit(repo, commit, from_commit).await
         }
     }
 }
@@ -412,14 +416,14 @@ pub fn list_entry_versions_on_branch(
 pub async fn set_working_repo_to_commit(
     repo: &LocalRepository,
     commit: &Commit,
-    force: bool,
+    from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             panic!("set_working_repo_to_commit not implemented for oxen v0.10.0")
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, force).await
+            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, from_commit).await
         }
     }
 }

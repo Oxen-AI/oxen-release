@@ -1,6 +1,6 @@
 use duckdb::Connection;
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, TABLE_NAME};
 use crate::core::db::data_frames::df_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use sql_query_builder::Delete;
@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 pub mod columns;
 pub mod rows;
+pub mod schemas;
 
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
@@ -27,6 +28,47 @@ pub fn is_queryable_data_frame_indexed(
             _ => Err(e),
         },
     }
+}
+
+// Annoying that we have to pass in the path and the file node here
+pub fn is_queryable_data_frame_indexed_from_file_node(
+    repo: &LocalRepository,
+    file_node: &FileNode,
+    path: &Path,
+) -> Result<bool, OxenError> {
+    match get_queryable_data_frame_workspace_from_file_node(repo, file_node, path) {
+        Ok(_workspace) => Ok(true),
+        Err(e) => match e {
+            OxenError::QueryableWorkspaceNotFound() => Ok(false),
+            _ => Err(e),
+        },
+    }
+}
+
+pub fn get_queryable_data_frame_workspace_from_file_node(
+    repo: &LocalRepository,
+    file_node: &FileNode,
+    path: &Path,
+) -> Result<Workspace, OxenError> {
+    let workspaces = repositories::workspaces::list(repo)?;
+    let latest_commit_id = file_node.last_commit_id;
+
+    for workspace in workspaces {
+        // Ensure the workspace is not editable and matches the commit ID of the resource
+        if !workspace.is_editable && workspace.commit.id == latest_commit_id.to_string() {
+            // Construct the path to the DuckDB resource within the workspace
+            let workspace_file_db_path =
+                repositories::workspaces::data_frames::duckdb_path(&workspace, path);
+
+            // Check if the DuckDB file exists in the workspace's directory
+            if workspace_file_db_path.exists() {
+                // The file exists in this non-editable workspace, and the commit IDs match
+                return Ok(workspace);
+            }
+        }
+    }
+
+    Err(OxenError::QueryableWorkspaceNotFound())
 }
 
 pub fn get_queryable_data_frame_workspace(
@@ -43,24 +85,7 @@ pub fn get_queryable_data_frame_workspace(
             "File format not supported, must be tabular.",
         ));
     }
-    let workspaces = repositories::workspaces::list(repo)?;
-
-    for workspace in workspaces {
-        // Ensure the workspace is not editable and matches the commit ID of the resource
-        if !workspace.is_editable && workspace.commit == *commit {
-            // Construct the path to the DuckDB resource within the workspace
-            let workspace_file_db_path =
-                repositories::workspaces::data_frames::duckdb_path(&workspace, path);
-
-            // Check if the DuckDB file exists in the workspace's directory
-            if workspace_file_db_path.exists() {
-                // The file exists in this non-editable workspace, and the commit IDs match
-                return Ok(workspace);
-            }
-        }
-    }
-
-    Err(OxenError::QueryableWorkspaceNotFound())
+    get_queryable_data_frame_workspace_from_file_node(repo, &file_node, path)
 }
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
@@ -221,11 +246,7 @@ pub fn extract_file_node_to_working_dir(
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest() to {:?}", path);
-    let excluded_cols = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
         excluded_cols,
@@ -243,11 +264,7 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv() to {:?}", path);
-    let excluded_cols = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
         excluded_cols,
@@ -267,11 +284,7 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv() to {:?}", path);
-    let excluded_cols = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
         excluded_cols,
@@ -285,11 +298,7 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet() to {:?}", path);
-    let excluded_cols = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .collect::<Vec<String>>()
-        .join(", ");
+    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
 
     let query = format!(
         "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
@@ -300,4 +309,26 @@ fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     conn.execute(&query, [])?;
 
     Ok(())
+}
+fn get_existing_excluded_columns(conn: &Connection, table_name: &str) -> Result<String, OxenError> {
+    // Query to get existing columns in the table
+    let existing_cols_query = format!(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = '{}'",
+        table_name
+    );
+
+    let mut stmt = conn.prepare(&existing_cols_query)?;
+    let existing_cols: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
+        .filter_map(Result::ok)
+        .collect();
+
+    // Filter excluded columns to only those that exist in the table
+    let filtered_excluded_cols: Vec<String> = EXCLUDE_OXEN_COLS
+        .iter()
+        .filter(|col| existing_cols.contains(&col.to_string()))
+        .map(|col| format!("\"{}\"", col))
+        .collect();
+
+    Ok(filtered_excluded_cols.join(", "))
 }

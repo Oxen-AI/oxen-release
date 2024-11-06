@@ -138,7 +138,7 @@ pub async fn parse_json_body_with_err_msg(
     let status = res.status();
     let body = res.text().await?;
 
-    log::debug!("parse_json_body_with_err_msg url: {url}\nstatus: {status}\nbody: {body}");
+    log::debug!("url: {url}\nstatus: {status}\nbody: {body}");
 
     let response: Result<OxenResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {

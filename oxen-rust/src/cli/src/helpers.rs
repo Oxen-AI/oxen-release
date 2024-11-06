@@ -43,7 +43,8 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             }
         }
         Err(err) => {
-            eprintln!("Err checking remote version:\n{err}")
+            // Don't fully print in case they are just off network and working locally
+            log::debug!("Err checking remote version:\n{err}")
         }
     }
     Ok(())

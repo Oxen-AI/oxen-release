@@ -36,7 +36,10 @@ impl MerkleTreeNode {
 
     /// Check if the node is a leaf node (i.e. it has no children)
     pub fn is_leaf(&self) -> bool {
-        self.children.is_empty()
+        matches!(
+            &self.node,
+            EMerkleTreeNode::File(_) | EMerkleTreeNode::FileChunk(_)
+        )
     }
 
     /// Check if the node has children
@@ -156,14 +159,6 @@ impl MerkleTreeNode {
         )))
     }
 
-    /// Walk the tree
-    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
-        f(self);
-        for child in &self.children {
-            child.walk_tree(&f);
-        }
-    }
-
     /// List all the directories in the tree
     pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut dirs = Vec::new();
@@ -201,6 +196,11 @@ impl MerkleTreeNode {
             if let EMerkleTreeNode::File(_) = &child.node {
                 // Check if the file exists in the versions directory
                 let file_path = util::fs::version_path_from_hash(repo, child.hash.to_string());
+                // log::debug!(
+                //     "list_missing_file_hashes {} checking file_path: {:?}",
+                //     self,
+                //     file_path
+                // );
                 if !file_path.exists() {
                     missing_hashes.insert(child.hash);
                 }
@@ -234,7 +234,7 @@ impl MerkleTreeNode {
             )));
         };
 
-        if MerkleTreeNodeType::Dir != node.node.dtype() {
+        if MerkleTreeNodeType::Dir != node.node.node_type() {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
                 path
@@ -361,15 +361,15 @@ impl MerkleTreeNode {
                         }
                     }
                 }
-                Err(err) => {
+                Err(_) => {
                     // If the value is not found then Result::Err is returned,
                     // containing the index where a matching element could be inserted while maintaining sorted order.
-                    log::debug!(
-                        "get_by_path_helper {} could not find path: {:?} possible insert point: {:?}",
-                        self,
-                        target_name,
-                        err
-                    );
+                    // log::debug!(
+                    //     "get_by_path_helper {} could not find path: {:?} possible insert point: {:?}",
+                    //     self,
+                    //     target_name,
+                    //     err
+                    // );
                 }
             }
         }
@@ -412,7 +412,6 @@ impl MerkleTreeNode {
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
             }
-            MerkleTreeNodeType::Schema => SchemaNode::deserialize(data).map(|schema| schema.hash),
         }
     }
 
@@ -466,13 +465,25 @@ impl MerkleTreeNode {
         }
     }
 
-    pub fn schema(&self) -> Result<SchemaNode, OxenError> {
-        if let EMerkleTreeNode::Schema(schema_node) = &self.node {
-            Ok(schema_node.clone())
-        } else {
-            Err(OxenError::basic_str(
-                "MerkleTreeNode::schema called on non-schema node",
-            ))
+    pub fn walk_tree(&self, mut f: impl FnMut(&MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter().rev() {
+                stack.push(child);
+            }
+        }
+    }
+
+    pub fn walk_tree_without_leaves(&self, mut f: impl FnMut(&MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter().rev() {
+                if !child.is_leaf() {
+                    stack.push(child);
+                }
+            }
         }
     }
 }
@@ -480,7 +491,7 @@ impl MerkleTreeNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "[{:?}]", self.node.dtype())?;
+        writeln!(f, "[{:?}]", self.node.node_type())?;
         writeln!(f, "hash: {}", self.hash)?;
         writeln!(f, "node: {:?}", self.node)?;
         writeln!(
@@ -512,14 +523,14 @@ impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.node {
             EMerkleTreeNode::Commit(commit) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, commit)
+                write!(f, "[{:?}] {} {}", self.node.node_type(), self.hash, commit)
             }
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
                     "[{:?}] {} {} ({} children)",
-                    self.node.dtype(),
-                    self.hash,
+                    self.node.node_type(),
+                    self.hash.to_short_str(),
                     vnode,
                     self.children.len()
                 )
@@ -528,20 +539,29 @@ impl fmt::Display for MerkleTreeNode {
                 write!(
                     f,
                     "[{:?}] {} {} ({} children)",
-                    self.node.dtype(),
-                    self.hash,
+                    self.node.node_type(),
+                    self.hash.to_short_str(),
                     dir,
                     self.children.len()
                 )
             }
             EMerkleTreeNode::File(file) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, file)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.node.node_type(),
+                    self.hash.to_short_str(),
+                    file
+                )
             }
             EMerkleTreeNode::FileChunk(file_chunk) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, file_chunk)
-            }
-            EMerkleTreeNode::Schema(schema) => {
-                write!(f, "[{:?}] {} {}", self.node.dtype(), self.hash, schema)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.node.node_type(),
+                    self.hash.to_short_str(),
+                    file_chunk
+                )
             }
         }
     }

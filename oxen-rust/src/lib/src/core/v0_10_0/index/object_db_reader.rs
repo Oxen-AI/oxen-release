@@ -1,6 +1,7 @@
 use crate::constants::{self};
+use crate::core::db::key_val::str_val_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, key_val::path_db, key_val::tree_db};
+use crate::core::db::{self, key_val::tree_db};
 
 use crate::error::OxenError;
 
@@ -167,13 +168,23 @@ impl ObjectDBReader {
         }
     }
 
+    pub fn list_dirs_w_hashes(&self) -> Result<Vec<(PathBuf, String)>, OxenError> {
+        let entries: Vec<(String, String)> = str_val_db::list(&self.dir_hashes_db)?;
+        let paths: Vec<(PathBuf, String)> = entries
+            .iter()
+            .map(|(path, hash)| (PathBuf::from(path), hash.to_string().replace("\"", "")))
+            .collect();
+        Ok(paths)
+    }
+
     pub fn get_dir_hash(&self, path: impl AsRef<Path>) -> Result<Option<String>, OxenError> {
         // log::debug!(
         //     "get_dir_hash path: {:?} in db: {:?}",
         //     path.as_ref(),
         //     self.dir_hashes_db.path()
         // );
-        let dir_hash = path_db::get_entry(&self.dir_hashes_db, path)?;
+        let path_str = path.as_ref().to_str().unwrap();
+        let dir_hash = str_val_db::get(&self.dir_hashes_db, path_str)?;
         Ok(dir_hash)
     }
 

@@ -90,6 +90,13 @@ pub async fn get_by_resource(
         &mut df_views,
     )?;
 
+    let new_schema =
+        repositories::data_frames::schemas::get_staged(&workspace.workspace_repo, &file_path)?;
+    repositories::workspaces::data_frames::columns::update_column_schemas(
+        new_schema,
+        &mut df_views,
+    )?;
+
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
         data_frame: Some(df_views),
