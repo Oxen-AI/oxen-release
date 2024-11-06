@@ -44,7 +44,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     let df = if df.height() == 0 {
         let added_column = Column::Series(Series::new(
             PlSmallStr::from_str(DIFF_STATUS_COL),
-            vec![StagedRowStatus::Added.to_string(); df.height()],
+            vec![StagedRowStatus::Added.to_string()],
         ));
         DataFrame::new(vec![added_column])?
     } else {

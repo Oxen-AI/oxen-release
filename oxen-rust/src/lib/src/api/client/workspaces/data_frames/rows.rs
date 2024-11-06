@@ -655,4 +655,135 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_add_row_with_data() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let path = Path::new("annotations").join("train").join("bounding_box.csv");
+
+            let workspace_id = "my_workspace";
+            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                .await?;
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
+                .await?;
+
+            // Valid data to add
+            let data = r#"{"file":"image1.jpg", "label": "dog", "min_x":13, "min_y":14, "width": 100, "height": 100}"#;
+
+            // Add the row
+            let result = api::client::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                data.to_string(),
+            ).await;
+
+            assert!(result.is_ok());
+
+            // Retrieve the DataFrame to check if the row exists
+            let df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            ).await?;
+
+            let df_view = df.data_frame.unwrap().view;
+            // Check if the new row exists in the DataFrame
+            let rows = df_view.data.as_array().unwrap();
+
+            let is_added = rows.iter().any(|row| {
+                let row_value: Value = serde_json::from_value(row.clone()).unwrap();
+                row_value.get("file") == Some(&Value::from("image1.jpg"))
+            });
+
+
+            assert!(is_added, "The added row does not exist in the DataFrame.");
+
+
+            Ok(remote_repo)
+        }).await
+    }
+
+    #[tokio::test]
+    async fn test_add_row_with_empty_data() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let workspace_id = UserConfig::identifier()?;
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Create the workspace
+            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                .await?;
+
+            // Index the DataFrame to get the initial row count
+            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+            let initial_df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+            let initial_row_count = initial_df
+                .data_frame
+                .unwrap()
+                .view
+                .data
+                .as_array()
+                .unwrap()
+                .len();
+
+            // Empty data to add
+            let data = r#"{}"#;
+
+            // Attempt to add the row
+            let result = api::client::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                data.to_string(),
+            )
+            .await;
+
+            assert!(result.is_ok());
+
+            // Index the DataFrame again to get the new row count
+            let updated_df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+            let updated_row_count = updated_df
+                .data_frame
+                .unwrap()
+                .view
+                .data
+                .as_array()
+                .unwrap()
+                .len();
+
+            // Assert that the row count did change
+            assert_eq!(
+                initial_row_count + 1,
+                updated_row_count,
+                "Row count should remain the same after adding empty data"
+            );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 }
