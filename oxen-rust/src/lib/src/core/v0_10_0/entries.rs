@@ -48,7 +48,7 @@ pub fn get_directory(
     };
 
     let node = DirNode {
-        dtype: MerkleTreeNodeType::Dir,
+        node_type: MerkleTreeNodeType::Dir,
         name: entry
             .path
             .file_name()
@@ -86,7 +86,7 @@ pub fn get_file(
     let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
 
     let node = FileNode {
-        dtype: MerkleTreeNodeType::File,
+        node_type: MerkleTreeNodeType::File,
         name: entry
             .path
             .file_name()
@@ -400,7 +400,7 @@ pub fn get_latest_commit_for_path(
 
     for (commit, entry_reader) in commits.iter().rev() {
         if let Some(old_entry) = entry_reader.get_entry(path)? {
-            log::debug!("Found entry! For path {:?} in commit {}", path, commit);
+            // log::debug!("Found entry! For path {:?} in commit {}", path, commit);
 
             if latest_hash.is_none() {
                 // This is the first encountered entry, setting it as the baseline for comparison.
@@ -411,9 +411,10 @@ pub fn get_latest_commit_for_path(
             }
             // Update previous_commit after the check, so it holds the commit before the change was detected.
             previous_commit = Some(commit.clone());
-        } else {
-            log::debug!("No entry found for path {:?} in commit {}", path, commit);
         }
+        //  else {
+        //     log::debug!("No entry found for path {:?} in commit {}", path, commit);
+        // }
     }
 
     // If no change was detected (all entries have the same hash), or the entry was not found,

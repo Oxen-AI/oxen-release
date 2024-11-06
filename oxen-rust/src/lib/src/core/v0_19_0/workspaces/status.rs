@@ -35,5 +35,6 @@ pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<Stag
     )?;
 
     let mut staged_data = StagedData::empty();
+    // TODO: for the UI editable workspace polling, we get a No such file or directory (os error 2).
     core::v0_19_0::status::status_from_dir_entries(&mut staged_data, dir_entries)
 }

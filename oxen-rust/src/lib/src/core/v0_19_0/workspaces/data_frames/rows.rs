@@ -44,6 +44,7 @@ pub fn add(
     let conn = df_db::get_connection(db_path)?;
 
     let df = tabular::parse_json_to_df(data)?;
+    log::debug!("add() df: {:?}", df);
 
     let mut result = rows::append_row(&conn, &df)?;
 

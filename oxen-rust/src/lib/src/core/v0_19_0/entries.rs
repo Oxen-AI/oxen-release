@@ -1,3 +1,4 @@
+use crate::core;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -156,7 +157,7 @@ pub fn get_meta_entry(
         log::debug!("get_meta_entry file path: {:?}", path.to_str().unwrap());
         let file_node = get_file_merkle_tree_node(repo, &commit, path)?;
         if let Some(file_node) = file_node {
-            log::debug!("get_meta_entry file node found: {:?}", file_node);
+            // log::debug!("get_meta_entry file node found: {:?}", file_node);
             let metadata = file_node_to_metadata_entry(
                 repo,
                 &file_node,
@@ -197,7 +198,16 @@ pub fn dir_entries(
         found_commits,
         &mut entries,
     )?;
+
     log::debug!("dir_entries got {} entries", entries.len());
+
+    // Sort entries by is_dir first, then by filename
+    entries.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.filename.cmp(&b.filename))
+    });
+
     Ok(entries)
 }
 
@@ -281,8 +291,8 @@ fn file_node_to_metadata_entry(
 
     let is_indexed = if *data_type == EntryDataType::Tabular {
         Some(
-            repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, &file_path, commit,
+            core::v0_19_0::workspaces::data_frames::is_queryable_data_frame_indexed_from_file_node(
+                repo, file_node, &file_path,
             )?,
         )
     } else {

@@ -22,6 +22,11 @@ pub fn commits() -> Scope {
             web::get().to(controllers::commits::entries_status),
         )
         .route("/all", web::get().to(controllers::commits::list_all))
+        .route("/upload", web::post().to(controllers::commits::upload))
+        .route(
+            "/upload_chunk",
+            web::post().to(controllers::commits::upload_chunk),
+        )
         .route(
             "/missing",
             web::post().to(controllers::commits::list_missing),
@@ -32,20 +37,12 @@ pub fn commits() -> Scope {
         )
         .route("/{commit_id}", web::get().to(controllers::commits::show))
         .route(
-            "/{commit_id}/data",
-            web::post().to(controllers::commits::upload),
-        )
-        .route(
             "/{commit_id}/can_push",
             web::get().to(controllers::commits::can_push),
         )
         .route(
             "/{commit_id}/complete",
             web::post().to(controllers::commits::complete),
-        )
-        .route(
-            "/{commit_id}/upload_chunk",
-            web::post().to(controllers::commits::upload_chunk),
         )
         .route(
             "/history/{resource:.*}",

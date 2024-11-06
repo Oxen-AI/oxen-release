@@ -9,11 +9,13 @@ use liboxen::core::v0_19_0::index::merkle_node_db::node_db_path;
 use liboxen::core::v0_19_0::index::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use std::collections::HashSet;
 use std::path::Path;
 use tar::Archive;
 
@@ -44,6 +46,67 @@ pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse,
     node_to_json(node)
 }
 
+pub async fn list_missing_node_hashes(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let request: MerkleHashes = serde_json::from_slice(&bytes)?;
+    log::debug!(
+        "list_missing_node_hashes checking {} node ids",
+        request.hashes.len()
+    );
+    let hashes = repositories::tree::list_missing_node_hashes(&repository, &request.hashes)?;
+    log::debug!(
+        "list_missing_node_hashes found {} missing node ids",
+        hashes.len()
+    );
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
+}
+
+pub async fn list_missing_file_hashes_from_commits(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let request: MerkleHashes = serde_json::from_slice(&bytes)?;
+    log::debug!(
+        "list_missing_file_hashes_from_commits checking {} commit ids",
+        request.hashes.len()
+    );
+    let hashes =
+        repositories::tree::list_missing_file_hashes_from_commits(&repository, &request.hashes)?;
+    log::debug!(
+        "list_missing_file_hashes_from_commits found {} missing node ids",
+        hashes.len()
+    );
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
+}
+
 pub async fn list_missing_file_hashes(
     req: HttpRequest,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -66,7 +129,7 @@ pub async fn list_missing_file_hashes(
     }))
 }
 
-pub async fn create_node(
+pub async fn create_nodes(
     req: HttpRequest,
     mut body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -85,7 +148,7 @@ pub async fn create_node(
         ByteSize::b(bytes.len() as u64)
     );
 
-    let mut hash: Option<MerkleHash> = None;
+    let mut hashes: HashSet<MerkleHash> = HashSet::new();
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
     let Ok(entries) = archive.entries() else {
         return Err(OxenHttpError::BadRequest(
@@ -121,18 +184,14 @@ pub async fn create_node(
                 .into_iter()
                 .rev()
                 .collect::<String>();
-            hash = Some(MerkleHash::from_str(&id)?);
+            hashes.insert(MerkleHash::from_str(&id)?);
         }
     }
 
-    if let Some(hash) = hash {
-        let node = repositories::tree::get_node_by_id(&repository, &hash)?
-            .ok_or(OxenHttpError::NotFound)?;
-        node_to_json(node)
-    } else {
-        log::error!("No hash found in archive");
-        Err(OxenHttpError::BadRequest("No hash found in archive".into()))
-    }
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
 }
 
 pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -145,16 +204,68 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     Ok(HttpResponse::Ok().body(buffer))
 }
 
-pub async fn download_tree_from(
+pub async fn download_tree_nodes(
     req: HttpRequest,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
-    let hash_str = path_param(&req, "hash")?;
-    let hash = MerkleHash::from_str(&hash_str)?;
-    let buffer = compress_tree_from(&repository, &hash)?;
+    let base_head_str = path_param(&req, "base_head")?;
+    let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head_str)?;
+
+    let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
+        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
+
+    // If we have a head commit, then we are downloading a range of commits
+    // Otherwise, we are downloading all commits from the base commit back to the first commit
+    // This is the difference between the first pull and subsequent pulls
+    // The first pull doesn't have a head commit, but subsequent pulls do
+    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
+        let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
+            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
+        repositories::commits::list_between(&repository, &head_commit, &base_commit)?
+    } else {
+        repositories::commits::list_from(&repository, &base_commit_id)?
+    };
+
+    // zip up the node directories for each commit tree
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    // Collect the unique node hashes for all the commits
+    // There could be duplicate nodes across commits, hence the need to dedup
+    let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
+    for commit in &commits {
+        let tree = repositories::tree::get_by_commit(&repository, commit)?;
+
+        tree.walk_tree_without_leaves(|node| {
+            unique_node_hashes.insert(node.hash);
+        });
+    }
+
+    for hash in unique_node_hashes {
+        // This will be the subdir within the tarball
+        // so when we untar it, all the subdirs will be extracted to
+        // tree/nodes/...
+        let dir_prefix = node_db_prefix(&hash);
+        let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
+
+        let node_dir = node_db_path(&repository, &hash);
+        log::debug!("Compressing commit from dir {:?}", node_dir);
+        if node_dir.exists() {
+            tar.append_dir_all(&tar_subdir, node_dir)?;
+        }
+    }
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Compressed {} commits size is {}",
+        commits.len(),
+        ByteSize::b(total_size)
+    );
 
     Ok(HttpResponse::Ok().body(buffer))
 }
@@ -270,28 +381,6 @@ fn compress_tree(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
     Ok(buffer)
 }
 
-fn compress_tree_from(
-    repository: &LocalRepository,
-    hash: &MerkleHash,
-) -> Result<Vec<u8>, OxenError> {
-    log::debug!("Compressing tree from {}", hash);
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-    r_compress_tree(repository, hash, &mut tar)?;
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-
-    log::debug!(
-        "Compressed tree from {} size is {}",
-        hash,
-        ByteSize::b(total_size)
-    );
-
-    Ok(buffer)
-}
-
 fn compress_full_tree(
     repository: &LocalRepository,
     tar: &mut tar::Builder<GzEncoder<Vec<u8>>>,
@@ -310,44 +399,6 @@ fn compress_full_tree(
 
     if nodes_dir.exists() {
         tar.append_dir_all(&tar_subdir, nodes_dir)?;
-    }
-
-    Ok(())
-}
-
-fn r_compress_tree(
-    repository: &LocalRepository,
-    hash: &MerkleHash,
-    tar: &mut tar::Builder<GzEncoder<Vec<u8>>>,
-) -> Result<(), OxenError> {
-    // This will be the subdir within the tarball,
-    // so when we untar it, all the subdirs will be extracted to
-    // tree/nodes/...
-    let dir_prefix = node_db_prefix(hash);
-    let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
-
-    let node_dir = node_db_path(repository, hash);
-    log::debug!("Compressing tree node {} from dir {:?}", hash, node_dir);
-
-    if node_dir.exists() {
-        log::debug!("Tree node {} exists, adding to tarball", hash);
-        tar.append_dir_all(&tar_subdir, node_dir)?;
-
-        let Some(node) = repositories::tree::get_node_by_id(repository, hash)? else {
-            return Err(OxenError::basic_str(format!("Node {} not found", hash)));
-        };
-
-        log::debug!(
-            "Got node {:?} is leaf {:?}",
-            node.node.dtype(),
-            node.is_leaf()
-        );
-        if !node.is_leaf() {
-            let children = repositories::tree::child_hashes(repository, hash)?;
-            for child in children {
-                r_compress_tree(repository, &child, tar)?;
-            }
-        }
     }
 
     Ok(())

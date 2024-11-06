@@ -45,14 +45,26 @@ pub async fn fetch_remote(
         }
     }
 
-    // TODO: handle branches_to_fetch?
+    log::debug!("Branches to create: {:?}", branches_to_create);
+    log::debug!("Branches to fetch: {:?}", branches_to_fetch);
+
+    // Join the branches to create and branches to fetch
+    let branches_to_process = branches_to_create
+        .into_iter()
+        .chain(branches_to_fetch.into_iter());
+
     // Fetch the new branches
-    for branch in branches_to_create {
+    for branch in branches_to_process {
         let rb = RemoteBranch {
             remote: remote.name.to_owned(),
             branch: branch.name.to_owned(),
         };
 
+        log::debug!(
+            "Fetching remote branch: {} -> {}",
+            remote_repo.name,
+            rb.branch
+        );
         fetch_remote_branch(repo, &remote_repo, &rb, all).await?;
     }
 

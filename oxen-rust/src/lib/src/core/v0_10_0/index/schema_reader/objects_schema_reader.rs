@@ -1,7 +1,7 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, SCHEMAS_TREE_PREFIX};
 use crate::core::db;
-use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::{path_db, str_val_db};
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::v0_10_0::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
@@ -75,20 +75,21 @@ impl ObjectsSchemaReader {
         &self,
         path: P,
     ) -> Result<Option<Schema>, OxenError> {
-        log::debug!("in get_schema_for_file path {:?}", path.as_ref());
+        // log::debug!("in get_schema_for_file path {:?}", path.as_ref());
         let schema_path = Path::new(SCHEMAS_TREE_PREFIX).join(&path);
         let path_parent = path.as_ref().parent().unwrap_or(Path::new(""));
-
-        let parent_dir_hash: Option<String> = path_db::get_entry(
-            &self.dir_hashes_db,
-            path_parent.to_str().unwrap().replace('\\', "/"),
-        )?;
+        let path_parent_str = path_parent.to_str().unwrap().replace('\\', "/");
+        let parent_dir_hash: Option<String> =
+            str_val_db::get(&self.dir_hashes_db, path_parent_str)?;
 
         if parent_dir_hash.is_none() {
             return Ok(None);
         }
 
         let parent_dir_hash = parent_dir_hash.unwrap();
+        // log::debug!("parent_dir_hash {:?}", parent_dir_hash);
+        let parent_dir_hash = parent_dir_hash.replace('"', "");
+        // log::debug!("parent_dir_hash after replace {:?}", parent_dir_hash);
         let parent_dir_obj: TreeObject = self.object_reader.get_dir(&parent_dir_hash)?.unwrap();
         let full_path_str = schema_path.to_str().unwrap().replace('\\', "/");
         let schema_path_hash_prefix = util::hasher::hash_path_name(full_path_str)[0..2].to_string();
@@ -122,6 +123,10 @@ impl ObjectsSchemaReader {
         );
 
         log::debug!("got version path {:?}", version_path);
+
+        if !version_path.exists() {
+            return Ok(None);
+        }
 
         let schema: Result<Schema, serde_json::Error> =
             serde_json::from_reader(std::fs::File::open(version_path)?);

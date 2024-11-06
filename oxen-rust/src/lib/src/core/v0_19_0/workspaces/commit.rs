@@ -7,8 +7,9 @@ use crate::core::db;
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::core::v0_19_0::workspaces;
-use crate::error::{OxenError, StringError};
+use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{
     Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
 };
@@ -25,13 +26,22 @@ pub fn commit(
     branch_name: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     let branch_name = branch_name.as_ref();
+    let repo = &workspace.base_repo;
+    let commit = &workspace.commit;
 
-    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)?
-    else {
-        return Err(OxenError::BranchNotFound(Box::new(StringError::from(
-            branch_name.to_string(),
-        ))));
-    };
+    let mut branch = repositories::branches::get_by_name(repo, branch_name)?;
+    log::debug!("commit looking up branch: {:#?}", &branch);
+
+    if branch.is_none() {
+        log::debug!("commit creating branch: {}", branch_name);
+        branch = Some(repositories::branches::create(
+            repo,
+            branch_name,
+            &commit.id,
+        )?);
+    }
+
+    let branch = branch.unwrap();
 
     let workspace_commit = &workspace.commit;
     if branch.commit_id != workspace_commit.id {
@@ -67,6 +77,7 @@ pub fn commit(
             &workspace.base_repo,
             dir_entries,
             new_commit,
+            branch_name,
             &commit_progress_bar,
         )?
     };
@@ -76,15 +87,18 @@ pub fn commit(
     util::fs::remove_dir_all(staged_db_path)?;
 
     // DEBUG
-    let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
-    log::debug!("0.19.0::workspaces::commit tree");
-    tree.print();
+    // let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
+    // log::debug!("0.19.0::workspaces::commit tree");
+    // tree.print();
 
     // Update the branch
     let ref_writer = RefWriter::new(&workspace.base_repo)?;
     let commit_id = commit.id.to_owned();
 
     ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
+
+    // Cleanup workspace on commit
+    repositories::workspaces::delete(workspace)?;
 
     Ok(commit)
 }
@@ -107,7 +121,9 @@ fn export_tabular_data_frames(
                     // TODO: This is hacky - because we don't know if a file node is the full path or relative to the dir_path
                     // need a better way to distinguish
                     let mut node_path = PathBuf::from(file_node.name.clone());
-                    if !node_path.starts_with(&dir_path) {
+                    if !node_path.starts_with(&dir_path)
+                        || (dir_path == PathBuf::from("") && node_path.components().count() == 1)
+                    {
                         node_path = dir_path.join(node_path);
                     }
                     if file_node.data_type == EntryDataType::Tabular {
@@ -129,8 +145,11 @@ fn export_tabular_data_frames(
                         log::debug!("exported path: {:?}", exported_path);
 
                         // Update the metadata in the new staged merkle tree node
-                        let new_staged_merkle_tree_node =
-                            compute_staged_merkle_tree_node(workspace, &exported_path)?;
+                        let new_staged_merkle_tree_node = compute_staged_merkle_tree_node(
+                            workspace,
+                            &exported_path,
+                            dir_entry.status,
+                        )?;
                         new_dir_entries
                             .entry(dir_path.to_path_buf())
                             .or_default()
@@ -157,6 +176,7 @@ fn export_tabular_data_frames(
 fn compute_staged_merkle_tree_node(
     workspace: &Workspace,
     path: &PathBuf,
+    status: StagedEntryStatus,
 ) -> Result<StagedMerkleTreeNode, OxenError> {
     // This logic is copied from add.rs but add has some optimizations that make it hard to be reused here
     let metadata = util::fs::metadata(path)?;
@@ -168,7 +188,22 @@ fn compute_staged_merkle_tree_node(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+    let mut metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+
+    // Here we give priority to the staged schema, as it can contained metadata that was changed during the
+    let staged_schema =
+        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, path)?;
+
+    if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
+        if let Some(staged_schema) = staged_schema {
+            metadata.tabular.schema = staged_schema;
+        }
+    }
+
+    // Compute the metadata hash and combined hash
+    let metadata_hash = util::hasher::get_metadata_hash(&metadata)?;
+    let combined_hash = util::hasher::get_combined_hash(Some(metadata_hash), hash.to_u128())?;
+    let combined_hash = MerkleHash::new(combined_hash);
 
     // Copy the file to the versioned directory
     let dst_dir = util::fs::version_dir_from_hash(&workspace.base_repo.path, hash.to_string());
@@ -186,6 +221,8 @@ fn compute_staged_merkle_tree_node(
     let relative_path_str = relative_path.to_str().unwrap();
     let file_node = FileNode {
         hash,
+        metadata_hash: Some(MerkleHash::new(metadata_hash)),
+        combined_hash,
         name: relative_path_str.to_string(),
         data_type,
         num_bytes,
@@ -198,7 +235,7 @@ fn compute_staged_merkle_tree_node(
     };
 
     Ok(StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
+        status,
         node: MerkleTreeNode::from_file(file_node),
     })
 }

@@ -41,7 +41,7 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
         .with_truncate_ragged_lines(true)
         .with_separator(delimiter)
         .with_eol_char(b'\n')
-        .with_quote_char(Some(b'"'))
+        .with_quote_char(None)
         .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
 }
@@ -743,11 +743,11 @@ pub fn df_hash_rows_on_cols(
 
                         let mut hashes = vec![];
                         for i in 0..num_rows {
-                            log::debug!("row: {:?}", i);
+                            // log::debug!("row: {:?}", i);
                             let mut buffer: Vec<u8> = vec![];
                             for series in s_a.iter() {
                                 let elem = series.get(i).unwrap();
-                                log::debug!("\telem: {:?}", elem);
+                                // log::debug!("\telem: {:?}", elem);
                                 let mut elem_bytes = any_val_to_bytes(&elem);
                                 buffer.append(&mut elem_bytes);
                             }
@@ -781,7 +781,10 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
     }
 
     match qsv_sniffer::Sniffer::new().sniff_path(&path) {
-        Ok(metadata) => Ok(metadata.dialect.delimiter),
+        Ok(metadata) => {
+            log::debug!("Sniffed csv dialect: {:?}", metadata.dialect);
+            Ok(metadata.dialect.delimiter)
+        }
         Err(err) => {
             let err = format!("Error sniffing csv {:?} -> {:?}", path.as_ref(), err);
             log::warn!("{}", err);
@@ -813,9 +816,24 @@ pub fn read_df_with_extension(
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let extension = extension.as_ref();
+    std::panic::catch_unwind(|| p_read_df_with_extension(path, extension, opts)).map_err(|e| {
+        log::error!("Error Reading DataFrame {e:?} - {:?}", path);
+        OxenError::DataFrameError(format!("Error Reading DataFrame {e:?}").into())
+    })?
+}
+
+fn p_read_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: impl AsRef<str>,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let extension = extension.as_ref();
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
+
+    log::debug!("Reading df with extension {:?} {:?}", extension, path);
 
     let df = match extension {
         "ndjson" => read_df_jsonl(path),
@@ -900,9 +918,38 @@ pub fn scan_df(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    log::debug!("Scanning df with total_rows: {}", total_rows);
     let input_path = path.as_ref();
+    log::debug!("Scanning df {:?}", input_path);
     let extension = input_path.extension().and_then(OsStr::to_str);
+    scan_df_with_extension(input_path, extension, opts, total_rows)
+}
+
+pub fn scan_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
+    let path = path.as_ref();
+    std::panic::catch_unwind(|| p_scan_df_with_extension(path, extension, opts, total_rows))
+        .map_err(|e| {
+            log::error!("Error Scanning DataFrame {e:?} - {:?}", path);
+            OxenError::DataFrameError(format!("Error Scanning DataFrame {e:?}").into())
+        })?
+}
+
+fn p_scan_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
+    let input_path = path.as_ref();
+    log::debug!(
+        "Scanning df {:?} with extension {:?}",
+        input_path,
+        extension
+    );
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
@@ -924,16 +971,41 @@ pub fn scan_df(
 }
 
 pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
+    let input_path = path.as_ref();
+    let extension = input_path.extension().and_then(OsStr::to_str);
+    get_size_with_extension(input_path, extension)
+}
+
+pub fn get_size_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<DataFrameSize, OxenError> {
+    let path = path.as_ref();
+    std::panic::catch_unwind(|| p_get_size_with_extension(path, extension)).map_err(|e| {
+        log::error!("Error Getting Size of DataFrame {e:?} - {:?}", path);
+        OxenError::DataFrameError(format!("Error Getting Size of DataFrame {e:?}").into())
+    })?
+}
+
+fn p_get_size_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<DataFrameSize, OxenError> {
+    let input_path = path.as_ref();
+    log::debug!(
+        "Getting size of df {:?} with extension {:?}",
+        input_path,
+        extension
+    );
+
     // Don't need that many rows to get the width
     let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
-    let mut lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
+    let mut lazy_df = scan_df_with_extension(&path, extension, &DFOpts::empty(), num_scan_rows)?;
     let schema = lazy_df
         .collect_schema()
         .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     let width = schema.len();
 
-    let input_path = path.as_ref();
-    let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type get_size {input_path:?} {extension:?}");
 
     match extension {
@@ -1118,6 +1190,20 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
         println!("{pretty_df}");
     }
     Ok(df)
+}
+
+pub fn get_schema_with_extension(
+    path: impl AsRef<Path>,
+    extension: Option<&str>,
+) -> Result<crate::model::Schema, OxenError> {
+    let input_path = path.as_ref();
+    let opts = DFOpts::empty();
+    let total_rows = constants::DEFAULT_PAGE_SIZE;
+    let mut df = scan_df_with_extension(input_path, extension, &opts, total_rows)?;
+    let schema = df
+        .collect_schema()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    Ok(crate::model::Schema::from_polars(&schema))
 }
 
 pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {
@@ -1527,6 +1613,14 @@ mod tests {
         assert_eq!(Some("Anisotropy"), json[2]["title"].as_str());
         assert_eq!(Some("Alpha decay"), json[3]["title"].as_str());
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_file_with_unmatched_quotes() -> Result<(), OxenError> {
+        let df = tabular::read_df("data/test/csvs/spam_ham_data_w_quote.tsv", DFOpts::empty())?;
+        assert_eq!(df.width(), 2);
+        assert_eq!(df.height(), 100);
         Ok(())
     }
 }

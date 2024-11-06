@@ -1,15 +1,32 @@
 use crate::core::v0_19_0::structs::sync_progress::{SyncProgress, SyncType};
-use std::sync::Arc;
+use std::borrow::Cow;
+use std::ops::{Deref, DerefMut};
 
 pub struct PushProgress {
-    sync_progress: Arc<SyncProgress>,
+    sync_progress: SyncProgress,
+}
+
+impl Default for PushProgress {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PushProgress {
-    pub fn new() -> Arc<Self> {
-        Arc::new(PushProgress {
+    pub fn new() -> Self {
+        PushProgress {
             sync_progress: SyncProgress::new(SyncType::Push),
-        })
+        }
+    }
+
+    pub fn new_with_totals(total_files: u64, total_bytes: u64) -> Self {
+        PushProgress {
+            sync_progress: SyncProgress::new_with_totals(SyncType::Push, total_files, total_bytes),
+        }
+    }
+
+    pub fn set_message(&self, message: impl Into<Cow<'static, str>>) {
+        self.sync_progress.set_message(message);
     }
 
     pub fn update_message(&self) {
@@ -34,5 +51,19 @@ impl PushProgress {
 
     pub fn finish(&self) {
         self.sync_progress.finish();
+    }
+}
+
+impl Deref for PushProgress {
+    type Target = SyncProgress;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sync_progress
+    }
+}
+
+impl DerefMut for PushProgress {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.sync_progress
     }
 }

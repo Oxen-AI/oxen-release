@@ -472,6 +472,7 @@ mod tests {
         })
         .await
     }
+
     #[tokio::test]
     async fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
         test::run_one_commit_local_repo_test_async(|repo| async move {
@@ -923,6 +924,93 @@ mod tests {
             assert!(result.is_err());
 
             Ok(())
+        })
+        .await
+    }
+
+    // Test fast forward merge on pull
+    /*
+    oxen init
+    oxen add .
+    oxen commit -m "add data"
+    oxen push
+    oxen clone repo_b
+    # update data frame file
+    oxen add .
+    oxen commit -m "update data"
+    oxen push
+    oxen pull repo_a (should be fast forward)
+    */
+    #[tokio::test]
+    async fn test_command_merge_fast_forward_pull() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|repo_dir_a| async move {
+                let repo_dir_a = repo_dir_a.join("repo_a");
+                let cloned_repo_a =
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir_a).await?;
+
+                test::run_empty_dir_test_async(|repo_dir_b| async move {
+                    let repo_dir_b = repo_dir_b.join("repo_b");
+                    let cloned_repo_b =
+                        repositories::clone_url(&remote_repo.remote.url, &repo_dir_b).await?;
+
+                    // Add a more rows on this branch
+                    let bbox_filename = Path::new("annotations")
+                        .join("train")
+                        .join("bounding_box.csv");
+                    let bbox_file = cloned_repo_a.path.join(&bbox_filename);
+                    let og_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+                    let bbox_file = test::append_line_txt_file(
+                        bbox_file,
+                        "train/cat_3.jpg,cat,41.0,31.5,410,427",
+                    )?;
+                    repositories::add(&cloned_repo_a, &bbox_file)?;
+                    repositories::commit(&cloned_repo_a, "Adding new annotation as an Ox.")?;
+
+                    repositories::push(&cloned_repo_a).await?;
+
+                    // Pull in the changes
+                    repositories::pull(&cloned_repo_b).await?;
+
+                    // Check that we have the new data
+                    let bbox_file = cloned_repo_b.path.join(&bbox_filename);
+                    let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+                    assert_eq!(df.height(), og_df.height() + 1);
+
+                    // make the changes again from repo_a
+                    // Add a more rows on this branch
+                    let bbox_filename = Path::new("annotations")
+                        .join("train")
+                        .join("bounding_box.csv");
+                    let bbox_file = cloned_repo_a.path.join(&bbox_filename);
+                    let bbox_file = test::append_line_txt_file(
+                        bbox_file,
+                        "train/cat_13.jpg,cat,41.0,31.5,410,427",
+                    )?;
+                    repositories::add(&cloned_repo_a, &bbox_file)?;
+                    repositories::commit(
+                        &cloned_repo_a,
+                        "Adding another new annotation as an Ox.",
+                    )?;
+
+                    repositories::push(&cloned_repo_a).await?;
+
+                    // Pull in the changes
+                    repositories::pull(&cloned_repo_b).await?;
+
+                    // Check that we have the new data
+                    let bbox_file = cloned_repo_b.path.join(&bbox_filename);
+                    let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+                    assert_eq!(df.height(), og_df.height() + 2);
+
+                    Ok(repo_dir_b)
+                })
+                .await?;
+                Ok(repo_dir_a)
+            })
+            .await?;
+            Ok(remote_repo_copy)
         })
         .await
     }

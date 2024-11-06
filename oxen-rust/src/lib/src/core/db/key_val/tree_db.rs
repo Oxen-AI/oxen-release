@@ -184,6 +184,7 @@ pub fn get_tree_object<T: ThreadMode, P: AsRef<Path>>(
     path: P,
 ) -> Result<Option<TreeObject>, OxenError> {
     let maybe_object = path_db::get_entry(db, path)?;
+    // log::debug!("get_tree_object got object {:?}", maybe_object);
     if let Some(object) = maybe_object {
         match &object {
             TreeObject::Dir { children, .. } | TreeObject::VNode { children, .. } => {

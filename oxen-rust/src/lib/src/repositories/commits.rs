@@ -114,6 +114,21 @@ pub fn commit_id_exists(
     get_by_id(repo, commit_id.as_ref()).map(|commit| commit.is_some())
 }
 
+/// Create an empty commit off of the head commit of a branch
+pub fn create_empty_commit(
+    repo: &LocalRepository,
+    branch_name: impl AsRef<str>,
+    commit: &Commit,
+) -> Result<Commit, OxenError> {
+    let branch_name = branch_name.as_ref();
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("create_empty_commit not supported in v0.10.0"),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::commits::create_empty_commit(repo, branch_name, commit)
+        }
+    }
+}
+
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
@@ -266,6 +281,11 @@ pub fn list_from_paginated(
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
     let commits = list_from(repo, revision)?;
+    log::info!(
+        "list_from_paginated {} got {} commits before pagination",
+        revision,
+        commits.len()
+    );
     let (commits, pagination) = util::paginate(commits, pagination.page_num, pagination.page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),
@@ -352,6 +372,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::error::OxenError;
+    use crate::model::EntryDataType;
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
     use crate::repositories;
@@ -434,7 +455,7 @@ mod tests {
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_files.len(), 3);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
@@ -457,7 +478,7 @@ mod tests {
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_files.len(), 3);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
@@ -900,5 +921,30 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_commit_invalid_parquet_file() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+            let invalid_parquet_file = test::test_invalid_parquet_file();
+            let full_path = repo.path.join("invalid.parquet");
+            util::fs::copy(&invalid_parquet_file, &full_path)?;
+
+            repositories::add(&repo, &full_path)?;
+            let commit = repositories::commit(&repo, "Adding invalid parquet file")?;
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            tree.print();
+
+            let file_node = tree.get_by_path(PathBuf::from("invalid.parquet"))?;
+            assert!(file_node.is_some());
+
+            let file_entry = file_node.unwrap();
+            let file_node = file_entry.file()?;
+            assert_eq!(file_node.data_type, EntryDataType::Binary);
+
+            Ok(())
+        })
+        .await
     }
 }

@@ -3,7 +3,7 @@ use crate::core::db;
 use crate::core::db::data_frames::column_changes_db::get_all_data_frame_column_changes;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Workspace};
+use crate::model::{LocalRepository, Schema, Workspace};
 use crate::repositories;
 
 use crate::view::data_frames::columns::{
@@ -14,7 +14,8 @@ use crate::view::JsonDataFrameViews;
 
 use polars::frame::DataFrame;
 use rocksdb::DB;
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use rocksdb::IteratorMode;
 
@@ -81,6 +82,23 @@ pub fn delete(
     }
 }
 
+pub fn add_column_metadata(
+    repo: &LocalRepository,
+    workspace: &Workspace,
+    file_path: PathBuf,
+    column: String,
+    metadata: &serde_json::Value,
+) -> Result<HashMap<PathBuf, Schema>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("Not implemented")),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::columns::add_column_metadata(
+                repo, workspace, file_path, column, metadata,
+            )
+        }
+    }
+}
+
 pub fn restore(
     repo: &LocalRepository,
     workspace: &Workspace,
@@ -108,8 +126,11 @@ pub fn get_column_diff(
     let column_changes_path =
         repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
     let opts = db::key_val::opts::default();
-    let db = DB::open_for_read_only(&opts, dunce::simplified(&column_changes_path), false)?;
-    get_all_data_frame_column_changes(&db)
+
+    match DB::open_for_read_only(&opts, dunce::simplified(&column_changes_path), false) {
+        Ok(db) => get_all_data_frame_column_changes(&db),
+        Err(_) => Ok(Vec::new()),
+    }
 }
 
 pub fn decorate_fields_with_column_diffs(
@@ -275,5 +296,31 @@ pub fn reinsert_deleted_columns_into_schema(
         });
     }
 
+    Ok(())
+}
+
+pub fn update_column_schemas(
+    new_schema: Option<Schema>,
+    df_views: &mut JsonDataFrameViews,
+) -> Result<(), OxenError> {
+    if let Some(schema) = new_schema {
+        // Update metadata for the source schema fields
+        for field in df_views.source.schema.fields.iter_mut() {
+            field.metadata = schema
+                .fields
+                .iter()
+                .find(|f| f.name == field.name)
+                .and_then(|f| f.metadata.clone());
+        }
+
+        // Update metadata for the view schema fields
+        for field in df_views.view.schema.fields.iter_mut() {
+            field.metadata = schema
+                .fields
+                .iter()
+                .find(|f| f.name == field.name)
+                .and_then(|f| f.metadata.clone());
+        }
+    }
     Ok(())
 }

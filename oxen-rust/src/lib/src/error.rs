@@ -97,6 +97,9 @@ pub enum OxenError {
     // fs / io
     StripPrefixError(StringError),
 
+    // Dataframe Errors
+    DataFrameError(StringError),
+
     // External Library Errors
     IO(io::Error),
     Authentication(StringError),

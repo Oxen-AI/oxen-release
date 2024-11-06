@@ -131,6 +131,9 @@ pub fn commit_with_cfg(
             &new_commit,
             staged_db,
             &commit_progress_bar,
+            maybe_branch_name
+                .clone()
+                .unwrap_or(DEFAULT_BRANCH_NAME.to_string()),
         )?
     } else {
         commit_dir_entries_new(
@@ -159,7 +162,7 @@ pub fn commit_with_cfg(
 
     println!(
         "🐂 commit {} in {}",
-        commit.id,
+        commit,
         humantime::format_duration(Duration::from_millis(
             start_time.elapsed().as_millis() as u64
         ))
@@ -175,15 +178,16 @@ pub fn commit_dir_entries_with_parents(
     new_commit: &NewCommitBody,
     staged_db: DBWithThreadMode<SingleThreaded>,
     commit_progress_bar: &ProgressBar,
+    target_branch: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     let message = &new_commit.message;
+    let target_branch = target_branch.as_ref();
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
 
     let maybe_head_commit = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        Some(commit)
+        repositories::revisions::get(repo, target_branch)?
     } else {
         None
     };
@@ -371,6 +375,7 @@ pub fn commit_dir_entries(
     repo: &LocalRepository,
     dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
     new_commit: &NewCommitBody,
+    target_branch: impl AsRef<str>,
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_dir_entries got {} entries", dir_entries.len());
@@ -388,8 +393,7 @@ pub fn commit_dir_entries(
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
 
     let maybe_head_commit = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        Some(commit)
+        repositories::revisions::get(repo, target_branch)?
     } else {
         None
     };
@@ -498,7 +502,7 @@ fn node_data_to_staged_node(
     node: &MerkleTreeNode,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let base_dir = base_dir.as_ref();
-    match node.node.dtype() {
+    match node.node.node_type() {
         MerkleTreeNodeType::Dir => {
             let mut dir_node = node.dir()?;
             let path = base_dir.join(dir_node.name);
@@ -574,7 +578,7 @@ fn split_into_vnodes(
         for child in new_children.iter() {
             log::debug!(
                 "new_child {:?} {:?}",
-                child.node.node.dtype(),
+                child.node.node.node_type(),
                 child.node.maybe_path()
             );
 
@@ -586,22 +590,21 @@ fn split_into_vnodes(
                     match child.status {
                         StagedEntryStatus::Removed => {
                             log::debug!(
-                                "removing child {:?} {:?} with {:?} {:?}",
-                                child.node.node.dtype(),
+                                "removing child {:?} {:?} with {:?}",
+                                child.node.node.node_type(),
                                 path,
-                                child.node.node.dtype(),
                                 child.node.maybe_path().unwrap()
                             );
                             children.remove(child);
                         }
                         _ => {
                             log::debug!(
-                                "replacing child {:?} {:?} with {:?} {:?}",
-                                child.node.node.dtype(),
+                                "replacing child {:?} {:?} with {:?}",
+                                child.node.node.node_type(),
                                 path,
-                                child.node.node.dtype(),
                                 child.node.maybe_path().unwrap()
                             );
+                            log::debug!("replaced child {}", child.node);
                             children.replace(child.clone());
                         }
                     }
@@ -613,7 +616,7 @@ fn split_into_vnodes(
         for child in children.iter() {
             log::debug!(
                 "child populated {:?} {:?} status {:?}",
-                child.node.node.dtype(),
+                child.node.node.node_type(),
                 child.node.maybe_path().unwrap(),
                 child.status
             );
@@ -700,7 +703,7 @@ fn split_into_vnodes(
             for entry in vnode.entries.iter() {
                 log::debug!(
                     "    entry {:?} [{}] `{:?}` with status {:?}",
-                    entry.node.node.dtype(),
+                    entry.node.node.node_type(),
                     entry.node.node.hash(),
                     entry.node.maybe_path(),
                     entry.status
@@ -754,8 +757,6 @@ fn write_commit_entries(
         root_path,
         &mut total_written,
     )?;
-
-    log::debug!("R CREATE OVER LOL");
 
     Ok(())
 }
@@ -1008,10 +1009,10 @@ fn compute_dir_node(
             let err_msg = format!("compute_dir_node No entries found for directory {:?}", path);
             return Err(OxenError::basic_str(err_msg));
         };
-
+        log::debug!("Aggregating dir {:?} with {} vnodes", path, vnodes.len());
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
-                log::debug!("Aggregating entry {}", entry);
+                log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
                     EMerkleTreeNode::Directory(node) => {
                         log::debug!("No need to aggregate dir {}", node.name);
@@ -1071,7 +1072,7 @@ fn compute_dir_node(
     );
 
     let node = DirNode {
-        dtype: MerkleTreeNodeType::Dir,
+        node_type: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
         hash,
         num_bytes,

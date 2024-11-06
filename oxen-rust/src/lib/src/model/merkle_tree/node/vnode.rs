@@ -11,7 +11,7 @@ use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkle
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct VNode {
     pub hash: MerkleHash,
-    pub dtype: MerkleTreeNodeType,
+    pub node_type: MerkleTreeNodeType,
 }
 
 impl VNode {
@@ -24,15 +24,15 @@ impl VNode {
 impl Default for VNode {
     fn default() -> Self {
         VNode {
-            dtype: MerkleTreeNodeType::VNode,
+            node_type: MerkleTreeNodeType::VNode,
             hash: MerkleHash::new(0),
         }
     }
 }
 
 impl MerkleTreeNodeIdType for VNode {
-    fn dtype(&self) -> MerkleTreeNodeType {
-        self.dtype
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {

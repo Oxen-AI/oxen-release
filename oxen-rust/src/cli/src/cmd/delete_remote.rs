@@ -34,6 +34,13 @@ impl RunCmd for DeleteRemoteCmd {
                 .help("The host you want to create the remote repository on. For example: 'hub.oxen.ai'")
                 .action(clap::ArgAction::Set),
         )
+        .arg(
+            Arg::new("yes")
+                .long("yes")
+                .short('y')
+                .help("Automatically confirm the deletion without prompting.")
+                .action(clap::ArgAction::SetTrue),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -57,24 +64,32 @@ impl RunCmd for DeleteRemoteCmd {
             )));
         };
 
-        // Confirm the user wants to delete the remote repository
-        match Confirm::new()
-            .with_prompt(format!(
-                "Are you sure you want to delete the remote repository: {namespace_name}?"
-            ))
-            .interact()
-        {
-            Ok(true) => {
-                api::client::repositories::delete(&remote_repo).await?;
+        // Check if the user wants to skip confirmation
+        let skip_confirmation = args.get_flag("yes");
+
+        if !skip_confirmation {
+            // Confirm the user wants to delete the remote repository
+            match Confirm::new()
+                .with_prompt(format!(
+                    "Are you sure you want to delete the remote repository: {namespace_name}?"
+                ))
+                .interact()
+            {
+                Ok(true) => {
+                    api::client::repositories::delete(&remote_repo).await?;
+                }
+                Ok(false) => {
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(OxenError::basic_str(format!(
+                        "Error confirming deletion: {e}"
+                    )));
+                }
             }
-            Ok(false) => {
-                return Ok(());
-            }
-            Err(e) => {
-                return Err(OxenError::basic_str(format!(
-                    "Error confirming deletion: {e}"
-                )));
-            }
+        } else {
+            // Automatically delete without confirmation
+            api::client::repositories::delete(&remote_repo).await?;
         }
 
         Ok(())

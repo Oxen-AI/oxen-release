@@ -8,6 +8,7 @@ use crate::model::merkle_tree::node::{
     DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
 };
 use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash};
+use crate::{repositories, util};
 
 pub fn get_by_commit(
     repo: &LocalRepository,
@@ -115,6 +116,32 @@ pub fn list_missing_file_hashes(
     node.list_missing_file_hashes(repo)
 }
 
+/// Given a set of commit ids, return the hashes that are missing from the tree
+pub fn list_missing_file_hashes_from_commits(
+    repo: &LocalRepository,
+    commit_ids: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let mut candidate_hashes: HashSet<MerkleHash> = HashSet::new();
+    for commit_id in commit_ids {
+        let commit_id_str = commit_id.to_string();
+        let Some(commit) = repositories::commits::get_by_id(repo, &commit_id_str)? else {
+            return Err(OxenError::revision_not_found(commit_id_str.into()));
+        };
+        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+        tree.walk_tree(|node| {
+            if node.is_file() {
+                candidate_hashes.insert(node.hash);
+            }
+        });
+    }
+    log::debug!(
+        "list_missing_file_hashes_from_commits candidate_hashes: {:?}",
+        candidate_hashes
+    );
+    list_missing_file_hashes_from_hashes(repo, &candidate_hashes)
+}
+
+// Given a set of hashes, return the hashes that are missing from the tree
 pub fn list_missing_node_hashes(
     repo: &LocalRepository,
     hashes: &HashSet<MerkleHash>,
@@ -122,7 +149,21 @@ pub fn list_missing_node_hashes(
     let mut results = HashSet::new();
     for hash in hashes {
         let dir_prefix = node_db_path(repo, hash);
-        if dir_prefix.exists() {
+        if !(dir_prefix.join("node").exists() && dir_prefix.join("children").exists()) {
+            results.insert(*hash);
+        }
+    }
+    Ok(results)
+}
+
+fn list_missing_file_hashes_from_hashes(
+    repo: &LocalRepository,
+    hashes: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let mut results = HashSet::new();
+    for hash in hashes {
+        let version_path = util::fs::version_path_from_hash(repo, hash.to_string());
+        if !version_path.exists() {
             results.insert(*hash);
         }
     }
@@ -143,6 +184,73 @@ pub fn child_hashes(
     Ok(children)
 }
 
+pub fn list_all_files(tree: &CommitMerkleTree) -> Result<HashSet<FileNodeWithDir>, OxenError> {
+    let mut file_nodes = HashSet::new();
+    r_list_all_files(&tree.root, PathBuf::from(""), &mut file_nodes)?;
+    Ok(file_nodes)
+}
+
+fn r_list_all_files(
+    node: &MerkleTreeNode,
+    traversed_path: impl AsRef<Path>,
+    file_nodes: &mut HashSet<FileNodeWithDir>,
+) -> Result<(), OxenError> {
+    let traversed_path = traversed_path.as_ref();
+    for child in &node.children {
+        // log::debug!("Found child: {child}");
+        match &child.node {
+            EMerkleTreeNode::File(file_node) => {
+                file_nodes.insert(FileNodeWithDir {
+                    file_node: file_node.to_owned(),
+                    dir: traversed_path.to_owned(),
+                });
+            }
+            EMerkleTreeNode::Directory(dir_node) => {
+                let new_path = traversed_path.join(&dir_node.name);
+                r_list_all_files(child, new_path, file_nodes)?;
+            }
+            EMerkleTreeNode::VNode(_) => {
+                r_list_all_files(child, traversed_path, file_nodes)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Collect MerkleTree into Directories
+pub fn list_all_dirs(tree: &CommitMerkleTree) -> Result<HashSet<DirNodeWithPath>, OxenError> {
+    let mut dir_nodes = HashSet::new();
+    r_list_all_dirs(&tree.root, PathBuf::from(""), &mut dir_nodes)?;
+    Ok(dir_nodes)
+}
+
+fn r_list_all_dirs(
+    node: &MerkleTreeNode,
+    traversed_path: impl AsRef<Path>,
+    dir_nodes: &mut HashSet<DirNodeWithPath>,
+) -> Result<(), OxenError> {
+    let traversed_path = traversed_path.as_ref();
+    for child in &node.children {
+        // log::debug!("Found child: {child}");
+        match &child.node {
+            EMerkleTreeNode::Directory(dir_node) => {
+                let new_path = traversed_path.join(&dir_node.name);
+                dir_nodes.insert(DirNodeWithPath {
+                    dir_node: dir_node.to_owned(),
+                    path: new_path.to_owned(),
+                });
+                r_list_all_dirs(child, new_path, dir_nodes)?;
+            }
+            EMerkleTreeNode::VNode(_) => {
+                r_list_all_dirs(child, traversed_path, dir_nodes)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// Collect MerkleTree into Directories and Files
 pub fn list_files_and_dirs(
     tree: &CommitMerkleTree,
@@ -161,7 +269,7 @@ fn r_list_files_and_dirs(
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
     for child in &node.children {
-        log::debug!("Found child: {child}");
+        // log::debug!("Found child: {child}");
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
                 file_nodes.insert(FileNodeWithDir {
