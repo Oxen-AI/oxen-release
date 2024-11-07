@@ -50,7 +50,7 @@ pub fn add(
         Some(column_after),
     )?;
 
-    workspaces::files::add(workspace, file_path)?;
+    workspaces::files::track_modified_data_frame(workspace, file_path)?;
 
     Ok(result)
 }
@@ -89,7 +89,7 @@ pub fn delete(
         None,
     )?;
 
-    workspaces::files::add(workspace, file_path)?;
+    workspaces::files::track_modified_data_frame(workspace, file_path)?;
 
     Ok(result)
 }

@@ -361,14 +361,14 @@ pub fn process_add_file(
     // Check if the file is already in the head commit
     let file_path = relative_path.file_name().unwrap();
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
-    let mut oxen_metadata: Option<GenericMetadata> = None;
+    let mut previous_oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
         log::debug!("got existing file_node: {:?}", file_node);
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        oxen_metadata = file_node.metadata.clone();
+        previous_oxen_metadata = file_node.metadata.clone();
         if has_different_modification_time(file_node, &mtime) {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
@@ -428,10 +428,13 @@ pub fn process_add_file(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = match &oxen_metadata {
-        Some(oxen_metadata) => {
+    let metadata = match &previous_oxen_metadata {
+        Some(previous_oxen_metadata) => {
             let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
-            maybe_construct_generic_metadata_for_tabular(df_metadata, oxen_metadata.clone())
+            maybe_construct_generic_metadata_for_tabular(
+                df_metadata,
+                previous_oxen_metadata.clone(),
+            )
         }
         None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
     };
@@ -491,15 +494,22 @@ pub fn process_add_file(
 
 pub fn maybe_construct_generic_metadata_for_tabular(
     df_metadata: Option<GenericMetadata>,
-    oxen_metadata: GenericMetadata,
+    previous_oxen_metadata: GenericMetadata,
 ) -> Option<GenericMetadata> {
+    log::debug!(
+        "maybe_construct_generic_metadata_for_tabular {:?}",
+        df_metadata
+    );
+    log::debug!("previous_oxen_metadata {:?}", previous_oxen_metadata);
+
     if let Some(GenericMetadata::MetadataTabular(mut df_metadata)) = df_metadata.clone() {
-        if let GenericMetadata::MetadataTabular(ref oxen_metadata) = oxen_metadata {
-            // Combine the two by using oxen_metadata as the source of truth for metadata,
+        if let GenericMetadata::MetadataTabular(ref previous_oxen_metadata) = previous_oxen_metadata
+        {
+            // Combine the two by using previous_oxen_metadata as the source of truth for metadata,
             // but keeping df_metadata's fields
 
             for field in &mut df_metadata.tabular.schema.fields {
-                if let Some(oxen_field) = oxen_metadata
+                if let Some(oxen_field) = previous_oxen_metadata
                     .tabular
                     .schema
                     .fields

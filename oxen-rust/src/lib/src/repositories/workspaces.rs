@@ -26,7 +26,7 @@ use std::path::Path;
 pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Workspace, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
-    log::debug!("workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
+    log::debug!("workspace::get workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
 
     let workspace_dir = Workspace::workspace_dir(repo, &workspace_id_hash);
     let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
