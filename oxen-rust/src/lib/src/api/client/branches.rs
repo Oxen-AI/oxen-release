@@ -2,11 +2,14 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
+use crate::opts::PaginateOpts;
 use crate::view::{
     BranchLockResponse, BranchNewFromBranchName, BranchNewFromCommitId, BranchRemoteMerge,
-    BranchResponse, CommitResponse, ListBranchesResponse, StatusMessage,
+    BranchResponse, CommitResponse, ListBranchesResponse, PaginatedEntryVersions,
+    PaginatedEntryVersionsResponse, StatusMessage,
 };
 use serde_json::json;
+use std::path::Path;
 
 pub async fn get_by_name(
     repository: &RemoteRepository,
@@ -347,8 +350,42 @@ pub async fn latest_synced_commit(
     }
 }
 
+pub async fn list_entry_versions(
+    repository: &RemoteRepository,
+    branch_name: &str,
+    path: &Path,
+    page_opts: &PaginateOpts,
+) -> Result<PaginatedEntryVersions, OxenError> {
+    let path_str = path.to_string_lossy();
+    let uri = format!(
+        "/branches/{branch_name}/versions/{path_str}?page={}&page_size={}",
+        page_opts.page_num, page_opts.page_size
+    );
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+
+    log::debug!("Listing entry versions for branch: {}", url);
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<PaginatedEntryVersionsResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(res) => Ok(res.versions),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "list_entry_versions() Could not deserialize response [{err}]\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::branches::list_entry_versions() Request failed",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
+    use std::path::Path;
 
     use crate::api;
     use crate::command;
@@ -357,6 +394,7 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
+    use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -906,6 +944,52 @@ mod tests {
                 api::client::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(latest_synced_updated.id, main_head_after);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_entry_versions() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_committed_async("annotations", |mut repo| async move {
+            // Set up remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Get path to existing annotations file
+            let file_path = Path::new("annotations")
+                .join("test")
+                .join("annotations.csv");
+            let file_repo_path = repo.path.join(&file_path);
+
+            // Store initial commit id
+            let commit_1 = repositories::commits::head_commit(&repo)?;
+
+            // Modify annotations file with new line
+            test::append_line_txt_file(&file_repo_path, "test/new_image.jpg,unknown,1.0,1.0,1,1")?;
+            repositories::add(&repo, &file_repo_path)?;
+            let commit_2 = repositories::commit(&repo, "adding new annotation")?;
+
+            // Push to remote
+            repositories::push(&repo).await?;
+
+            // Get paginated versions from API
+            let result = api::client::branches::list_entry_versions(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &file_path,
+                &PaginateOpts::default(),
+            )
+            .await?;
+
+            // Verify results
+            assert_eq!(result.versions.len(), 2);
+
+            // Most recent version should be first
+            assert_eq!(result.versions[0].commit.id, commit_2.id);
+            assert_eq!(result.versions[1].commit.id, commit_1.id);
 
             Ok(())
         })
