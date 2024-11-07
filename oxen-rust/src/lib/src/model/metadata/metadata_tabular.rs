@@ -30,8 +30,17 @@ impl std::fmt::Display for MetadataTabular {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "MetadataTabular({}x{})",
-            self.tabular.width, self.tabular.height
+            "MetadataTabular({}x{}) ({} fields) {}",
+            self.tabular.width,
+            self.tabular.height,
+            self.tabular.schema.fields.len(),
+            self.tabular
+                .schema
+                .fields
+                .iter()
+                .map(|field| format!("{}: {}", field.name, field.dtype))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     }
 }
