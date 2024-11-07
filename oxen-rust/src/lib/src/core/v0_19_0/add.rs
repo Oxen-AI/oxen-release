@@ -373,7 +373,10 @@ pub fn process_add_file(
             log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
-                log::debug!("has_different_modification_time hash is different true {}", file_node);
+                log::debug!(
+                    "has_different_modification_time hash is different true {}",
+                    file_node
+                );
                 (
                     StagedEntryStatus::Modified,
                     MerkleHash::new(hash),
