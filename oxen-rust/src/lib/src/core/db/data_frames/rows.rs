@@ -196,7 +196,7 @@ pub fn modify_rows(
     }
 
     if result.height() != update_map.len() {
-        return Err(OxenError::basic_str(&format!(
+        return Err(OxenError::basic_str(format!(
             "Expected {} rows to be modified, but got {}",
             update_map.len(),
             result.height()
