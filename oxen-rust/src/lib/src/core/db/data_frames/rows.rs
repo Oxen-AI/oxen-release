@@ -119,8 +119,7 @@ pub fn modify_row(
         PlSmallStr::from_str(DIFF_HASH_COL),
         vec![insert_hash],
     ))?;
-    // let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
-    let result = DataFrame::new(vec![])?;
+    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
