@@ -143,6 +143,10 @@ fn export_tabular_data_frames(
                             &exported_path,
                             dir_entry.status,
                         )?;
+                        log::debug!(
+                            "export_tabular_data_frames new_staged_merkle_tree_node: {:?}",
+                            new_staged_merkle_tree_node
+                        );
                         new_dir_entries
                             .entry(dir_path.to_path_buf())
                             .or_default()
@@ -181,15 +185,19 @@ fn compute_staged_merkle_tree_node(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    log::debug!("compute_staged_merkle_tree_node path: {:?}", path);
     let mut metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+    log::debug!("compute_staged_merkle_tree_node metadata: {:?}", metadata);
 
     // Here we give priority to the staged schema, as it can contained metadata that was changed during the
-    let staged_schema =
-        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, path)?;
-
-    if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
-        if let Some(staged_schema) = staged_schema {
-            metadata.tabular.schema = staged_schema;
+    if let Ok(Some(staged_schema)) =
+        core::v0_19_0::data_frames::schemas::get_staged(&workspace.workspace_repo, path)
+    {
+        if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
+            metadata
+                .tabular
+                .schema
+                .update_metadata_from_schema(&staged_schema);
         }
     }
 
@@ -207,7 +215,7 @@ fn compute_staged_merkle_tree_node(
     let relative_path = util::fs::path_relative_to_dir(path, &workspace.workspace_repo.path)?;
     let dst = dst_dir.join("data");
 
-    log::debug!("Copying file to {:?}", dst);
+    log::debug!("compute_staged_merkle_tree_node copying file to {:?}", dst);
 
     util::fs::copy(path, &dst).unwrap();
     let file_extension = path.extension().unwrap_or_default().to_string_lossy();

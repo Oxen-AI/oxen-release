@@ -53,6 +53,7 @@ pub fn get_slice(
     // Read the data frame from the version path
     let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
     let df = tabular::read_df_with_extension(version_path, file_node.extension, opts)?;
+    log::debug!("get_slice df {:?}", df.height());
 
     // Check what the view height is
     let view_height = if opts.has_filter_transform() {
