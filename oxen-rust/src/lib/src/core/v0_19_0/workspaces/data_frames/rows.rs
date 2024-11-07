@@ -24,6 +24,7 @@ use crate::repositories;
 use crate::util;
 use crate::view::JsonDataFrameView;
 
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -199,30 +200,43 @@ pub fn batch_update(
     data: &Value,
 ) -> Result<Vec<UpdateResult>, OxenError> {
     let path = path.as_ref();
-    if let Some(array) = data.as_array() {
-        let results: Result<Vec<UpdateResult>, OxenError> = array
-            .iter()
-            .map(|obj| {
-                let row_id = obj
-                    .get("row_id")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| OxenError::basic_str("Missing row_id"))?
-                    .to_owned();
-                let value = obj
-                    .get("value")
-                    .ok_or_else(|| OxenError::basic_str("Missing value"))?;
 
-                match update(workspace, path, &row_id, value) {
-                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, data_frame)),
-                    Err(e) => Ok(UpdateResult::Error(row_id, e)),
-                }
-            })
-            .collect();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let conn = df_db::get_connection(db_path)?;
 
-        results
-    } else {
-        Err(OxenError::basic_str("Data is not an array"))
-    }
+    let Some(array) = data.as_array() else {
+        return Err(OxenError::basic_str("Data is not an array"));
+    };
+
+    let mut keys: Vec<String> = Vec::new();
+
+    let row_map: HashMap<String, DataFrame> = array
+        .iter()
+        .map(|obj| {
+            let row_id = obj
+                .get("row_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| OxenError::basic_str("Missing row_id"))?
+                .to_owned();
+
+            keys.push(row_id.clone());
+
+            let df = tabular::parse_json_to_df(
+                obj.get("value")
+                    .ok_or_else(|| OxenError::basic_str("Missing value"))?,
+            )?;
+            Ok((row_id, df))
+        })
+        .collect::<Result<_, OxenError>>()?;
+
+    rows::modify_rows(&conn, row_map)?;
+
+    let results: Vec<UpdateResult> = keys
+        .iter()
+        .map(|key| UpdateResult::Success(key.to_owned(), None))
+        .collect();
+
+    Ok(results)
 }
 
 pub fn prepare_modified_or_removed_row(

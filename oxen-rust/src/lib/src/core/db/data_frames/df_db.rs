@@ -17,6 +17,7 @@ use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
+use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -310,6 +311,76 @@ pub fn modify_row_with_polars_df(
     let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
 
     let df = record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
+
+    Ok(df)
+}
+
+pub fn modify_rows_with_polars_df(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    row_map: &HashMap<String, DataFrame>,
+    out_schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+    let mut all_result_batches = Vec::new();
+
+    let mut set_clauses = Vec::new();
+    let mut all_params: Vec<Box<dyn ToSql>> = Vec::new();
+
+    // Construct the SQL query with combined CASE statements
+    let mut column_names: Vec<String> = Vec::new();
+    if let Some((_, df)) = row_map.iter().next() {
+        let schema = df.schema();
+        column_names = schema
+            .iter_fields()
+            .map(|f| format!("\"{}\"", f.name()))
+            .collect();
+    }
+
+    for col_name in &column_names {
+        let mut case_clauses = Vec::new();
+        for (id, df) in row_map.iter() {
+            let series = df.column(col_name.trim_matches('"'))?;
+            let value = series.get(0)?;
+
+            let boxed_value: Box<dyn ToSql> = Box::new(tabular::value_to_tosql(value));
+
+            case_clauses.push(format!("WHEN \"{}\" = '{}' THEN ?", OXEN_ID_COL, id));
+
+            all_params.push(boxed_value);
+        }
+        set_clauses.push(format!(
+            "{} = CASE {} ELSE {} END",
+            col_name,
+            case_clauses.join(" "),
+            col_name
+        ));
+    }
+
+    // Add all row IDs to the parameters for the WHERE clause
+    for id in row_map.keys() {
+        all_params.push(Box::new(id.clone()));
+    }
+
+    let sql = format!(
+        "UPDATE {} SET {} WHERE \"{}\" IN ({}) RETURNING *",
+        table_name,
+        set_clauses.join(", "),
+        OXEN_ID_COL,
+        row_map.keys().map(|_| "?").collect::<Vec<_>>().join(", ")
+    );
+
+    let params: Vec<&dyn ToSql> = all_params
+        .iter()
+        .map(|boxed_value| &**boxed_value as &dyn ToSql)
+        .collect();
+
+    let mut stmt = conn.prepare(&sql)?;
+    let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
+
+    all_result_batches.extend(result_set);
+
+    let df = record_batches_to_polars_df_explicit_nulls(all_result_batches, out_schema)?;
 
     Ok(df)
 }
