@@ -678,7 +678,7 @@ mod tests {
             // Add the row
             let result = api::client::workspaces::data_frames::rows::add(
                 &remote_repo,
-                &workspace_id,
+                workspace_id,
                 &path,
                 data.to_string(),
             ).await;
