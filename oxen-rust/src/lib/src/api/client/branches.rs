@@ -19,30 +19,15 @@ pub async fn get_by_name(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        let status = res.status();
-        if 404 == status {
-            return Ok(None);
-        }
-
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res.branch)),
-            Err(err) => {
-                log::debug!(
-                    "remote::branches::get_by_name() Could not deserialize response [{}] {}",
-                    err,
-                    body
-                );
-                Ok(None)
-            }
-        }
-    } else {
-        let err = "Failed to get branch";
-        log::error!("remote::branches::get_by_name() err: {}", err);
-        Err(OxenError::basic_str(err))
+    let res = client.get(&url).send().await?;
+    let status = res.status();
+    if 404 == status {
+        return Ok(None);
     }
+
+    let body = client::parse_json_body(&url, res).await?;
+    let response: BranchResponse = serde_json::from_str(&body)?;
+    Ok(Some(response.branch))
 }
 
 /// Create a new branch from an existing branch
@@ -65,17 +50,8 @@ pub async fn create_from_branch(
     let client = client::new_for_url(&url)?;
     let res = client.post(&url).body(params).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(response) => Ok(response.branch),
-        Err(err) => {
-            let err = format!(
-                "Could not find branch [{}] or create it from branch [{}]: {}\n{}",
-                new_name, from_name, err, body
-            );
-            Err(OxenError::basic_str(err))
-        }
-    }
+    let response: BranchResponse = serde_json::from_str(&body)?;
+    Ok(response.branch)
 }
 
 /// Create a new remote branch from a commit
@@ -98,17 +74,8 @@ pub async fn create_from_commit(
     let client = client::new_for_url(&url)?;
     let res = client.post(&url).body(params).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(response) => Ok(response.branch),
-        Err(err) => {
-            let err = format!(
-                "Could not find commit [{}] or create it from branch [{}]: {}\n{}",
-                commit.id, new_name, err, body
-            );
-            Err(OxenError::basic_str(err))
-        }
-    }
+    let response: BranchResponse = serde_json::from_str(&body)?;
+    Ok(response.branch)
 }
 
 /// List all branches on the remote
@@ -116,25 +83,10 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(j_res.branches),
-            Err(err) => {
-                log::debug!(
-                    "remote::branches::list() Could not deserialize response [{}] {}",
-                    err,
-                    body
-                );
-                Err(OxenError::basic_str("Could not list remote branches"))
-            }
-        }
-    } else {
-        let err = "Failed to list branches";
-        log::error!("remote::branches::list() err: {}", err);
-        Err(OxenError::basic_str(err))
-    }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: ListBranchesResponse = serde_json::from_str(&body)?;
+    Ok(response.branches)
 }
 
 /// Update a remote branch to point to a new commit
@@ -146,29 +98,14 @@ pub async fn update(
     let branch_name = branch_name.as_ref();
     let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("remote::branches::update url: {}", url);
+    log::debug!("api::client::branches::update url: {}", url);
 
     let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
-
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.put(&url).body(params).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(response.branch),
-            Err(err) => {
-                let err = format!(
-                    "Could not update branch [{}]: {}\n{}",
-                    repository.name, err, body
-                );
-                Err(OxenError::basic_str(err))
-            }
-        }
-    } else {
-        let msg = format!("Could not update branch {branch_name}");
-        log::error!("remote::branches::update() {}", msg);
-        Err(OxenError::basic_str(&msg))
-    }
+    let res = client.put(&url).body(params).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: BranchResponse = serde_json::from_str(&body)?;
+    Ok(response.branch)
 }
 
 // Creates a merge commit between two commits on the server if possible, returning the commit
@@ -180,7 +117,7 @@ pub async fn maybe_create_merge(
 ) -> Result<Commit, OxenError> {
     let uri = format!("/branches/{branch_name}/merge");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("remote::branches::maybe_create_merge url: {}", url);
+    log::debug!("api::client::branches::maybe_create_merge url: {}", url);
 
     let commits = BranchRemoteMerge {
         client_commit_id: local_head_id.to_string(),
@@ -189,24 +126,10 @@ pub async fn maybe_create_merge(
     let params = serde_json::to_string(&commits)?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.put(&url).body(params).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(response.commit),
-            Err(err) => {
-                let err = format!(
-                    "Could not create merge commit [{}]: {}\n{}",
-                    repository.name, err, body
-                );
-                Err(OxenError::basic_str(err))
-            }
-        }
-    } else {
-        let msg = format!("Could not create merge commit {branch_name}");
-        log::error!("remote::branches::update() {}", msg);
-        Err(OxenError::basic_str(&msg))
-    }
+    let res = client.put(&url).body(params).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: CommitResponse = serde_json::from_str(&body)?;
+    Ok(response.commit)
 }
 
 /// # Delete a remote branch
@@ -240,22 +163,11 @@ pub async fn delete(
     let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Deleting branch: {}", url);
-
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.delete(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "could not delete branch \n\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::branches::delete() Request failed",
-        ))
-    }
+    let res = client.delete(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: StatusMessage = serde_json::from_str(&body)?;
+    Ok(response)
 }
 
 pub async fn lock(
@@ -265,18 +177,11 @@ pub async fn lock(
     let uri = format!("/branches/{branch_name}/lock");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Locking branch: {}", url);
-
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::remote_branch_locked()),
-        }
-    } else {
-        Err(OxenError::basic_str("api::branches::lock() Request failed"))
-    }
+    let res = client.post(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: StatusMessage = serde_json::from_str(&body)?;
+    Ok(response)
 }
 
 pub async fn unlock(
@@ -286,20 +191,11 @@ pub async fn unlock(
     let uri = format!("/branches/{branch_name}/unlock");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Unlocking branch: {}", url);
-
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "could not unlock branch \n\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str("api::branches::lock() Request failed"))
-    }
+    let res = client.post(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: StatusMessage = serde_json::from_str(&body)?;
+    Ok(response)
 }
 
 pub async fn is_locked(
@@ -310,20 +206,10 @@ pub async fn is_locked(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Checking if branch is locked: {}", url);
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<BranchLockResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(val) => Ok(val.is_locked),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "could not check if branch is locked \n\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::branches::is_locked() Request failed",
-        ))
-    }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: BranchLockResponse = serde_json::from_str(&body)?;
+    Ok(response.is_locked)
 }
 
 pub async fn latest_synced_commit(
@@ -334,20 +220,10 @@ pub async fn latest_synced_commit(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Retrieving latest synced commit for branch...");
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(res) => Ok(res.commit),
-            Err(err) => Err(OxenError::basic_str(format!(
-                "get_commit_by_id() Could not deserialize response [{err}]\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::branches::is_locked() Request failed",
-        ))
-    }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: CommitResponse = serde_json::from_str(&body)?;
+    Ok(response.commit)
 }
 
 pub async fn list_entry_versions(
@@ -362,24 +238,12 @@ pub async fn list_entry_versions(
         page_opts.page_num, page_opts.page_size
     );
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-
     log::debug!("Listing entry versions for branch: {}", url);
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<PaginatedEntryVersionsResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(res) => Ok(res.versions),
-            Err(err) => Err(OxenError::basic_str(format!(
-                "list_entry_versions() Could not deserialize response [{err}]\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::branches::list_entry_versions() Request failed",
-        ))
-    }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: PaginatedEntryVersionsResponse = serde_json::from_str(&body)?;
+    Ok(response.versions)
 }
 
 #[cfg(test)]
