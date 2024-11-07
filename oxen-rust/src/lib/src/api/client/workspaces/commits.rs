@@ -151,7 +151,7 @@ mod tests {
             assert_eq!(commit.id, remote_commit.unwrap().id);
 
             let df =
-                api::client::data_frames::get(&remote_repo, &branch_name, &path, DFOpts::empty())
+                api::client::data_frames::get(&remote_repo, branch_name, &path, DFOpts::empty())
                     .await?;
 
             assert_eq!(
