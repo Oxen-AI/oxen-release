@@ -581,6 +581,11 @@ mod tests {
     */
     #[tokio::test]
     async fn test_update_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            // Skip server side duckdb tests on windows
+            return Ok(());
+        }
+
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 
