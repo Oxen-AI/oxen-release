@@ -52,33 +52,39 @@ pub fn commit(
     }
 
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
+
     log::debug!(
         "0.19.0::workspaces::commit staged db path: {:?}",
         staged_db_path
     );
     let opts = db::key_val::opts::default();
-    let staged_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
+    let commit = {
+        let staged_db: DBWithThreadMode<SingleThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
 
-    let commit_progress_bar = ProgressBar::new_spinner();
+        let commit_progress_bar = ProgressBar::new_spinner();
 
-    // Read all the staged entries
-    let (dir_entries, _) = core::v0_19_0::status::read_staged_entries(
-        &workspace.workspace_repo,
-        &staged_db,
-        &commit_progress_bar,
-    )?;
-    let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
-    let parent_commits = vec![commit.id.to_owned()];
-    let commit = core::v0_19_0::index::commit_writer::commit_dir_entries_with_parents(
-        &workspace.base_repo,
-        parent_commits,
-        dir_entries,
-        new_commit,
-        staged_db,
-        &commit_progress_bar,
-        branch_name,
-    )?;
+        // Read all the staged entries
+        let (dir_entries, _) = core::v0_19_0::status::read_staged_entries(
+            &workspace.workspace_repo,
+            &staged_db,
+            &commit_progress_bar,
+        )?;
+
+        let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
+
+        core::v0_19_0::index::commit_writer::commit_dir_entries(
+            &workspace.base_repo,
+            dir_entries,
+            new_commit,
+            branch_name,
+            &commit_progress_bar,
+        )?
+    };
+
+    // Clear the staged db
+    log::debug!("Removing staged_db_path: {staged_db_path:?}");
+    util::fs::remove_dir_all(staged_db_path)?;
 
     // DEBUG
     // let tree = repositories::tree::get_by_commit(&workspace.base_repo, &commit)?;
@@ -88,6 +94,7 @@ pub fn commit(
     // Update the branch
     let ref_writer = RefWriter::new(&workspace.base_repo)?;
     let commit_id = commit.id.to_owned();
+
     ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
 
     // Cleanup workspace on commit
