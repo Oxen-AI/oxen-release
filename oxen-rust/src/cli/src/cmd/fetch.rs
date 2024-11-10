@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap::Command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-
+use liboxen::opts::fetch_opts::FetchOpts;
 use liboxen::repositories;
 
 use crate::helpers::{
@@ -29,7 +29,8 @@ impl RunCmd for FetchCmd {
 
         check_repo_migration_needed(&repository)?;
         check_remote_version_blocking(host.clone()).await?;
-        repositories::fetch(&repository, false).await?;
+        let fetch_opts = FetchOpts::new();
+        repositories::fetch(&repository, &fetch_opts).await?;
         Ok(())
     }
 }

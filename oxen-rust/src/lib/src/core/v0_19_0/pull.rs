@@ -1,14 +1,14 @@
 use crate::api;
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::repositories;
 
 use crate::core::v0_19_0::fetch;
+use crate::opts::fetch_opts::FetchOpts;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let rb = RemoteBranch::default();
-    pull_remote_branch(repo, &rb.remote, &rb.branch, false).await
+    let fetch_opts = FetchOpts::new();
+    pull_remote_branch(repo, &fetch_opts).await
 }
 
 pub async fn pull_shallow(
@@ -47,19 +47,20 @@ pub async fn pull_shallow(
 }
 
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
-    let pull_all = true;
-    repositories::pull_remote_branch(repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME, pull_all).await
+    let fetch_opts = FetchOpts {
+        all: true,
+        ..FetchOpts::new()
+    };
+    repositories::pull_remote_branch(repo, &fetch_opts).await
 }
 
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,
-    remote: impl AsRef<str>,
-    branch: impl AsRef<str>,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
-    let remote = remote.as_ref();
-    let branch = branch.as_ref();
+    let remote = &fetch_opts.remote;
+    let branch = &fetch_opts.branch;
     println!("🐂 oxen pull {} {}", remote, branch);
 
     let remote = repo
@@ -78,10 +79,10 @@ pub async fn pull_remote_branch(
     let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     // Fetch all the tree nodes and the entries
-    fetch::fetch_remote_branch(repo, &remote_repo, &rb, all).await?;
+    fetch::fetch_remote_branch(repo, &remote_repo, &rb, fetch_opts).await?;
 
     let new_head_commit = repositories::revisions::get(repo, branch)?
-        .ok_or(OxenError::revision_not_found(branch.into()))?;
+        .ok_or(OxenError::revision_not_found(branch.to_owned().into()))?;
 
     // Merge if there are changes
     if let Some(previous_head_commit) = &previous_head_commit {

@@ -236,9 +236,10 @@ pub async fn rm(
 mod tests {
 
     use crate::config::UserConfig;
-    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::model::{EntryDataType, NewCommitBody};
+    use crate::opts::fetch_opts::FetchOpts;
     use crate::opts::CloneOpts;
     use crate::{api, constants};
     use crate::{repositories, test};
@@ -660,13 +661,9 @@ mod tests {
                 assert!(!path.exists());
 
                 // Pull the branch with new data
-                repositories::pull_remote_branch(
-                    &cloned_repo,
-                    DEFAULT_REMOTE_NAME,
-                    "add-data",
-                    true,
-                )
-                .await?;
+                let mut fetch_opts = FetchOpts::new();
+                fetch_opts.branch = "add-data".to_string();
+                repositories::pull_remote_branch(&cloned_repo, &fetch_opts).await?;
 
                 // We should have the commit locally
                 let local_commit = repositories::commits::head_commit(&cloned_repo)?;

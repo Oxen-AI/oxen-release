@@ -56,7 +56,7 @@ pub use download::download;
 pub use fetch::fetch;
 pub use init::init;
 pub use load::load;
-pub use pull::{pull, pull_all, pull_remote_branch, pull_remote_branch_shallow};
+pub use pull::{pull, pull_all, pull_remote_branch};
 pub use push::push;
 pub use restore::restore;
 pub use rm::rm;

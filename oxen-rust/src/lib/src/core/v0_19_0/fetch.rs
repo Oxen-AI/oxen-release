@@ -16,17 +16,18 @@ use crate::repositories;
 
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
+use crate::opts::fetch_opts::FetchOpts;
 
 pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     remote_branch: &RemoteBranch,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
     log::debug!(
         "fetching remote branch {} --all {}",
         remote_branch.branch,
-        all
+        fetch_opts.all
     );
 
     // Start the timer
@@ -105,7 +106,7 @@ pub async fn fetch_remote_branch(
 
     // If all, fetch all the missing entries from all the commits
     // Otherwise, fetch the missing entries from the head commit
-    let commits = if all {
+    let commits = if fetch_opts.all {
         repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?
     } else {
         let hash = MerkleHash::from_str(&remote_branch.commit_id)?;

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use clap::{arg, Arg, Command};
+use std::path::PathBuf;
 
 use liboxen::api;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
+use liboxen::opts::fetch_opts::FetchOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::repositories;
 
@@ -26,10 +28,16 @@ impl RunCmd for CloneCmd {
             .arg_required_else_help(true)
             .arg(arg!(<URL> "URL of the repository you want to clone"))
             .arg(
-                Arg::new("shallow")
-                    .long("shallow")
-                    .help("A shallow clone doesn't actually clone the data files. Useful if you want to soley interact with the remote.")
+                Arg::new("subtree")
+                    .long("subtree")
+                    .help("Clone a subtree of the repository. Useful if you have a large repository and only want to make changes to a specific directory.")
                     .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("depth")
+                    .long("depth")
+                    .help("Used in combination with --subtree. The depth at which to clone the subtree")
+                    .action(clap::ArgAction::Set),
             )
             .arg(
                 Arg::new("all")
@@ -51,11 +59,12 @@ impl RunCmd for CloneCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let url = args.get_one::<String>("URL").expect("required");
-        let shallow = args.get_flag("shallow");
         let all = args.get_flag("all");
         let branch = args
             .get_one::<String>("branch")
             .expect("Must supply a branch");
+        let subtree: Option<PathBuf> = args.get_one::<String>("subtree").map(PathBuf::from);
+        let depth: Option<u32> = args.get_one::<u32>("depth").copied();
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
         // Get the name of the repo from the url
@@ -65,9 +74,13 @@ impl RunCmd for CloneCmd {
         let opts = CloneOpts {
             url: url.to_string(),
             dst,
-            shallow,
-            all,
-            branch: branch.to_string(),
+            fetch_opts: FetchOpts {
+                branch: branch.to_string(),
+                subtree_path: subtree,
+                depth,
+                all,
+                ..FetchOpts::new()
+            },
         };
 
         let host = api::client::get_host_from_url(&opts.url)?;

@@ -141,11 +141,13 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn set_remote(&mut self, name: &str, url: &str) -> Remote {
-        self.remote_name = Some(String::from(name));
+    pub fn set_remote(&mut self, name: impl AsRef<str>, url: impl AsRef<str>) -> Remote {
+        self.remote_name = Some(name.as_ref().to_owned());
+        let name = name.as_ref();
+        let url = url.as_ref();
         let remote = Remote {
-            name: String::from(name),
-            url: String::from(url),
+            name: name.to_owned(),
+            url: url.to_owned(),
         };
         if self.has_remote(name) {
             // find remote by name and set
@@ -161,7 +163,8 @@ impl LocalRepository {
         remote
     }
 
-    pub fn delete_remote(&mut self, name: &str) {
+    pub fn delete_remote(&mut self, name: impl AsRef<str>) {
+        let name = name.as_ref();
         let mut new_remotes: Vec<Remote> = vec![];
         for i in 0..self.remotes.len() {
             if self.remotes[i].name != name {
@@ -171,7 +174,8 @@ impl LocalRepository {
         self.remotes = new_remotes;
     }
 
-    pub fn has_remote(&self, name: &str) -> bool {
+    pub fn has_remote(&self, name: impl AsRef<str>) -> bool {
+        let name = name.as_ref();
         for remote in self.remotes.iter() {
             if remote.name == name {
                 return true;
@@ -180,7 +184,8 @@ impl LocalRepository {
         false
     }
 
-    pub fn get_remote(&self, name: &str) -> Option<Remote> {
+    pub fn get_remote(&self, name: impl AsRef<str>) -> Option<Remote> {
+        let name = name.as_ref();
         log::debug!("Checking for remote {name} have {}", self.remotes.len());
         for remote in self.remotes.iter() {
             log::debug!("comparing: {name} -> {}", remote.name);
