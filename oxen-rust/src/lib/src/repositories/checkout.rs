@@ -176,6 +176,7 @@ mod tests {
     use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::opts::FetchOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -755,7 +756,7 @@ mod tests {
                 )
                 .await?;
 
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
 
                 // Checkout the new branch
                 repositories::checkout(&cloned_repo, branch_name).await?;

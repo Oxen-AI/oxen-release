@@ -319,9 +319,10 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 /// Checkout a branch
 pub async fn checkout_branch_from_commit(
     repo: &LocalRepository,
-    name: &str,
+    name: impl AsRef<str>,
     from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
+    let name = name.as_ref();
     log::debug!("checkout_branch {}", name);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
@@ -345,10 +346,10 @@ pub async fn checkout_commit_from_commit(
     }
 }
 
-pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
-    log::debug!("set_head {}", value);
+pub fn set_head(repo: &LocalRepository, value: impl AsRef<str>) -> Result<(), OxenError> {
+    log::debug!("set_head {}", value.as_ref());
     let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_head(value);
+    ref_writer.set_head(value.as_ref());
     Ok(())
 }
 

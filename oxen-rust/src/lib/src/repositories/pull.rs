@@ -7,6 +7,7 @@ use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
+use crate::opts::fetch_opts::FetchOpts;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in
@@ -15,17 +16,6 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull(repo).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull(repo).await,
-    }
-}
-
-pub async fn pull_remote_branch_shallow(
-    repo: &LocalRepository,
-    remote: impl AsRef<str>,
-    branch: impl AsRef<str>,
-) -> Result<(), OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull_shallow(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_shallow(repo, remote, branch).await,
     }
 }
 
@@ -39,36 +29,37 @@ pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,
-    remote: impl AsRef<str>,
-    branch: impl AsRef<str>,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::pull::pull_remote_branch(repo, remote.as_ref(), branch.as_ref(), all)
-                .await
+            core::v0_10_0::pull::pull_remote_branch(
+                repo,
+                fetch_opts.remote.as_ref(),
+                fetch_opts.branch.as_ref(),
+                fetch_opts.all,
+            )
+            .await
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::pull::pull_remote_branch(repo, remote, branch, all).await
-        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_remote_branch(repo, fetch_opts).await,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::path::PathBuf;
 
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core;
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
+    use crate::opts::FetchOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -332,9 +323,12 @@ mod tests {
                 // Pull it on the OG side
                 repositories::pull_remote_branch(
                     &repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    branch_name,
-                    true,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: branch_name.to_string(),
+                        all: true,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let num_new_files = util::fs::rcount_files_in_dir(&repo.path);
@@ -357,9 +351,12 @@ mod tests {
                 // Pull it on the second side again
                 repositories::pull_remote_branch(
                     &cloned_repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    branch_name,
-                    false,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: branch_name.to_string(),
+                        all: false,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -440,9 +437,12 @@ mod tests {
                 // Pull it on the OG side
                 repositories::pull_remote_branch(
                     &repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    &og_branch.name,
-                    true,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: og_branch.name.to_string(),
+                        all: true,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
@@ -572,13 +572,11 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 // Clone the branch
-                let opts = CloneOpts {
-                    url: remote_repo.url().to_string(),
-                    dst: new_repo_dir.join("new_repo"),
-                    branch: branch_name.to_owned(),
-                    shallow: false,
-                    all: false,
-                };
+                let opts = CloneOpts::from_branch(
+                    remote_repo.url(),
+                    new_repo_dir.join("new_repo"),
+                    branch_name,
+                );
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
@@ -590,7 +588,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 5);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
                 repositories::checkout(&cloned_repo, "main").await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -654,13 +652,8 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 // Clone the branch
-                let opts = CloneOpts {
-                    url: remote_repo.url().to_string(),
-                    dst: new_repo_dir.join("new_repo"),
-                    branch: DEFAULT_BRANCH_NAME.to_string(),
-                    shallow: false,
-                    all: false,
-                };
+                let opts =
+                    CloneOpts::new(remote_repo.url(), new_repo_dir.join("new_repo"));
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
@@ -668,7 +661,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 2);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
 
                 repositories::checkout(&cloned_repo, branch_name).await?;
 
@@ -1355,9 +1348,10 @@ mod tests {
                 let all = false;
                 repositories::pull_remote_branch(
                     &user_a_repo,
-                    DEFAULT_REMOTE_NAME,
-                    DEFAULT_BRANCH_NAME,
-                    all,
+                    &FetchOpts {
+                        all,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
 
@@ -1403,10 +1397,11 @@ mod tests {
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let mut opts = CloneOpts::new(
-                    remote_repo.remote.url.to_owned(),
+                    &remote_repo.remote.url,
                     new_repo_dir.join("new_repo"),
                 );
-                opts.shallow = true;
+                opts.fetch_opts.subtree_path = Some(PathBuf::from("test"));
+                opts.fetch_opts.depth = Some(1);
 
                 // Clone in shallow mode
                 let cloned_repo = repositories::clone(&opts).await?;
