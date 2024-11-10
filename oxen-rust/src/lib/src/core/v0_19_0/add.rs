@@ -364,14 +364,19 @@ pub fn process_add_file(
     let mut previous_oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
-        log::debug!("got existing file_node: {:?}", file_node);
+        log::debug!("got existing file_node: {}", file_node);
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         previous_oxen_metadata = file_node.metadata.clone();
         if has_different_modification_time(file_node, &mtime) {
+            log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {
+                log::debug!(
+                    "has_different_modification_time hash is different true {}",
+                    file_node
+                );
                 (
                     StagedEntryStatus::Modified,
                     MerkleHash::new(hash),
@@ -387,12 +392,24 @@ pub fn process_add_file(
                 )
             }
         } else {
-            (
-                StagedEntryStatus::Unmodified,
-                file_node.hash,
-                file_node.num_bytes,
-                mtime,
-            )
+            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+
+            if file_node.hash.to_u128() != hash {
+                log::debug!("hash is different true {}", file_node);
+                (
+                    StagedEntryStatus::Modified,
+                    MerkleHash::new(hash),
+                    file_node.num_bytes,
+                    mtime,
+                )
+            } else {
+                (
+                    StagedEntryStatus::Unmodified,
+                    MerkleHash::new(hash),
+                    file_node.num_bytes,
+                    mtime,
+                )
+            }
         }
     } else {
         let metadata = std::fs::metadata(path)?;
@@ -405,6 +422,7 @@ pub fn process_add_file(
             mtime,
         )
     };
+    log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
 
     // TODO: Move this out of this function so we don't check for conflicts on every file
     if let Some(_file_node) = &maybe_file_node {

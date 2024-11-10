@@ -1266,11 +1266,17 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 annotations_entry.unwrap().status,
                 DiffEntryStatus::Modified.to_string()
             );
+            println!("CHECK HERE");
+            println!("entries: {entries:?}");
+
+            // Ensure the filename is correct across operating systems
+            let annotations_path = Path::new("annotations").join(Path::new("train"));
+            let annotations_filename = annotations_path.to_str().unwrap();
 
             // Check that "annotations/train" is modified
             let annotations_train_entry = entries
                 .iter()
-                .find(|entry| entry.filename == "annotations/train");
+                .find(|entry| entry.filename == annotations_filename);
             assert!(annotations_train_entry.is_some());
             assert_eq!(
                 annotations_train_entry.unwrap().status,
@@ -1278,9 +1284,17 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             );
 
             // Check that "annotations/train/bounding_box.csv" is removed
+            println!("ROUNT #");
+            println!("entries: {entries:?}");
+
+            let bounding_box_path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
+            let bounding_box_filename = bounding_box_path.to_str().unwrap();
+
             let bounding_box_entry = entries
                 .iter()
-                .find(|entry| entry.filename == "annotations/train/bounding_box.csv");
+                .find(|entry| entry.filename == bounding_box_filename);
             assert!(bounding_box_entry.is_some());
             assert_eq!(
                 bounding_box_entry.unwrap().status,

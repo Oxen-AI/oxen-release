@@ -4,6 +4,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
+use crate::util;
 use crate::view::entries::PaginatedMetadataEntriesResponse;
 use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
@@ -103,6 +104,7 @@ pub async fn index(
     workspace_id: &str,
     path: &Path,
 ) -> Result<StatusMessage, OxenError> {
+    let path = util::fs::linux_path(path);
     put(
         remote_repo,
         workspace_id,
@@ -276,14 +278,16 @@ mod tests {
     #[tokio::test]
     async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let path = Path::new("annotations/train/bounding_box.csv");
+            let path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
             let workspace_id = "some_workspace";
             let workspace =
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
                     .await;
             assert!(workspace.is_ok());
 
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, path).await?;
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
 
             let res = api::client::workspaces::data_frames::list(
                 &remote_repo,
@@ -577,6 +581,11 @@ mod tests {
     */
     #[tokio::test]
     async fn test_update_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            // Skip server side duckdb tests on windows
+            return Ok(());
+        }
+
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 
