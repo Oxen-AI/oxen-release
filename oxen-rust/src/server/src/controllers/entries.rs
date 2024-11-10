@@ -153,6 +153,7 @@ pub async fn list_tabular(
     );
 
     let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
+    log::debug!("list_tabular entries: {:?}", entries);
     let (paginated_entries, pagination) = paginate(entries, page, page_size);
 
     Ok(HttpResponse::Ok().json(PaginatedMetadataEntriesResponse {

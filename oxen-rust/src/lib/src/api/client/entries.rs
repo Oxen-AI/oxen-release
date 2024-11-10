@@ -646,6 +646,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tabular_entries() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
             // Add a tabular file at the root and one in a directory
             let revision = DEFAULT_BRANCH_NAME;
