@@ -350,10 +350,9 @@ pub fn modify_rows_with_polars_df(
             all_params.push(boxed_value);
         }
         set_clauses.push(format!(
-            "{} = CASE {} ELSE {} END",
+            "{} = CASE {} END",
             col_name,
-            case_clauses.join(" "),
-            col_name
+            case_clauses.join(" ")
         ));
     }
 
