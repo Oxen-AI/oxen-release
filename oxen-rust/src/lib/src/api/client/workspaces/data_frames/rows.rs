@@ -5,7 +5,7 @@ use polars::frame::DataFrame;
 use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
-use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
+use crate::view::json_data_frame_view::{JsonDataFrameRowResponse, VecBatchUpdateResponse};
 
 use crate::model::RemoteRepository;
 
@@ -215,6 +215,49 @@ pub async fn restore_row(
         }
         Err(err) => {
             let err = format!("api::staging::update_row Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
+pub async fn batch_update(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+    data: String,
+) -> Result<VecBatchUpdateResponse, OxenError> {
+    let Some(file_path_str) = path.to_str() else {
+        return Err(OxenError::basic_str(format!(
+            "Path must be a string: {:?}",
+            path
+        )));
+    };
+
+    let uri = format!("/workspaces/{workspace_id}/data_frames/rows/resource/{file_path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    match client
+        .put(&url)
+        .header("Content-Type", "application/json")
+        .body(data)
+        .send()
+        .await
+    {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<VecBatchUpdateResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val),
+                Err(err) => {
+                    let err = format!("api::staging::batch_update error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
+        }
+        Err(err) => {
+            let err = format!("api::staging::batch_update Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -781,6 +824,255 @@ mod tests {
                 updated_row_count,
                 "Row count should remain the same after adding empty data"
             );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_batch_update() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            let workspace_id = UserConfig::identifier()?;
+            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                .await?;
+            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            // Retrieve the DataFrame to get row IDs
+            let df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            let df_view = df.data_frame.unwrap().view;
+            let rows = df_view.data.as_array().unwrap();
+
+            // Extract row IDs for the rows you want to update
+            let oxen_id_1 = rows[0]["_oxen_id"].as_str().unwrap();
+            let oxen_id_2 = rows[1]["_oxen_id"].as_str().unwrap();
+
+            // Construct the JSON payload using the extracted row IDs
+            let updates = format!(
+                r#"{{
+                "data": [
+                    {{
+                        "row_id": "{}",
+                        "value": {{
+                            "file": "cfxsx"
+                        }}
+                    }},
+                    {{
+                        "row_id": "{}",
+                        "value": {{
+                            "file": "yfcsx"
+                        }}
+                    }}
+                ]
+            }}"#,
+                oxen_id_1, oxen_id_2
+            );
+
+            // Perform batch update
+            let result = api::client::workspaces::data_frames::rows::batch_update(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                updates.to_string(), // Convert JSON to string for the HTTP request
+            )
+            .await;
+
+            assert!(result.is_ok(), "Batch update failed");
+
+            // Retrieve the DataFrame to check if the rows have been updated
+            let df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            let df_view = df.data_frame.unwrap().view;
+            let updated_rows = df_view.data.as_array().unwrap();
+
+            // Parse the JSON string into a Value
+            let updates_value: Value = serde_json::from_str(&updates).unwrap();
+
+            // Iterate over each update in the JSON array
+            if let Some(data_array) = updates_value.get("data").and_then(|v| v.as_array()) {
+                for update in data_array.iter() {
+                    let row_id = update.get("row_id").and_then(|v| v.as_str()).unwrap();
+                    let expected_file = update
+                        .get("value")
+                        .and_then(|v| v.get("file"))
+                        .and_then(|v| v.as_str())
+                        .unwrap();
+
+                    let is_updated = updated_rows.iter().any(|row| {
+                        let current_row: Value = serde_json::from_value(row.clone()).unwrap();
+                        current_row.get("_oxen_id").and_then(|v| v.as_str()) == Some(row_id)
+                            && current_row.get("file").and_then(|v| v.as_str())
+                                == Some(expected_file)
+                    });
+
+                    assert!(
+                        is_updated,
+                        "The row with ID {} was not updated to file {}",
+                        row_id, expected_file
+                    );
+                }
+            } else {
+                panic!("Expected 'data' to be an array in updates");
+            }
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_batch_update_with_embeddings() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            let workspace_id = UserConfig::identifier()?;
+            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                .await?;
+            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            // Retrieve the DataFrame to get row IDs
+            let df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            let df_view = df.data_frame.unwrap().view;
+            let rows = df_view.data.as_array().unwrap();
+
+            // Extract row IDs for the rows you want to update
+            let oxen_id_1 = rows[0]["_oxen_id"].as_str().unwrap();
+            let oxen_id_2 = rows[1]["_oxen_id"].as_str().unwrap();
+            let oxen_id_3 = rows[2]["_oxen_id"].as_str().unwrap();
+
+            let column_data = r#"{"name": "embedding", "data_type": "list[f64]"}"#;
+
+            api::client::workspaces::data_frames::columns::create(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                column_data.to_string(),
+            )
+            .await?;
+
+            // Construct the JSON payload using the extracted row IDs
+            let updates = format!(
+                r#"{{
+                    "data": [
+                        {{
+                            "row_id": "{}",
+                            "value": {{
+                                "file": "cfxsx",
+                                "embedding": [0.1, 0.2, 0.3]
+                            }}
+                        }},
+                        {{
+                            "row_id": "{}",
+                            "value": {{
+                                "file": "yfcsx",
+                                "embedding": [0.4, 0.5, 0.6]
+                            }}
+                        }},
+                        {{
+                            "row_id": "{}",
+                            "value": {{
+                                "file": "zxcvb",
+                                "embedding": [0.7, 0.8, 0.9]
+                            }}
+                        }}
+                    ]
+                }}"#,
+                oxen_id_1, oxen_id_2, oxen_id_3
+            );
+
+            // Perform batch update
+            let result = api::client::workspaces::data_frames::rows::batch_update(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                updates.to_string(), // Convert JSON to string for the HTTP request
+            )
+            .await;
+
+            assert!(result.is_ok(), "Batch update failed");
+
+            // Retrieve the DataFrame to check if the rows have been updated
+            let df = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            let df_view = df.data_frame.unwrap().view;
+            let updated_rows = df_view.data.as_array().unwrap();
+
+            // Parse the JSON string into a Value
+            let updates_value: Value = serde_json::from_str(&updates).unwrap();
+
+            // Iterate over each update in the JSON array
+            if let Some(data_array) = updates_value.get("data").and_then(|v| v.as_array()) {
+                for update in data_array.iter() {
+                    let row_id = update.get("row_id").and_then(|v| v.as_str()).unwrap();
+                    let expected_file = update
+                        .get("value")
+                        .and_then(|v| v.get("file"))
+                        .and_then(|v| v.as_str())
+                        .unwrap();
+                    let expected_embedding = update
+                        .get("value")
+                        .and_then(|v| v.get("embedding"))
+                        .unwrap();
+
+                    let is_updated = updated_rows.iter().any(|row| {
+                        let current_row: Value = serde_json::from_value(row.clone()).unwrap();
+                        current_row.get("_oxen_id").and_then(|v| v.as_str()) == Some(row_id)
+                            && current_row.get("file").and_then(|v| v.as_str())
+                                == Some(expected_file)
+                            && current_row.get("embedding") == Some(expected_embedding)
+                    });
+
+                    assert!(
+                        is_updated,
+                        "The row with ID {} was not updated to file {} with embedding {:?}",
+                        row_id, expected_file, expected_embedding
+                    );
+                }
+            } else {
+                panic!("Expected 'data' to be an array in updates");
+            }
 
             Ok(remote_repo)
         })

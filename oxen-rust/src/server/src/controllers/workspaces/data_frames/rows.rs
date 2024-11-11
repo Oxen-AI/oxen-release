@@ -10,7 +10,9 @@ use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::repositories;
-use liboxen::view::json_data_frame_view::{BatchUpdateResponse, JsonDataFrameRowResponse};
+use liboxen::view::json_data_frame_view::{
+    BatchUpdateResponse, JsonDataFrameRowResponse, VecBatchUpdateResponse,
+};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 
 pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
@@ -309,5 +311,8 @@ pub async fn batch_update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse
         responses.push(response);
     }
 
-    Ok(HttpResponse::Ok().json(responses))
+    Ok(HttpResponse::Ok().json(VecBatchUpdateResponse {
+        status: StatusMessage::resource_updated(),
+        rows: responses,
+    }))
 }
