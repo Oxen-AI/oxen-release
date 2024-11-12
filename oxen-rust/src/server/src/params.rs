@@ -22,6 +22,9 @@ pub use page_num_query::PageNumVersionQuery;
 pub mod df_opts_query;
 pub use df_opts_query::DFOptsQuery;
 
+pub mod tree_depth;
+pub use tree_depth::TreeDepthQuery;
+
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     log::debug!(
         "Get user agent from app data (app_data) {:?}",

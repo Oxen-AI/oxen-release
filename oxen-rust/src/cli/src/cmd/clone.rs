@@ -36,7 +36,7 @@ impl RunCmd for CloneCmd {
             .arg(
                 Arg::new("depth")
                     .long("depth")
-                    .help("Used in combination with --subtree. The depth at which to clone the subtree")
+                    .help("Used in combination with --subtree. The depth at which to clone the subtree. If not provided, the entire subtree will be cloned.")
                     .action(clap::ArgAction::Set),
             )
             .arg(
@@ -64,7 +64,7 @@ impl RunCmd for CloneCmd {
             .get_one::<String>("branch")
             .expect("Must supply a branch");
         let subtree: Option<PathBuf> = args.get_one::<String>("subtree").map(PathBuf::from);
-        let depth: Option<u32> = args.get_one::<u32>("depth").copied();
+        let depth: Option<i32> = args.get_one::<i32>("depth").copied();
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
         // Get the name of the repo from the url

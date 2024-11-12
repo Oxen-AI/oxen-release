@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::api;
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core;
 use crate::core::refs::RefWriter;
@@ -13,6 +12,7 @@ use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNodeWithDir, MerkleTr
 use crate::model::{Branch, Commit, CommitEntry};
 use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
 use crate::repositories;
+use crate::{api, util};
 
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
@@ -21,13 +21,14 @@ use crate::opts::fetch_opts::FetchOpts;
 pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    remote_branch: &RemoteBranch,
     fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
     log::debug!(
-        "fetching remote branch {} --all {}",
-        remote_branch.branch,
-        fetch_opts.all
+        "fetching remote branch {} --all {} --subtree {:?} --depth {:?}",
+        fetch_opts.branch,
+        fetch_opts.all,
+        fetch_opts.subtree_path,
+        fetch_opts.depth,
     );
 
     // Start the timer
@@ -35,18 +36,20 @@ pub async fn fetch_remote_branch(
 
     // Keep track of how many bytes we have downloaded
     let pull_progress = Arc::new(PullProgress::new());
-    pull_progress.set_message(format!("Fetching remote branch {}", remote_branch.branch));
+    pull_progress.set_message(format!("Fetching remote branch {}", fetch_opts.branch));
 
     // Find the head commit on the remote branch
     let Some(remote_branch) =
-        api::client::branches::get_by_name(remote_repo, &remote_branch.branch).await?
+        api::client::branches::get_by_name(remote_repo, &fetch_opts.branch).await?
     else {
-        return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
+        return Err(OxenError::remote_branch_not_found(&fetch_opts.branch));
     };
 
-    // Download the nodes from the commits between the head and the remote head
-    let repo_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    // We may not have a head commit if the repo is empty (initial clone)
     if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
+        log::debug!("Head commit: {}", head_commit);
+        log::debug!("Remote branch commit: {}", remote_branch.commit_id);
+        // If the head commit is the same as the remote branch commit, we are up to date
         if head_commit.id == remote_branch.commit_id {
             println!("Repository is up to date.");
             let ref_writer = RefWriter::new(repo)?;
@@ -54,52 +57,28 @@ pub async fn fetch_remote_branch(
             return Ok(());
         }
 
-        // If head is not on the remote server, that means we are ahead of the remote branch
-        if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
-            pull_progress.set_message(format!(
-                "Downloading commits from {} to {}",
-                head_commit.id, remote_branch.commit_id
-            ));
-            api::client::tree::download_trees_between(
-                repo,
-                remote_repo,
-                &head_commit.id,
-                &remote_branch.commit_id,
-            )
-            .await?;
-            api::client::commits::download_base_head_dir_hashes(
-                remote_repo,
-                &remote_branch.commit_id,
-                &head_commit.id,
-                &repo_hidden_dir,
-            )
-            .await?;
-        } else {
-            // If there is no head commit, we are fetching all commits from the remote branch commit
-            pull_progress.set_message(format!(
-                "Downloading commits from {}",
-                remote_branch.commit_id
-            ));
-            api::client::tree::download_trees_from(repo, remote_repo, &remote_branch.commit_id)
-                .await?;
-            api::client::commits::download_dir_hashes_from_commit(
-                remote_repo,
-                &remote_branch.commit_id,
-                &repo_hidden_dir,
-            )
-            .await?;
-        }
+        // Download the nodes from the commits between the head and the remote head
+        sync_from_head(
+            repo,
+            remote_repo,
+            fetch_opts,
+            &remote_branch,
+            &head_commit,
+            &pull_progress,
+        )
+        .await?;
     } else {
         // If there is no head commit, we are fetching all commits from the remote branch commit
-        pull_progress.set_message(format!(
-            "Downloading commits from {}",
+        log::debug!(
+            "Fetching all commits from remote branch {}",
             remote_branch.commit_id
-        ));
-        api::client::tree::download_trees_from(repo, remote_repo, &remote_branch.commit_id).await?;
-        api::client::commits::download_dir_hashes_from_commit(
+        );
+        sync_tree_from_commit(
+            repo,
             remote_repo,
             &remote_branch.commit_id,
-            &repo_hidden_dir,
+            fetch_opts,
+            &pull_progress,
         )
         .await?;
     }
@@ -110,11 +89,13 @@ pub async fn fetch_remote_branch(
         repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?
     } else {
         let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
-        let commit_node = CommitMerkleTree::read_node(repo, &hash, true)?.unwrap();
+        let recurse = false;
+        let commit_node = CommitMerkleTree::read_node(repo, &hash, recurse)?.unwrap();
         HashSet::from([commit_node.commit()?.to_commit()])
     };
 
-    let missing_entries = collect_missing_entries(repo, &commits)?;
+    let missing_entries =
+        collect_missing_entries(repo, &commits, &fetch_opts.subtree_path, &fetch_opts.depth)?;
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
     pull_progress.finish();
     let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();
@@ -160,13 +141,83 @@ pub async fn fetch_remote_branch(
     Ok(())
 }
 
+async fn sync_from_head(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    fetch_opts: &FetchOpts,
+    branch: &Branch,
+    head_commit: &Commit,
+    pull_progress: &Arc<PullProgress>,
+) -> Result<(), OxenError> {
+    let repo_hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+
+    // If HEAD commit is not on the remote server, that means we are ahead of the remote branch
+    if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
+        pull_progress.set_message(format!(
+            "Downloading commits from {} to {}",
+            head_commit.id, branch.commit_id
+        ));
+        api::client::tree::download_trees_between(
+            repo,
+            remote_repo,
+            &head_commit.id,
+            &branch.commit_id,
+            fetch_opts,
+        )
+        .await?;
+        api::client::commits::download_base_head_dir_hashes(
+            remote_repo,
+            &branch.commit_id,
+            &head_commit.id,
+            &repo_hidden_dir,
+        )
+        .await?;
+    } else {
+        // If the node does not exist on the remote server,
+        // we need to sync all the commits from the commit id and their parents
+        sync_tree_from_commit(
+            repo,
+            remote_repo,
+            &branch.commit_id,
+            fetch_opts,
+            pull_progress,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+// Sync all the commits from the commit (and their parents)
+async fn sync_tree_from_commit(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_id: impl AsRef<str>,
+    fetch_opts: &FetchOpts,
+    pull_progress: &Arc<PullProgress>,
+) -> Result<(), OxenError> {
+    let repo_hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+
+    pull_progress.set_message(format!("Downloading commits from {}", commit_id.as_ref()));
+    api::client::tree::download_trees_from(repo, remote_repo, &commit_id.as_ref(), fetch_opts)
+        .await?;
+    api::client::commits::download_dir_hashes_from_commit(
+        remote_repo,
+        commit_id.as_ref(),
+        &repo_hidden_dir,
+    )
+    .await?;
+    Ok(())
+}
+
 fn collect_missing_entries(
     repo: &LocalRepository,
     commits: &HashSet<Commit>,
+    subtree: &Option<PathBuf>,
+    depth: &Option<i32>,
 ) -> Result<HashSet<Entry>, OxenError> {
     let mut missing_entries: HashSet<Entry> = HashSet::new();
     for commit in commits {
-        let tree = CommitMerkleTree::from_commit(repo, commit)?;
+        let tree = repositories::tree::get_subtree_by_depth(repo, commit, subtree, depth)?;
 
         let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(&tree)?;
         for file in files {

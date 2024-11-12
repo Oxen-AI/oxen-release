@@ -80,6 +80,51 @@ pub fn get_dir_with_children_recursive(
     CommitMerkleTree::dir_with_children_recursive(repo, commit, path)
 }
 
+/// Helper function where you can pass in Optional depth and Optional path and get a tree
+/// If depth is None, it will default to -1 which means the entire subtree
+/// If path is None, it will default to the root
+/// Otherwise it will get the subtree at the given path with the given depth
+pub fn get_subtree_by_depth(
+    repo: &LocalRepository,
+    commit: &Commit,
+    maybe_subtree: &Option<PathBuf>,
+    maybe_depth: &Option<i32>,
+) -> Result<CommitMerkleTree, OxenError> {
+    match (maybe_subtree, maybe_depth) {
+        (Some(subtree), Some(depth)) => {
+            log::debug!(
+                "Getting subtree {:?} with depth {} for commit {}",
+                subtree,
+                depth,
+                commit
+            );
+            get_subtree(repo, commit, subtree, *depth)
+        }
+        (Some(subtree), None) => {
+            // If the depth is not provided, we default to -1 which means the entire subtree
+            log::debug!(
+                "Getting subtree {:?} for commit {} with depth -1",
+                subtree,
+                commit
+            );
+            get_subtree(repo, commit, subtree, -1)
+        }
+        _ => {
+            log::debug!("Getting full tree for commit {}", commit);
+            get_by_commit(repo, commit)
+        }
+    }
+}
+
+pub fn get_subtree(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+    depth: i32,
+) -> Result<CommitMerkleTree, OxenError> {
+    CommitMerkleTree::from_path_depth(repo, commit, path, depth)
+}
+
 pub fn get_entries(
     repo: &LocalRepository,
     commit: &Commit,

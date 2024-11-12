@@ -330,6 +330,23 @@ pub async fn checkout_branch_from_commit(
     }
 }
 
+/// Checkout a subtree from a commit
+pub async fn checkout_subtree_from_commit(
+    repo: &LocalRepository,
+    from_commit: &Commit,
+    subtree_path: impl AsRef<Path>,
+    depth: i32,
+) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::branches::checkout_subtree(repo, from_commit, subtree_path, depth).await
+        }
+    }
+}
+
 /// Checkout a commit
 pub async fn checkout_commit_from_commit(
     repo: &LocalRepository,

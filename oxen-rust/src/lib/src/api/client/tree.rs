@@ -13,6 +13,7 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
+use crate::opts::fetch_opts::FetchOpts;
 use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, repositories, util};
@@ -215,9 +216,10 @@ pub async fn download_trees_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: impl AsRef<str>,
+    fetch_opts: &FetchOpts,
 ) -> Result<Vec<Commit>, OxenError> {
     let commit_id = commit_id.as_ref();
-    let uri = format!("/tree/download/{commit_id}");
+    let uri = append_fetch_opts_to_uri(format!("/tree/download/{commit_id}"), fetch_opts);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("downloading trees {} from {}", commit_id, url);
@@ -232,16 +234,34 @@ pub async fn download_trees_from(
     Ok(commits)
 }
 
+fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
+    let mut uri = uri;
+    if let Some(depth) = &fetch_opts.depth {
+        uri = format!("{uri}?depth={depth}");
+    }
+    if let Some(subtree) = &fetch_opts.subtree_path {
+        if !uri.contains("?depth=") {
+            uri = format!("{uri}?");
+        } else {
+            uri = format!("{uri}&");
+        }
+        let subtree_str = subtree.display().to_string();
+        uri = format!("{uri}subtree={subtree_str}");
+    }
+    uri
+}
+
 pub async fn download_trees_between(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     base_id: impl AsRef<str>,
     head_id: impl AsRef<str>,
+    fetch_opts: &FetchOpts,
 ) -> Result<Vec<Commit>, OxenError> {
     let base_id = base_id.as_ref();
     let head_id = head_id.as_ref();
     let base_head = format!("{base_id}..{head_id}");
-    let uri = format!("/tree/download/{base_head}");
+    let uri = append_fetch_opts_to_uri(format!("/tree/download/{base_head}"), fetch_opts);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("downloading trees {} from {}", base_head, url);
