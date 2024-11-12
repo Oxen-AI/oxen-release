@@ -223,6 +223,7 @@ where
     log::info!("<<<<< run_empty_local_repo_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
+    let new_repo_dir = repo_dir.parent().unwrap().join("forked");
 
     log::info!(">>>>> run_empty_local_repo_test running test");
     let result = std::panic::catch_unwind(|| match test(repo) {
@@ -232,6 +233,10 @@ where
         }
     });
 
+    // Remove forked dir
+    if new_repo_dir.exists() {
+        std::fs::remove_dir_all(&new_repo_dir)?;
+    }
     // Remove repo dir
     util::fs::remove_dir_all(&repo_dir)?;
 
