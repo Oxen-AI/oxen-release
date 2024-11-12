@@ -75,7 +75,10 @@ impl CommitMerkleTree {
         path: impl AsRef<Path>,
         depth: i32,
     ) -> Result<Self, OxenError> {
-        let node_path = path.as_ref();
+        let mut node_path = path.as_ref().to_path_buf();
+        if node_path == PathBuf::from(".") {
+            node_path = PathBuf::from("");
+        }
         log::debug!(
             "Read path {:?} in commit {:?} depth: {}",
             node_path,
@@ -83,7 +86,7 @@ impl CommitMerkleTree {
             depth
         );
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        let Some(node_hash) = dir_hashes.get(node_path).cloned() else {
+        let Some(node_hash) = dir_hashes.get(&node_path).cloned() else {
             log::debug!(
                 "dir_hashes {:?} does not contain path: {:?}",
                 dir_hashes,

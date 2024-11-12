@@ -41,6 +41,8 @@ pub async fn clone_repo(
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
         min_version: Some(remote_repo.min_version().to_string()),
+        subtree_paths: None,
+        depth: None,
         vnode_size: None,
     };
 

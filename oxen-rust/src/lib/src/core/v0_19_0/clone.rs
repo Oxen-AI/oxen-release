@@ -12,6 +12,7 @@ pub async fn clone_repo(
     remote_repo: RemoteRepository,
     opts: &CloneOpts,
 ) -> Result<LocalRepository, OxenError> {
+    // Notify the server that we are starting a clone
     api::client::repositories::pre_clone(&remote_repo).await?;
 
     // if directory already exists -> return Err
@@ -41,6 +42,8 @@ pub async fn clone_repo(
         remotes: vec![remote_repo.remote.clone()],
         min_version: Some(remote_repo.min_version().to_string()),
         vnode_size: Some(DEFAULT_VNODE_SIZE),
+        subtree_paths: opts.fetch_opts.subtree_paths.clone(),
+        depth: opts.fetch_opts.depth,
     };
 
     let toml = toml::to_string(&remote_cfg)?;
@@ -52,6 +55,9 @@ pub async fn clone_repo(
     }
 
     repositories::pull::pull_remote_branch(&local_repo, &opts.fetch_opts).await?;
+
+    // Notify the server that we are done cloning
+    api::client::repositories::post_clone(&remote_repo).await?;
 
     Ok(local_repo)
 }

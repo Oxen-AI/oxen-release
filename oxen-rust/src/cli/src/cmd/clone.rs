@@ -68,7 +68,9 @@ impl RunCmd for CloneCmd {
             .unwrap_or_default()
             .map(PathBuf::from)
             .collect();
-        let depth: Option<i32> = args.get_one::<i32>("depth").copied();
+        let depth: Option<i32> = args
+            .get_one::<String>("depth")
+            .map(|s| s.parse().expect("Invalid depth, must be an integer"));
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
         // Get the name of the repo from the url
@@ -80,11 +82,7 @@ impl RunCmd for CloneCmd {
             dst,
             fetch_opts: FetchOpts {
                 branch: branch.to_string(),
-                subtree_paths: if filters.is_empty() {
-                    None
-                } else {
-                    Some(filters)
-                },
+                subtree_paths: filters_to_subtree_paths(&filters, depth),
                 depth,
                 all,
                 ..FetchOpts::new()
@@ -97,5 +95,18 @@ impl RunCmd for CloneCmd {
 
         repositories::clone(&opts).await?;
         Ok(())
+    }
+}
+
+fn filters_to_subtree_paths(filters: &[PathBuf], depth: Option<i32>) -> Option<Vec<PathBuf>> {
+    if filters.is_empty() {
+        if depth.is_some() {
+            // If the user specifies a depth, default to the root
+            Some(vec![PathBuf::from(".")])
+        } else {
+            None
+        }
+    } else {
+        Some(filters.to_vec())
     }
 }

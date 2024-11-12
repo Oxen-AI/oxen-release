@@ -252,7 +252,7 @@ fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
             .join(",");
         // uri encode the subtree paths
         let subtree_str = urlencoding::encode(&subtree_str);
-        uri = format!("{uri}subtree={subtree_str}");
+        uri = format!("{uri}subtrees={subtree_str}");
     }
     uri
 }
