@@ -9,7 +9,7 @@ pub struct FetchOpts {
     // The branch to clone
     pub branch: String,
     // If you only want to clone a subdirectory / tree, you can specify it here
-    pub subtree_path: Option<PathBuf>,
+    pub subtree_paths: Option<Vec<PathBuf>>,
     // The depth at which to clone the subtree.
     pub depth: Option<i32>,
     // If true, recursively clones the whole repository history
@@ -29,7 +29,7 @@ impl FetchOpts {
         FetchOpts {
             remote: DEFAULT_REMOTE_NAME.to_string(),
             branch: DEFAULT_BRANCH_NAME.to_string(),
-            subtree_path: None,
+            subtree_paths: None,
             depth: None,
             all: false,
         }

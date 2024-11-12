@@ -27,7 +27,7 @@ pub async fn fetch_remote_branch(
         "fetching remote branch {} --all {} --subtree {:?} --depth {:?}",
         fetch_opts.branch,
         fetch_opts.all,
-        fetch_opts.subtree_path,
+        fetch_opts.subtree_paths,
         fetch_opts.depth,
     );
 
@@ -95,7 +95,7 @@ pub async fn fetch_remote_branch(
     };
 
     let missing_entries =
-        collect_missing_entries(repo, &commits, &fetch_opts.subtree_path, &fetch_opts.depth)?;
+        collect_missing_entries(repo, &commits, &fetch_opts.subtree_paths, &fetch_opts.depth)?;
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
     pull_progress.finish();
     let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();
@@ -212,26 +212,45 @@ async fn sync_tree_from_commit(
 fn collect_missing_entries(
     repo: &LocalRepository,
     commits: &HashSet<Commit>,
-    subtree: &Option<PathBuf>,
+    subtree_paths: &Option<Vec<PathBuf>>,
     depth: &Option<i32>,
 ) -> Result<HashSet<Entry>, OxenError> {
     let mut missing_entries: HashSet<Entry> = HashSet::new();
     for commit in commits {
-        let tree = repositories::tree::get_subtree_by_depth(repo, commit, subtree, depth)?;
-
-        let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(&tree)?;
-        for file in files {
-            missing_entries.insert(Entry::CommitEntry(CommitEntry {
-                commit_id: file.file_node.last_commit_id.to_string(),
-                path: file.dir.join(&file.file_node.name),
-                hash: file.file_node.hash.to_string(),
-                num_bytes: file.file_node.num_bytes,
-                last_modified_seconds: file.file_node.last_modified_seconds,
-                last_modified_nanoseconds: file.file_node.last_modified_nanoseconds,
-            }));
+        if let Some(subtree_paths) = subtree_paths {
+            for subtree_path in subtree_paths {
+                let tree = repositories::tree::get_subtree_by_depth(
+                    repo,
+                    commit,
+                    &Some(subtree_path.clone()),
+                    depth,
+                )?;
+                collect_missing_entries_for_subtree(&tree, &mut missing_entries)?;
+            }
+        } else {
+            let tree = repositories::tree::get_subtree_by_depth(repo, commit, &None, depth)?;
+            collect_missing_entries_for_subtree(&tree, &mut missing_entries)?;
         }
     }
     Ok(missing_entries)
+}
+
+fn collect_missing_entries_for_subtree(
+    tree: &CommitMerkleTree,
+    missing_entries: &mut HashSet<Entry>,
+) -> Result<(), OxenError> {
+    let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(tree)?;
+    for file in files {
+        missing_entries.insert(Entry::CommitEntry(CommitEntry {
+            commit_id: file.file_node.last_commit_id.to_string(),
+            path: file.dir.join(&file.file_node.name),
+            hash: file.file_node.hash.to_string(),
+            num_bytes: file.file_node.num_bytes,
+            last_modified_seconds: file.file_node.last_modified_seconds,
+            last_modified_nanoseconds: file.file_node.last_modified_nanoseconds,
+        }));
+    }
+    Ok(())
 }
 
 pub async fn fetch_tree_and_hashes_for_commit_id(

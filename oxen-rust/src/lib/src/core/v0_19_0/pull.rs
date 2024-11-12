@@ -95,12 +95,12 @@ pub async fn pull_remote_branch(
         }
     }
 
-    if let Some(subtree_path) = &fetch_opts.subtree_path {
+    if let Some(subtree_paths) = &fetch_opts.subtree_paths {
         let depth = fetch_opts.depth.unwrap_or(-1);
-        repositories::branches::checkout_subtree_from_commit(
+        repositories::branches::checkout_subtrees_from_commit(
             repo,
             &new_head_commit,
-            subtree_path,
+            subtree_paths,
             depth,
         )
         .await?;

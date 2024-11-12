@@ -28,10 +28,10 @@ impl RunCmd for CloneCmd {
             .arg_required_else_help(true)
             .arg(arg!(<URL> "URL of the repository you want to clone"))
             .arg(
-                Arg::new("directory")
-                    .long("directory")
-                    .help("Clone a subtree of the repository. Useful if you have a large repository and only want to make changes to a specific directory.")
-                    .action(clap::ArgAction::Set),
+                Arg::new("filter")
+                    .long("filter")
+                    .help("Filter down the set of directories you want to clone. Useful if you have a large repository and only want to make changes to a specific subset of files.")
+                    .action(clap::ArgAction::Append),
             )
             .arg(
                 Arg::new("depth")
@@ -63,7 +63,11 @@ impl RunCmd for CloneCmd {
         let branch = args
             .get_one::<String>("branch")
             .expect("Must supply a branch");
-        let subtree: Option<PathBuf> = args.get_one::<String>("directory").map(PathBuf::from);
+        let filters: Vec<PathBuf> = args
+            .get_many::<String>("filter")
+            .unwrap_or_default()
+            .map(PathBuf::from)
+            .collect();
         let depth: Option<i32> = args.get_one::<i32>("depth").copied();
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
@@ -76,7 +80,11 @@ impl RunCmd for CloneCmd {
             dst,
             fetch_opts: FetchOpts {
                 branch: branch.to_string(),
-                subtree_path: subtree,
+                subtree_paths: if filters.is_empty() {
+                    None
+                } else {
+                    Some(filters)
+                },
                 depth,
                 all,
                 ..FetchOpts::new()

@@ -3,7 +3,7 @@
 //! Interact with Oxen branches.
 //!
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::refs::{RefReader, RefWriter};
@@ -331,10 +331,10 @@ pub async fn checkout_branch_from_commit(
 }
 
 /// Checkout a subtree from a commit
-pub async fn checkout_subtree_from_commit(
+pub async fn checkout_subtrees_from_commit(
     repo: &LocalRepository,
     from_commit: &Commit,
-    subtree_path: impl AsRef<Path>,
+    subtree_paths: &[PathBuf],
     depth: i32,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
@@ -342,7 +342,8 @@ pub async fn checkout_subtree_from_commit(
             panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_subtree(repo, from_commit, subtree_path, depth).await
+            core::v0_19_0::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
+                .await
         }
     }
 }
