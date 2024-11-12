@@ -31,7 +31,7 @@ impl RunCmd for CloneCmd {
                 Arg::new("subtree")
                     .long("subtree")
                     .help("Clone a subtree of the repository. Useful if you have a large repository and only want to make changes to a specific directory.")
-                    .action(clap::ArgAction::SetTrue),
+                    .action(clap::ArgAction::Set),
             )
             .arg(
                 Arg::new("depth")
