@@ -135,6 +135,14 @@ impl LocalRepository {
         self.vnode_size = Some(size);
     }
 
+    pub fn subtree_paths(&self) -> Option<Vec<PathBuf>> {
+        self.subtree_paths.clone()
+    }
+
+    pub fn depth(&self) -> Option<i32> {
+        self.depth
+    }
+
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let cfg = RepositoryConfig {
             remote_name: self.remote_name.clone(),

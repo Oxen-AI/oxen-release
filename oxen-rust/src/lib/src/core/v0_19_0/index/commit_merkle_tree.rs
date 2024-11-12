@@ -291,10 +291,8 @@ impl CommitMerkleTree {
             };
             // log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 2)? else {
-                return Err(OxenError::basic_str(format!(
-                    "Merkle tree hash not found for parent: {:?}",
-                    path
-                )));
+                log::warn!("Merkle tree hash not found for parent: {:?}", path);
+                continue;
             };
             nodes.insert(path.clone(), node);
         }
