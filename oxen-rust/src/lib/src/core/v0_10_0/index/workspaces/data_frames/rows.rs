@@ -341,7 +341,7 @@ pub fn batch_update(
                     .ok_or_else(|| OxenError::basic_str("Missing value"))?;
 
                 match update(workspace, path, &row_id, value) {
-                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, data_frame)),
+                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, Some(data_frame))),
                     Err(e) => Ok(UpdateResult::Error(row_id, e)),
                 }
             })

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use duckdb::arrow::array::RecordBatch;
@@ -122,6 +123,86 @@ pub fn modify_row(
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
+    Ok(result)
+}
+
+pub fn modify_rows(
+    conn: &duckdb::Connection,
+    row_map: HashMap<String, DataFrame>,
+) -> Result<DataFrame, OxenError> {
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let out_schema = full_staged_table_schema(conn)?;
+
+    let mut update_map: HashMap<String, DataFrame> = HashMap::new();
+
+    // Filter it down to exclude any of the OXEN_COLS, we don't want to modify these but hub sends them over
+    for (row_id, df) in row_map.iter() {
+        if df.height() != 1 {
+            return Err(OxenError::basic_str(
+                "df must have exactly one row to be used for modification",
+            ));
+        }
+        let schema = df.schema();
+        let df_col_names: Vec<String> = schema.iter_names().map(|s| s.to_string()).collect();
+        let df_cols: Vec<String> = df_col_names
+            .clone()
+            .into_iter()
+            .filter(|col| !OXEN_COLS.contains(&col.as_str()))
+            .collect();
+        let df = df.select(&df_cols)?;
+        if !table_schema.has_field_names(&df_cols) {
+            log::error!(
+                "modify_row incompatible_schemas {:?}\n{:?}",
+                table_schema,
+                df_cols
+            );
+            return Err(OxenError::incompatible_schemas(table_schema));
+        }
+
+        // get existing hash and status from db
+        let select_hash = Select::new()
+            .select("*")
+            .from(TABLE_NAME)
+            .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, row_id));
+        let maybe_db_data = df_db::select(conn, &select_hash, true, None, None)?;
+
+        let mut new_row = maybe_db_data.clone().to_owned();
+        for col in df.get_columns() {
+            // Replace that column in the existing df if it exists
+            let col_name = col.name();
+            let new_val = df.column(col_name)?.get(0)?;
+            new_row.with_column(Series::new(PlSmallStr::from_str(col_name), vec![new_val]))?;
+        }
+
+        // TODO could use a struct to return these more safely
+        let (insert_hash, updated_status) =
+            get_hash_and_status_for_modification(conn, &maybe_db_data, &new_row)?;
+
+        // TODO: Find a better way to do this than overwriting the entire column here.
+        new_row.with_column(Series::new(
+            PlSmallStr::from_str(DIFF_STATUS_COL),
+            vec![updated_status],
+        ))?;
+        new_row.with_column(Series::new(
+            PlSmallStr::from_str(DIFF_HASH_COL),
+            vec![insert_hash],
+        ))?;
+        update_map.insert(row_id.to_owned(), new_row);
+    }
+
+    let result = df_db::modify_rows_with_polars_df(conn, TABLE_NAME, &update_map, &out_schema)?;
+    if result.height() == 0 {
+        return Err(OxenError::resource_not_found(""));
+    }
+
+    if result.height() != update_map.len() {
+        return Err(OxenError::basic_str(format!(
+            "Expected {} rows to be modified, but got {}",
+            update_map.len(),
+            result.height()
+        )));
+    }
+
     Ok(result)
 }
 
