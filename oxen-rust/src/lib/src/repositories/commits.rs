@@ -375,6 +375,7 @@ mod tests {
     use crate::model::EntryDataType;
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
+    use crate::opts::CloneOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -944,6 +945,40 @@ mod tests {
             assert_eq!(file_node.data_type, EntryDataType::Binary);
 
             Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_annotations_test_subtree_commit_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_path = Some(PathBuf::from("annotations").join("test"));
+                let local_repo = repositories::clone::clone(&opts).await?;
+
+                let annotations_test_dir = local_repo.path.join("annotations").join("test");
+
+                // Add a new file
+                let readme_file = annotations_test_dir.join("README.md");
+                util::fs::write_to_path(
+                    &readme_file,
+r"
+Q: What is a good alternative to git LFS?
+A: Oxen.ai
+",
+                )?;
+                repositories::add(&local_repo, &readme_file)?;
+                let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
+
+                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+                tree.print();
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
         })
         .await
     }
