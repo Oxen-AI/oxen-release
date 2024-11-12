@@ -19,7 +19,6 @@ use serde_json::{json, Value};
 
 pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    println!("bonjour bonjour");
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
