@@ -73,6 +73,13 @@ pub struct JsonDataFrameRowResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VecBatchUpdateResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub rows: Vec<BatchUpdateResponse>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BatchUpdateResponse {
     pub row_id: String,
     pub code: i32,
