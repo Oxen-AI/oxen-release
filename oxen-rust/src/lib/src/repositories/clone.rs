@@ -37,7 +37,7 @@ pub async fn shallow_clone_url(
 ) -> Result<LocalRepository, OxenError> {
     let fetch_opts = FetchOpts {
         all: false,
-        subtree_path: Some(PathBuf::from("")),
+        subtree_paths: Some(vec![PathBuf::from("")]),
         depth: Some(0),
         ..FetchOpts::new()
     };
@@ -74,7 +74,7 @@ async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenE
         "clone_remote {} -> {:?} -> subtree? {:?} -> depth? {:?} -> all? {}",
         opts.url,
         opts.dst,
-        opts.fetch_opts.subtree_path,
+        opts.fetch_opts.subtree_paths,
         opts.fetch_opts.depth,
         opts.fetch_opts.all
     );
@@ -186,7 +186,7 @@ mod tests {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from(""));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("")]);
                 opts.fetch_opts.depth = Some(1);
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
@@ -215,7 +215,7 @@ mod tests {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from("annotations"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("annotations")]);
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
                 assert!(local_repo.path.join("annotations").exists());
@@ -255,10 +255,43 @@ mod tests {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from("annotations").join("test"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
                 assert!(local_repo.path.join("annotations").join("test").exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("test")
+                    .join("annotations.csv")
+                    .exists());
+                assert!(!local_repo.path.join("annotations").join("train").exists());
+                assert!(!local_repo.path.join("train").exists());
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_multiple_subtrees() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![
+                        PathBuf::from("annotations").join("test"),
+                        PathBuf::from("nlp"),
+                    ]);
+                let local_repo = clone_remote(&opts).await?.unwrap();
+
+                assert!(local_repo.path.join("annotations").join("test").exists());
+                assert!(local_repo.path.join("nlp").exists());
                 assert!(local_repo
                     .path
                     .join("annotations")

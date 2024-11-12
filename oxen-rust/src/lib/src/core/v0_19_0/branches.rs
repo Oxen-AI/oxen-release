@@ -9,7 +9,7 @@ use crate::repositories;
 use crate::util;
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 struct CheckoutProgressBar {
@@ -130,30 +130,31 @@ pub async fn checkout(
     Ok(())
 }
 
-pub async fn checkout_subtree(
+pub async fn checkout_subtrees(
     repo: &LocalRepository,
     from_commit: &Commit,
-    subtree_path: impl AsRef<Path>,
+    subtree_paths: &[PathBuf],
     depth: i32,
 ) -> Result<(), OxenError> {
-    let subtree_path = subtree_path.as_ref();
-    let target_tree = repositories::tree::get_subtree_by_depth(
-        repo,
-        from_commit,
-        &Some(subtree_path.to_path_buf()),
-        &Some(depth),
-    )?;
+    for subtree_path in subtree_paths {
+        let target_tree = repositories::tree::get_subtree_by_depth(
+            repo,
+            from_commit,
+            &Some(subtree_path.to_path_buf()),
+            &Some(depth),
+        )?;
 
-    let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
-    let from_tree = None;
-    let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
-    r_restore_missing_or_modified_files(
-        repo,
-        &target_tree.root,
-        &from_tree,
-        parent_path,
-        &mut progress,
-    )?;
+        let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
+        let from_tree = None;
+        let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
+        r_restore_missing_or_modified_files(
+            repo,
+            &target_tree.root,
+            &from_tree,
+            parent_path,
+            &mut progress,
+        )?;
+    }
 
     Ok(())
 }

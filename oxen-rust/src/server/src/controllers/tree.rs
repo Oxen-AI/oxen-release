@@ -221,8 +221,8 @@ pub async fn download_tree_nodes(
 
     log::debug!("download_tree_nodes for base_head: {}", base_head_str);
     log::debug!(
-        "download_tree_nodes subtree: {:?}, depth: {:?}",
-        query.subtree,
+        "download_tree_nodes subtree_paths: {:?}, depth: {:?}",
+        query.subtree_paths,
         query.depth
     );
 
@@ -236,7 +236,7 @@ pub async fn download_tree_nodes(
         &repository,
         &base_commit,
         maybe_head_commit_id,
-        &query.subtree,
+        &query.subtree_paths,
     )?;
 
     // zip up the node directories for each commit tree
@@ -245,7 +245,7 @@ pub async fn download_tree_nodes(
 
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
-        get_unique_node_hashes(&repository, &commits, &query.subtree, &query.depth)?;
+        get_unique_node_hashes(&repository, &commits, &query.subtree_paths, &query.depth)?;
 
     for hash in unique_node_hashes {
         // This will be the subdir within the tarball
@@ -277,7 +277,7 @@ fn get_commit_list(
     repository: &LocalRepository,
     base_commit: &Commit,
     maybe_head_commit_id: Option<String>,
-    maybe_subtree: &Option<PathBuf>,
+    maybe_subtree_paths: &Option<Vec<PathBuf>>,
 ) -> Result<Vec<Commit>, OxenError> {
     // If we have a head commit, then we are downloading a range of commits
     // Otherwise, we are downloading all commits from the base commit back to the first commit
@@ -289,7 +289,7 @@ fn get_commit_list(
         repositories::commits::list_between(repository, &head_commit, base_commit)?
     } else {
         // If the subtree is specified, we only want to get the latest commit
-        if maybe_subtree.is_some() {
+        if maybe_subtree_paths.is_some() {
             vec![base_commit.clone()]
         } else {
             repositories::commits::list_from(repository, &base_commit.id)?
@@ -302,29 +302,52 @@ fn get_commit_list(
 fn get_unique_node_hashes(
     repository: &LocalRepository,
     commits: &[Commit],
-    maybe_subtree: &Option<PathBuf>,
+    maybe_subtree_paths: &Option<Vec<PathBuf>>,
     maybe_depth: &Option<i32>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     // Collect the unique node hashes for all the commits
     // There could be duplicate nodes across commits, hence the need to dedup
     let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
     for commit in commits {
-        let tree = repositories::tree::get_subtree_by_depth(
-            repository,
-            commit,
-            maybe_subtree,
-            maybe_depth,
-        )?;
-
-        tree.walk_tree_without_leaves(|node| {
-            unique_node_hashes.insert(node.hash);
-        });
-
+        if let Some(subtree_paths) = maybe_subtree_paths {
+            for subtree_path in subtree_paths {
+                get_unique_node_hashes_for_subtree(
+                    repository,
+                    commit,
+                    &Some(subtree_path.clone()),
+                    maybe_depth,
+                    &mut unique_node_hashes,
+                )?;
+            }
+        } else {
+            get_unique_node_hashes_for_subtree(
+                repository,
+                commit,
+                &None,
+                maybe_depth,
+                &mut unique_node_hashes,
+            )?;
+        }
         // Add the commit hash itself
         unique_node_hashes.insert(commit.hash()?);
     }
 
     Ok(unique_node_hashes)
+}
+
+fn get_unique_node_hashes_for_subtree(
+    repository: &LocalRepository,
+    commit: &Commit,
+    subtree_path: &Option<PathBuf>,
+    depth: &Option<i32>,
+    unique_node_hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    let tree = repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)?;
+    tree.walk_tree_without_leaves(|node| {
+        unique_node_hashes.insert(node.hash);
+    });
+
+    Ok(())
 }
 
 pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

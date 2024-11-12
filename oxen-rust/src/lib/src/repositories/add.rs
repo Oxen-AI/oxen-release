@@ -69,7 +69,7 @@ mod tests {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from(""));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("")]);
                 opts.fetch_opts.depth = Some(1);
                 let local_repo = repositories::clone::clone(&opts).await?;
 
@@ -102,7 +102,8 @@ mod tests {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from("annotations").join("test"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
                 let local_repo = repositories::clone::clone(&opts).await?;
 
                 let annotations_test_dir = local_repo.path.join("annotations").join("test");

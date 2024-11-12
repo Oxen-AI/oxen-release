@@ -239,13 +239,19 @@ fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
     if let Some(depth) = &fetch_opts.depth {
         uri = format!("{uri}?depth={depth}");
     }
-    if let Some(subtree) = &fetch_opts.subtree_path {
+    if let Some(subtree_paths) = &fetch_opts.subtree_paths {
         if !uri.contains("?depth=") {
             uri = format!("{uri}?");
         } else {
             uri = format!("{uri}&");
         }
-        let subtree_str = subtree.display().to_string();
+        let subtree_str = subtree_paths
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        // uri encode the subtree paths
+        let subtree_str = urlencoding::encode(&subtree_str);
         uri = format!("{uri}subtree={subtree_str}");
     }
     uri

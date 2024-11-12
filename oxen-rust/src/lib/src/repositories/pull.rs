@@ -1397,7 +1397,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let mut opts =
                     CloneOpts::new(&remote_repo.remote.url, new_repo_dir.join("new_repo"));
-                opts.fetch_opts.subtree_path = Some(PathBuf::from("test"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("test")]);
                 opts.fetch_opts.depth = Some(1);
 
                 // Clone in shallow mode
