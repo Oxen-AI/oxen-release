@@ -18,7 +18,9 @@ pub struct LocalRepository {
     remote_name: Option<String>, // name of the current remote ("origin" by default)
     min_version: Option<String>, // write the version if it is past v0.18.4
     remotes: Vec<Remote>,        // List of possible remotes
-    vnode_size: Option<u64>,
+    vnode_size: Option<u64>,     // Size of the vnodes
+    subtree_paths: Option<Vec<PathBuf>>, // If the user clones a subtree, we store the paths here so that we know we don't have the full tree
+    depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
 }
 
 impl LocalRepository {
@@ -33,6 +35,8 @@ impl LocalRepository {
             // New with a path should default to our current MIN_OXEN_VERSION
             min_version: Some(MIN_OXEN_VERSION.to_string()),
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -47,6 +51,8 @@ impl LocalRepository {
             remote_name: None,
             min_version: Some(min_version.as_ref().to_string()),
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -57,6 +63,8 @@ impl LocalRepository {
             remote_name: None,
             min_version: None,
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -67,6 +75,8 @@ impl LocalRepository {
             remote_name: Some(String::from(constants::DEFAULT_REMOTE_NAME)),
             min_version: None,
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -83,6 +93,8 @@ impl LocalRepository {
             remote_name: cfg.remote_name,
             min_version: cfg.min_version,
             vnode_size: Some(vnode_size),
+            subtree_paths: cfg.subtree_paths,
+            depth: cfg.depth,
         };
         Ok(repo)
     }
@@ -129,6 +141,8 @@ impl LocalRepository {
             remotes: self.remotes.clone(),
             min_version: self.min_version.clone(),
             vnode_size: Some(self.vnode_size.unwrap_or(DEFAULT_VNODE_SIZE)),
+            subtree_paths: self.subtree_paths.clone(),
+            depth: self.depth,
         };
         let toml = toml::to_string(&cfg)?;
         util::fs::write_to_path(path, toml)?;
