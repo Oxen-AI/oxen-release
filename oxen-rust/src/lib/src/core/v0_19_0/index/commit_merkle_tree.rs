@@ -69,6 +69,42 @@ impl CommitMerkleTree {
         CommitMerkleTree::from_path(repo, commit, path, load_recursive)
     }
 
+    pub fn from_path_depth(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+        depth: i32,
+    ) -> Result<Self, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!(
+            "Read path {:?} in commit {:?} depth: {}",
+            node_path,
+            commit,
+            depth
+        );
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        let Some(node_hash) = dir_hashes.get(node_path).cloned() else {
+            log::debug!(
+                "dir_hashes {:?} does not contain path: {:?}",
+                dir_hashes,
+                node_path
+            );
+            return Err(OxenError::basic_str(format!(
+                "Can only load a subtree with an existing directory path: '{}'",
+                node_path.to_str().unwrap()
+            )));
+        };
+
+        let Some(root) = CommitMerkleTree::read_depth(repo, &node_hash, depth)? else {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree hash not found for: '{}' hash: {:?}",
+                node_path.to_str().unwrap(),
+                node_hash
+            )));
+        };
+        Ok(Self { root, dir_hashes })
+    }
+
     pub fn from_path(
         repo: &LocalRepository,
         commit: &Commit,
@@ -193,7 +229,7 @@ impl CommitMerkleTree {
         let mut node = MerkleTreeNode::from_hash(repo, hash)?;
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
 
-        CommitMerkleTree::read_children_until_depth(repo, &mut node_db, &mut node, depth)?;
+        CommitMerkleTree::read_children_until_depth(repo, &mut node_db, &mut node, depth, 0)?;
         // log::debug!("Read depth {} node done: {:?}", depth, node.hash);
         Ok(Some(node))
     }
@@ -204,6 +240,7 @@ impl CommitMerkleTree {
         commit: &Commit,
     ) -> Result<HashMap<PathBuf, MerkleHash>, OxenError> {
         let node_db_dir = CommitMerkleTree::dir_hash_db_path(repo, commit);
+        log::debug!("loading dir_hashes from: {:?}", node_db_dir);
         let opts = db::key_val::opts::default();
         let node_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, node_db_dir, false)?;
@@ -487,14 +524,15 @@ impl CommitMerkleTree {
         repo: &LocalRepository,
         node_db: &mut MerkleNodeDB,
         node: &mut MerkleTreeNode,
-        depth: i32,
+        requested_depth: i32,
+        traversed_depth: i32,
     ) -> Result<(), OxenError> {
         let dtype = node.node.node_type();
         // log::debug!(
-        //     "read_children_until_depth {} tree_db_dir: {:?} dtype {:?}",
-        //     depth,
-        //     node_db.path(),
-        //     dtype
+        //     "read_children_until_depth requested_depth {} traversed_depth {} node {}",
+        //     requested_depth,
+        //     traversed_depth,
+        //     node
         // );
 
         if dtype != MerkleTreeNodeType::Commit
@@ -506,8 +544,9 @@ impl CommitMerkleTree {
 
         let children: Vec<(MerkleHash, MerkleTreeNode)> = node_db.map()?;
         // log::debug!(
-        //     "read_children_until_depth {} Got {} children",
-        //     depth,
+        //     "read_children_until_depth requested_depth {} traversed_depth {} Got {} children",
+        //     requested_depth,
+        //     traversed_depth,
         //     children.len()
         // );
 
@@ -524,13 +563,14 @@ impl CommitMerkleTree {
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
                 | MerkleTreeNodeType::VNode => {
-                    if depth > 0 {
+                    if requested_depth > traversed_depth || requested_depth == -1 {
                         let mut node_db = MerkleNodeDB::open_read_only(repo, &child.hash)?;
                         CommitMerkleTree::read_children_until_depth(
                             repo,
                             &mut node_db,
                             &mut child,
-                            depth - 1,
+                            requested_depth,
+                            traversed_depth + 1,
                         )?;
                     }
                     node.children.push(child);

@@ -11,7 +11,7 @@ pub struct FetchOpts {
     // If you only want to clone a subdirectory / tree, you can specify it here
     pub subtree_path: Option<PathBuf>,
     // The depth at which to clone the subtree.
-    pub depth: Option<u32>,
+    pub depth: Option<i32>,
     // If true, recursively clones the whole repository history
     // by default, only the head commit is cloned to save time and disk space
     pub all: bool,

@@ -87,11 +87,7 @@ pub async fn fetch_remote_branch(
                 .await?;
         }
         MinOxenVersion::V0_19_0 => {
-            let rb = RemoteBranch {
-                remote: fetch_opts.remote.clone(),
-                branch: fetch_opts.branch.clone(),
-            };
-            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, &rb, fetch_opts).await?;
+            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
         }
     }
 

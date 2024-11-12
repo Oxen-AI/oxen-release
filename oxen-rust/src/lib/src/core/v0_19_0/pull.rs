@@ -71,15 +71,10 @@ pub async fn pull_remote_branch(
         .await?
         .ok_or(OxenError::remote_not_found(remote.clone()))?;
 
-    let rb = RemoteBranch {
-        remote: remote.to_string(),
-        branch: branch.to_string(),
-    };
-
     let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     // Fetch all the tree nodes and the entries
-    fetch::fetch_remote_branch(repo, &remote_repo, &rb, fetch_opts).await?;
+    fetch::fetch_remote_branch(repo, &remote_repo, fetch_opts).await?;
 
     let new_head_commit = repositories::revisions::get(repo, branch)?
         .ok_or(OxenError::revision_not_found(branch.to_owned().into()))?;
@@ -100,10 +95,19 @@ pub async fn pull_remote_branch(
         }
     }
 
-    // TODO: this should ideally be in the repositories::pull module,
-    // but I'm not sure how that will interact with the v0_10_0 code
-    repositories::branches::checkout_branch_from_commit(repo, branch, &previous_head_commit)
+    if let Some(subtree_path) = &fetch_opts.subtree_path {
+        let depth = fetch_opts.depth.unwrap_or(-1);
+        repositories::branches::checkout_subtree_from_commit(
+            repo,
+            &new_head_commit,
+            subtree_path,
+            depth,
+        )
         .await?;
+    } else {
+        repositories::branches::checkout_branch_from_commit(repo, branch, &previous_head_commit)
+            .await?;
+    }
 
     repositories::branches::set_head(repo, branch)?;
 

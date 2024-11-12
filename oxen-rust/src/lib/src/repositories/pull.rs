@@ -652,8 +652,7 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 // Clone the branch
-                let opts =
-                    CloneOpts::new(remote_repo.url(), new_repo_dir.join("new_repo"));
+                let opts = CloneOpts::new(remote_repo.url(), new_repo_dir.join("new_repo"));
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
@@ -1396,10 +1395,8 @@ mod tests {
             repositories::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(
-                    &remote_repo.remote.url,
-                    new_repo_dir.join("new_repo"),
-                );
+                let mut opts =
+                    CloneOpts::new(&remote_repo.remote.url, new_repo_dir.join("new_repo"));
                 opts.fetch_opts.subtree_path = Some(PathBuf::from("test"));
                 opts.fetch_opts.depth = Some(1);
 

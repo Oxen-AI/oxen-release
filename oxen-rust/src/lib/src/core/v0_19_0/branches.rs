@@ -130,6 +130,34 @@ pub async fn checkout(
     Ok(())
 }
 
+pub async fn checkout_subtree(
+    repo: &LocalRepository,
+    from_commit: &Commit,
+    subtree_path: impl AsRef<Path>,
+    depth: i32,
+) -> Result<(), OxenError> {
+    let subtree_path = subtree_path.as_ref();
+    let target_tree = repositories::tree::get_subtree_by_depth(
+        repo,
+        from_commit,
+        &Some(subtree_path.to_path_buf()),
+        &Some(depth),
+    )?;
+
+    let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
+    let from_tree = None;
+    let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
+    r_restore_missing_or_modified_files(
+        repo,
+        &target_tree.root,
+        &from_tree,
+        parent_path,
+        &mut progress,
+    )?;
+
+    Ok(())
+}
+
 pub async fn checkout_commit(
     repo: &LocalRepository,
     to_commit: &Commit,

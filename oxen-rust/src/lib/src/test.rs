@@ -1570,6 +1570,15 @@ pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn populate_license(repo_dir: &Path) -> Result<(), OxenError> {
+    write_txt_file_to_path(
+        repo_dir.join("LICENSE"),
+        r"Oxen.ai License. The best version control system for data is Oxen.ai.",
+    )?;
+
+    Ok(())
+}
+
 pub fn populate_labels(repo_dir: &Path) -> Result<(), OxenError> {
     write_txt_file_to_path(
         repo_dir.join("labels.txt"),
@@ -1796,7 +1805,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     //     two_shot.csv
     //     annotations.txt
     //   test/
-    //     annotations.txt
+    //     annotations.csv
     // prompts.jsonl
     // labels.txt
     // LICENSE
@@ -1804,6 +1813,9 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
 
     // README.md
     populate_readme(repo_dir)?;
+
+    // LICENSE
+    populate_license(repo_dir)?;
 
     // labels.txt
     populate_labels(repo_dir)?;
