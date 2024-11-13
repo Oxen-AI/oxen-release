@@ -702,16 +702,24 @@ pub fn find_merge_conflicts(
     let mut conflicts: Vec<NodeMergeConflict> = vec![];
 
     // Read all the entries from each commit into sets we can compare to one another
-    let lca_commit_node = CommitMerkleTree::from_commit(repo, &merge_commits.lca)?;
-    let base_commit_node = CommitMerkleTree::from_commit(repo, &merge_commits.base)?;
-    let merge_commit_node = CommitMerkleTree::from_commit(repo, &merge_commits.merge)?;
+    let lca_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.lca)?;
+    let base_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.base)?;
+    let merge_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.merge)?;
+
+    // TODO: Remove this unless debugging
+    println!("lca_commit_tree");
+    lca_commit_tree.print();
+    println!("base_commit_tree");
+    base_commit_tree.print();
+    println!("merge_commit_tree");
+    merge_commit_tree.print();
 
     let lca_entries =
-        CommitMerkleTree::dir_entries_with_paths(&lca_commit_node.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&lca_commit_tree.root, &PathBuf::from(""))?;
     let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&base_commit_tree.root, &PathBuf::from(""))?;
     let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&merge_commit_tree.root, &PathBuf::from(""))?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());
@@ -719,7 +727,7 @@ pub fn find_merge_conflicts(
 
     // Check all the entries in the candidate merge
     for merge_entry in merge_entries.iter() {
-        // log::debug!("Considering entry {}", merge_entries.len());
+        log::debug!("Considering entry {}", merge_entry.1.to_string_lossy());
         // Check if the entry exists in all 3 commits
         if let Some(base_entry) = base_entries.iter().find(|(_, path)| path == &merge_entry.1) {
             let (base_file_node, _base_path) = base_entry;

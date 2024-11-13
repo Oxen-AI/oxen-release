@@ -168,16 +168,41 @@ pub fn list_missing_file_hashes_from_commits(
     subtree_paths: &Option<Vec<PathBuf>>,
     depth: &Option<i32>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
+    log::debug!(
+        "list_missing_file_hashes_from_commits checking {} commit ids, subtree paths: {:?}, depth: {:?}",
+        commit_ids.len(),
+        subtree_paths,
+        depth
+    );
     let mut candidate_hashes: HashSet<MerkleHash> = HashSet::new();
     for commit_id in commit_ids {
         let commit_id_str = commit_id.to_string();
         let Some(commit) = repositories::commits::get_by_id(repo, &commit_id_str)? else {
+            log::error!(
+                "list_missing_file_hashes_from_commits Commit {} not found",
+                commit_id_str
+            );
             return Err(OxenError::revision_not_found(commit_id_str.into()));
         };
         // Handle the case where we are given a list of subtrees to check
         // It is much faster to check the subtree directly than to walk the entire tree
         if let Some(subtree_paths) = subtree_paths {
+            // Compute all the parents of the subtrees
+            let mut all_parent_paths: HashSet<PathBuf> = HashSet::new();
             for path in subtree_paths.clone() {
+                let mut path = path.clone();
+                all_parent_paths.insert(path.clone());
+                while let Some(parent) = path.parent() {
+                    all_parent_paths.insert(parent.to_path_buf());
+                    path = parent.to_path_buf();
+                }
+            }
+            log::debug!(
+                "list_missing_file_hashes_from_commits all_parent_paths: {:?}",
+                all_parent_paths
+            );
+
+            for path in all_parent_paths {
                 let tree =
                     repositories::tree::get_subtree_by_depth(repo, &commit, &Some(path), depth)?;
                 tree.walk_tree(|node| {
@@ -409,6 +434,7 @@ fn r_list_files_by_type(
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
+    use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -476,7 +502,9 @@ mod tests {
             // Remove the deeply nested dir
             util::fs::remove_dir_all(&dir_path)?;
 
-            repositories::add(&repo, dir_path)?;
+            let mut opts = RmOpts::from_path(dir_path);
+            opts.recursive = true;
+            repositories::rm(&repo, &opts)?;
             let commit = repositories::commit(&repo, "Removing dir")?;
 
             let files = repositories::tree::list_tabular_files_in_repo(&repo, &commit)?;

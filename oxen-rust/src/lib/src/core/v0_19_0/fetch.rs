@@ -93,6 +93,7 @@ pub async fn fetch_remote_branch(
         let commit_node = CommitMerkleTree::read_node(repo, &hash, recurse)?.unwrap();
         HashSet::from([commit_node.commit()?.to_commit()])
     };
+    log::debug!("Fetch got {} commits", commits.len());
 
     let missing_entries =
         collect_missing_entries(repo, &commits, &fetch_opts.subtree_paths, &fetch_opts.depth)?;
@@ -219,6 +220,11 @@ fn collect_missing_entries(
     let mut missing_entries: HashSet<Entry> = HashSet::new();
     for commit in commits {
         if let Some(subtree_paths) = subtree_paths {
+            log::debug!(
+                "collect_missing_entries for {:?} subtree paths and depth {:?}",
+                subtree_paths,
+                depth
+            );
             for subtree_path in subtree_paths {
                 let tree = repositories::tree::get_subtree_by_depth(
                     repo,

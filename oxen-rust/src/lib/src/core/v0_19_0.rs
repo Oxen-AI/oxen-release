@@ -26,5 +26,5 @@ pub mod workspaces;
 pub use add::add;
 pub use commits::commit;
 pub use init::init;
-pub use pull::{pull, pull_all, pull_remote_branch, pull_shallow};
+pub use pull::{pull, pull_all, pull_remote_branch};
 pub use rm::rm;

@@ -39,27 +39,32 @@ pub fn rm(
     repo: &LocalRepository,
     opts: &RmOpts,
 ) -> Result<(), OxenError> {
-    if repo.is_shallow_clone() {
-        return Err(OxenError::repo_is_shallow());
-    }
+    let db_opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&db_opts, dunce::simplified(&db_path))?;
 
+    rm_with_staged_db(paths, repo, opts, &staged_db)
+}
+
+pub fn rm_with_staged_db(
+    paths: &HashSet<PathBuf>,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<(), OxenError> {
     if has_modified_files(repo, paths)? {
         let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
         return Err(OxenError::basic_str(error));
     }
 
-    // Open the staged db once here so we don't have to open it multiple times
-    let db_opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&db_opts, dunce::simplified(&db_path))?;
     if opts.staged && opts.recursive {
-        return remove_staged_recursively_inner(repo, paths, &staged_db);
+        return remove_staged_recursively_inner(repo, paths, staged_db);
     } else if opts.staged {
-        return remove_staged_inner(repo, paths, opts, &staged_db);
+        return remove_staged_inner(repo, paths, opts, staged_db);
     }
 
-    remove_inner(paths, repo, opts, &staged_db)?;
+    remove_inner(paths, repo, opts, staged_db)?;
     Ok(())
 }
 
@@ -82,13 +87,13 @@ fn remove_staged_recursively_inner(
                         log::debug!("considering rm db_path: {:?} for path: {:?}", db_path, path);
                         if db_path.starts_with(&path) && path != PathBuf::from("") {
                             let mut parent = db_path.parent().unwrap_or(Path::new(""));
-                            remove_staged_entry(&db_path, &staged_db)?;
+                            remove_staged_entry(&db_path, staged_db)?;
                             while parent != Path::new("") {
                                 log::debug!("maybe cleaning up empty dir: {:?}", parent);
-                                cleanup_empty_dirs(parent, &staged_db)?;
+                                cleanup_empty_dirs(parent, staged_db)?;
                                 parent = parent.parent().unwrap_or(Path::new(""));
                                 if parent == Path::new("") {
-                                    cleanup_empty_dirs(parent, &staged_db)?;
+                                    cleanup_empty_dirs(parent, staged_db)?;
                                 }
                             }
                         }
@@ -192,14 +197,14 @@ fn remove_staged_inner(
     log::debug!("remove_staged paths {:?}", paths);
     for path in paths {
         let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
-        let Some(entry) = get_staged_entry(&relative_path, &staged_db)? else {
+        let Some(entry) = get_staged_entry(&relative_path, staged_db)? else {
             continue;
         };
         if entry.node.is_dir() && !rm_opts.recursive {
             let error = format!("`oxen rm` on directory {path:?} requires -r");
             return Err(OxenError::basic_str(error));
         }
-        remove_staged_entry(&relative_path, &staged_db)?;
+        remove_staged_entry(&relative_path, staged_db)?;
     }
 
     Ok(())
@@ -259,7 +264,7 @@ fn remove_file_inner(
     };
 
     // TODO: This is ugly, but the only current solution to get the stats from the removed file
-    match process_remove_file_and_parents(repo, &path, &staged_db, file_node) {
+    match process_remove_file_and_parents(repo, &path, staged_db, file_node) {
         Ok(Some(node)) => {
             if let EMerkleTreeNode::File(file_node) = &node.node.node {
                 total.total_bytes += file_node.num_bytes;
@@ -402,7 +407,7 @@ fn remove_inner(
                     return Err(OxenError::basic_str(error));
                 }
 
-                total += remove_dir_inner(repo, &head_commit, &path, &staged_db)?;
+                total += remove_dir_inner(repo, &head_commit, &path, staged_db)?;
                 // Remove dir from working directory
                 let full_path = repo.path.join(path);
                 log::debug!("REMOVING DIR: {full_path:?}");
@@ -413,7 +418,7 @@ fn remove_inner(
                 // TODO: Currently, there's no way to avoid re-staging the parent dirs with glob paths
                 // Potentially, we can could a mutex global to all paths?
             } else if let EMerkleTreeNode::File(file_node) = &node.node {
-                total += remove_file_inner(repo, &path, file_node, &staged_db)?;
+                total += remove_file_inner(repo, &path, file_node, staged_db)?;
                 let full_path = repo.path.join(path);
                 log::debug!("REMOVING FILE: {full_path:?}");
                 if full_path.exists() {
@@ -487,7 +492,7 @@ fn remove_dir_inner(
         }
     };
 
-    process_remove_dir(repo, path, &dir_node, &staged_db)
+    process_remove_dir(repo, path, &dir_node, staged_db)
 }
 
 pub fn remove_dir(

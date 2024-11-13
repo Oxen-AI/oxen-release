@@ -470,6 +470,7 @@ where
 
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
+
     // Make a few commits before we sync
     repositories::add(&local_repo, local_repo.path.join("train"))?;
     repositories::commit(&local_repo, "Adding train/")?;

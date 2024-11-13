@@ -14,6 +14,7 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
+use crate::core;
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -48,13 +49,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
-    // Cannot add if shallow
-    if repo.is_shallow_clone() {
-        return Err(OxenError::basic_str(
-            "Cannot run `oxen add` on a shallow clone",
-        ));
-    }
-
     // Start a timer
     let start = std::time::Instant::now();
     let path = path.as_ref();
@@ -78,7 +72,13 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             paths.insert(path.to_owned());
         }
     }
-    let stats = add_files(repo, &paths)?;
+
+    // Open the staged db once at the beginning and reuse the connection
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let stats = add_files(repo, &paths, &staged_db)?;
 
     // Stop the timer, and round the duration to the nearest second
     let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
@@ -98,11 +98,9 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
 fn add_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<CumulativeStats, OxenError> {
-    // To start, let's see how fast we can simply loop through all the paths
-    // and and copy them into an index.
-
-    log::debug!("add files");
+    log::debug!("add files: {:?}", paths);
 
     // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
@@ -122,9 +120,9 @@ fn add_files(
         log::debug!("path is {path:?}");
 
         if path.is_dir() {
-            total += add_dir(repo, &maybe_head_commit, path.clone())?;
+            total += add_dir_inner(repo, &maybe_head_commit, path.clone(), staged_db)?;
         } else if path.is_file() {
-            let entry = add_file(repo, &maybe_head_commit, path)?;
+            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type.clone();
@@ -144,11 +142,23 @@ fn add_files(
             );
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
-            repositories::rm(repo, &opts)?;
+            core::v0_19_0::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
         }
     }
 
     Ok(total)
+}
+
+fn add_dir_inner(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    path: PathBuf,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<CumulativeStats, OxenError> {
+    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join(VERSIONS_DIR)
+        .join(FILES_DIR);
+    process_add_dir(repo, maybe_head_commit, &versions_path, staged_db, path)
 }
 
 pub fn add_dir(
@@ -156,15 +166,12 @@ pub fn add_dir(
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
+    add_dir_inner(repo, maybe_head_commit, path, &staged_db)
 }
 
 pub fn process_add_dir(
@@ -301,21 +308,16 @@ fn get_file_node(
     }
 }
 
-pub fn add_file(
+fn add_file_inner(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    log::debug!("add_file");
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, &repo_path)?;
@@ -328,11 +330,24 @@ pub fn add_file(
         repo,
         &repo_path,
         &versions_path,
-        &staged_db,
+        staged_db,
         &maybe_dir_node,
         path,
         &seen_dirs,
     )
+}
+
+pub fn add_file(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    path: &Path,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    add_file_inner(repo, maybe_head_commit, path, &staged_db)
 }
 
 pub fn process_add_file(

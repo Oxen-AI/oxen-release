@@ -47,12 +47,6 @@ pub fn status_from_opts(
     repo: &LocalRepository,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    if repo.is_shallow_clone() {
-        return Err(OxenError::basic_str(
-            "Cannot run `oxen status` on a shallow clone",
-        ));
-    }
-
     log::debug!("status_from_opts {:?}", opts.paths);
     let staged_db_maybe = open_staged_db(repo)?;
     let head_commit = repositories::commits::head_commit_maybe(repo)?;
@@ -448,7 +442,14 @@ fn find_changes(
 
     // Check for removed files
     if let Some(dir_hash) = dir_hashes.get(relative_path) {
-        let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 2)?;
+        // if we have subtree paths, don't check for removed files that are outside of the subtree
+        if let Some(subtree_paths) = repo.subtree_paths() {
+            if !subtree_paths.contains(&relative_path.to_path_buf()) {
+                return Ok((untracked, modified, removed));
+            }
+        }
+
+        let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
         if let Some(node) = dir_node {
             for child in CommitMerkleTree::node_files_and_folders(&node)? {
                 if let EMerkleTreeNode::File(file) = &child.node {
@@ -503,7 +504,7 @@ fn maybe_get_dir_node(
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
     let dir = dir.as_ref();
     if let Some(hash) = dir_hashes.get(dir) {
-        CommitMerkleTree::read_depth(repo, hash, 2)
+        CommitMerkleTree::read_depth(repo, hash, 1)
     } else {
         Ok(None)
     }

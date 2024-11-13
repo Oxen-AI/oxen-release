@@ -22,20 +22,6 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
         .await
 }
 
-pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
-    indexer
-        .pull(
-            &rb,
-            PullOpts {
-                should_pull_all: false,
-                should_update_head: true,
-            },
-        )
-        .await
-}
-
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
