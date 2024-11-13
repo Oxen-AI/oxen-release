@@ -779,6 +779,8 @@ mod tests {
         .await
     }
 
+    // TODO: Do this same thing with a subtree clone
+
     // Deal with merge conflicts on pull
     // 1) Clone repo to user A
     // 2) Clone repo to user B
