@@ -983,4 +983,8 @@ A: Oxen.ai
         })
         .await
     }
+
+    // TODO: Add test for updating file size after cloning subtree
+    // I cloned subtree, added an empty file, committed, pushed, then edited the file and committed again
+    // The file size should be updated in the index
 }

@@ -1921,12 +1921,26 @@ A: Oxen.ai is a great tool for this! It can handle any size dataset, and is opti
 ",
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
-                repositories::commit(&local_repo, "Added another file")?;
+                let commit = repositories::commit(&local_repo, "Added another file")?;
+
+                println!("Tree for commit: {}", commit);
+                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+                tree.print();
 
                 let result = repositories::push(&local_repo).await;
                 println!("push result: {:?}", result);
 
                 assert!(result.is_ok());
+
+                // List the files in the remote repo and confirm the new file is there
+                let dir_entries =
+                    api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
+                        .await?;
+
+                assert!(dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "ANOTHER_FILE.md"));
 
                 Ok(dir)
             })
@@ -1989,6 +2003,75 @@ A: Checkout Oxen.ai
             })
             .await?;
             Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_subtree_nlp_classification() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo
+            test::run_empty_dir_test_async(|repos_base_dir| async move {
+                let repos_base_dir_copy = repos_base_dir.clone();
+                let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+
+                // Make sure to clone a subtree to test subtree merge conflicts
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
+                clone_opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("nlp").join("classification")]);
+                clone_opts.fetch_opts.depth = Some(2);
+                let user_a_repo = repositories::clone(&clone_opts).await?;
+
+                // User adds a file and pushes
+                let new_file = PathBuf::from("nlp")
+                    .join("classification")
+                    .join("new_data.tsv");
+                let new_file_path = user_a_repo.path.join(&new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "image\tlabel")?;
+                repositories::add(&user_a_repo, &new_file_path)?;
+                let commit =
+                    repositories::commit(&user_a_repo, "Adding nlp/classification/new_data.tsv")?;
+                repositories::push(&user_a_repo).await?;
+
+                // Make sure the file is in the remote repo
+                let dir_entries = api::client::dir::list(
+                    &remote_repo,
+                    &commit.id,
+                    &PathBuf::from("nlp").join("classification"),
+                    1,
+                    100,
+                )
+                .await?;
+
+                assert!(dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "new_data.tsv"));
+
+                // Make sure the root directory is in tact
+                let root_dir_entries =
+                    api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
+                        .await?;
+
+                println!(
+                    "root_dir_entries ({}) {:?}",
+                    root_dir_entries.entries.len(),
+                    root_dir_entries
+                );
+
+                assert!(root_dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "README.md"));
+
+                Ok(repos_base_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
         })
         .await
     }

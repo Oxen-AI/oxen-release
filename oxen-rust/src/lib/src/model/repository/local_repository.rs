@@ -139,8 +139,16 @@ impl LocalRepository {
         self.subtree_paths.clone()
     }
 
+    pub fn set_subtree_paths(&mut self, paths: Option<Vec<PathBuf>>) {
+        self.subtree_paths = paths;
+    }
+
     pub fn depth(&self) -> Option<i32> {
         self.depth
+    }
+
+    pub fn set_depth(&mut self, depth: Option<i32>) {
+        self.depth = depth;
     }
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
@@ -235,11 +243,6 @@ impl LocalRepository {
             util::fs::remove_file(&shallow_flag_path)?;
         }
         Ok(())
-    }
-
-    pub fn is_shallow_clone(&self) -> bool {
-        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
-        shallow_flag_path.exists()
     }
 }
 

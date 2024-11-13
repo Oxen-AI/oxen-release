@@ -30,12 +30,6 @@ pub async fn push_remote_branch(
     // start a timer
     let start = std::time::Instant::now();
 
-    if repo.is_shallow_clone() {
-        return Err(OxenError::basic_str(
-            "oxen push does not support shallow clones",
-        ));
-    }
-
     let remote = remote.as_ref();
     let branch_name = branch_name.as_ref();
 
@@ -199,10 +193,12 @@ async fn push_commits(
     progress.set_message("Collecting missing nodes...");
     let mut candidate_nodes: HashSet<MerkleTreeNode> = HashSet::new();
     for commit in &commits {
-        let tree = CommitMerkleTree::from_commit(repo, commit)?;
-        let commit_node = tree.root.clone();
+        log::debug!("push_commits adding candidate nodes for commit: {}", commit);
+        let commit_hash = commit.hash()?;
+        let commit_node = CommitMerkleTree::read_depth(repo, &commit_hash, 0)?.unwrap();
         candidate_nodes.insert(commit_node);
-        tree.walk_tree_without_leaves(|node| {
+        let sub_tree = CommitMerkleTree::from_commit(repo, commit)?;
+        sub_tree.walk_tree_without_leaves(|node| {
             candidate_nodes.insert(node.clone());
         });
     }
@@ -222,12 +218,17 @@ async fn push_commits(
     ));
     let missing_node_hashes =
         api::client::tree::list_missing_node_hashes(remote_repo, candidate_node_hashes).await?;
+    log::debug!(
+        "push_commits missing_node_hashes count: {}",
+        missing_node_hashes.len()
+    );
 
     // Filter the candidate nodes to only include the missing ones
     let missing_nodes: HashSet<MerkleTreeNode> = candidate_nodes
         .into_iter()
         .filter(|n| missing_node_hashes.contains(&n.hash))
         .collect();
+    log::debug!("push_commits missing_nodes count: {}", missing_nodes.len());
     progress.set_message(format!("Pushing {} nodes...", missing_nodes.len()));
     api::client::tree::create_nodes(repo, remote_repo, missing_nodes.clone()).await?;
 

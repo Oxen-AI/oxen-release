@@ -260,7 +260,7 @@ pub async fn download_tree_nodes(
         let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
 
         let node_dir = node_db_path(&repository, &hash);
-        // log::debug!("Compressing node from dir {:?}", node_dir);
+        log::debug!("Compressing node from dir {:?}", node_dir);
         if node_dir.exists() {
             tar.append_dir_all(&tar_subdir, node_dir)?;
         }
@@ -320,7 +320,18 @@ fn get_unique_node_hashes(
     );
     for commit in commits {
         if let Some(subtrees) = maybe_subtrees {
+            // Traverse up the tree to get all the parent directories
+            let mut all_parent_paths: HashSet<PathBuf> = HashSet::new();
             for subtree_path in subtrees {
+                let mut path = subtree_path.clone();
+                all_parent_paths.insert(path.clone());
+                while let Some(parent) = path.parent() {
+                    all_parent_paths.insert(parent.to_path_buf());
+                    path = parent.to_path_buf();
+                }
+            }
+
+            for subtree_path in all_parent_paths {
                 get_unique_node_hashes_for_subtree(
                     repository,
                     commit,
@@ -341,6 +352,7 @@ fn get_unique_node_hashes(
         // Add the commit hash itself
         unique_node_hashes.insert(commit.hash()?);
     }
+    log::debug!("Unique node hashes: {}", unique_node_hashes.len());
 
     Ok(unique_node_hashes)
 }

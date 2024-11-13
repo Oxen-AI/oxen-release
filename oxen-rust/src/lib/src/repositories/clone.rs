@@ -178,6 +178,10 @@ mod tests {
                 opts.fetch_opts.depth = Some(1);
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
+                // Make sure we set the depth and subtree paths
+                assert_eq!(local_repo.depth(), Some(1));
+                assert_eq!(local_repo.subtree_paths(), Some(vec![PathBuf::from(".")]));
+
                 // All the files should be here
                 assert!(local_repo.path.join("README.md").exists());
                 assert!(local_repo.path.join("labels.txt").exists());
@@ -205,6 +209,12 @@ mod tests {
                 let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
                 opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("annotations")]);
                 let local_repo = clone_remote(&opts).await?.unwrap();
+
+                // Make sure we set the depth and subtree paths
+                assert_eq!(
+                    local_repo.subtree_paths(),
+                    Some(vec![PathBuf::from("annotations")])
+                );
 
                 assert!(local_repo.path.join("annotations").exists());
                 assert!(local_repo.path.join("annotations").join("train").exists());
