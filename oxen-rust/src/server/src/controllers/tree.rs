@@ -81,6 +81,7 @@ pub async fn list_missing_node_hashes(
 
 pub async fn list_missing_file_hashes_from_commits(
     req: HttpRequest,
+    query: web::Query<TreeDepthQuery>,
     mut body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -98,8 +99,13 @@ pub async fn list_missing_file_hashes_from_commits(
         "list_missing_file_hashes_from_commits checking {} commit ids",
         request.hashes.len()
     );
-    let hashes =
-        repositories::tree::list_missing_file_hashes_from_commits(&repository, &request.hashes)?;
+    let subtree_paths = get_subtree_paths(&query.subtrees)?;
+    let hashes = repositories::tree::list_missing_file_hashes_from_commits(
+        &repository,
+        &request.hashes,
+        &subtree_paths,
+        &query.depth,
+    )?;
     log::debug!(
         "list_missing_file_hashes_from_commits found {} missing node ids",
         hashes.len()
@@ -173,7 +179,7 @@ pub async fn create_nodes(
                 std::fs::create_dir_all(parent).expect("Could not create parent dir");
             }
         }
-        log::debug!("create_node writing {:?}", dst_path);
+        // log::debug!("create_node writing {:?}", dst_path);
         file.unpack(&dst_path).unwrap();
 
         // the hash is the last two path components combined
@@ -232,11 +238,7 @@ pub async fn download_tree_nodes(
         .ok_or(OxenError::resource_not_found(&base_commit_id))?;
 
     // Parse the subtrees
-    let subtrees: Option<Vec<PathBuf>> = if let Some(subtrees) = &query.subtrees {
-        Some(subtrees.split(',').map(|s| PathBuf::from(s)).collect())
-    } else {
-        None
-    };
+    let subtrees = get_subtree_paths(&query.subtrees)?;
 
     // Could be a single commit or a range of commits
     let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
@@ -531,5 +533,13 @@ fn maybe_parse_base_head(
         }
     } else {
         Ok((base_head_str.to_string(), None))
+    }
+}
+
+fn get_subtree_paths(subtrees: &Option<String>) -> Result<Option<Vec<PathBuf>>, OxenError> {
+    if let Some(subtrees) = subtrees {
+        Ok(Some(subtrees.split(',').map(PathBuf::from).collect()))
+    } else {
+        Ok(None)
     }
 }

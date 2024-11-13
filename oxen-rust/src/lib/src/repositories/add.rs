@@ -112,7 +112,10 @@ mod tests {
                 let readme_file = annotations_test_dir.join("README.md");
                 util::fs::write_to_path(
                     &readme_file,
-                    "Q: What is the best data version control system?\nA: Oxen.ai",
+                    r"
+Q: What is the best data version control system?
+A: Oxen.ai
+",
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
 
@@ -122,6 +125,9 @@ mod tests {
                 assert!(status
                     .staged_files
                     .contains_key(&PathBuf::from("annotations").join("test").join("README.md")));
+
+                // Make sure no files are marked as removed, because they are just not downloaded in the subtree
+                assert_eq!(status.removed_files.len(), 0);
 
                 Ok(dir)
             })

@@ -594,7 +594,7 @@ mod tests {
                 let repo_dir = repo_dir.join("new_repo");
 
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 // Remote add row
                 let path = test::test_nlp_classification_csv();

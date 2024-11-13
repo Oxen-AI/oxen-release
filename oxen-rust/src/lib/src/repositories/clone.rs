@@ -4,7 +4,6 @@
 //!
 
 use std::path::Path;
-use std::path::PathBuf;
 
 use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
@@ -28,19 +27,6 @@ pub async fn clone_url(
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
     let fetch_opts = FetchOpts::new();
-    _clone(url, dst, fetch_opts).await
-}
-
-pub async fn shallow_clone_url(
-    url: impl AsRef<str>,
-    dst: impl AsRef<Path>,
-) -> Result<LocalRepository, OxenError> {
-    let fetch_opts = FetchOpts {
-        all: false,
-        subtree_paths: Some(vec![PathBuf::from("")]),
-        depth: Some(0),
-        ..FetchOpts::new()
-    };
     _clone(url, dst, fetch_opts).await
 }
 
@@ -103,6 +89,8 @@ async fn clone_repo(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -471,45 +459,6 @@ mod tests {
 
                 // Should be able to push all data successfully
                 repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await?;
-
-                Ok(new_repo_dir)
-            })
-            .await?;
-
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let new_repo_dir = new_repo_dir.join("repoo");
-                let mut cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-
-                let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
-                let remote_url = test::repo_remote_url_from(&repo_name);
-                let remote_name = "different";
-
-                // Create a different repo
-                let repo_new = RepoNew::from_namespace_name_host(
-                    constants::DEFAULT_NAMESPACE,
-                    repo_name,
-                    test::test_host(),
-                );
-                api::client::repositories::create_from_local(&cloned_repo, repo_new).await?;
-
-                command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
-
-                // Should fail
-                let push_res =
-                    repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await;
-                assert!(push_res.is_err());
 
                 Ok(new_repo_dir)
             })

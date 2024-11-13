@@ -96,6 +96,7 @@ pub async fn fetch_remote_branch(
 
     let missing_entries =
         collect_missing_entries(repo, &commits, &fetch_opts.subtree_paths, &fetch_opts.depth)?;
+    log::debug!("Fetch got {} missing entries", missing_entries.len());
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
     pull_progress.finish();
     let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();

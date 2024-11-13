@@ -165,6 +165,8 @@ pub fn list_missing_file_hashes(
 pub fn list_missing_file_hashes_from_commits(
     repo: &LocalRepository,
     commit_ids: &HashSet<MerkleHash>,
+    subtree_paths: &Option<Vec<PathBuf>>,
+    depth: &Option<i32>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let mut candidate_hashes: HashSet<MerkleHash> = HashSet::new();
     for commit_id in commit_ids {
@@ -172,16 +174,30 @@ pub fn list_missing_file_hashes_from_commits(
         let Some(commit) = repositories::commits::get_by_id(repo, &commit_id_str)? else {
             return Err(OxenError::revision_not_found(commit_id_str.into()));
         };
-        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
-        tree.walk_tree(|node| {
-            if node.is_file() {
-                candidate_hashes.insert(node.hash);
+        // Handle the case where we are given a list of subtrees to check
+        // It is much faster to check the subtree directly than to walk the entire tree
+        if let Some(subtree_paths) = subtree_paths {
+            for path in subtree_paths.clone() {
+                let tree =
+                    repositories::tree::get_subtree_by_depth(repo, &commit, &Some(path), depth)?;
+                tree.walk_tree(|node| {
+                    if node.is_file() {
+                        candidate_hashes.insert(node.hash);
+                    }
+                });
             }
-        });
+        } else {
+            let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+            tree.walk_tree(|node| {
+                if node.is_file() {
+                    candidate_hashes.insert(node.hash);
+                }
+            });
+        }
     }
     log::debug!(
-        "list_missing_file_hashes_from_commits candidate_hashes: {:?}",
-        candidate_hashes
+        "list_missing_file_hashes_from_commits candidate_hashes count: {}",
+        candidate_hashes.len()
     );
     list_missing_file_hashes_from_hashes(repo, &candidate_hashes)
 }
