@@ -627,7 +627,11 @@ impl CommitMerkleTree {
                 | MerkleTreeNodeType::VNode => {
                     if recurse {
                         // log::debug!("read_children_from_node recurse: {:?}", child.hash);
-                        let mut node_db = MerkleNodeDB::open_read_only(repo, &child.hash)?;
+                        let Ok(mut node_db) = MerkleNodeDB::open_read_only(repo, &child.hash)
+                        else {
+                            log::warn!("no child node db: {:?}", child.hash);
+                            return Ok(());
+                        };
                         // log::debug!("read_children_from_node opened node_db: {:?}", child.hash);
                         CommitMerkleTree::read_children_from_node(
                             repo,

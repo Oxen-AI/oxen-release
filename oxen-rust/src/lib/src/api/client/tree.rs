@@ -4,6 +4,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::time;
 
 use crate::api::client;
@@ -235,11 +236,19 @@ pub async fn download_trees_from(
 }
 
 fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
+    append_subtree_paths_and_depth_to_uri(uri, &fetch_opts.subtree_paths, &fetch_opts.depth)
+}
+
+fn append_subtree_paths_and_depth_to_uri(
+    uri: String,
+    subtree_paths: &Option<Vec<PathBuf>>,
+    depth: &Option<i32>,
+) -> String {
     let mut uri = uri;
-    if let Some(depth) = &fetch_opts.depth {
+    if let Some(depth) = &depth {
         uri = format!("{uri}?depth={depth}");
     }
-    if let Some(subtree_paths) = &fetch_opts.subtree_paths {
+    if let Some(subtree_paths) = &subtree_paths {
         if !uri.contains("?depth=") {
             uri = format!("{uri}?");
         } else {
@@ -376,10 +385,16 @@ pub async fn list_missing_file_hashes(
 }
 
 pub async fn list_missing_file_hashes_from_commits(
+    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_ids: HashSet<MerkleHash>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let uri = "/tree/nodes/missing_file_hashes_from_commits".to_string();
+    let uri = append_subtree_paths_and_depth_to_uri(
+        uri,
+        &local_repo.subtree_paths(),
+        &local_repo.depth(),
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let commit_hashes = MerkleHashes { hashes: commit_ids };

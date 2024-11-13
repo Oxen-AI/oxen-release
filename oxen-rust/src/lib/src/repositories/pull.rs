@@ -100,7 +100,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let oxen_dir = cloned_repo.path.join(OXEN_HIDDEN_DIR);
                 assert!(oxen_dir.exists());
                 repositories::pull(&cloned_repo).await?;
@@ -223,8 +223,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 // Modify the file in the cloned dir
                 let cloned_filepath = cloned_repo.path.join(filename);
@@ -293,8 +292,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(6, cloned_num_files);
                 let og_commits = repositories::commits::list(&repo)?;
@@ -409,8 +408,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // the original training files
                 assert_eq!(train_paths.len(), cloned_num_files);
@@ -486,8 +485,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let filepath = cloned_repo.path.join(filename);
                 let content = util::fs::read_from_path(&filepath)?;
                 assert_eq!(og_content, content);
@@ -1063,8 +1062,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
@@ -1104,8 +1102,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let file_path = cloned_repo.path.join(filename);
 
                 let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
@@ -1163,8 +1160,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 let filename = Path::new("nlp")
                     .join("classification")
@@ -1239,9 +1235,9 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &new_repo_dir);
+                clone_opts.fetch_opts.all = true;
+                let cloned_repo = repositories::clone(&clone_opts).await?;
 
                 // Get cloned history, which should fall back to API if not found locally
                 let cloned_history = repositories::commits::list(&cloned_repo)?;
@@ -1254,54 +1250,6 @@ mod tests {
                 Ok(new_repo_dir)
             })
             .await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let repo_dir = repo_dir.join("repoo");
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
-
-                let result = repositories::status(&cloned_repo);
-                assert!(result.is_err());
-
-                Ok(repo_dir)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let repo_dir = repo_dir.join("repoo");
-
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
-
-                let path = cloned_repo.path.join("README.md");
-                util::fs::write_to_path(&path, "# Can't add this")?;
-
-                let result = repositories::add(&cloned_repo, path);
-                assert!(result.is_err());
-
-                Ok(repo_dir)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
         })
         .await
     }

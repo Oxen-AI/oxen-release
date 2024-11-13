@@ -206,6 +206,10 @@ async fn push_commits(
             candidate_nodes.insert(node.clone());
         });
     }
+    log::debug!(
+        "push_commits candidate_nodes count: {}",
+        candidate_nodes.len()
+    );
 
     // Check which of the candidate nodes are missing from the server (just use the hashes)
     let candidate_node_hashes = candidate_nodes
@@ -233,6 +237,7 @@ async fn push_commits(
     // Check which file hashes are missing from the server
     progress.set_message("Checking for missing files...".to_string());
     let missing_file_hashes = api::client::tree::list_missing_file_hashes_from_commits(
+        repo,
         remote_repo,
         missing_commit_hashes.clone(),
     )
