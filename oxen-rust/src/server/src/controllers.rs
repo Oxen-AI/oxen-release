@@ -6,6 +6,7 @@ pub mod diff;
 pub mod dir;
 pub mod entries;
 pub mod file;
+pub mod fork;
 pub mod health;
 pub mod merger;
 pub mod metadata;
