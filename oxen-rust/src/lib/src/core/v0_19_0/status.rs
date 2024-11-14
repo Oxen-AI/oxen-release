@@ -447,6 +447,22 @@ fn find_changes(
             if !subtree_paths.contains(&relative_path.to_path_buf()) {
                 return Ok((untracked, modified, removed));
             }
+
+            if subtree_paths.len() == 1 && subtree_paths[0] == PathBuf::from("") {
+                // If the subtree is the root, we need to check for removed files in the root
+                let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
+                if let Some(node) = dir_node {
+                    for child in CommitMerkleTree::node_files_and_folders(&node)? {
+                        if let EMerkleTreeNode::File(file) = &child.node {
+                            let file_path = full_path.join(&file.name);
+                            if !file_path.exists() {
+                                removed.insert(relative_path.join(&file.name));
+                            }
+                        }
+                    }
+                }
+                return Ok((untracked, modified, removed));
+            }
         }
 
         let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;

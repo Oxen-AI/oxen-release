@@ -837,10 +837,106 @@ mod tests {
                 // Pull
                 repositories::pull(&user_b_repo).await?;
 
+                // Make sure it's not a full clone
+                assert_eq!(user_b_repo.depth(), Some(2));
+                assert_eq!(
+                    user_b_repo.subtree_paths(),
+                    Some(vec![PathBuf::from("nlp").join("classification")])
+                );
+                assert!(user_b_repo.path.join("nlp").join("classification").exists());
+                assert!(!user_b_repo.path.join("train").exists());
+
                 // Check for merge conflict
                 let status = repositories::status(&user_b_repo)?;
                 assert!(!status.merge_conflicts.is_empty());
                 status.print();
+
+                // Checkout your version and add the changes
+                repositories::checkout::checkout_ours(&user_b_repo, new_file)?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                // Commit the changes
+                repositories::commit(&user_b_repo, "Taking my changes")?;
+
+                // Push should succeed
+                repositories::push(&user_b_repo).await?;
+
+                Ok(repos_base_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    // Deal with merge conflicts on ROOT subtree clones
+    // 1) Clone subtree to user A
+    // 2) Clone subtree to user B
+    // 3) User A changes file commit and pushes
+    // 4) User B changes same file, commits, and pushes and fails
+    // 5) User B pulls user A's changes, there is a merge conflict
+    // 6) User B cannot push until merge conflict is resolved
+    #[tokio::test]
+    async fn test_flags_merge_conflict_on_root_subtree_pull() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|repos_base_dir| async move {
+                let repos_base_dir_copy = repos_base_dir.clone();
+                let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+
+                // Make sure to clone a subtree to test subtree merge conflicts
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
+                clone_opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                clone_opts.fetch_opts.depth = Some(1);
+                let user_a_repo = repositories::clone(&clone_opts).await?;
+
+                // Clone Repo to User B
+                let user_b_repo_dir = repos_base_dir.join("user_b_repo");
+
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_b_repo_dir);
+                clone_opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                clone_opts.fetch_opts.depth = Some(1);
+                let user_b_repo = repositories::clone(&clone_opts).await?;
+
+                // User A adds a file and pushes
+                let new_file = PathBuf::from("README.md");
+                let new_file_path = user_a_repo.path.join(&new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "User A's README")?;
+                repositories::add(&user_a_repo, &new_file_path)?;
+                repositories::commit(&user_a_repo, "User A adding new data.")?;
+                repositories::push(&user_a_repo).await?;
+
+                // User B adds the same file and pushes
+                let new_file_path = user_b_repo.path.join(&new_file);
+                let new_file_path =
+                    test::write_txt_file_to_path(new_file_path, "I am user B, try to stop me")?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                repositories::commit(&user_b_repo, "User B adding the same README.")?;
+
+                // Push should fail
+                let result = repositories::push(&user_b_repo).await;
+                assert!(result.is_err());
+
+                // Pull
+                repositories::pull(&user_b_repo).await?;
+
+                // Make sure it's not a full clone
+                assert_eq!(user_b_repo.depth(), Some(1));
+                assert_eq!(user_b_repo.subtree_paths(), Some(vec![PathBuf::from("")]),);
+                assert!(user_b_repo.path.join("README.md").exists());
+                assert!(!user_b_repo.path.join("nlp").exists());
+                assert!(!user_b_repo.path.join("train").exists());
+
+                // Check for merge conflict
+                let status = repositories::status(&user_b_repo)?;
+                status.print();
+                assert!(!status.merge_conflicts.is_empty());
+                assert_eq!(status.merge_conflicts.len(), 1);
+                assert_eq!(status.merge_conflicts[0].base_entry.path, new_file);
+                assert_eq!(status.removed_files.len(), 0);
 
                 // Checkout your version and add the changes
                 repositories::checkout::checkout_ours(&user_b_repo, new_file)?;

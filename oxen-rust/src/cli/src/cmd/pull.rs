@@ -66,6 +66,8 @@ impl RunCmd for PullCmd {
         let mut fetch_opts = FetchOpts::new();
         fetch_opts.branch = branch.to_owned();
         fetch_opts.remote = remote.to_owned();
+        fetch_opts.depth = repository.depth();
+        fetch_opts.subtree_paths = repository.subtree_paths();
         fetch_opts.all = all;
         repositories::pull_remote_branch(&repository, &fetch_opts).await?;
         Ok(())

@@ -136,7 +136,18 @@ impl LocalRepository {
     }
 
     pub fn subtree_paths(&self) -> Option<Vec<PathBuf>> {
-        self.subtree_paths.clone()
+        self.subtree_paths.as_ref().map(|paths| {
+            paths
+                .iter()
+                .map(|p| {
+                    if p == &PathBuf::from(".") {
+                        PathBuf::from("")
+                    } else {
+                        p.clone()
+                    }
+                })
+                .collect()
+        })
     }
 
     pub fn set_subtree_paths(&mut self, paths: Option<Vec<PathBuf>>) {

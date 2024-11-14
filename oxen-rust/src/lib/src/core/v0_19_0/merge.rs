@@ -340,6 +340,18 @@ fn merge_commits_on_branch(
             let commit = create_merge_commit_on_branch(repo, merge_commits, branch)?;
             Ok(Some(commit))
         } else {
+            println!(
+                r"
+Found {} conflicts, please resolve them before merging.
+
+  oxen checkout --theirs path/to/file_1.txt
+  oxen checkout --ours path/to/file_2.txt
+  oxen add path/to/file_1.txt path/to/file_2.txt
+  oxen commit -m 'Merge conflict resolution'
+
+",
+                conflicts.len()
+            );
             let db_path = db_path(repo);
             log::debug!("Merger::new() DB {:?}", db_path);
             let opts = db::key_val::opts::default();
@@ -549,8 +561,20 @@ fn merge_commits(
         );
 
         let write_to_disk = true;
-
         let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
+
+        println!(
+            r"
+Found {} conflicts, please resolve them before merging.
+
+  oxen checkout --theirs path/to/file_1.txt
+  oxen checkout --ours path/to/file_2.txt
+  oxen add path/to/file_1.txt path/to/file_2.txt
+  oxen commit -m 'Merge conflict resolution'
+
+",
+            conflicts.len()
+        );
 
         log::debug!("Got {} conflicts", conflicts.len());
 
@@ -702,24 +726,27 @@ pub fn find_merge_conflicts(
     let mut conflicts: Vec<NodeMergeConflict> = vec![];
 
     // Read all the entries from each commit into sets we can compare to one another
-    let lca_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.lca)?;
-    let base_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.base)?;
-    let merge_commit_tree = CommitMerkleTree::from_commit(repo, &merge_commits.merge)?;
+    let lca_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.lca)?;
+    let base_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.base)?;
+    let merge_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.merge)?;
 
     // TODO: Remove this unless debugging
-    println!("lca_commit_tree");
-    lca_commit_tree.print();
-    println!("base_commit_tree");
-    base_commit_tree.print();
-    println!("merge_commit_tree");
-    merge_commit_tree.print();
+    // println!("lca_commit_tree");
+    // lca_commit_tree.print();
+    // println!("base_commit_tree");
+    // base_commit_tree.print();
+    // println!("merge_commit_tree");
+    // merge_commit_tree.print();
 
+    let default_starting_path = PathBuf::from("");
+    let subtree_paths = repo.subtree_paths().unwrap_or_default();
+    let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
     let lca_entries =
-        CommitMerkleTree::dir_entries_with_paths(&lca_commit_tree.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&lca_commit_tree.root, starting_path)?;
     let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_tree.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&base_commit_tree.root, starting_path)?;
     let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_tree.root, &PathBuf::from(""))?;
+        CommitMerkleTree::dir_entries_with_paths(&merge_commit_tree.root, starting_path)?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());

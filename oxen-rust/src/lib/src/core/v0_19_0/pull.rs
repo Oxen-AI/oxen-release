@@ -7,13 +7,17 @@ use crate::core::v0_19_0::fetch;
 use crate::opts::fetch_opts::FetchOpts;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let fetch_opts = FetchOpts::new();
+    let mut fetch_opts = FetchOpts::new();
+    fetch_opts.depth = repo.depth();
+    fetch_opts.subtree_paths = repo.subtree_paths();
     pull_remote_branch(repo, &fetch_opts).await
 }
 
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
     let fetch_opts = FetchOpts {
         all: true,
+        depth: repo.depth(),
+        subtree_paths: repo.subtree_paths(),
         ..FetchOpts::new()
     };
     repositories::pull_remote_branch(repo, &fetch_opts).await
