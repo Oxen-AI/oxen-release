@@ -537,10 +537,14 @@ fn process_remove_dir(
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path.clone())?;
         parent_path = parent.to_path_buf();
 
-        let relative_path_str = relative_path.to_str().unwrap();
+        let Some(relative_path_str) = relative_path.to_str() else {
+            let error = format!("Error: {relative_path:?} is not a valid string");
+            return Err(OxenError::basic_str(error));
+        };
 
         // Ensures that removed entries don't have their parents re-added by oxen rm
-        // RocksDB's DBWithThreadMode only has this function to check if a key exists in the DB, so I added the else condition to make this reliable
+        // RocksDB's DBWithThreadMode only has this function to check if a key exists in the DB,
+        // so I added the else condition to make this reliable
 
         let dir_entry = StagedMerkleTreeNode {
             status: StagedEntryStatus::Modified,
