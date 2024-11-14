@@ -446,7 +446,8 @@ pub fn process_add_file(
         for conflict in conflicts {
             let conflict_path = repo.path.join(&conflict.merge_entry.path);
             log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
-            if conflict_path == path {
+            let relative_conflict_path = util::fs::path_relative_to_dir(&conflict_path, repo_path)?;
+            if relative_conflict_path == relative_path {
                 status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
                 repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
             }
