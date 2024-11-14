@@ -392,10 +392,11 @@ pub fn process_add_file(
                     "has_different_modification_time hash is different true {}",
                     file_node
                 );
+                let num_bytes = metadata.len();
                 (
                     StagedEntryStatus::Modified,
                     MerkleHash::new(hash),
-                    file_node.num_bytes,
+                    num_bytes,
                     mtime,
                 )
             } else {
