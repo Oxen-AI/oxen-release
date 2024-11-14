@@ -32,6 +32,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .service(services::data_frames())
                 .service(services::dir())
                 .service(services::file())
+                .service(services::fork())
                 .service(services::merge())
                 .service(services::meta())
                 .service(services::objects_db())
