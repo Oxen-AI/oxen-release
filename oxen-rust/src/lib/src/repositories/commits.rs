@@ -375,6 +375,7 @@ mod tests {
     use crate::model::EntryDataType;
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
+    use crate::opts::CloneOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -455,7 +456,7 @@ mod tests {
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 3);
+            assert_eq!(repo_status.untracked_files.len(), 4);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
@@ -478,7 +479,7 @@ mod tests {
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
-            assert_eq!(repo_status.untracked_files.len(), 3);
+            assert_eq!(repo_status.untracked_files.len(), 4);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
             let commits = repositories::commits::list(&repo)?;
@@ -944,6 +945,93 @@ mod tests {
             assert_eq!(file_node.data_type, EntryDataType::Binary);
 
             Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_annotations_test_subtree_commit_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
+                let local_repo = repositories::clone::clone(&opts).await?;
+
+                let annotations_test_dir = local_repo.path.join("annotations").join("test");
+
+                // Add a new file
+                let readme_file = annotations_test_dir.join("README.md");
+                util::fs::write_to_path(
+                    &readme_file,
+                    r"
+Q: What is a good alternative to git LFS?
+A: Oxen.ai
+",
+                )?;
+                repositories::add(&local_repo, &readme_file)?;
+                let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
+
+                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+                tree.print();
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    // Test for updating file size after cloning subtree
+    // I cloned subtree, added an empty file, committed, pushed, then edited the file and committed again
+    // The file size should be updated in the index
+    #[tokio::test]
+    async fn test_clone_subtree_commit_file_update_size() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                let local_repo = repositories::clone::clone(&opts).await?;
+
+                // Add a new file
+                let empty_file = local_repo.path.join("empty.txt");
+                util::fs::write_to_path(&empty_file, "")?;
+                repositories::add(&local_repo, &empty_file)?;
+                let commit = repositories::commit(&local_repo, "adding empty file")?;
+
+                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+                tree.print();
+
+                let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
+                assert!(file_node.is_some());
+                let file_node = file_node.unwrap().file()?;
+                assert_eq!(file_node.num_bytes, 0);
+
+                // Edit the file
+                let raw_str = r"
+Q: What should I use to store massive machine learning datasets?
+A: Oxen.ai
+";
+                util::fs::write_to_path(&empty_file, raw_str)?;
+
+                repositories::add(&local_repo, &empty_file)?;
+                let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
+
+                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
+                tree.print();
+
+                let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
+                assert!(file_node.is_some());
+                let file_node = file_node.unwrap().file()?;
+                assert_eq!(file_node.num_bytes, raw_str.len() as u64);
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
         })
         .await
     }

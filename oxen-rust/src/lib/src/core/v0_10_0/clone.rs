@@ -4,7 +4,7 @@ use crate::constants::{DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME};
 use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
-use crate::opts::{CloneOpts, PullOpts};
+use crate::opts::CloneOpts;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, util};
 
@@ -41,6 +41,8 @@ pub async fn clone_repo(
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
         min_version: Some(remote_repo.min_version().to_string()),
+        subtree_paths: None,
+        depth: None,
         vnode_size: None,
     };
 
@@ -48,11 +50,11 @@ pub async fn clone_repo(
     util::fs::write_to_path(&repo_config_file, &toml)?;
 
     // Pull all commit objects, but not entries
-    let rb = RemoteBranch::from_branch(&opts.branch);
+    let rb = RemoteBranch::from_branch(&opts.fetch_opts.branch);
     let indexer = EntryIndexer::new(&local_repo)?;
     maybe_pull_entries(&local_repo, &remote_repo, &indexer, &rb, opts).await?;
 
-    if opts.all {
+    if opts.fetch_opts.all {
         log::debug!("pulling all entries");
         let remote_branches = api::client::branches::list(&remote_repo).await?;
         if remote_branches.len() > 1 {
@@ -95,29 +97,12 @@ pub async fn clone_repo(
 }
 
 async fn maybe_pull_entries(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    indexer: &EntryIndexer,
-    rb: &RemoteBranch,
-    opts: &CloneOpts,
+    _local_repo: &LocalRepository,
+    _remote_repo: &RemoteRepository,
+    _indexer: &EntryIndexer,
+    _rb: &RemoteBranch,
+    _opts: &CloneOpts,
 ) -> Result<(), OxenError> {
-    // Shallow means we will not pull the actual data until a user tells us to
-    if opts.shallow {
-        indexer
-            .pull_most_recent_commit_object(remote_repo, rb, true)
-            .await?;
-        local_repo.write_is_shallow(true)?;
-    } else {
-        // Pull all entries
-        indexer
-            .pull(
-                rb,
-                PullOpts {
-                    should_pull_all: opts.all,
-                    should_update_head: true,
-                },
-            )
-            .await?;
-    }
-    Ok(())
+    // Pull all entries
+    panic!("v0.10.0 clone no longer supported")
 }

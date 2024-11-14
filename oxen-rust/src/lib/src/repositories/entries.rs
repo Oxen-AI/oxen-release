@@ -539,15 +539,15 @@ mod tests {
                 println!("{entry:?}");
             }
 
-            assert_eq!(size, 8);
-            assert_eq!(dir_entries.len(), 8);
+            assert_eq!(size, 9);
+            assert_eq!(dir_entries.len(), 9);
             assert_eq!(
                 dir_entries
                     .clone()
                     .into_iter()
                     .filter(|e| !e.is_dir)
                     .count(),
-                3
+                4
             );
             assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 5);
 

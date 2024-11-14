@@ -692,16 +692,36 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
 pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();
     let dst = dst.as_ref();
-    match std::fs::copy(src, dst) {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            if !src.exists() {
-                Err(OxenError::file_error(src, err))
-            } else {
-                Err(OxenError::file_copy_error(src, dst, err))
+    let max_retries = 3;
+    let mut attempt = 0;
+
+    while attempt < max_retries {
+        match std::fs::copy(src, dst) {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                if err.raw_os_error() == Some(32) {
+                    attempt += 1;
+                    if attempt == max_retries {
+                        return Err(OxenError::basic_str(format!(
+                            "File is in use by another process after {} attempts: {src:?}",
+                            max_retries
+                        )));
+                    }
+                    // Exponential backoff: 100ms, 200ms, 400ms
+                    let sleep_duration = std::time::Duration::from_millis(100 * 2_u64.pow(attempt));
+                    std::thread::sleep(sleep_duration);
+                    continue;
+                } else if !src.exists() {
+                    return Err(OxenError::file_error(src, err));
+                } else {
+                    return Err(OxenError::file_copy_error(src, dst, err));
+                }
             }
         }
     }
+
+    // This should never be reached due to the return statements above
+    unreachable!()
 }
 
 /// Wrapper around the std::fs::rename command to tell us which file failed to copy

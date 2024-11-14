@@ -486,23 +486,6 @@ impl OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(err)
     }
-
-    pub fn repo_is_shallow() -> OxenError {
-        let err = r"
-Repo is in a shallow clone state. You can only perform operations remotely.
-
-To fetch data from the remote, run:
-
-    oxen pull origin main
-
-Or you can interact with the remote directly with the `oxen workspace` subcommand:
-
-    oxen workspace status -w workspace-id
-    oxen workspace add path/to/image.jpg -w workspace-id
-    oxen workspace commit -m 'Committing data to remote without ever pulling it locally' -w workspace-id -b branch-name
-";
-        OxenError::basic_str(err)
-    }
 }
 
 // if you do not want to call .map_err, implement the std::convert::From trait

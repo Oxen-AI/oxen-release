@@ -9,7 +9,7 @@ use crate::repositories;
 use crate::util;
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 struct CheckoutProgressBar {
@@ -126,6 +126,35 @@ pub async fn checkout(
         .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
 
     checkout_commit(repo, &commit, from_commit).await?;
+
+    Ok(())
+}
+
+pub async fn checkout_subtrees(
+    repo: &LocalRepository,
+    from_commit: &Commit,
+    subtree_paths: &[PathBuf],
+    depth: i32,
+) -> Result<(), OxenError> {
+    for subtree_path in subtree_paths {
+        let target_tree = repositories::tree::get_subtree_by_depth(
+            repo,
+            from_commit,
+            &Some(subtree_path.to_path_buf()),
+            &Some(depth),
+        )?;
+
+        let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
+        let from_tree = None;
+        let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
+        r_restore_missing_or_modified_files(
+            repo,
+            &target_tree.root,
+            &from_tree,
+            parent_path,
+            &mut progress,
+        )?;
+    }
 
     Ok(())
 }
