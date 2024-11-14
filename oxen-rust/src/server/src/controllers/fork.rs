@@ -2,8 +2,11 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 use actix_web::{web, HttpRequest, HttpResponse, Result};
+use liboxen::constants::DEFAULT_BRANCH_NAME;
+use liboxen::model::LocalRepository;
 use liboxen::repositories;
 use liboxen::view::fork::ForkRequest;
+use liboxen::view::repository::RepositoryCreationView;
 
 pub async fn fork(
     req: HttpRequest,
@@ -24,9 +27,18 @@ pub async fn fork(
     let new_repo_path = app_data.path.join(&new_repo_namespace).join(&new_repo_name);
 
     match repositories::fork(&original_repo.path, &new_repo_path) {
-        Ok(new_repo) => {
+        Ok(_new_repo) => {
             log::info!("Successfully forked repository to {:?}", new_repo_path);
-            Ok(HttpResponse::Created().json(new_repo))
+            let new_repo = LocalRepository::from_dir(&new_repo_path)?;
+            let latest_commit =
+                repositories::commits::get_commit_or_head(&new_repo, Some(DEFAULT_BRANCH_NAME))?;
+            let repo_view = RepositoryCreationView {
+                namespace: new_repo_namespace,
+                name: new_repo_name,
+                latest_commit: Some(latest_commit),
+                min_version: Some(new_repo.min_version().to_string()),
+            };
+            Ok(HttpResponse::Created().json(repo_view))
         }
         Err(err) => {
             log::error!("Failed to fork repository: {:?}", err);
