@@ -115,7 +115,7 @@ impl DataType {
             },
             DataType::Null => "null",
             DataType::Unknown => {
-                // DO NOT USE {} HERE, IT WILL CAUSE A MEMORY LEAK
+                // DO NOT USE {} HERE, IT WILL CAUSE A STACK OVERFLOW
                 log::error!("TODO: as_str unknown DataType::Unknown type {:?}", self);
                 "?"
             }
