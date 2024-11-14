@@ -104,7 +104,7 @@ impl EntryIndexer {
         let mut status = StagedData::empty();
 
         // TODO: revisit after updating shallow clone
-        if head_commit.is_some() && !self.repository.is_shallow_clone() {
+        if head_commit.is_some() {
             let stager = Stager::new(&self.repository)?;
             status = stager.status(&CommitEntryReader::new(
                 &self.repository,
@@ -144,10 +144,7 @@ impl EntryIndexer {
         core::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
-        // TODO: Revisit after revising shallow logic
-        if !&self.repository.is_shallow_clone() {
-            self.cleanup_removed_entries(&commit, status)?;
-        }
+        self.cleanup_removed_entries(&commit, status)?;
 
         log::debug!(
             "pull complete ✅ for commit {} -> '{}'",

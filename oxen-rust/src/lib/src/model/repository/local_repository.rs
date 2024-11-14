@@ -18,7 +18,9 @@ pub struct LocalRepository {
     remote_name: Option<String>, // name of the current remote ("origin" by default)
     min_version: Option<String>, // write the version if it is past v0.18.4
     remotes: Vec<Remote>,        // List of possible remotes
-    vnode_size: Option<u64>,
+    vnode_size: Option<u64>,     // Size of the vnodes
+    subtree_paths: Option<Vec<PathBuf>>, // If the user clones a subtree, we store the paths here so that we know we don't have the full tree
+    depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
 }
 
 impl LocalRepository {
@@ -33,6 +35,8 @@ impl LocalRepository {
             // New with a path should default to our current MIN_OXEN_VERSION
             min_version: Some(MIN_OXEN_VERSION.to_string()),
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -47,6 +51,8 @@ impl LocalRepository {
             remote_name: None,
             min_version: Some(min_version.as_ref().to_string()),
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -57,6 +63,8 @@ impl LocalRepository {
             remote_name: None,
             min_version: None,
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -67,6 +75,8 @@ impl LocalRepository {
             remote_name: Some(String::from(constants::DEFAULT_REMOTE_NAME)),
             min_version: None,
             vnode_size: None,
+            subtree_paths: None,
+            depth: None,
         })
     }
 
@@ -83,6 +93,8 @@ impl LocalRepository {
             remote_name: cfg.remote_name,
             min_version: cfg.min_version,
             vnode_size: Some(vnode_size),
+            subtree_paths: cfg.subtree_paths,
+            depth: cfg.depth,
         };
         Ok(repo)
     }
@@ -123,12 +135,41 @@ impl LocalRepository {
         self.vnode_size = Some(size);
     }
 
+    pub fn subtree_paths(&self) -> Option<Vec<PathBuf>> {
+        self.subtree_paths.as_ref().map(|paths| {
+            paths
+                .iter()
+                .map(|p| {
+                    if p == &PathBuf::from(".") {
+                        PathBuf::from("")
+                    } else {
+                        p.clone()
+                    }
+                })
+                .collect()
+        })
+    }
+
+    pub fn set_subtree_paths(&mut self, paths: Option<Vec<PathBuf>>) {
+        self.subtree_paths = paths;
+    }
+
+    pub fn depth(&self) -> Option<i32> {
+        self.depth
+    }
+
+    pub fn set_depth(&mut self, depth: Option<i32>) {
+        self.depth = depth;
+    }
+
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let cfg = RepositoryConfig {
             remote_name: self.remote_name.clone(),
             remotes: self.remotes.clone(),
             min_version: self.min_version.clone(),
             vnode_size: Some(self.vnode_size.unwrap_or(DEFAULT_VNODE_SIZE)),
+            subtree_paths: self.subtree_paths.clone(),
+            depth: self.depth,
         };
         let toml = toml::to_string(&cfg)?;
         util::fs::write_to_path(path, toml)?;
@@ -141,11 +182,13 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn set_remote(&mut self, name: &str, url: &str) -> Remote {
-        self.remote_name = Some(String::from(name));
+    pub fn set_remote(&mut self, name: impl AsRef<str>, url: impl AsRef<str>) -> Remote {
+        self.remote_name = Some(name.as_ref().to_owned());
+        let name = name.as_ref();
+        let url = url.as_ref();
         let remote = Remote {
-            name: String::from(name),
-            url: String::from(url),
+            name: name.to_owned(),
+            url: url.to_owned(),
         };
         if self.has_remote(name) {
             // find remote by name and set
@@ -161,7 +204,8 @@ impl LocalRepository {
         remote
     }
 
-    pub fn delete_remote(&mut self, name: &str) {
+    pub fn delete_remote(&mut self, name: impl AsRef<str>) {
+        let name = name.as_ref();
         let mut new_remotes: Vec<Remote> = vec![];
         for i in 0..self.remotes.len() {
             if self.remotes[i].name != name {
@@ -171,7 +215,8 @@ impl LocalRepository {
         self.remotes = new_remotes;
     }
 
-    pub fn has_remote(&self, name: &str) -> bool {
+    pub fn has_remote(&self, name: impl AsRef<str>) -> bool {
+        let name = name.as_ref();
         for remote in self.remotes.iter() {
             if remote.name == name {
                 return true;
@@ -180,7 +225,8 @@ impl LocalRepository {
         false
     }
 
-    pub fn get_remote(&self, name: &str) -> Option<Remote> {
+    pub fn get_remote(&self, name: impl AsRef<str>) -> Option<Remote> {
+        let name = name.as_ref();
         log::debug!("Checking for remote {name} have {}", self.remotes.len());
         for remote in self.remotes.iter() {
             log::debug!("comparing: {name} -> {}", remote.name);
@@ -208,11 +254,6 @@ impl LocalRepository {
             util::fs::remove_file(&shallow_flag_path)?;
         }
         Ok(())
-    }
-
-    pub fn is_shallow_clone(&self) -> bool {
-        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
-        shallow_flag_path.exists()
     }
 }
 

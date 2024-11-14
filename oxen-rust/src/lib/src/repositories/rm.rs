@@ -210,19 +210,12 @@ mod tests {
 
             // create several levels of subdirectories
             for i in 1..=3 {
-                let sub_dir = repo
-                    .path
-                    .join("images")
-                    .join("cats")
-                    .join(format!("subdir{i}_level_1"));
+                let sub_dir = images_dir.join(format!("subdir{i}_level_1"));
                 util::fs::create_dir_all(&sub_dir)?;
             }
 
             for i in 1..=2 {
-                let sub_dir = repo
-                    .path
-                    .join("images")
-                    .join("cats")
+                let sub_dir = images_dir
                     .join(format!("subdir{i}_level_1"))
                     .join(format!("subdir{i}_level_2"));
                 util::fs::create_dir_all(&sub_dir)?;
@@ -230,10 +223,7 @@ mod tests {
 
             // Third level
             for i in 1..=1 {
-                let sub_dir = repo
-                    .path
-                    .join("images")
-                    .join("cats")
+                let sub_dir = images_dir
                     .join(format!("subdir{i}_level_1"))
                     .join(format!("subdir{i}_level_2"))
                     .join(format!("subdir{i}_level_3"));

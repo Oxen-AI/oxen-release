@@ -133,7 +133,8 @@ mod tests {
             // README.md
             // labels.txt
             // prompts.jsonl
-            assert_eq!(repo_status.untracked_files.len(), 3);
+            // LICENSE
+            assert_eq!(repo_status.untracked_files.len(), 4);
             // train/
             // test/
             // nlp/
@@ -160,7 +161,8 @@ mod tests {
             assert_eq!(repo_status.staged_files.len(), 1);
             // README.md
             // prompts.jsonl
-            assert_eq!(repo_status.untracked_files.len(), 2);
+            // LICENSE
+            assert_eq!(repo_status.untracked_files.len(), 3);
             // train/
             // test/
             // nlp/
@@ -198,11 +200,12 @@ mod tests {
             // README.md
             // labels.txt
             // prompts.jsonl
+            // LICENSE
             // annotations/README.md
             // annotations/train/two_shot.csv
             // annotations/train/annotations.txt
             // annotations/train/bounding_box.csv
-            assert_eq!(repo_status.untracked_files.len(), 7);
+            assert_eq!(repo_status.untracked_files.len(), 8);
 
             Ok(())
         })

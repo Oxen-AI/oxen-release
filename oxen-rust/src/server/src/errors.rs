@@ -74,7 +74,7 @@ impl From<std::string::FromUtf8Error> for OxenHttpError {
 
 impl error::ResponseError for OxenHttpError {
     fn error_response(&self) -> HttpResponse {
-        log::error!("OxenHttpError: {:?}", self);
+        log::debug!("OxenHttpError: {:?}", self);
         match self {
             OxenHttpError::InternalServerError => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
