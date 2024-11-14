@@ -115,7 +115,7 @@ impl DataType {
             },
             DataType::Null => "null",
             DataType::Unknown => {
-                log::error!("TODO: as_str unknown DataType::Unknown type {}", self);
+                log::error!("TODO: as_str unknown DataType::Unknown type {:?}", self);
                 "?"
             }
         }
