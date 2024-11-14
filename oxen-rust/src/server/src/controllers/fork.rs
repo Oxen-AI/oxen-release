@@ -17,10 +17,8 @@ pub async fn fork(
     let original_repo = get_repo(&app_data.path, &namespace, &repo_name)?;
 
     // Here we need to make sure that the hub checks that the user has the permissions to fork to the organization namespace
-    let new_repo_namespace = body
-        .organization_namespace
-        .clone()
-        .unwrap_or(body.user_namespace.clone());
+    let new_repo_namespace = body.namespace.clone();
+
     let new_repo_name = body.new_repo_name.clone().unwrap_or(repo_name.clone());
 
     let new_repo_path = app_data.path.join(&new_repo_namespace).join(&new_repo_name);
