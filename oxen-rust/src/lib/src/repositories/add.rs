@@ -58,9 +58,84 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::error::OxenError;
+    use crate::opts::clone_opts::CloneOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
+
+    #[tokio::test]
+    async fn test_clone_root_subtree_depth_1_add_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("")]);
+                opts.fetch_opts.depth = Some(1);
+                let local_repo = repositories::clone::clone(&opts).await?;
+
+                // Add a new file
+                let hello_file = local_repo.path.join("clone_depth_1_add.txt");
+                util::fs::write_to_path(
+                    &hello_file,
+                    "Oxen.ai is the best data version control system.",
+                )?;
+                repositories::add(&local_repo, &hello_file)?;
+
+                // Get the status and make sure the file is staged
+                let status = repositories::status(&local_repo)?;
+                assert_eq!(status.staged_files.len(), 1);
+                assert!(status
+                    .staged_files
+                    .contains_key(&PathBuf::from("clone_depth_1_add.txt")));
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_annotations_test_subtree_add_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
+                let local_repo = repositories::clone::clone(&opts).await?;
+
+                let annotations_test_dir = local_repo.path.join("annotations").join("test");
+
+                // Add a new file
+                let readme_file = annotations_test_dir.join("README.md");
+                util::fs::write_to_path(
+                    &readme_file,
+                    r"
+Q: What is the best data version control system?
+A: Oxen.ai
+",
+                )?;
+                repositories::add(&local_repo, &readme_file)?;
+
+                // Get the status and make sure the file is staged
+                let status = repositories::status(&local_repo)?;
+                assert_eq!(status.staged_files.len(), 1);
+                assert!(status
+                    .staged_files
+                    .contains_key(&PathBuf::from("annotations").join("test").join("README.md")));
+
+                // Make sure no files are marked as removed, because they are just not downloaded in the subtree
+                assert_eq!(status.removed_files.len(), 0);
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
 
     #[test]
     fn test_command_add_file() -> Result<(), OxenError> {

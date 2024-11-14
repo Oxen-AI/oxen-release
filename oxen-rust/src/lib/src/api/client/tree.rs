@@ -4,6 +4,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::time;
 
 use crate::api::client;
@@ -13,6 +14,7 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
+use crate::opts::fetch_opts::FetchOpts;
 use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, repositories, util};
@@ -215,9 +217,10 @@ pub async fn download_trees_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: impl AsRef<str>,
+    fetch_opts: &FetchOpts,
 ) -> Result<Vec<Commit>, OxenError> {
     let commit_id = commit_id.as_ref();
-    let uri = format!("/tree/download/{commit_id}");
+    let uri = append_fetch_opts_to_uri(format!("/tree/download/{commit_id}"), fetch_opts);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("downloading trees {} from {}", commit_id, url);
@@ -232,16 +235,48 @@ pub async fn download_trees_from(
     Ok(commits)
 }
 
+fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
+    append_subtree_paths_and_depth_to_uri(uri, &fetch_opts.subtree_paths, &fetch_opts.depth)
+}
+
+fn append_subtree_paths_and_depth_to_uri(
+    uri: String,
+    subtree_paths: &Option<Vec<PathBuf>>,
+    depth: &Option<i32>,
+) -> String {
+    let mut uri = uri;
+    if let Some(depth) = &depth {
+        uri = format!("{uri}?depth={depth}");
+    }
+    if let Some(subtree_paths) = &subtree_paths {
+        if !uri.contains("?depth=") {
+            uri = format!("{uri}?");
+        } else {
+            uri = format!("{uri}&");
+        }
+        let subtree_str = subtree_paths
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+        // uri encode the subtree paths
+        let subtree_str = urlencoding::encode(&subtree_str);
+        uri = format!("{uri}subtrees={subtree_str}");
+    }
+    uri
+}
+
 pub async fn download_trees_between(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     base_id: impl AsRef<str>,
     head_id: impl AsRef<str>,
+    fetch_opts: &FetchOpts,
 ) -> Result<Vec<Commit>, OxenError> {
     let base_id = base_id.as_ref();
     let head_id = head_id.as_ref();
     let base_head = format!("{base_id}..{head_id}");
-    let uri = format!("/tree/download/{base_head}");
+    let uri = append_fetch_opts_to_uri(format!("/tree/download/{base_head}"), fetch_opts);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("downloading trees {} from {}", base_head, url);
@@ -350,10 +385,16 @@ pub async fn list_missing_file_hashes(
 }
 
 pub async fn list_missing_file_hashes_from_commits(
+    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_ids: HashSet<MerkleHash>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let uri = "/tree/nodes/missing_file_hashes_from_commits".to_string();
+    let uri = append_subtree_paths_and_depth_to_uri(
+        uri,
+        &local_repo.subtree_paths(),
+        &local_repo.depth(),
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let commit_hashes = MerkleHashes { hashes: commit_ids };

@@ -3,7 +3,7 @@
 //! Interact with Oxen branches.
 //!
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::refs::{RefReader, RefWriter};
@@ -319,13 +319,32 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 /// Checkout a branch
 pub async fn checkout_branch_from_commit(
     repo: &LocalRepository,
-    name: &str,
+    name: impl AsRef<str>,
     from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
+    let name = name.as_ref();
     log::debug!("checkout_branch {}", name);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name, from_commit).await,
+    }
+}
+
+/// Checkout a subtree from a commit
+pub async fn checkout_subtrees_from_commit(
+    repo: &LocalRepository,
+    from_commit: &Commit,
+    subtree_paths: &[PathBuf],
+    depth: i32,
+) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
+                .await
+        }
     }
 }
 
@@ -345,10 +364,10 @@ pub async fn checkout_commit_from_commit(
     }
 }
 
-pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
-    log::debug!("set_head {}", value);
+pub fn set_head(repo: &LocalRepository, value: impl AsRef<str>) -> Result<(), OxenError> {
+    log::debug!("set_head {}", value.as_ref());
     let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_head(value);
+    ref_writer.set_head(value.as_ref());
     Ok(())
 }
 

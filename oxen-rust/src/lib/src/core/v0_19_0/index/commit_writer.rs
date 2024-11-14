@@ -124,6 +124,7 @@ pub fn commit_with_cfg(
     let branch = repositories::branches::current_branch(repo)?;
     let maybe_branch_name = branch.map(|b| b.name);
     let commit = if let Some(parent_ids) = parent_ids {
+        log::debug!("parent ids: {:?}", parent_ids);
         commit_dir_entries_with_parents(
             repo,
             parent_ids,
@@ -136,6 +137,7 @@ pub fn commit_with_cfg(
                 .unwrap_or(DEFAULT_BRANCH_NAME.to_string()),
         )?
     } else {
+        log::debug!("no parent ids, committing new");
         commit_dir_entries_new(
             repo,
             dir_entries,
@@ -197,10 +199,21 @@ pub fn commit_dir_entries_with_parents(
         .map(|path| path.to_path_buf())
         .collect::<Vec<_>>();
 
+    log::debug!(
+        "collecting existing nodes for directories: {:?}",
+        directories
+    );
+
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
         existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
+
+    log::debug!(
+        "existing nodes (count: {}) {:?}",
+        existing_nodes.len(),
+        existing_nodes.keys()
+    );
 
     // Sort children and split into VNodes
     let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
@@ -291,6 +304,7 @@ pub fn commit_dir_entries_new(
         .keys()
         .map(|path| path.to_path_buf())
         .collect::<Vec<_>>();
+    log::debug!("new commit directories: {:?}", directories);
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
@@ -407,6 +421,7 @@ pub fn commit_dir_entries(
         .keys()
         .map(|path| path.to_path_buf())
         .collect::<Vec<_>>();
+    log::debug!("commit_dir_entries directories: {:?}", directories);
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {

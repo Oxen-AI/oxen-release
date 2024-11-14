@@ -22,4 +22,4 @@ pub mod status;
 pub use add::add;
 pub use clone::clone_repo;
 pub use init::init;
-pub use pull::{pull, pull_all, pull_remote_branch, pull_shallow};
+pub use pull::{pull, pull_all, pull_remote_branch};

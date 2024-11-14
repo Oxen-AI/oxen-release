@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use clap::{arg, Arg, Command};
+use std::path::PathBuf;
 
 use liboxen::api;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
+use liboxen::opts::fetch_opts::FetchOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::repositories;
 
@@ -26,10 +28,16 @@ impl RunCmd for CloneCmd {
             .arg_required_else_help(true)
             .arg(arg!(<URL> "URL of the repository you want to clone"))
             .arg(
-                Arg::new("shallow")
-                    .long("shallow")
-                    .help("A shallow clone doesn't actually clone the data files. Useful if you want to soley interact with the remote.")
-                    .action(clap::ArgAction::SetTrue),
+                Arg::new("filter")
+                    .long("filter")
+                    .help("Filter down the set of directories you want to clone. Useful if you have a large repository and only want to make changes to a specific subset of files.")
+                    .action(clap::ArgAction::Append),
+            )
+            .arg(
+                Arg::new("depth")
+                    .long("depth")
+                    .help("Used in combination with --subtree. The depth at which to clone the subtree. If not provided, the entire subtree will be cloned.")
+                    .action(clap::ArgAction::Set),
             )
             .arg(
                 Arg::new("all")
@@ -51,11 +59,18 @@ impl RunCmd for CloneCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let url = args.get_one::<String>("URL").expect("required");
-        let shallow = args.get_flag("shallow");
         let all = args.get_flag("all");
         let branch = args
             .get_one::<String>("branch")
             .expect("Must supply a branch");
+        let filters: Vec<PathBuf> = args
+            .get_many::<String>("filter")
+            .unwrap_or_default()
+            .map(PathBuf::from)
+            .collect();
+        let depth: Option<i32> = args
+            .get_one::<String>("depth")
+            .map(|s| s.parse().expect("Invalid depth, must be an integer"));
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
         // Get the name of the repo from the url
@@ -65,9 +80,13 @@ impl RunCmd for CloneCmd {
         let opts = CloneOpts {
             url: url.to_string(),
             dst,
-            shallow,
-            all,
-            branch: branch.to_string(),
+            fetch_opts: FetchOpts {
+                branch: branch.to_string(),
+                subtree_paths: filters_to_subtree_paths(&filters, depth),
+                depth,
+                all,
+                ..FetchOpts::new()
+            },
         };
 
         let host = api::client::get_host_from_url(&opts.url)?;
@@ -76,5 +95,18 @@ impl RunCmd for CloneCmd {
 
         repositories::clone(&opts).await?;
         Ok(())
+    }
+}
+
+fn filters_to_subtree_paths(filters: &[PathBuf], depth: Option<i32>) -> Option<Vec<PathBuf>> {
+    if filters.is_empty() {
+        if depth.is_some() {
+            // If the user specifies a depth, default to the root
+            Some(vec![PathBuf::from(".")])
+        } else {
+            None
+        }
+    } else {
+        Some(filters.to_vec())
     }
 }

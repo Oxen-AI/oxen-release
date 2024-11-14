@@ -8,25 +8,17 @@ use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::opts::fetch_opts::FetchOpts;
 use crate::repositories;
 
 /// # Fetch the remote branches and objects
-pub async fn fetch(repo: &LocalRepository, all: bool) -> Result<Vec<Branch>, OxenError> {
-    for remote in repo.remotes().iter() {
-        fetch_remote(repo, &remote.name, all).await?;
-    }
-
-    Ok(vec![])
-}
-
-pub async fn fetch_remote(
+pub async fn fetch(
     repo: &LocalRepository,
-    remote_name: &str,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<Vec<Branch>, OxenError> {
     let remote = repo
-        .get_remote(remote_name)
-        .ok_or(OxenError::remote_not_set(remote_name))?;
+        .get_remote(&fetch_opts.remote)
+        .ok_or(OxenError::remote_not_set(fetch_opts.remote.clone()))?;
     let remote_repo = api::client::repositories::get_by_remote(&remote)
         .await?
         .ok_or(OxenError::remote_not_found(remote.clone()))?;
@@ -60,12 +52,14 @@ pub async fn fetch_remote(
             branch: branch.name.to_owned(),
         };
 
+        let mut fetch_opts = fetch_opts.clone();
+        fetch_opts.branch = branch.name.to_owned();
         log::debug!(
             "Fetching remote branch: {} -> {}",
             remote_repo.name,
             rb.branch
         );
-        fetch_remote_branch(repo, &remote_repo, &rb, all).await?;
+        fetch_remote_branch(repo, &remote_repo, &fetch_opts).await?;
     }
 
     Ok(vec![])
@@ -74,20 +68,26 @@ pub async fn fetch_remote(
 pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    rb: &RemoteBranch,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
-    println!("Fetch remote branch: {}/{}", remote_repo.name, rb.branch);
+    println!(
+        "Fetch remote branch: {}/{}",
+        remote_repo.name, fetch_opts.branch
+    );
 
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
+            let rb = RemoteBranch {
+                remote: fetch_opts.remote.clone(),
+                branch: fetch_opts.branch.clone(),
+            };
             indexer
-                .pull_most_recent_commit_object(remote_repo, rb, false)
+                .pull_most_recent_commit_object(remote_repo, &rb, false)
                 .await?;
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, rb, all).await?;
+            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
         }
     }
 
@@ -101,6 +101,7 @@ mod tests {
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::opts::fetch_opts::FetchOpts;
     use crate::repositories;
     use crate::test;
 
@@ -139,7 +140,7 @@ mod tests {
 
                 assert_eq!(1, branches.len());
 
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
 
                 let branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(3, branches.len());
