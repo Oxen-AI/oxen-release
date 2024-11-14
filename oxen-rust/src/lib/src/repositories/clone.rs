@@ -180,7 +180,7 @@ mod tests {
 
                 // Make sure we set the depth and subtree paths
                 assert_eq!(local_repo.depth(), Some(1));
-                assert_eq!(local_repo.subtree_paths(), Some(vec![PathBuf::from(".")]));
+                assert_eq!(local_repo.subtree_paths(), Some(vec![PathBuf::from("")]));
 
                 // All the files should be here
                 assert!(local_repo.path.join("README.md").exists());

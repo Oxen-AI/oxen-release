@@ -260,7 +260,7 @@ pub async fn download_tree_nodes(
         let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
 
         let node_dir = node_db_path(&repository, &hash);
-        log::debug!("Compressing node from dir {:?}", node_dir);
+        // log::debug!("Compressing node from dir {:?}", node_dir);
         if node_dir.exists() {
             tar.append_dir_all(&tar_subdir, node_dir)?;
         }
@@ -452,7 +452,7 @@ fn compress_node(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
     let node_dir = node_db_path(repository, hash);
 
-    log::debug!("Compressing node {} from dir {:?}", hash, node_dir);
+    // log::debug!("Compressing node {} from dir {:?}", hash, node_dir);
     if node_dir.exists() {
         tar.append_dir_all(&tar_subdir, node_dir)?;
     }
