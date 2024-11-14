@@ -6,11 +6,12 @@
 use std::path::Path;
 
 use crate::api;
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
+use crate::opts::fetch_opts::FetchOpts;
 use crate::opts::CloneOpts;
 
 pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
@@ -25,52 +26,43 @@ pub async fn clone_url(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
-    let shallow = false;
-    let all = false;
-    _clone(url, dst, shallow, all).await
-}
-
-pub async fn shallow_clone_url(
-    url: impl AsRef<str>,
-    dst: impl AsRef<Path>,
-) -> Result<LocalRepository, OxenError> {
-    let shallow = true;
-    let all = false;
-    _clone(url, dst, shallow, all).await
+    let fetch_opts = FetchOpts::new();
+    _clone(url, dst, fetch_opts).await
 }
 
 pub async fn deep_clone_url(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
-    let shallow = false;
-    let all = true;
-    _clone(url, dst, shallow, all).await
+    let fetch_opts = FetchOpts {
+        all: true,
+        ..FetchOpts::new()
+    };
+
+    _clone(url, dst, fetch_opts).await
 }
 
 async fn _clone(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
-    shallow: bool,
-    all: bool,
+    fetch_opts: FetchOpts,
 ) -> Result<LocalRepository, OxenError> {
     let opts = CloneOpts {
         url: url.as_ref().to_string(),
         dst: dst.as_ref().to_owned(),
-        shallow,
-        all,
-        branch: DEFAULT_BRANCH_NAME.to_string(),
+        fetch_opts,
     };
     clone(&opts).await
 }
 
 async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenError> {
     log::debug!(
-        "clone_remote {} -> {:?} -> shallow? {} -> all? {}",
+        "clone_remote {} -> {:?} -> subtree? {:?} -> depth? {:?} -> all? {}",
         opts.url,
         opts.dst,
-        opts.shallow,
-        opts.all
+        opts.fetch_opts.subtree_paths,
+        opts.fetch_opts.depth,
+        opts.fetch_opts.all
     );
 
     let remote = Remote {
@@ -97,6 +89,8 @@ async fn clone_repo(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -119,7 +113,7 @@ mod tests {
             log::debug!("created the remote repo");
 
             test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
+                let opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
 
                 log::debug!("about to clone the remote");
                 let local_repo = clone_remote(&opts).await?.unwrap();
@@ -152,7 +146,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
+                let opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
                 api::client::repositories::delete(&remote_repo).await?;
@@ -170,6 +164,144 @@ mod tests {
                 Ok(dir)
             })
             .await
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_root_subtree_depth_1() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                opts.fetch_opts.depth = Some(1);
+                let local_repo = clone_remote(&opts).await?.unwrap();
+
+                // Make sure we set the depth and subtree paths
+                assert_eq!(local_repo.depth(), Some(1));
+                assert_eq!(local_repo.subtree_paths(), Some(vec![PathBuf::from("")]));
+
+                // All the files should be here
+                assert!(local_repo.path.join("README.md").exists());
+                assert!(local_repo.path.join("labels.txt").exists());
+                assert!(local_repo.path.join("prompts.jsonl").exists());
+                assert!(local_repo.path.join("LICENSE").exists());
+
+                // But none of the subdirectories should be here
+                assert!(!local_repo.path.join("nlp").exists());
+                assert!(!local_repo.path.join("annotations").exists());
+                assert!(!local_repo.path.join("train").exists());
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_annotations_subtree() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("annotations")]);
+                let local_repo = clone_remote(&opts).await?.unwrap();
+
+                // Make sure we set the depth and subtree paths
+                assert_eq!(
+                    local_repo.subtree_paths(),
+                    Some(vec![PathBuf::from("annotations")])
+                );
+
+                assert!(local_repo.path.join("annotations").exists());
+                assert!(local_repo.path.join("annotations").join("train").exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("train")
+                    .join("one_shot.csv")
+                    .exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("train")
+                    .join("two_shot.csv")
+                    .exists());
+                assert!(local_repo.path.join("annotations").join("test").exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("test")
+                    .join("annotations.csv")
+                    .exists());
+                assert!(!local_repo.path.join("train").exists());
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_annotations_test_subtree() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
+                let local_repo = clone_remote(&opts).await?.unwrap();
+
+                assert!(local_repo.path.join("annotations").join("test").exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("test")
+                    .join("annotations.csv")
+                    .exists());
+                assert!(!local_repo.path.join("annotations").join("train").exists());
+                assert!(!local_repo.path.join("train").exists());
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_multiple_subtrees() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+            test::run_empty_dir_test_async(|dir| async move {
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![
+                    PathBuf::from("annotations").join("test"),
+                    PathBuf::from("nlp"),
+                ]);
+                let local_repo = clone_remote(&opts).await?.unwrap();
+
+                assert!(local_repo.path.join("annotations").join("test").exists());
+                assert!(local_repo.path.join("nlp").exists());
+                assert!(local_repo
+                    .path
+                    .join("annotations")
+                    .join("test")
+                    .join("annotations.csv")
+                    .exists());
+                assert!(!local_repo.path.join("annotations").join("train").exists());
+                assert!(!local_repo.path.join("train").exists());
+
+                Ok(dir)
+            })
+            .await?;
+            Ok(cloned_remote)
         })
         .await
     }
@@ -337,45 +469,6 @@ mod tests {
 
                 // Should be able to push all data successfully
                 repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await?;
-
-                Ok(new_repo_dir)
-            })
-            .await?;
-
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let new_repo_dir = new_repo_dir.join("repoo");
-                let mut cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-
-                let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
-                let remote_url = test::repo_remote_url_from(&repo_name);
-                let remote_name = "different";
-
-                // Create a different repo
-                let repo_new = RepoNew::from_namespace_name_host(
-                    constants::DEFAULT_NAMESPACE,
-                    repo_name,
-                    test::test_host(),
-                );
-                api::client::repositories::create_from_local(&cloned_repo, repo_new).await?;
-
-                command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
-
-                // Should fail
-                let push_res =
-                    repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await;
-                assert!(push_res.is_err());
 
                 Ok(new_repo_dir)
             })

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::constants::DEFAULT_VNODE_SIZE;
 use crate::error::OxenError;
@@ -11,6 +11,10 @@ pub struct RepositoryConfig {
     // this is the current remote name
     pub remote_name: Option<String>,
     pub remotes: Vec<Remote>,
+    // If the user clones a subtree, we store the paths here so that we know we don't have the full tree
+    pub subtree_paths: Option<Vec<PathBuf>>,
+    // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
+    pub depth: Option<i32>,
     // write the version if it is past v0.18.4
     pub min_version: Option<String>,
     pub vnode_size: Option<u64>,
@@ -27,6 +31,8 @@ impl RepositoryConfig {
         RepositoryConfig {
             remote_name: None,
             remotes: Vec::new(),
+            subtree_paths: None,
+            depth: None,
             min_version: None,
             vnode_size: None,
         }

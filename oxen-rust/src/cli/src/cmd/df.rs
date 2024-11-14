@@ -207,6 +207,12 @@ impl RunCmd for DFCmd {
                 .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
                 .action(clap::ArgAction::Set),
         )
+        .arg(
+            Arg::new("quote")
+                .long("quote")
+                .help("The quote character to use when reading the file. Default is '\"'")
+                .action(clap::ArgAction::Set),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -299,6 +305,7 @@ impl DFCmd {
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
             should_page: args.get_flag("full") || page_specified,
+            quote_char: args.get_one::<String>("quote").map(String::from),
             repo_dir,
         }
     }

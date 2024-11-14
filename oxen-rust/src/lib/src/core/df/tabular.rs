@@ -31,7 +31,11 @@ use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
 
 const READ_ERROR: &str = "Could not read tabular data from path";
 
-fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader {
+fn base_lazy_csv_reader(
+    path: impl AsRef<Path>,
+    delimiter: u8,
+    quote_char: Option<u8>,
+) -> LazyCsvReader {
     let path = path.as_ref();
     let reader = LazyCsvReader::new(path);
     reader
@@ -41,13 +45,17 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
         .with_truncate_ragged_lines(true)
         .with_separator(delimiter)
         .with_eol_char(b'\n')
-        .with_quote_char(None)
+        .with_quote_char(quote_char)
         .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
 }
 
-pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
+pub fn read_df_csv(
+    path: impl AsRef<Path>,
+    delimiter: u8,
+    quote_char: Option<u8>,
+) -> Result<LazyFrame, OxenError> {
+    let reader = base_lazy_csv_reader(path.as_ref(), delimiter, quote_char);
     reader
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
@@ -120,9 +128,10 @@ pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
 pub fn scan_df_csv(
     path: impl AsRef<Path>,
     delimiter: u8,
+    quote_char: Option<u8>,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
+    let reader = base_lazy_csv_reader(path.as_ref(), delimiter, quote_char);
     reader
         .with_n_rows(Some(total_rows))
         .finish()
@@ -834,6 +843,7 @@ fn p_read_df_with_extension(
     }
 
     log::debug!("Reading df with extension {:?} {:?}", extension, path);
+    let quote_char = opts.quote_char.as_ref().map(|s| s.as_bytes()[0]);
 
     let df = match extension {
         "ndjson" => read_df_jsonl(path),
@@ -841,9 +851,9 @@ fn p_read_df_with_extension(
         "json" => read_df_json(path),
         "csv" | "data" => {
             let delimiter = sniff_db_csv_delimiter(path, opts)?;
-            read_df_csv(path, delimiter)
+            read_df_csv(path, delimiter, quote_char)
         }
-        "tsv" => read_df_csv(path, b'\t'),
+        "tsv" => read_df_csv(path, b'\t', quote_char),
         "parquet" => read_df_parquet(path),
         "arrow" => {
             if opts.sql.is_some() {
@@ -951,7 +961,7 @@ fn p_scan_df_with_extension(
         extension
     );
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
-
+    let quote_char = opts.quote_char.as_ref().map(|s| s.as_bytes()[0]);
     match extension {
         Some(extension) => match extension {
             "ndjson" => scan_df_jsonl(path, total_rows),
@@ -959,9 +969,9 @@ fn p_scan_df_with_extension(
             "json" => scan_df_json(path),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
-                scan_df_csv(path, delimiter, total_rows)
+                scan_df_csv(path, delimiter, quote_char, total_rows)
             }
-            "tsv" => scan_df_csv(path, b'\t', total_rows),
+            "tsv" => scan_df_csv(path, b'\t', quote_char, total_rows),
             "parquet" => scan_df_parquet(path, total_rows),
             "arrow" => scan_df_arrow(path, total_rows),
             _ => Err(OxenError::basic_str(err)),

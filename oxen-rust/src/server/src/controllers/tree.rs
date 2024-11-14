@@ -8,6 +8,7 @@ use liboxen::constants::TREE_DIR;
 use liboxen::core::v0_19_0::index::merkle_node_db::node_db_path;
 use liboxen::core::v0_19_0::index::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
+use liboxen::model::Commit;
 use liboxen::model::LocalRepository;
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::MerkleHashesResponse;
@@ -19,6 +20,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use tar::Archive;
 
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use liboxen::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
@@ -30,6 +32,7 @@ use liboxen::view::tree::nodes::{
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
+use crate::params::TreeDepthQuery;
 use crate::params::{app_data, path_param};
 
 pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -78,6 +81,7 @@ pub async fn list_missing_node_hashes(
 
 pub async fn list_missing_file_hashes_from_commits(
     req: HttpRequest,
+    query: web::Query<TreeDepthQuery>,
     mut body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -95,8 +99,13 @@ pub async fn list_missing_file_hashes_from_commits(
         "list_missing_file_hashes_from_commits checking {} commit ids",
         request.hashes.len()
     );
-    let hashes =
-        repositories::tree::list_missing_file_hashes_from_commits(&repository, &request.hashes)?;
+    let subtree_paths = get_subtree_paths(&query.subtrees)?;
+    let hashes = repositories::tree::list_missing_file_hashes_from_commits(
+        &repository,
+        &request.hashes,
+        &subtree_paths,
+        &query.depth,
+    )?;
     log::debug!(
         "list_missing_file_hashes_from_commits found {} missing node ids",
         hashes.len()
@@ -170,7 +179,7 @@ pub async fn create_nodes(
                 std::fs::create_dir_all(parent).expect("Could not create parent dir");
             }
         }
-        log::debug!("create_node writing {:?}", dst_path);
+        // log::debug!("create_node writing {:?}", dst_path);
         file.unpack(&dst_path).unwrap();
 
         // the hash is the last two path components combined
@@ -199,6 +208,8 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
+
+    // Download the entire tree
     let buffer = compress_tree(&repository)?;
 
     Ok(HttpResponse::Ok().body(buffer))
@@ -206,44 +217,41 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
 
 pub async fn download_tree_nodes(
     req: HttpRequest,
+    query: web::Query<TreeDepthQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
     let base_head_str = path_param(&req, "base_head")?;
+
+    log::debug!("download_tree_nodes for base_head: {}", base_head_str);
+    log::debug!(
+        "download_tree_nodes subtrees: {:?}, depth: {:?}",
+        query.subtrees,
+        query.depth
+    );
+
     let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head_str)?;
 
     let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
         .ok_or(OxenError::resource_not_found(&base_commit_id))?;
 
-    // If we have a head commit, then we are downloading a range of commits
-    // Otherwise, we are downloading all commits from the base commit back to the first commit
-    // This is the difference between the first pull and subsequent pulls
-    // The first pull doesn't have a head commit, but subsequent pulls do
-    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
-        let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
-            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
-        repositories::commits::list_between(&repository, &head_commit, &base_commit)?
-    } else {
-        repositories::commits::list_from(&repository, &base_commit_id)?
-    };
+    // Parse the subtrees
+    let subtrees = get_subtree_paths(&query.subtrees)?;
+
+    // Could be a single commit or a range of commits
+    let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
 
     // zip up the node directories for each commit tree
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
     // Collect the unique node hashes for all the commits
-    // There could be duplicate nodes across commits, hence the need to dedup
-    let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
-    for commit in &commits {
-        let tree = repositories::tree::get_by_commit(&repository, commit)?;
+    let unique_node_hashes =
+        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth)?;
 
-        tree.walk_tree_without_leaves(|node| {
-            unique_node_hashes.insert(node.hash);
-        });
-    }
-
+    log::debug!("Compressing {} unique nodes...", unique_node_hashes.len());
     for hash in unique_node_hashes {
         // This will be the subdir within the tarball
         // so when we untar it, all the subdirs will be extracted to
@@ -252,7 +260,7 @@ pub async fn download_tree_nodes(
         let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
 
         let node_dir = node_db_path(&repository, &hash);
-        log::debug!("Compressing commit from dir {:?}", node_dir);
+        // log::debug!("Compressing node from dir {:?}", node_dir);
         if node_dir.exists() {
             tar.append_dir_all(&tar_subdir, node_dir)?;
         }
@@ -268,6 +276,100 @@ pub async fn download_tree_nodes(
     );
 
     Ok(HttpResponse::Ok().body(buffer))
+}
+
+fn get_commit_list(
+    repository: &LocalRepository,
+    base_commit: &Commit,
+    maybe_head_commit_id: Option<String>,
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+) -> Result<Vec<Commit>, OxenError> {
+    // If we have a head commit, then we are downloading a range of commits
+    // Otherwise, we are downloading all commits from the base commit back to the first commit
+    // This is the difference between the first pull and subsequent pulls
+    // The first pull doesn't have a head commit, but subsequent pulls do
+    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
+        let head_commit = repositories::commits::get_by_id(repository, &head_commit_id)?
+            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
+        repositories::commits::list_between(repository, &head_commit, base_commit)?
+    } else {
+        // If the subtree is specified, we only want to get the latest commit
+        if maybe_subtrees.is_some() {
+            vec![base_commit.clone()]
+        } else {
+            repositories::commits::list_from(repository, &base_commit.id)?
+        }
+    };
+
+    Ok(commits)
+}
+
+fn get_unique_node_hashes(
+    repository: &LocalRepository,
+    commits: &[Commit],
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+    maybe_depth: &Option<i32>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    // Collect the unique node hashes for all the commits
+    // There could be duplicate nodes across commits, hence the need to dedup
+    let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
+    log::debug!(
+        "Getting unique node hashes for {} commits... and subtree paths {:?}",
+        commits.len(),
+        maybe_subtrees
+    );
+    for commit in commits {
+        if let Some(subtrees) = maybe_subtrees {
+            // Traverse up the tree to get all the parent directories
+            let mut all_parent_paths: HashSet<PathBuf> = HashSet::new();
+            for subtree_path in subtrees {
+                let mut path = subtree_path.clone();
+                all_parent_paths.insert(path.clone());
+                while let Some(parent) = path.parent() {
+                    all_parent_paths.insert(parent.to_path_buf());
+                    path = parent.to_path_buf();
+                }
+            }
+
+            for subtree_path in all_parent_paths {
+                get_unique_node_hashes_for_subtree(
+                    repository,
+                    commit,
+                    &Some(subtree_path.clone()),
+                    maybe_depth,
+                    &mut unique_node_hashes,
+                )?;
+            }
+        } else {
+            get_unique_node_hashes_for_subtree(
+                repository,
+                commit,
+                &None,
+                maybe_depth,
+                &mut unique_node_hashes,
+            )?;
+        }
+        // Add the commit hash itself
+        unique_node_hashes.insert(commit.hash()?);
+    }
+    log::debug!("Unique node hashes: {}", unique_node_hashes.len());
+
+    Ok(unique_node_hashes)
+}
+
+fn get_unique_node_hashes_for_subtree(
+    repository: &LocalRepository,
+    commit: &Commit,
+    subtree_path: &Option<PathBuf>,
+    depth: &Option<i32>,
+    unique_node_hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    let tree = repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)?;
+    tree.walk_tree_without_leaves(|node| {
+        unique_node_hashes.insert(node.hash);
+    });
+
+    Ok(())
 }
 
 pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -350,7 +452,7 @@ fn compress_node(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
     let node_dir = node_db_path(repository, hash);
 
-    log::debug!("Compressing node {} from dir {:?}", hash, node_dir);
+    // log::debug!("Compressing node {} from dir {:?}", hash, node_dir);
     if node_dir.exists() {
         tar.append_dir_all(&tar_subdir, node_dir)?;
     }
@@ -443,5 +545,13 @@ fn maybe_parse_base_head(
         }
     } else {
         Ok((base_head_str.to_string(), None))
+    }
+}
+
+fn get_subtree_paths(subtrees: &Option<String>) -> Result<Option<Vec<PathBuf>>, OxenError> {
+    if let Some(subtrees) = subtrees {
+        Ok(Some(subtrees.split(',').map(PathBuf::from).collect()))
+    } else {
+        Ok(None)
     }
 }

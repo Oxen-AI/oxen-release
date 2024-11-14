@@ -7,6 +7,7 @@ use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
+use crate::opts::fetch_opts::FetchOpts;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in
@@ -15,17 +16,6 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull(repo).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull(repo).await,
-    }
-}
-
-pub async fn pull_remote_branch_shallow(
-    repo: &LocalRepository,
-    remote: impl AsRef<str>,
-    branch: impl AsRef<str>,
-) -> Result<(), OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull_shallow(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_shallow(repo, remote, branch).await,
     }
 }
 
@@ -39,36 +29,37 @@ pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,
-    remote: impl AsRef<str>,
-    branch: impl AsRef<str>,
-    all: bool,
+    fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::pull::pull_remote_branch(repo, remote.as_ref(), branch.as_ref(), all)
-                .await
+            core::v0_10_0::pull::pull_remote_branch(
+                repo,
+                fetch_opts.remote.as_ref(),
+                fetch_opts.branch.as_ref(),
+                fetch_opts.all,
+            )
+            .await
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::pull::pull_remote_branch(repo, remote, branch, all).await
-        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_remote_branch(repo, fetch_opts).await,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::path::PathBuf;
 
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core;
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
+    use crate::opts::FetchOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -109,7 +100,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let oxen_dir = cloned_repo.path.join(OXEN_HIDDEN_DIR);
                 assert!(oxen_dir.exists());
                 repositories::pull(&cloned_repo).await?;
@@ -232,8 +223,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 // Modify the file in the cloned dir
                 let cloned_filepath = cloned_repo.path.join(filename);
@@ -302,8 +292,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(6, cloned_num_files);
                 let og_commits = repositories::commits::list(&repo)?;
@@ -332,9 +322,12 @@ mod tests {
                 // Pull it on the OG side
                 repositories::pull_remote_branch(
                     &repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    branch_name,
-                    true,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: branch_name.to_string(),
+                        all: true,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let num_new_files = util::fs::rcount_files_in_dir(&repo.path);
@@ -357,9 +350,12 @@ mod tests {
                 // Pull it on the second side again
                 repositories::pull_remote_branch(
                     &cloned_repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    branch_name,
-                    false,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: branch_name.to_string(),
+                        all: false,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -412,8 +408,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // the original training files
                 assert_eq!(train_paths.len(), cloned_num_files);
@@ -440,9 +436,12 @@ mod tests {
                 // Pull it on the OG side
                 repositories::pull_remote_branch(
                     &repo,
-                    constants::DEFAULT_REMOTE_NAME,
-                    &og_branch.name,
-                    true,
+                    &FetchOpts {
+                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                        branch: og_branch.name.to_string(),
+                        all: true,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
                 let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
@@ -486,8 +485,8 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
                 let filepath = cloned_repo.path.join(filename);
                 let content = util::fs::read_from_path(&filepath)?;
                 assert_eq!(og_content, content);
@@ -572,13 +571,11 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 // Clone the branch
-                let opts = CloneOpts {
-                    url: remote_repo.url().to_string(),
-                    dst: new_repo_dir.join("new_repo"),
-                    branch: branch_name.to_owned(),
-                    shallow: false,
-                    all: false,
-                };
+                let opts = CloneOpts::from_branch(
+                    remote_repo.url(),
+                    new_repo_dir.join("new_repo"),
+                    branch_name,
+                );
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
@@ -590,7 +587,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 5);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
                 repositories::checkout(&cloned_repo, "main").await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -654,13 +651,7 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 // Clone the branch
-                let opts = CloneOpts {
-                    url: remote_repo.url().to_string(),
-                    dst: new_repo_dir.join("new_repo"),
-                    branch: DEFAULT_BRANCH_NAME.to_string(),
-                    shallow: false,
-                    all: false,
-                };
+                let opts = CloneOpts::new(remote_repo.url(), new_repo_dir.join("new_repo"));
                 let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
@@ -668,7 +659,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 2);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, false).await?;
+                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
 
                 repositories::checkout(&cloned_repo, branch_name).await?;
 
@@ -788,11 +779,188 @@ mod tests {
         .await
     }
 
+    // Deal with merge conflicts on subtree clones
+    // 1) Clone subtree to user A
+    // 2) Clone subtree to user B
+    // 3) User A changes file commit and pushes
+    // 4) User B changes same file, commits, and pushes and fails
+    // 5) User B pulls user A's changes, there is a merge conflict
+    // 6) User B cannot push until merge conflict is resolved
+    #[tokio::test]
+    async fn test_flags_merge_conflict_on_subtree_pull() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|repos_base_dir| async move {
+                let repos_base_dir_copy = repos_base_dir.clone();
+                let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+
+                // Make sure to clone a subtree to test subtree merge conflicts
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
+                clone_opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("nlp").join("classification")]);
+                clone_opts.fetch_opts.depth = Some(2);
+                let user_a_repo = repositories::clone(&clone_opts).await?;
+
+                // Clone Repo to User B
+                let user_b_repo_dir = repos_base_dir.join("user_b_repo");
+
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_b_repo_dir);
+                clone_opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("nlp").join("classification")]);
+                clone_opts.fetch_opts.depth = Some(2);
+                let user_b_repo = repositories::clone(&clone_opts).await?;
+
+                // User A adds a file and pushes
+                let new_file = PathBuf::from("nlp")
+                    .join("classification")
+                    .join("new_data.tsv");
+                let new_file_path = user_a_repo.path.join(&new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "image\tlabel")?;
+                repositories::add(&user_a_repo, &new_file_path)?;
+                repositories::commit(&user_a_repo, "User A adding new data.")?;
+                repositories::push(&user_a_repo).await?;
+
+                // User B adds the same file and pushes
+                let new_file_path = user_b_repo.path.join(&new_file);
+                let new_file_path =
+                    test::write_txt_file_to_path(new_file_path, "I am user B, try to stop me")?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                repositories::commit(&user_b_repo, "User B adding the same file.")?;
+
+                // Push should fail
+                let result = repositories::push(&user_b_repo).await;
+                assert!(result.is_err());
+
+                // Pull
+                repositories::pull(&user_b_repo).await?;
+
+                // Make sure it's not a full clone
+                assert_eq!(user_b_repo.depth(), Some(2));
+                assert_eq!(
+                    user_b_repo.subtree_paths(),
+                    Some(vec![PathBuf::from("nlp").join("classification")])
+                );
+                assert!(user_b_repo.path.join("nlp").join("classification").exists());
+                assert!(!user_b_repo.path.join("train").exists());
+
+                // Check for merge conflict
+                let status = repositories::status(&user_b_repo)?;
+                assert!(!status.merge_conflicts.is_empty());
+                status.print();
+
+                // Checkout your version and add the changes
+                repositories::checkout::checkout_ours(&user_b_repo, new_file)?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                // Commit the changes
+                repositories::commit(&user_b_repo, "Taking my changes")?;
+
+                // Push should succeed
+                repositories::push(&user_b_repo).await?;
+
+                Ok(repos_base_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    // Deal with merge conflicts on ROOT subtree clones
+    // 1) Clone subtree to user A
+    // 2) Clone subtree to user B
+    // 3) User A changes file commit and pushes
+    // 4) User B changes same file, commits, and pushes and fails
+    // 5) User B pulls user A's changes, there is a merge conflict
+    // 6) User B cannot push until merge conflict is resolved
+    #[tokio::test]
+    async fn test_flags_merge_conflict_on_root_subtree_pull() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|repos_base_dir| async move {
+                let repos_base_dir_copy = repos_base_dir.clone();
+                let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+
+                // Make sure to clone a subtree to test subtree merge conflicts
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
+                clone_opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                clone_opts.fetch_opts.depth = Some(1);
+                let user_a_repo = repositories::clone(&clone_opts).await?;
+
+                // Clone Repo to User B
+                let user_b_repo_dir = repos_base_dir.join("user_b_repo");
+
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_b_repo_dir);
+                clone_opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
+                clone_opts.fetch_opts.depth = Some(1);
+                let user_b_repo = repositories::clone(&clone_opts).await?;
+
+                // User A adds a file and pushes
+                let new_file = PathBuf::from("README.md");
+                let new_file_path = user_a_repo.path.join(&new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "User A's README")?;
+                repositories::add(&user_a_repo, &new_file_path)?;
+                repositories::commit(&user_a_repo, "User A adding new data.")?;
+                repositories::push(&user_a_repo).await?;
+
+                // User B adds the same file and pushes
+                let new_file_path = user_b_repo.path.join(&new_file);
+                let new_file_path =
+                    test::write_txt_file_to_path(new_file_path, "I am user B, try to stop me")?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                repositories::commit(&user_b_repo, "User B adding the same README.")?;
+
+                // Push should fail
+                let result = repositories::push(&user_b_repo).await;
+                assert!(result.is_err());
+
+                // Pull
+                repositories::pull(&user_b_repo).await?;
+
+                // Make sure it's not a full clone
+                assert_eq!(user_b_repo.depth(), Some(1));
+                assert_eq!(user_b_repo.subtree_paths(), Some(vec![PathBuf::from("")]),);
+                assert!(user_b_repo.path.join("README.md").exists());
+                assert!(!user_b_repo.path.join("nlp").exists());
+                assert!(!user_b_repo.path.join("train").exists());
+
+                // Check for merge conflict
+                let status = repositories::status(&user_b_repo)?;
+                status.print();
+                assert!(!status.merge_conflicts.is_empty());
+                assert_eq!(status.merge_conflicts.len(), 1);
+                assert_eq!(status.merge_conflicts[0].base_entry.path, new_file);
+                assert_eq!(status.removed_files.len(), 0);
+
+                // Checkout your version and add the changes
+                repositories::checkout::checkout_ours(&user_b_repo, new_file)?;
+                repositories::add(&user_b_repo, &new_file_path)?;
+                // Commit the changes
+                repositories::commit(&user_b_repo, "Taking my changes")?;
+
+                // Push should succeed
+                repositories::push(&user_b_repo).await?;
+
+                Ok(repos_base_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
     // Deal with merge conflicts on pull
     // 1) Clone repo to user A
     // 2) Clone repo to user B
     // 3) User A changes file commit and pushes
-    // 4) User B changes same file, commites, and pushes and fails
+    // 4) User B changes same file, commits, and pushes and fails
     // 5) User B pulls user A's changes, there is a merge conflict
     // 6) User B cannot push until merge conflict is resolved
     #[tokio::test]
@@ -1071,8 +1239,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
@@ -1112,8 +1279,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let file_path = cloned_repo.path.join(filename);
 
                 let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
@@ -1171,8 +1337,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull(&cloned_repo).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 let filename = Path::new("nlp")
                     .join("classification")
@@ -1247,9 +1412,9 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                repositories::pull_all(&cloned_repo).await?;
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &new_repo_dir);
+                clone_opts.fetch_opts.all = true;
+                let cloned_repo = repositories::clone(&clone_opts).await?;
 
                 // Get cloned history, which should fall back to API if not found locally
                 let cloned_history = repositories::commits::list(&cloned_repo)?;
@@ -1262,54 +1427,6 @@ mod tests {
                 Ok(new_repo_dir)
             })
             .await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let repo_dir = repo_dir.join("repoo");
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
-
-                let result = repositories::status(&cloned_repo);
-                assert!(result.is_err());
-
-                Ok(repo_dir)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let repo_dir = repo_dir.join("repoo");
-
-                let cloned_repo =
-                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
-
-                let path = cloned_repo.path.join("README.md");
-                util::fs::write_to_path(&path, "# Can't add this")?;
-
-                let result = repositories::add(&cloned_repo, path);
-                assert!(result.is_err());
-
-                Ok(repo_dir)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
         })
         .await
     }
@@ -1355,9 +1472,10 @@ mod tests {
                 let all = false;
                 repositories::pull_remote_branch(
                     &user_a_repo,
-                    DEFAULT_REMOTE_NAME,
-                    DEFAULT_BRANCH_NAME,
-                    all,
+                    &FetchOpts {
+                        all,
+                        ..FetchOpts::new()
+                    },
                 )
                 .await?;
 
@@ -1402,11 +1520,10 @@ mod tests {
             repositories::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(
-                    remote_repo.remote.url.to_owned(),
-                    new_repo_dir.join("new_repo"),
-                );
-                opts.shallow = true;
+                let mut opts =
+                    CloneOpts::new(&remote_repo.remote.url, new_repo_dir.join("new_repo"));
+                opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("test")]);
+                opts.fetch_opts.depth = Some(1);
 
                 // Clone in shallow mode
                 let cloned_repo = repositories::clone(&opts).await?;

@@ -50,13 +50,13 @@ pub mod workspaces;
 
 pub use add::add;
 pub use checkout::checkout;
-pub use clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
+pub use clone::{clone, clone_url, deep_clone_url};
 pub use commits::commit;
 pub use download::download;
 pub use fetch::fetch;
 pub use init::init;
 pub use load::load;
-pub use pull::{pull, pull_all, pull_remote_branch, pull_remote_branch_shallow};
+pub use pull::{pull, pull_all, pull_remote_branch};
 pub use push::push;
 pub use restore::restore;
 pub use rm::rm;

@@ -1,25 +1,35 @@
 use std::path::{Path, PathBuf};
 
-use crate::constants::DEFAULT_BRANCH_NAME;
+use crate::opts::fetch_opts::FetchOpts;
 
 #[derive(Clone, Debug)]
 pub struct CloneOpts {
+    // The url of the remote repository to clone
     pub url: String,
+    // The local destination path to clone the repository to
     pub dst: PathBuf,
-    pub branch: String,
-    pub shallow: bool,
-    pub all: bool,
+    // FetchOpts
+    pub fetch_opts: FetchOpts,
 }
 
 impl CloneOpts {
-    /// Sets `branch` to `DEFAULT_BRANCH_NAME` and defaults `shallow` and `all` to `false`
-    pub fn new(url: String, dst: impl AsRef<Path>) -> CloneOpts {
+    /// Sets `branch` to `DEFAULT_BRANCH_NAME` and defaults `all` to `false`
+    pub fn new(url: impl AsRef<str>, dst: impl AsRef<Path>) -> CloneOpts {
         CloneOpts {
-            url,
+            url: url.as_ref().to_string(),
             dst: dst.as_ref().to_path_buf(),
-            branch: DEFAULT_BRANCH_NAME.to_string(),
-            shallow: false,
-            all: false,
+            fetch_opts: FetchOpts::new(),
+        }
+    }
+
+    pub fn from_branch(
+        url: impl AsRef<str>,
+        dst: impl AsRef<Path>,
+        branch: impl AsRef<str>,
+    ) -> CloneOpts {
+        CloneOpts {
+            fetch_opts: FetchOpts::from_branch(branch.as_ref()),
+            ..CloneOpts::new(url, dst)
         }
     }
 }
