@@ -3,10 +3,9 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
 pub struct DownloadOpts {
+    pub url: String,
     pub paths: Vec<PathBuf>,
     pub dst: PathBuf,
-    pub host: String,
-    pub remote: String,
     pub revision: Option<String>,
 }
 
