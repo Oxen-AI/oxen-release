@@ -3,7 +3,6 @@ use crate::util::fs as oxen_fs;
 use crate::view::fork::{ForkStartResponse, ForkStatus, ForkStatusFile, ForkStatusResponse};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::thread;
 use toml;
 
@@ -30,6 +29,7 @@ fn read_status(repo_path: &Path) -> Result<Option<ForkStatus>, OxenError> {
     let status = &status_file.status;
 
     Ok(Some(match status {
+        ForkStatus::Started => ForkStatus::Started,
         ForkStatus::InProgress(_) => ForkStatus::InProgress(status_file.progress.unwrap_or(0.0)),
         ForkStatus::Complete => ForkStatus::Complete,
         ForkStatus::Counting(_) => ForkStatus::Counting(status_file.progress.unwrap_or(0.0) as u32),
@@ -91,7 +91,7 @@ pub fn start_fork(
 
     Ok(ForkStartResponse {
         repository: new_path_clone.to_string_lossy().to_string(),
-        fork_status: ForkStatus::InProgress(0.0),
+        fork_status: ForkStatus::Started.to_string(),
     })
 }
 
@@ -102,10 +102,11 @@ pub fn get_fork_status(repo_path: &Path) -> Result<ForkStatusResponse, OxenError
     Ok(ForkStatusResponse {
         repository: repo_path.to_string_lossy().to_string(),
         status: match status {
-            ForkStatus::Counting(_) => ForkStatus::Counting(0),
-            ForkStatus::InProgress(_) => ForkStatus::InProgress(0.0),
-            ForkStatus::Complete => ForkStatus::Complete,
-            ForkStatus::Failed(_) => ForkStatus::Failed("".to_string()),
+            ForkStatus::Started => ForkStatus::Started.to_string(),
+            ForkStatus::Counting(_) => ForkStatus::Counting(0).to_string(),
+            ForkStatus::InProgress(_) => ForkStatus::InProgress(0.0).to_string(),
+            ForkStatus::Complete => ForkStatus::Complete.to_string(),
+            ForkStatus::Failed(_) => ForkStatus::Failed("".to_string()).to_string(),
         },
         progress: match status {
             ForkStatus::InProgress(p) => Some(p),
@@ -201,7 +202,7 @@ mod tests {
                 start_fork(original_repo_path.clone(), new_repo_path.clone())?;
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
-                while let ForkStatus::InProgress(_) = current_status {
+                while current_status == "in_progress" {
                     // Optionally, you can add a delay here to avoid busy waiting
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
                     current_status = get_fork_status(&new_repo_path)?.status; // Retry the call
@@ -255,7 +256,7 @@ mod tests {
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
                 let status = get_fork_status(&new_repo_path_2);
                 let mut current_status = status?.status;
-                while let ForkStatus::InProgress(_) = current_status {
+                while current_status == "in_progress" {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     current_status = get_fork_status(&new_repo_path_2)?.status;
                 }
