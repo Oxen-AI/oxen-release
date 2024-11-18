@@ -43,6 +43,7 @@ pub enum OxenError {
     // Repo
     RepoNotFound(Box<RepoNew>),
     RepoAlreadyExists(Box<RepoNew>),
+    RepoAlreadyExistsAtDestination(Box<StringError>),
 
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
@@ -218,6 +219,10 @@ impl OxenError {
 
     pub fn repo_already_exists(repo: RepoNew) -> Self {
         OxenError::RepoAlreadyExists(Box::new(repo))
+    }
+
+    pub fn repo_already_exists_at_destination(value: StringError) -> Self {
+        OxenError::RepoAlreadyExistsAtDestination(Box::new(value))
     }
 
     pub fn revision_not_found(value: StringError) -> Self {

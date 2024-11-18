@@ -55,7 +55,6 @@ pub use clone::{clone, clone_url, deep_clone_url};
 pub use commits::commit;
 pub use download::download;
 pub use fetch::fetch;
-pub use fork::fork;
 pub use init::init;
 pub use load::load;
 pub use pull::{pull, pull_all, pull_remote_branch};
