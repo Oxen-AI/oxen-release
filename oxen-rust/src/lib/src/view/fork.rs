@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::str::FromStr;
 
 #[derive(Deserialize)]
@@ -69,14 +70,14 @@ impl From<ForkStatus> for ForkStatusFile {
     }
 }
 
-impl ForkStatus {
-    pub fn to_string(&self) -> String {
+impl fmt::Display for ForkStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ForkStatus::Started => "started".to_string(),
-            ForkStatus::Counting(_) => "counting".to_string(),
-            ForkStatus::InProgress(_) => "in_progress".to_string(),
-            ForkStatus::Complete => "complete".to_string(),
-            ForkStatus::Failed(_) => "failed".to_string(),
+            ForkStatus::Started => write!(f, "started"),
+            ForkStatus::Counting(_) => write!(f, "counting"),
+            ForkStatus::InProgress(_) => write!(f, "in_progress"),
+            ForkStatus::Complete => write!(f, "complete"),
+            ForkStatus::Failed(_) => write!(f, "failed"),
         }
     }
 }
