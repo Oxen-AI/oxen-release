@@ -72,7 +72,7 @@ impl RunCmd for DownloadCmd {
 
         // Get the host from the url
         let parsed_url = url::Url::parse(&opts.url)
-            .map_err(|e| OxenError::basic_str(&format!("Invalid URL: {}", e)))?;
+            .map_err(|e| OxenError::basic_str(format!("Invalid URL: {}", e)))?;
 
         let mut host = parsed_url
             .host_str()
