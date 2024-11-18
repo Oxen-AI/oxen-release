@@ -84,6 +84,14 @@ pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
     Ok(repo.is_some())
 }
 
+pub async fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
+    let remote = Remote {
+        name: String::from(DEFAULT_REMOTE_NAME),
+        url: url.to_string(),
+    };
+    get_by_remote(&remote).await
+}
+
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
     let url = api::endpoint::url_from_remote(remote, "")?;
     log::debug!("get_by_remote url: {}", url);
