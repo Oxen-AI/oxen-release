@@ -3922,6 +3922,7 @@ dependencies = [
  "dunce",
  "env_logger",
  "flate2",
+ "form_urlencoded",
  "futures",
  "futures-util",
  "hashbrown 0.15.0",
@@ -3944,6 +3945,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-util",
+ "url",
  "urlencoding",
  "uuid",
 ]
