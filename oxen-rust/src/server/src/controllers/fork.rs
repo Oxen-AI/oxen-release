@@ -27,7 +27,7 @@ pub async fn fork(
     match repositories::fork::start_fork(original_repo.path, new_repo_path.clone()) {
         Ok(fork_start_response) => {
             log::info!("Successfully forked repository to {:?}", &new_repo_path);
-            Ok(HttpResponse::Created().json(fork_start_response))
+            Ok(HttpResponse::Accepted().json(fork_start_response))
         }
         Err(OxenError::RepoAlreadyExistsAtDestination(path)) => {
             log::debug!("Repo already exists: {:?}", path);

@@ -3,6 +3,7 @@ use crate::util::fs as oxen_fs;
 use crate::view::fork::{ForkStartResponse, ForkStatus, ForkStatusFile, ForkStatusResponse};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::thread;
 use toml;
 
@@ -26,16 +27,17 @@ fn read_status(repo_path: &Path) -> Result<Option<ForkStatus>, OxenError> {
     let content = fs::read_to_string(status_path)?;
     let status_file: ForkStatusFile = toml::from_str(&content)?;
 
-    Ok(Some(match status_file.status.as_str() {
-        "in_progress" => ForkStatus::InProgress(status_file.progress.unwrap_or(0.0)),
-        "complete" => ForkStatus::Complete,
-        "counting" => ForkStatus::Counting(status_file.progress.unwrap_or(0.0) as u32),
-        "failed" => ForkStatus::Failed(
+    let status = &status_file.status;
+
+    Ok(Some(match status {
+        ForkStatus::InProgress(_) => ForkStatus::InProgress(status_file.progress.unwrap_or(0.0)),
+        ForkStatus::Complete => ForkStatus::Complete,
+        ForkStatus::Counting(_) => ForkStatus::Counting(status_file.progress.unwrap_or(0.0) as u32),
+        ForkStatus::Failed(_) => ForkStatus::Failed(
             status_file
                 .error
                 .unwrap_or_else(|| "Unknown error".to_string()),
         ),
-        _ => ForkStatus::Failed("Invalid status".to_string()),
     }))
 }
 
@@ -89,7 +91,7 @@ pub fn start_fork(
 
     Ok(ForkStartResponse {
         repository: new_path_clone.to_string_lossy().to_string(),
-        fork_status: "started".to_string(),
+        fork_status: ForkStatus::InProgress(0.0),
     })
 }
 
@@ -100,10 +102,10 @@ pub fn get_fork_status(repo_path: &Path) -> Result<ForkStatusResponse, OxenError
     Ok(ForkStatusResponse {
         repository: repo_path.to_string_lossy().to_string(),
         status: match status {
-            ForkStatus::Counting(_) => "counting".to_string(),
-            ForkStatus::InProgress(_) => "in_progress".to_string(),
-            ForkStatus::Complete => "complete".to_string(),
-            ForkStatus::Failed(_) => "failed".to_string(),
+            ForkStatus::Counting(_) => ForkStatus::Counting(0),
+            ForkStatus::InProgress(_) => ForkStatus::InProgress(0.0),
+            ForkStatus::Complete => ForkStatus::Complete,
+            ForkStatus::Failed(_) => ForkStatus::Failed("".to_string()),
         },
         progress: match status {
             ForkStatus::InProgress(p) => Some(p),
@@ -140,7 +142,11 @@ fn copy_dir_recursive(
             fs::copy(&path, &dest_path)?;
             *copied_items += 1.0;
 
-            let progress = (*copied_items / total_items) * 100.0;
+            let progress = if total_items > 0.0 {
+                (*copied_items / total_items) * 100.0
+            } else {
+                100.0 // Assume completion if there are no items to copy
+            };
             write_status(status_repo, &ForkStatus::InProgress(progress))?;
         }
     }
@@ -192,10 +198,10 @@ mod tests {
                 let file_path = dir_path.join("test_file.txt");
                 std::fs::write(file_path, "test file content")?;
 
-                let result = start_fork(original_repo_path.clone(), new_repo_path.clone())?;
+                start_fork(original_repo_path.clone(), new_repo_path.clone())?;
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
-                while current_status != "complete" {
+                while let ForkStatus::InProgress(_) = current_status {
                     // Optionally, you can add a delay here to avoid busy waiting
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
                     current_status = get_fork_status(&new_repo_path)?.status; // Retry the call
@@ -249,7 +255,7 @@ mod tests {
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
                 let status = get_fork_status(&new_repo_path_2);
                 let mut current_status = status?.status;
-                while current_status != "complete" {
+                while let ForkStatus::InProgress(_) = current_status {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     current_status = get_fork_status(&new_repo_path_2)?.status;
                 }
