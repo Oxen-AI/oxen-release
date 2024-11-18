@@ -9,6 +9,7 @@ pub struct ForkRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ForkStatus {
+    Started,
     Counting(u32),
     InProgress(f32),
     Complete,
@@ -25,13 +26,13 @@ pub struct ForkStatusFile {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ForkStartResponse {
     pub repository: String,
-    pub fork_status: ForkStatus,
+    pub fork_status: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ForkStatusResponse {
     pub repository: String,
-    pub status: ForkStatus,
+    pub status: String,
     pub progress: Option<f32>,
     pub error: Option<String>,
 }
@@ -59,6 +60,23 @@ impl From<ForkStatus> for ForkStatusFile {
                 progress: None,
                 error: Some(e),
             },
+            ForkStatus::Started => ForkStatusFile {
+                status: ForkStatus::Started,
+                progress: None,
+                error: None,
+            },
+        }
+    }
+}
+
+impl ForkStatus {
+    pub fn to_string(&self) -> String {
+        match self {
+            ForkStatus::Started => "started".to_string(),
+            ForkStatus::Counting(_) => "counting".to_string(),
+            ForkStatus::InProgress(_) => "in_progress".to_string(),
+            ForkStatus::Complete => "complete".to_string(),
+            ForkStatus::Failed(_) => "failed".to_string(),
         }
     }
 }
@@ -72,6 +90,7 @@ impl FromStr for ForkStatus {
             "in_progress" => Ok(ForkStatus::InProgress(0.0)),
             "complete" => Ok(ForkStatus::Complete),
             "failed" => Ok(ForkStatus::Failed(String::new())),
+            "started" => Ok(ForkStatus::Started),
             _ => Err(format!("Invalid status: {}", s)),
         }
     }
