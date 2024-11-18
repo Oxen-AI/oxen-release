@@ -2,11 +2,10 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 use actix_web::{web, HttpRequest, HttpResponse, Result};
-use liboxen::constants::DEFAULT_BRANCH_NAME;
-use liboxen::model::LocalRepository;
+use liboxen::error::OxenError;
 use liboxen::repositories;
 use liboxen::view::fork::ForkRequest;
-use liboxen::view::repository::RepositoryCreationView;
+use liboxen::view::StatusMessage;
 
 pub async fn fork(
     req: HttpRequest,
@@ -19,30 +18,43 @@ pub async fn fork(
 
     let original_repo = get_repo(&app_data.path, &namespace, &repo_name)?;
 
-    // Here we need to make sure that the hub checks that the user has the permissions to fork to the organization namespace
     let new_repo_namespace = body.namespace.clone();
 
     let new_repo_name = body.new_repo_name.clone().unwrap_or(repo_name.clone());
 
     let new_repo_path = app_data.path.join(&new_repo_namespace).join(&new_repo_name);
 
-    match repositories::fork(&original_repo.path, &new_repo_path) {
-        Ok(_new_repo) => {
-            log::info!("Successfully forked repository to {:?}", new_repo_path);
-            let new_repo = LocalRepository::from_dir(&new_repo_path)?;
-            let latest_commit =
-                repositories::commits::get_commit_or_head(&new_repo, Some(DEFAULT_BRANCH_NAME))?;
-            let repo_view = RepositoryCreationView {
-                namespace: new_repo_namespace,
-                name: new_repo_name,
-                latest_commit: Some(latest_commit),
-                min_version: Some(new_repo.min_version().to_string()),
-            };
-            Ok(HttpResponse::Created().json(repo_view))
+    match repositories::fork::start_fork(original_repo.path, new_repo_path.clone()) {
+        Ok(fork_start_response) => {
+            log::info!("Successfully forked repository to {:?}", &new_repo_path);
+            Ok(HttpResponse::Created().json(fork_start_response))
+        }
+        Err(OxenError::RepoAlreadyExistsAtDestination(path)) => {
+            log::debug!("Repo already exists: {:?}", path);
+            Ok(HttpResponse::Conflict()
+                .json(StatusMessage::error("Repo already exists at destination.")))
         }
         Err(err) => {
             log::error!("Failed to fork repository: {:?}", err);
             Err(OxenHttpError::from(err))
+        }
+    }
+}
+
+pub async fn get_status(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+
+    log::debug!("Getting fork status for repo: {}/{}", namespace, repo_name);
+
+    let repo_path = app_data.path.join(&namespace).join(&repo_name);
+
+    match repositories::fork::get_fork_status(&repo_path) {
+        Ok(status) => Ok(HttpResponse::Ok().json(status)),
+        Err(e) => {
+            log::error!("Failed to get fork status: {}", e);
+            Err(OxenHttpError::from(e))
         }
     }
 }
