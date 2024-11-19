@@ -172,7 +172,7 @@ jobs:
           cargo test -- --test-threads=3
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: oxen-binary
           path: target/debug/oxen*
@@ -215,7 +215,7 @@ jobs:
           ruby ruby-dev rubygems build-essential
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: oxen-binary
           path: target/debug
