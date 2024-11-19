@@ -374,7 +374,7 @@ pub fn process_add_file(
     }
 
     // Check if the file is already in the head commit
-    let file_path = relative_path.file_name().unwrap();
+    let file_path = relative_path.file_name().unwrap_or_default();
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
     let mut previous_oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
@@ -489,17 +489,17 @@ pub fn process_add_file(
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
     if !dst_dir.exists() {
-        util::fs::create_dir_all(&dst_dir).unwrap();
+        util::fs::create_dir_all(&dst_dir)?;
     }
 
     let dst = dst_dir.join("data");
-    util::fs::copy(&full_path, &dst).unwrap();
+    util::fs::copy(&full_path, &dst)?;
 
     let file_extension = relative_path
         .extension()
         .unwrap_or_default()
         .to_string_lossy();
-    let relative_path_str = relative_path.to_str().unwrap();
+    let relative_path_str = relative_path.to_str().unwrap_or_default();
     let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
         let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
         let metadata_hash = MerkleHash::new(metadata_hash);
@@ -596,8 +596,8 @@ pub fn p_add_file_node_to_staged_db(
         .serialize(&mut Serializer::new(&mut buf))
         .unwrap();
 
-    let relative_path_str = relative_path.to_str().unwrap();
-    staged_db.put(relative_path_str, &buf).unwrap();
+    let relative_path_str = relative_path.to_str().unwrap_or_default();
+    staged_db.put(relative_path_str, &buf)?;
 
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
