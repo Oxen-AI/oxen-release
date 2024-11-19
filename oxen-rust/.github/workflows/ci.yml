@@ -192,3 +192,36 @@ jobs:
           cp user_config.toml data\test\config\user_config.toml
           cmd /c "START /B .\target\debug\oxen-server.exe start"
           cargo test -- --test-threads=1
+
+  rspec_tests:
+    name: RSpec CLI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
+          ruby ruby-dev rubygems build-essential
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Build Oxen
+        run: cargo build
+
+      - name: Install Ruby dependencies
+        working-directory: ./cli-test
+        run: |
+          gem install bundler
+          bundle install
+
+      - name: Run RSpec tests
+        working-directory: ./cli-test
+        run: bundle exec rspec spec/test_cases/**/tests.rb
