@@ -199,15 +199,6 @@ mod tests {
                 let file_path = dir_path.join("test_file.txt");
                 std::fs::write(file_path, "test file content")?;
 
-                println!("point 1");
-
-                for entry in walkdir::WalkDir::new(&original_repo_path)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                {
-                    println!("{}", entry.path().display());
-                }
-
                 start_fork(original_repo_path.clone(), new_repo_path.clone())?;
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
@@ -224,28 +215,14 @@ mod tests {
                         }
                     };
                 }
-                println!("point 2");
                 let file_path = original_repo_path.clone().join("dir/test_file.txt");
-                println!("point 3");
 
                 assert!(new_repo_path.exists());
-                println!("point 4");
                 // Verify that the content of .oxen/config.toml is the same in both repos
                 let new_file_path = new_repo_path.join("dir/test_file.txt");
-                println!("point 5");
                 let original_content = fs::read_to_string(&file_path)?;
-                println!("point 6");
-                // Display all files in new repo path
-                println!("Files in new repo:");
-                for entry in walkdir::WalkDir::new(&new_repo_path)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                {
-                    println!("{}", entry.path().display());
-                }
                 let mut retries = 3;
                 let new_content = loop {
-                    println!("retries: {}", retries);
                     if new_file_path.exists() {
                         break fs::read_to_string(&new_file_path)?;
                     }
@@ -257,7 +234,6 @@ mod tests {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     retries -= 1;
                 };
-                println!("point 7");
 
                 assert_eq!(
                     original_content, new_content,
@@ -265,11 +241,8 @@ mod tests {
                 );
 
                 if new_repo_path.exists() {
-                    println!("removing new_repo_path {:?}", new_repo_path);
                     std::fs::remove_dir_all(&new_repo_path)?;
                 }
-
-                println!("point 8");
 
                 // Fork fails if repo exists
                 let new_repo_path_1 = original_repo_path
@@ -280,8 +253,6 @@ mod tests {
                     std::fs::remove_dir_all(&new_repo_path_1)?;
                 }
                 std::fs::create_dir_all(&new_repo_path_1)?;
-
-                println!("point 9");
 
                 let result = start_fork(original_repo_path.clone(), new_repo_path_1.clone());
                 assert!(
@@ -301,7 +272,6 @@ mod tests {
                 std::fs::create_dir_all(&workspaces_path)?;
                 let workspace_file = workspaces_path.join("test_workspace.txt");
                 std::fs::write(workspace_file, "test workspace content")?;
-                println!("point 10");
 
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
                 let status = get_fork_status(&new_repo_path_2);
@@ -321,7 +291,6 @@ mod tests {
                         }
                     };
                 }
-                println!("point 11");
                 // Check that the new repository exists
                 assert!(new_repo_path_2.clone().exists());
 
@@ -334,17 +303,12 @@ mod tests {
                 // Get prefix of new repo path 2 for cleanup
                 let new_repo_path_2_prefix = new_repo_path_2.parent().unwrap();
                 if new_repo_path_2_prefix.exists() {
-                    println!(
-                        "removing new_repo_path_2_prefix {:?}",
-                        new_repo_path_2_prefix
-                    );
                     let mut retries = 3;
                     while retries > 0 && new_repo_path_2_prefix.exists() {
                         match std::fs::remove_dir_all(&new_repo_path_2_prefix) {
                             Ok(_) => break,
                             Err(e) => {
-                                println!("Failed to remove dir (retries left: {}): {}", retries, e);
-                                tokio::time::sleep(Duration::from_millis(1000)).await;
+                                tokio::time::sleep(Duration::from_millis(100)).await;
                                 retries -= 1;
                                 if retries == 0 {
                                     return Err(OxenError::from(e));
