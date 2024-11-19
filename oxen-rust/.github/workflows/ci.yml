@@ -171,6 +171,12 @@ jobs:
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=3
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: oxen-binary
+          path: target/debug/oxen*
+
   test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
@@ -195,6 +201,7 @@ jobs:
 
   rspec_tests:
     name: RSpec CLI Tests
+    needs: [test_macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -207,13 +214,14 @@ jobs:
           clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v2
         with:
-          path: target
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-build-
+          name: oxen-binary
+          path: target/debug
+
+      - name: Make binary executable
+        run: chmod +x target/debug/oxen
 
       - name: Cache Ruby dependencies
         uses: actions/cache@v3
@@ -228,9 +236,6 @@ jobs:
         with:
           ruby-version: '3.0'
           bundler-cache: true
-
-      - name: Build Oxen
-        run: cargo build
 
       - name: Install Ruby dependencies
         working-directory: ./cli-test
