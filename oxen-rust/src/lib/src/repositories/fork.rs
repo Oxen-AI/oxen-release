@@ -96,7 +96,7 @@ pub fn start_fork(
 }
 
 pub fn get_fork_status(repo_path: &Path) -> Result<ForkStatusResponse, OxenError> {
-    let status = read_status(repo_path)?.ok_or_else(OxenError::fork_status_not_found)?;
+    let status = read_status(repo_path)?.ok_or_else(|| OxenError::fork_status_not_found())?;
 
     Ok(ForkStatusResponse {
         repository: repo_path.to_string_lossy().to_string(),
@@ -304,7 +304,7 @@ mod tests {
                 if new_repo_path_2_prefix.exists() {
                     let mut retries = 3;
                     while retries > 0 && new_repo_path_2_prefix.exists() {
-                        match std::fs::remove_dir_all(new_repo_path_2_prefix) {
+                        match std::fs::remove_dir_all(&new_repo_path_2_prefix) {
                             Ok(_) => break,
                             Err(e) => {
                                 tokio::time::sleep(Duration::from_millis(100)).await;
