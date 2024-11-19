@@ -207,6 +207,22 @@ jobs:
           clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+
+      - name: Cache Ruby dependencies
+        uses: actions/cache@v3
+        with:
+          path: cli-test/vendor/bundle
+          key: ${{ runner.OS }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-gems-
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -219,9 +235,9 @@ jobs:
       - name: Install Ruby dependencies
         working-directory: ./cli-test
         run: |
-          gem install bundler
+          bundle config path vendor/bundle
           bundle install
 
       - name: Run RSpec tests
         working-directory: ./cli-test
-        run: bundle exec rspec spec/test_cases/**/tests.rb
+        run: bundle exec rspec spec/test_cases/**/*_spec.rb spec/test_cases/**/tests.rb
