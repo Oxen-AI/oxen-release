@@ -203,9 +203,17 @@ mod tests {
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
                 while current_status == "in_progress" {
-                    // Optionally, you can add a delay here to avoid busy waiting
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
-                    current_status = get_fork_status(&new_repo_path)?.status; // Retry the call
+                    current_status = match get_fork_status(&new_repo_path) {
+                        Ok(status) => status.status,
+                        Err(e) => {
+                            if e.to_string().contains("No fork status found") {
+                                "in_progress".to_string()
+                            } else {
+                                return Err(e);
+                            }
+                        }
+                    };
                 }
                 let file_path = original_repo_path.clone().join("dir/test_file.txt");
 
@@ -213,12 +221,28 @@ mod tests {
                 // Verify that the content of .oxen/config.toml is the same in both repos
                 let new_file_path = new_repo_path.join("dir/test_file.txt");
                 let original_content = fs::read_to_string(&file_path)?;
-                let new_content = fs::read_to_string(&new_file_path)?;
+                let mut retries = 3;
+                let new_content = loop {
+                    if new_file_path.exists() {
+                        break fs::read_to_string(&new_file_path)?;
+                    }
+
+                    if retries == 0 {
+                        return Err(OxenError::basic_str("File not found after retries"));
+                    }
+
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    retries -= 1;
+                };
 
                 assert_eq!(
                     original_content, new_content,
                     "The content of test_file.txt should be the same in both repositories"
                 );
+
+                if new_repo_path.exists() {
+                    std::fs::remove_dir_all(&new_repo_path)?;
+                }
 
                 // Fork fails if repo exists
                 let new_repo_path_1 = original_repo_path
@@ -249,18 +273,24 @@ mod tests {
                 let workspace_file = workspaces_path.join("test_workspace.txt");
                 std::fs::write(workspace_file, "test workspace content")?;
 
-                if new_repo_path_2.exists() {
-                    std::fs::remove_dir_all(&new_repo_path_2)?;
-                }
-
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
                 let status = get_fork_status(&new_repo_path_2);
                 let mut current_status = status?.status;
                 while current_status == "in_progress" {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    current_status = get_fork_status(&new_repo_path_2)?.status;
+                    current_status = match get_fork_status(&new_repo_path) {
+                        Ok(status) => status.status,
+                        Err(e) => {
+                            if e.to_string().contains("No fork status found") {
+                                // Status file doesn't exist yet, continue polling
+                                "in_progress".to_string()
+                            } else {
+                                // Propagate other errors
+                                return Err(e);
+                            }
+                        }
+                    };
                 }
-
                 // Check that the new repository exists
                 assert!(new_repo_path_2.clone().exists());
 
@@ -270,6 +300,23 @@ mod tests {
                     !new_workspaces_path.exists(),
                     ".oxen/workspaces should not be copied"
                 );
+                // Get prefix of new repo path 2 for cleanup
+                let new_repo_path_2_prefix = new_repo_path_2.parent().unwrap();
+                if new_repo_path_2_prefix.exists() {
+                    let mut retries = 3;
+                    while retries > 0 && new_repo_path_2_prefix.exists() {
+                        match std::fs::remove_dir_all(&new_repo_path_2_prefix) {
+                            Ok(_) => break,
+                            Err(e) => {
+                                tokio::time::sleep(Duration::from_millis(100)).await;
+                                retries -= 1;
+                                if retries == 0 {
+                                    return Err(OxenError::from(e));
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Ok(())
             }
