@@ -42,7 +42,13 @@ impl RunCmd for AddCmd {
         let paths: Vec<PathBuf> = args
             .get_many::<String>("files")
             .expect("Must supply files")
-            .map(PathBuf::from)
+            .map(|p| {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join(p)
+                    .canonicalize()
+                    .unwrap_or_else(|_| PathBuf::from(p))
+            })
             .collect();
 
         let opts = AddOpts {
