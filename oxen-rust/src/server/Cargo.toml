@@ -1,6 +1,6 @@
 [package]
 name = "oxen-server"
-version = "0.22.0"
+version = "0.22.1"
 edition = "2021"
 
 [dependencies]
@@ -49,7 +49,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "zlib",
     "multi-threaded-cf",
 ] }
-sanitize-filename = "0.5.0"
+sanitize-filename = "0.6.0"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
 tar = "0.4.38"
