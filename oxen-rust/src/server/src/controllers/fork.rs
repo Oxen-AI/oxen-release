@@ -52,6 +52,9 @@ pub async fn get_status(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
 
     match repositories::fork::get_fork_status(&repo_path) {
         Ok(status) => Ok(HttpResponse::Ok().json(status)),
+        Err(OxenError::ForkStatusNotFound(_)) => {
+            Ok(HttpResponse::NotFound().json(StatusMessage::error("Fork status not found")))
+        }
         Err(e) => {
             log::error!("Failed to get fork status: {}", e);
             Err(OxenHttpError::from(e))

@@ -45,6 +45,9 @@ pub enum OxenError {
     RepoAlreadyExists(Box<RepoNew>),
     RepoAlreadyExistsAtDestination(Box<StringError>),
 
+    // Fork
+    ForkStatusNotFound(StringError),
+
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
     RemoteAheadOfLocal(StringError),
@@ -223,6 +226,10 @@ impl OxenError {
 
     pub fn repo_already_exists_at_destination(value: StringError) -> Self {
         OxenError::RepoAlreadyExistsAtDestination(Box::new(value))
+    }
+
+    pub fn fork_status_not_found() -> Self {
+        OxenError::ForkStatusNotFound(StringError::from("No fork status found"))
     }
 
     pub fn revision_not_found(value: StringError) -> Self {

@@ -96,8 +96,7 @@ pub fn start_fork(
 }
 
 pub fn get_fork_status(repo_path: &Path) -> Result<ForkStatusResponse, OxenError> {
-    let status =
-        read_status(repo_path)?.ok_or_else(|| OxenError::basic_str("No fork status found"))?;
+    let status = read_status(repo_path)?.ok_or_else(|| OxenError::fork_status_not_found())?;
 
     Ok(ForkStatusResponse {
         repository: repo_path.to_string_lossy().to_string(),
@@ -207,7 +206,7 @@ mod tests {
                     current_status = match get_fork_status(&new_repo_path) {
                         Ok(status) => status.status,
                         Err(e) => {
-                            if e.to_string().contains("No fork status found") {
+                            if let OxenError::ForkStatusNotFound(_) = e {
                                 "in_progress".to_string()
                             } else {
                                 return Err(e);
@@ -281,7 +280,7 @@ mod tests {
                     current_status = match get_fork_status(&new_repo_path) {
                         Ok(status) => status.status,
                         Err(e) => {
-                            if e.to_string().contains("No fork status found") {
+                            if let OxenError::ForkStatusNotFound(_) = e {
                                 // Status file doesn't exist yet, continue polling
                                 "in_progress".to_string()
                             } else {
