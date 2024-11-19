@@ -25,6 +25,8 @@ pub use df_opts_query::DFOptsQuery;
 pub mod tree_depth;
 pub use tree_depth::TreeDepthQuery;
 
+use url::form_urlencoded;
+
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     log::debug!(
         "Get user agent from app data (app_data) {:?}",
@@ -79,8 +81,15 @@ pub fn parse_resource(
     repo: &LocalRepository,
 ) -> Result<ParsedResource, OxenHttpError> {
     let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
-    let decoded_resource =
-        PathBuf::from(urlencoding::decode(&resource.to_string_lossy())?.to_string());
+    let resource_path_str = resource.to_string_lossy();
+
+    // Decode the URL, handling both %20 and + as spaces
+    let decoded_path = form_urlencoded::parse(resource_path_str.as_bytes())
+        .map(|(key, _)| key.into_owned())
+        .next()
+        .unwrap_or_default();
+
+    let decoded_resource = PathBuf::from(decoded_path);
     log::debug!(
         "parse_resource_from_path looking for resource: {:?} decoded_resource: {:?}",
         resource,
