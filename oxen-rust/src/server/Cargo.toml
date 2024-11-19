@@ -7,6 +7,8 @@ edition = "2021"
 actix-files = "0.6.0"
 actix-http = "3.0.4"
 actix-service = "2.0.2"
+form_urlencoded = "1.2.1"
+url = "2.5.0"
 actix-multipart = "0.7.2"
 actix-web = { version = "4", features = ["rustls"] }
 actix-web-httpauth = "0.8.0"
