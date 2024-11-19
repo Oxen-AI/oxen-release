@@ -203,9 +203,17 @@ mod tests {
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
                 while current_status == "in_progress" {
-                    // Optionally, you can add a delay here to avoid busy waiting
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
-                    current_status = get_fork_status(&new_repo_path)?.status; // Retry the call
+                    current_status = match get_fork_status(&new_repo_path) {
+                        Ok(status) => status.status,
+                        Err(e) => {
+                            if e.to_string().contains("No fork status found") {
+                                "in_progress".to_string()
+                            } else {
+                                return Err(e);
+                            }
+                        }
+                    };
                 }
                 let file_path = original_repo_path.clone().join("dir/test_file.txt");
 
@@ -258,7 +266,18 @@ mod tests {
                 let mut current_status = status?.status;
                 while current_status == "in_progress" {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    current_status = get_fork_status(&new_repo_path_2)?.status;
+                    current_status = match get_fork_status(&new_repo_path) {
+                        Ok(status) => status.status,
+                        Err(e) => {
+                            if e.to_string().contains("No fork status found") {
+                                // Status file doesn't exist yet, continue polling
+                                "in_progress".to_string()
+                            } else {
+                                // Propagate other errors
+                                return Err(e);
+                            }
+                        }
+                    };
                 }
 
                 // Check that the new repository exists
