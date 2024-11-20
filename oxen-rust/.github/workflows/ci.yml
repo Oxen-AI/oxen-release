@@ -172,7 +172,7 @@ jobs:
           cargo test -- --test-threads=3
 
       - name: Upload build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
           name: oxen-binary
           path: target/debug/oxen*
