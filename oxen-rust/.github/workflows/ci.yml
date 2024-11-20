@@ -249,4 +249,4 @@ jobs:
         working-directory: ./cli-test
         run: |
           bundle install
-          bundle exec rspec $(find spec/test_cases -name "*_spec.rb" -o -name "tests.rb")
+          bundle exec rspec spec/test_cases/**/tests.rb
