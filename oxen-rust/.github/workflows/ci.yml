@@ -203,6 +203,10 @@ jobs:
     name: RSpec CLI Tests
     needs: [test_macos]
     runs-on: macos-latest
+
+    env:
+      OXEN_API_KEY: ${{ secrets.DEV_OXEN_API_KEY }}
+
     steps:
       - uses: actions/checkout@v4
 
