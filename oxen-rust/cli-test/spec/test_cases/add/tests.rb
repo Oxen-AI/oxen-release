@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-RSpec.describe 'test relative paths', type: :aruba do
+RSpec.describe 'add - test relative paths', type: :aruba do
   before(:each) do
     aruba.config.exit_timeout = 120
   end
