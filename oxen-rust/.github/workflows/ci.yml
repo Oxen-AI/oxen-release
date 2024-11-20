@@ -243,6 +243,13 @@ jobs:
           bundle config path vendor/bundle
           bundle install
 
+      - name: Make binary executable
+        run: |
+          chmod +x target/debug/oxen
+          ls -la target/debug/oxen
+          file target/debug/oxen
+
+
       - name: Run RSpec tests
         env:
           PATH: ${{ env.PATH }}:${{ github.workspace }}/target/debug
