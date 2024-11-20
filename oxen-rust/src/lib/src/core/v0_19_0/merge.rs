@@ -563,8 +563,9 @@ fn merge_commits(
         let write_to_disk = true;
         let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
 
-        println!(
-            r"
+        if !conflicts.is_empty() {
+            println!(
+                r"
 Found {} conflicts, please resolve them before merging.
 
   oxen checkout --theirs path/to/file_1.txt
@@ -573,8 +574,9 @@ Found {} conflicts, please resolve them before merging.
   oxen commit -m 'Merge conflict resolution'
 
 ",
-            conflicts.len()
-        );
+                conflicts.len()
+            );
+        }
 
         log::debug!("Got {} conflicts", conflicts.len());
 
