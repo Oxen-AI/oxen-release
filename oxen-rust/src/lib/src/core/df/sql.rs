@@ -13,9 +13,8 @@ pub fn query_df_from_repo(
 ) -> Result<DataFrame, OxenError> {
     let commit = repositories::commits::head_commit(repo)?;
 
-    if !repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
-        repo, path, &commit,
-    )? {
+    if !repositories::workspaces::data_frames::is_queryable_data_frame_indexed(repo, path, &commit)?
+    {
         // If not, proceed to create a new workspace and index the data frame.
         let workspace_id = Uuid::new_v4().to_string();
         let workspace = repositories::workspaces::create(repo, &commit, workspace_id, false)?;
