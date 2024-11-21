@@ -217,10 +217,11 @@ impl RunCmd for DFCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let opts = DFCmd::parse_df_args(args);
+        let mut opts = DFCmd::parse_df_args(args);
         let Some(path) = args.get_one::<String>("PATH") else {
             return Err(OxenError::basic_str("Must supply a DataFrame to process."));
         };
+        opts.path = Some(PathBuf::from(path));
 
         if let Some(revision) = args.get_one::<String>("revision") {
             let repo = LocalRepository::from_current_dir()?;
@@ -307,6 +308,7 @@ impl DFCmd {
             should_page: args.get_flag("full") || page_specified,
             quote_char: args.get_one::<String>("quote").map(String::from),
             repo_dir,
+            path: None,
         }
     }
 }
