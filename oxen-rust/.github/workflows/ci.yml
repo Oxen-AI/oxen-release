@@ -171,6 +171,12 @@ jobs:
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=3
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxen-binary
+          path: target/debug/oxen*
+
   test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
@@ -192,3 +198,52 @@ jobs:
           cp user_config.toml data\test\config\user_config.toml
           cmd /c "START /B .\target\debug\oxen-server.exe start"
           cargo test -- --test-threads=1
+
+  rspec_tests:
+    name: RSpec CLI Tests
+    needs: [test_macos]
+    runs-on: macos-latest
+
+    env:
+      OXEN_API_KEY: ${{ secrets.DEV_OXEN_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install pkg-config || brew upgrade pkg-config
+          brew install ffmpeg imagemagick ruby
+
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: oxen-binary
+          path: target/debug
+
+      - name: Make binary executable
+        run: |
+          chmod +x target/debug/oxen
+          ls -la target/debug/oxen
+          file target/debug/oxen
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Install Ruby dependencies
+        working-directory: ./cli-test
+        run: |
+          bundle config path vendor/bundle
+          bundle install
+
+      - name: Run RSpec tests
+        env:
+          PATH: ${{ env.PATH }}:${{ github.workspace }}/target/debug
+        working-directory: ./cli-test
+        run: |
+          bundle exec rspec spec/test_cases/**/tests.rb

@@ -46,8 +46,26 @@ impl RunCmd for RmCmd {
         let paths: Vec<PathBuf> = args
             .get_many::<String>("files")
             .expect("Must supply files")
-            .map(PathBuf::from)
-            .collect();
+            .map(|p| -> Result<PathBuf, OxenError> {
+                let current_dir = std::env::current_dir().map_err(|e| {
+                    log::warn!("Failed to get current directory: {}", e);
+                    OxenError::basic_str(format!("Failed to get current directory: {}", e))
+                })?;
+                let joined_path = current_dir.join(p);
+                joined_path.canonicalize().map_err(|e| {
+                    log::warn!(
+                        "Failed to canonicalize path {}: {}",
+                        joined_path.display(),
+                        e
+                    );
+                    OxenError::basic_str(format!(
+                        "Failed to canonicalize path {}: {}",
+                        joined_path.display(),
+                        e
+                    ))
+                })
+            })
+            .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
         let opts = RmOpts {
             // The path will get overwritten for each file that is removed
