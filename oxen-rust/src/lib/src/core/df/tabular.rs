@@ -451,7 +451,8 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
     if let Some(sql) = opts.sql.clone() {
         if let Some(repo_dir) = opts.repo_dir.as_ref() {
             let repo = LocalRepository::from_dir(repo_dir)?;
-            df = sql::query_df_from_repo(sql, &repo)?.lazy();
+            df =
+                sql::query_df_from_repo(sql, &repo, &opts.path.clone().unwrap_or_default())?.lazy();
         }
     }
 
