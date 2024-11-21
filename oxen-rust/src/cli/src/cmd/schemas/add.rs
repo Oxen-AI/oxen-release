@@ -44,13 +44,22 @@ impl RunCmd for SchemasAddCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         // Path
-        let path = args.get_one::<String>("PATH").map(|p| {
-            std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .join(p)
-                .canonicalize()
-                .unwrap_or_else(|_| PathBuf::from(p))
-        });
+        let path = args
+            .get_one::<String>("PATH")
+            .map(|p| -> Result<PathBuf, OxenError> {
+                let current_dir = std::env::current_dir().map_err(|e| {
+                    OxenError::basic_str(format!("Failed to get current directory: {}", e))
+                })?;
+                let path = current_dir.join(p);
+                path.canonicalize().map_err(|e| {
+                    OxenError::basic_str(format!(
+                        "Failed to resolve path '{}': {}",
+                        path.display(),
+                        e
+                    ))
+                })
+            })
+            .transpose()?;
 
         // Flags
         let column = args.get_one::<String>("column");

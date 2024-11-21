@@ -246,5 +246,4 @@ jobs:
           PATH: ${{ env.PATH }}:${{ github.workspace }}/target/debug
         working-directory: ./cli-test
         run: |
-          bundle install
           bundle exec rspec spec/test_cases/**/tests.rb
