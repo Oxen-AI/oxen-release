@@ -127,7 +127,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
-        run: brew install pkg-config ffmpeg imagemagick
+        run: |
+          brew update
+          brew install pkg-config || brew upgrade pkg-config
+          brew install ffmpeg imagemagick
 
       # https://youtrack.jetbrains.com/issue/RUST-12079/Failure-to-show-stack-trace-when-running-cargo-tests
       # - name: Install LLVM Linker
