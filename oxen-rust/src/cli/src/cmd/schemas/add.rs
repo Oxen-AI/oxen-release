@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
@@ -44,7 +44,13 @@ impl RunCmd for SchemasAddCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         // Path
-        let path = args.get_one::<String>("PATH").map(Path::new);
+        let path = args.get_one::<String>("PATH").map(|p| {
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(p)
+                .canonicalize()
+                .unwrap_or_else(|_| PathBuf::from(p))
+        });
 
         // Flags
         let column = args.get_one::<String>("column");
@@ -53,7 +59,7 @@ impl RunCmd for SchemasAddCmd {
 
         let err_msg = "Must supply a file path, column name and either -m for metadata or -t for data type\n\n  oxen schemas add file.csv -c 'col1' -t 'str'\n";
 
-        let Some(path) = path else {
+        let Some(path) = &path else {
             return Err(OxenError::basic_str(err_msg));
         };
 
