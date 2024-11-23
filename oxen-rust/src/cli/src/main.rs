@@ -27,6 +27,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::DiffCmd),
         Box::new(cmd::DownloadCmd),
         Box::new(cmd::FetchCmd),
+        Box::new(cmd::EmbeddingsCmd),
         Box::new(cmd::InfoCmd),
         Box::new(cmd::InitCmd),
         Box::new(cmd::LoadCmd),

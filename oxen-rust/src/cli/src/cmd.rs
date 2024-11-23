@@ -42,6 +42,9 @@ pub use diff::DiffCmd;
 pub mod download;
 pub use download::DownloadCmd;
 
+pub mod embeddings;
+pub use embeddings::EmbeddingsCmd;
+
 pub mod fetch;
 pub use fetch::FetchCmd;
 

@@ -106,7 +106,7 @@ pub fn get_schema(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
+            &model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
@@ -138,7 +138,7 @@ pub fn get_schema_excluding_cols(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
+            &model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
@@ -521,7 +521,7 @@ pub fn preview(
     Ok(df)
 }
 
-fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, OxenError> {
+pub fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, OxenError> {
     if records.is_empty() {
         return Ok(DataFrame::default());
     }
@@ -533,6 +533,12 @@ fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, O
     writer.finish()?;
 
     let json_bytes = writer.into_inner();
+
+    // log the json string
+    log::debug!(
+        "json_bytes: {}",
+        String::from_utf8(json_bytes.clone()).unwrap()
+    );
 
     let content = Cursor::new(json_bytes);
 
@@ -556,6 +562,10 @@ pub fn record_batches_to_polars_df_explicit_nulls(
     writer.write_batches(&records[..]).unwrap();
     writer.finish().unwrap();
     let json_bytes = writer.into_inner();
+    log::debug!(
+        "json_bytes: {}",
+        String::from_utf8(json_bytes.clone()).unwrap()
+    );
 
     let content = Cursor::new(json_bytes);
 
