@@ -19,7 +19,7 @@ pub mod schemas;
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
 ) -> Result<bool, OxenError> {
     match get_queryable_data_frame_workspace(repo, path, commit) {
         Ok(_workspace) => Ok(true),

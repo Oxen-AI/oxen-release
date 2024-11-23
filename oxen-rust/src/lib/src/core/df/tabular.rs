@@ -1249,7 +1249,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
         for field in schema.iter_fields() {
             let dtype = DataType::from_polars(field.dtype());
             let field_str = field.name().to_string();
-            let dtype_str = String::from(DataType::as_str(&dtype));
+            let dtype_str = DataType::as_str(&dtype);
             table.add_row(vec![field_str, dtype_str]);
         }
 
@@ -1266,7 +1266,7 @@ pub fn polars_schema_to_flat_str(schema: &Schema) -> String {
 
         let dtype = DataType::from_polars(field.dtype());
         let field_str = field.name().to_string();
-        let dtype_str = String::from(DataType::as_str(&dtype));
+        let dtype_str = DataType::as_str(&dtype);
         result = format!("{result}{field_str}:{dtype_str}");
     }
 
