@@ -102,9 +102,9 @@ pub async fn list(
 pub async fn index(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
-    path: &Path,
+    path: impl AsRef<Path>,
 ) -> Result<StatusMessage, OxenError> {
-    let path = util::fs::linux_path(path);
+    let path = util::fs::linux_path(path.as_ref());
     put(
         remote_repo,
         workspace_id,

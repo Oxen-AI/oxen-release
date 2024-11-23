@@ -1,9 +1,16 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
-use clap::{Arg, Command};
+use clap::Command;
 
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
-use liboxen::repositories;
+
+// subcommands
+pub mod get;
+use get::WorkspaceDFGetCmd;
+
+pub mod index;
+use index::WorkspaceDFIndexCmd;
 
 use crate::cmd::RunCmd;
 
@@ -18,38 +25,45 @@ impl RunCmd for WorkspaceDfCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        Command::new(NAME)
-        .about("Interact with remote data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.")
-        .arg(Arg::new("WORKSPACE_ID").help("The workspace id to use."))
-        .subcommand(
-            Command::new("index")
-                .about("Index the data frame for querying.")
-                .arg(Arg::new("PATH").help("The path of the data frame file.")),
-        )
+        let mut command = Command::new(NAME).about(
+            "Interact with remote data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.",
+        );
+
+        let sub_commands = self.get_subcommands();
+        for cmd in sub_commands.values() {
+            command = command.subcommand(cmd.args());
+        }
+        command
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let Some(workspace_id) = args.get_one::<String>("WORKSPACE_ID") else {
-            return Err(OxenError::basic_str("Must supply a workspace id."));
-        };
-        if let Some(subcommand) = args.subcommand() {
-            match subcommand {
-                ("index", sub_m) => {
-                    let Some(path) = sub_m.get_one::<String>("PATH") else {
-                        return Err(OxenError::basic_str("Must supply a DataFrame to process."));
-                    };
-                    let repository = LocalRepository::from_current_dir()?;
-                    match repositories::workspaces::df::index(&repository, workspace_id, path).await
-                    {
-                        Ok(_) => return Ok(()),
-                        Err(e) => return Err(e),
-                    }
-                }
-                _ => return Err(OxenError::basic_str("Command not yet implemented.")),
-            }
-        }
+        let sub_commands = self.get_subcommands();
+        if let Some((name, sub_matches)) = args.subcommand() {
+            let Some(cmd) = sub_commands.get(name) else {
+                eprintln!("Unknown df subcommand {name}");
+                return Err(OxenError::basic_str(format!(
+                    "Unknown df subcommand {name}"
+                )));
+            };
 
-        return Err(OxenError::basic_str("Command not yet implemented."));
+            // Calling await within an await is making it complain?
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(cmd.run(sub_matches))
+            })?;
+        }
+        Ok(())
+    }
+}
+
+impl WorkspaceDfCmd {
+    fn get_subcommands(&self) -> HashMap<String, Box<dyn RunCmd>> {
+        let commands: Vec<Box<dyn RunCmd>> =
+            vec![Box::new(WorkspaceDFIndexCmd), Box::new(WorkspaceDFGetCmd)];
+        let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
+        for cmd in commands {
+            runners.insert(cmd.name().to_string(), cmd);
+        }
+        runners
     }
 }

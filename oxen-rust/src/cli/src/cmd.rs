@@ -15,9 +15,6 @@ pub use checkout::CheckoutCmd;
 pub mod clone;
 pub use clone::CloneCmd;
 
-pub mod commit_cache;
-pub use commit_cache::CommitCacheCmd;
-
 pub mod commit;
 pub use commit::CommitCmd;
 

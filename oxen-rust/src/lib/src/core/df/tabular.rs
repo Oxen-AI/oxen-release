@@ -1,10 +1,12 @@
 use duckdb::ToSql;
 use polars::prelude::*;
 use serde_json::json;
+use std::collections::HashSet;
 use std::fs::File;
 use std::num::NonZeroUsize;
 
 use crate::constants;
+use crate::constants::EXCLUDE_OXEN_COLS;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::core::df::sql;
@@ -506,6 +508,26 @@ pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
 
     log::debug!("transform_slice_lazy before collect");
     Ok(df)
+}
+
+pub fn strip_excluded_cols(df: DataFrame) -> Result<DataFrame, OxenError> {
+    let schema = df.schema();
+    let excluded_cols = EXCLUDE_OXEN_COLS
+        .iter()
+        .map(|c| c.to_string())
+        .collect::<HashSet<String>>();
+    let fields = schema
+        .iter_fields()
+        .map(|f| f.name.to_string())
+        .collect::<HashSet<String>>();
+    let select_cols = fields
+        .iter()
+        .filter(|c| !excluded_cols.contains(*c))
+        .map(|c| c.to_string())
+        .collect::<Vec<String>>();
+    let cols = select_cols.iter().map(col).collect::<Vec<Expr>>();
+    let result = df.lazy().select(&cols).collect();
+    result.map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
