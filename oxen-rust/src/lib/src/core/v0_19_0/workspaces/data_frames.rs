@@ -310,6 +310,7 @@ fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
     Ok(())
 }
+
 fn get_existing_excluded_columns(conn: &Connection, table_name: &str) -> Result<String, OxenError> {
     // Query to get existing columns in the table
     let existing_cols_query = format!(

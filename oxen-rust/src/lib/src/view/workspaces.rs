@@ -11,6 +11,7 @@ pub struct NewWorkspace {
     pub branch_name: String,
     pub resource_path: Option<String>,
     pub entity_type: Option<String>,
+    pub name: Option<String>,
 }
 
 // HACK to get this to work with our hub where we don't keep parent_ids 🤦‍♂️
@@ -42,6 +43,7 @@ impl From<WorkspaceCommit> for Commit {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct WorkspaceResponse {
     pub id: String,
+    pub name: Option<String>,
     pub commit: WorkspaceCommit,
 }
 

@@ -5,6 +5,7 @@ use liboxen::api;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use uuid::Uuid;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";
@@ -27,11 +28,10 @@ impl RunCmd for WorkspaceCreateCmd {
                     .help("The branch to create the workspace from"),
             )
             .arg(
-                Arg::new("workspace_id")
-                    .long("workspace_id")
-                    .short('w')
-                    .required(true)
-                    .help("The workspace_id of the workspace"),
+                Arg::new("name")
+                    .long("name")
+                    .short('n')
+                    .help("The name of the workspace"),
             )
     }
 
@@ -42,15 +42,24 @@ impl RunCmd for WorkspaceCreateCmd {
             return Err(OxenError::basic_str("Must supply branch"));
         };
 
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
-            return Err(OxenError::basic_str("Must supply workspace_id"));
-        };
+        let default_name = "".to_string();
+        let name = args
+            .get_one::<String>("name")
+            .unwrap_or(&default_name)
+            .to_string();
 
         let remote_repo = api::client::repositories::get_default_remote(&repo).await?;
-        let workspace =
-            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+        // Generate a random workspace id
+        let workspace_id = Uuid::new_v4().to_string();
+        let workspace = api::client::workspaces::create_with_name(
+            &remote_repo,
+            &branch_name,
+            &workspace_id,
+            &name,
+        )
+        .await?;
 
-        println!("Workspace created: {:?}", workspace.commit.id);
+        println!("{}", workspace.id);
 
         Ok(())
     }
