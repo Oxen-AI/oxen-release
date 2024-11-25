@@ -436,52 +436,6 @@ jobs:
           asset_name: oxen-server-mac-13.0.tar.gz
           tag: ${{ github.ref }}
 
-  release_mac_12:
-    runs-on: macos-12
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: brew install pkg-config ffmpeg
-
-      - name: Install latest rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-apple-darwin
-
-      - name: Build oxen for mac
-        run: cargo build --release
-
-      - name: Tar.gz oxen for mac
-        run: cd target/release && tar -czf oxen-mac-12.0.tar.gz oxen && cd -
-
-      - name: Tar.gz oxen-server for mac
-        run: cd target/release && tar -czf oxen-server-mac-12.0.tar.gz oxen-server && cd -
-
-      - name: Upload oxen to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          release_name: "🐂 Release ${{ github.ref }}"
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac-12.0.tar.gz
-          asset_name: oxen-mac-12.0.tar.gz
-          tag: ${{ github.ref }}
-
-      - name: Upload oxen-server to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          release_name: "🐂 Release ${{ github.ref }}"
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac-12.0.tar.gz
-          asset_name: oxen-server-mac-12.0.tar.gz
-          tag: ${{ github.ref }}
-
   release_mac_14:
     runs-on: macos-14
 
@@ -491,9 +445,6 @@ jobs:
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
-
-      - name: Install dependencies
-        run: brew install pkg-config
 
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -526,6 +477,49 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-server-mac-14.0.tar.gz
           asset_name: oxen-server-mac-14.0.tar.gz
+          tag: ${{ github.ref }}
+
+  release_mac_15:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install latest rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-apple-darwin
+
+      - name: Build oxen for mac
+        run: cargo build --release
+
+      - name: Tar.gz oxen for mac
+        run: cd target/release && tar -czf oxen-mac-15.0.tar.gz oxen && cd -
+
+      - name: Tar.gz oxen-server for mac
+        run: cd target/release && tar -czf oxen-server-mac-15.0.tar.gz oxen-server && cd -
+
+      - name: Upload oxen to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-mac-15.0.tar.gz
+          asset_name: oxen-mac-15.0.tar.gz
+          tag: ${{ github.ref }}
+
+      - name: Upload oxen-server to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-server-mac-15.0.tar.gz
+          asset_name: oxen-server-mac-15.0.tar.gz
           tag: ${{ github.ref }}
 
   stop-self-hosted-runner:
