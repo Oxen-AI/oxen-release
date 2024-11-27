@@ -6,7 +6,7 @@ use crate::params::{app_data, parse_resource, path_param};
 use futures_util::TryStreamExt;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
-use liboxen::model::file::FileNew;
+use liboxen::model::file::{FileContents, FileNew};
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
@@ -266,7 +266,7 @@ async fn handle_multipart_creation(
 
                 files.push(FileNew {
                     path: PathBuf::from(&filename),
-                    contents,
+                    contents: FileContents::Binary(contents),
                     user: User {
                         name: name
                             .clone()
