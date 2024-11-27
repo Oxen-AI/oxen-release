@@ -421,7 +421,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::model::file::FileNew;
+    use crate::model::file::{FileContents, FileNew};
     use crate::model::{Commit, LocalRepository, RepoNew};
     use crate::repositories;
     use crate::test;
