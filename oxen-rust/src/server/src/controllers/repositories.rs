@@ -210,7 +210,6 @@ async fn handle_multipart_creation(
     {
         let disposition = field
             .content_disposition()
-            .clone()
             .ok_or(OxenHttpError::NotFound)?;
         let field_name = disposition
             .get_name()
@@ -237,7 +236,7 @@ async fn handle_multipart_creation(
                 while let Some(chunk) = field
                     .try_next()
                     .await
-                    .map_err(|e| OxenHttpError::MultipartError(e))?
+                    .map_err(OxenHttpError::MultipartError)?
                 {
                     bytes.extend_from_slice(&chunk);
                 }
@@ -267,7 +266,7 @@ async fn handle_multipart_creation(
 
                 files.push(FileNew {
                     path: PathBuf::from(&filename),
-                    contents: contents,
+                    contents,
                     user: User {
                         name: name
                             .clone()
