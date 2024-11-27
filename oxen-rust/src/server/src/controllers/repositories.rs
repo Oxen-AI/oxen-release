@@ -23,7 +23,7 @@ use actix_multipart::Multipart; // Gives us Multipart
 use liboxen::model::{RepoNew, User};
 
 use actix_files::NamedFile;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -136,7 +136,7 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
 pub async fn create(
     req: HttpRequest,
-    payload: actix_web::Either<String, Multipart>,
+    payload: actix_web::Either<web::Json<RepoNew>, Multipart>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     println!("create");
@@ -150,10 +150,10 @@ pub async fn create(
 
 fn handle_json_creation(
     app_data: &OxenAppData,
-    data: String,
+    data: web::Json<RepoNew>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     println!("handle_json_creation: {:?}", data);
-    let repo_new: RepoNew = serde_json::from_str(&data)?;
+    let repo_new: RepoNew = data.into_inner();
     let repo_new_clone = repo_new.clone();
     match repositories::create(&app_data.path, repo_new) {
         Ok(repo) => match repositories::commits::latest_commit(&repo) {
@@ -290,7 +290,7 @@ async fn handle_multipart_creation(
 
     // Handle repository creation
     let Some(mut repo_data) = repo_new else {
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Missing newrepo field")));
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Missing new_repo field")));
     };
 
     repo_data.files = if !files.is_empty() { Some(files) } else { None };
