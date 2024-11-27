@@ -138,6 +138,7 @@ pub async fn create(
     req: HttpRequest,
     payload: actix_web::Either<web::Json<RepoNew>, Multipart>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    println!("controllers::repositories::create");
     let app_data = app_data(&req)?;
     match payload {
         actix_web::Either::Left(json_data) => handle_json_creation(app_data, json_data),
@@ -176,6 +177,7 @@ fn handle_json_creation(
                 }))
             }
             Err(err) => {
+                println!("Err repositories::create: {err:?}");
                 log::error!("Err repositories::commits::latest_commit: {:?}", err);
                 Ok(HttpResponse::InternalServerError()
                     .json(StatusMessage::error("Failed to get latest commit.")))
