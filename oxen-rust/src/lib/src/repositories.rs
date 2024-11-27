@@ -11,12 +11,14 @@ use crate::core::v0_10_0::index::CommitEntryReader;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::error::NO_REPO_FOUND;
 use crate::model::file::FileContents;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepoNew};
+use crate::repositories::fork::FORK_STATUS_FILE;
 use crate::util;
 use fd_lock::RwLock;
 use jwalk::WalkDir;
@@ -80,8 +82,25 @@ pub fn get_by_namespace_and_name(
         return Ok(None);
     }
 
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-    Ok(Some(repo))
+    let repo = LocalRepository::from_dir(&repo_dir);
+    match repo {
+        Ok(repo) => Ok(Some(repo)),
+        Err(OxenError::LocalRepoNotFound(_)) => is_repo_forked(&repo_dir),
+        Err(err) => {
+            log::error!("Error getting repo from dir: {:?}", err);
+            Err(err)
+        }
+    }
+}
+
+fn is_repo_forked(repo_dir: &Path) -> Result<Option<LocalRepository>, OxenError> {
+    let status_path = repo_dir.join(FORK_STATUS_FILE);
+
+    if status_path.exists() {
+        Ok(Some(LocalRepository::new(repo_dir)?))
+    } else {
+        Err(OxenError::basic_str(NO_REPO_FOUND))
+    }
 }
 
 pub fn is_empty(repo: &LocalRepository) -> Result<bool, OxenError> {
