@@ -438,6 +438,7 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use actix_web::web;
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepoNew};
@@ -539,12 +540,14 @@ mod tests {
             root_hash: None,
         };
         let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
-        let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, queue, "/api/repos");
 
-        let resp = controllers::repositories::create(req, actix_web::Either::Left(data.clone()))
-            .await
-            .unwrap();
+        let resp = controllers::repositories::create(
+            req,
+            actix_web::Either::Left(web::Json(repo_new.clone())),
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
