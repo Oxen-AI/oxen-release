@@ -208,9 +208,7 @@ async fn handle_multipart_creation(
         .await
         .map_err(OxenHttpError::MultipartError)?
     {
-        let disposition = field
-            .content_disposition()
-            .ok_or(OxenHttpError::NotFound)?;
+        let disposition = field.content_disposition().ok_or(OxenHttpError::NotFound)?;
         let field_name = disposition
             .get_name()
             .ok_or(OxenHttpError::NotFound)?
