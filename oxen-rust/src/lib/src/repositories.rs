@@ -468,7 +468,7 @@ mod tests {
             let user = UserConfig::get()?.to_user();
             let files: Vec<FileNew> = vec![FileNew {
                 path: PathBuf::from("README"),
-                contents: String::from("Hello world!").as_bytes().to_vec(),
+                contents: FileContents::Text(String::from("Hello world!")),
                 user,
             }];
             let repo_new = RepoNew::from_files(namespace, name, files);
