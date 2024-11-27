@@ -148,7 +148,7 @@ Happy Mooooooving of data 🐂
 
             let files: Vec<FileNew> = vec![FileNew {
                 path: PathBuf::from("README.md"),
-                contents: format!("# {}\n{}", name, readme_body),
+                contents: format!("# {}\n{}", name, readme_body).as_bytes().to_vec(),
                 user,
             }];
             let mut repo = RepoNew::from_files(namespace, name, files);
