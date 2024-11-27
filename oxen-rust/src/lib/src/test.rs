@@ -752,7 +752,7 @@ where
     };
     let files: Vec<FileNew> = vec![FileNew {
         path: PathBuf::from("README.md"),
-        contents: format!("# {}\n", &name),
+        contents: format!("# {}\n", &name).as_bytes().to_vec(),
         user: user.clone(),
     }];
     let mut repo = RepoNew::from_files(namespace, &name, files);

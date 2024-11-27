@@ -152,7 +152,6 @@ fn handle_json_creation(
     app_data: &OxenAppData,
     data: web::Json<RepoNew>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    println!("handle_json_creation: {:?}", data);
     let repo_new: RepoNew = data.into_inner();
     let repo_new_clone = repo_new.clone();
     match repositories::create(&app_data.path, repo_new) {
@@ -272,8 +271,7 @@ async fn handle_multipart_creation(
 
                 files.push(FileNew {
                     path: PathBuf::from(&filename),
-                    contents: String::from_utf8(contents)
-                        .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?,
+                    contents: contents,
                     user: User {
                         name: name
                             .clone()
