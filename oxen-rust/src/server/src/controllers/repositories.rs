@@ -139,9 +139,6 @@ pub async fn create(
     payload: actix_web::Either<web::Json<RepoNew>, Multipart>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    println!("create");
-    println!("{:?}", req.headers());
-
     match payload {
         actix_web::Either::Left(json_data) => handle_json_creation(app_data, json_data),
         actix_web::Either::Right(multipart) => handle_multipart_creation(app_data, multipart).await,
@@ -200,7 +197,6 @@ async fn handle_multipart_creation(
     app_data: &OxenAppData,
     mut multipart: Multipart,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    println!("handle_multipart_creation");
     let mut repo_new: Option<RepoNew> = None;
     let mut files: Vec<FileNew> = vec![];
     let mut name: Option<String> = None;
