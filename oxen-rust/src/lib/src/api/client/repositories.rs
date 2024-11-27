@@ -471,6 +471,7 @@ mod tests {
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::model::file::FileContents;
     use crate::model::file::FileNew;
     use crate::model::RepoNew;
     use crate::repositories;
@@ -577,7 +578,7 @@ mod tests {
             let user = UserConfig::get()?.to_user();
             let files: Vec<FileNew> = vec![FileNew {
                 path: PathBuf::from("README"),
-                contents: String::from("Hello world!"),
+                contents: FileContents::Text(String::from("Hello world!")),
                 user,
             }];
             let mut repo_new = RepoNew::from_files(namespace, &name, files);

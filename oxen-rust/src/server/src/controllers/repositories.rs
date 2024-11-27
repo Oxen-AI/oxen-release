@@ -1,9 +1,12 @@
+use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
+use futures_util::TryStreamExt;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
+use liboxen::model::file::{FileContents, FileNew};
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
@@ -16,10 +19,11 @@ use liboxen::view::{
     StatusMessage,
 };
 
-use liboxen::model::RepoNew;
+use actix_multipart::Multipart; // Gives us Multipart
+use liboxen::model::{RepoNew, User};
 
 use actix_files::NamedFile;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -132,55 +136,197 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
 pub async fn create(
     req: HttpRequest,
-    body: String,
+    payload: actix_web::Either<web::Json<RepoNew>, Multipart>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    println!("controllers::repositories::create");
     let app_data = app_data(&req)?;
-    println!("controllers::repositories::create body:\n{}", body);
-    let data: Result<RepoNew, serde_json::Error> = serde_json::from_str(&body);
-    match data {
-        Ok(data) => match repositories::create(&app_data.path, data.to_owned()) {
-            Ok(repo) => match repositories::commits::latest_commit(&repo) {
-                Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+    match payload {
+        actix_web::Either::Left(json_data) => handle_json_creation(app_data, json_data),
+        actix_web::Either::Right(multipart) => handle_multipart_creation(app_data, multipart).await,
+    }
+}
+
+fn handle_json_creation(
+    app_data: &OxenAppData,
+    data: web::Json<RepoNew>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let repo_new: RepoNew = data.into_inner();
+    let repo_new_clone = repo_new.clone();
+    match repositories::create(&app_data.path, repo_new) {
+        Ok(repo) => match repositories::commits::latest_commit(&repo) {
+            Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+                status: STATUS_SUCCESS.to_string(),
+                status_message: MSG_RESOURCE_FOUND.to_string(),
+                repository: RepositoryCreationView {
+                    namespace: repo_new_clone.namespace.clone(),
+                    latest_commit: Some(latest_commit.clone()),
+                    name: repo_new_clone.name.clone(),
+                    min_version: Some(repo.min_version().to_string()),
+                },
+            })),
+            Err(OxenError::NoCommitsFound(_)) => {
+                Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
                     status: STATUS_SUCCESS.to_string(),
                     status_message: MSG_RESOURCE_FOUND.to_string(),
                     repository: RepositoryCreationView {
-                        namespace: data.namespace.clone(),
-                        latest_commit: Some(latest_commit.clone()),
-                        name: data.name.clone(),
+                        namespace: repo_new_clone.namespace.clone(),
+                        latest_commit: None,
+                        name: repo_new_clone.name.clone(),
                         min_version: Some(repo.min_version().to_string()),
                     },
-                })),
-                Err(OxenError::NoCommitsFound(_)) => {
-                    Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
-                        status: STATUS_SUCCESS.to_string(),
-                        status_message: MSG_RESOURCE_FOUND.to_string(),
-                        repository: RepositoryCreationView {
-                            namespace: data.namespace.clone(),
-                            latest_commit: None,
-                            name: data.name.clone(),
-                            min_version: Some(repo.min_version().to_string()),
-                        },
-                    }))
-                }
-                Err(err) => {
-                    log::error!("Err repositories::commits::latest_commit: {:?}", err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::error("Failed to get latest commit.")))
-                }
-            },
-            Err(OxenError::RepoAlreadyExists(path)) => {
-                log::debug!("Repo already exists: {:?}", path);
-                Ok(HttpResponse::Conflict().json(StatusMessage::error("Repo already exists.")))
+                }))
             }
             Err(err) => {
                 println!("Err repositories::create: {err:?}");
-                log::error!("Err repositories::create: {:?}", err);
-                Ok(HttpResponse::InternalServerError().json(StatusMessage::error("Invalid body.")))
+                log::error!("Err repositories::commits::latest_commit: {:?}", err);
+                Ok(HttpResponse::InternalServerError()
+                    .json(StatusMessage::error("Failed to get latest commit.")))
             }
         },
+        Err(OxenError::RepoAlreadyExists(path)) => {
+            log::debug!("Repo already exists: {:?}", path);
+            Ok(HttpResponse::Conflict().json(StatusMessage::error("Repo already exists.")))
+        }
         Err(err) => {
-            log::error!("Err repositories::create parse error: {:?}", err);
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")))
+            println!("Err repositories::create: {err:?}");
+            log::error!("Err repositories::create: {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::error("Invalid body.")))
+        }
+    }
+}
+
+async fn handle_multipart_creation(
+    app_data: &OxenAppData,
+    mut multipart: Multipart,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let mut repo_new: Option<RepoNew> = None;
+    let mut files: Vec<FileNew> = vec![];
+    let mut name: Option<String> = None;
+    let mut email: Option<String> = None;
+
+    // Parse multipart form fields
+    while let Some(mut field) = multipart
+        .try_next()
+        .await
+        .map_err(OxenHttpError::MultipartError)?
+    {
+        let disposition = field.content_disposition().ok_or(OxenHttpError::NotFound)?;
+        let field_name = disposition
+            .get_name()
+            .ok_or(OxenHttpError::NotFound)?
+            .to_string(); // Convert to owned String
+
+        match field_name.as_str() {
+            "new_repo" => {
+                let mut body = String::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    body.push_str(
+                        std::str::from_utf8(&chunk)
+                            .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?,
+                    );
+                }
+                repo_new = Some(serde_json::from_str(&body)?);
+            }
+            "name" | "email" => {
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    bytes.extend_from_slice(&chunk);
+                }
+                let value = String::from_utf8(bytes)
+                    .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?;
+
+                if field_name == "name" {
+                    name = Some(value);
+                } else {
+                    email = Some(value);
+                }
+            }
+            "file[]" | "file" => {
+                let filename = disposition.get_filename().map_or_else(
+                    || uuid::Uuid::new_v4().to_string(),
+                    sanitize_filename::sanitize,
+                );
+
+                let mut contents = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    contents.extend_from_slice(&chunk);
+                }
+
+                files.push(FileNew {
+                    path: PathBuf::from(&filename),
+                    contents: FileContents::Binary(contents),
+                    user: User {
+                        name: name
+                            .clone()
+                            .ok_or(OxenHttpError::BadRequest("Name is required".into()))?,
+                        email: email
+                            .clone()
+                            .ok_or(OxenHttpError::BadRequest("Email is required".into()))?,
+                    },
+                });
+            }
+            _ => continue,
+        }
+    }
+
+    // Handle repository creation
+    let Some(mut repo_data) = repo_new else {
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Missing new_repo field")));
+    };
+
+    repo_data.files = if !files.is_empty() { Some(files) } else { None };
+    let repo_data_clone = repo_data.clone();
+
+    // Create repository
+    match repositories::create(&app_data.path, repo_data) {
+        Ok(repo) => match repositories::commits::latest_commit(&repo) {
+            Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+                status: STATUS_SUCCESS.to_string(),
+                status_message: MSG_RESOURCE_FOUND.to_string(),
+                repository: RepositoryCreationView {
+                    namespace: repo_data_clone.namespace,
+                    latest_commit: Some(latest_commit),
+                    name: repo_data_clone.name,
+                    min_version: Some(repo.min_version().to_string()),
+                },
+            })),
+            Err(OxenError::NoCommitsFound(_)) => {
+                Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+                    status: STATUS_SUCCESS.to_string(),
+                    status_message: MSG_RESOURCE_FOUND.to_string(),
+                    repository: RepositoryCreationView {
+                        namespace: repo_data_clone.namespace,
+                        latest_commit: None,
+                        name: repo_data_clone.name,
+                        min_version: Some(repo.min_version().to_string()),
+                    },
+                }))
+            }
+            Err(err) => {
+                log::error!("Err repositories::commits::latest_commit: {:?}", err);
+                Ok(HttpResponse::InternalServerError()
+                    .json(StatusMessage::error("Failed to get latest commit.")))
+            }
+        },
+        Err(OxenError::RepoAlreadyExists(path)) => {
+            log::debug!("Repo already exists: {:?}", path);
+            Ok(HttpResponse::Conflict().json(StatusMessage::error("Repo already exists.")))
+        }
+        Err(err) => {
+            log::error!("Err repositories::create: {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::error("Invalid body.")))
         }
     }
 }
@@ -285,6 +431,7 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use actix_web::web;
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepoNew};
@@ -386,10 +533,14 @@ mod tests {
             root_hash: None,
         };
         let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
-        let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, queue, "/api/repos");
 
-        let resp = controllers::repositories::create(req, data).await.unwrap();
+        let resp = controllers::repositories::create(
+            req,
+            actix_web::Either::Left(web::Json(repo_new.clone())),
+        )
+        .await
+        .unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
