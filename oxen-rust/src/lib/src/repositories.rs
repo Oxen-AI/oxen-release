@@ -11,6 +11,7 @@ use crate::core::v0_10_0::index::CommitEntryReader;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::file::FileContents;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
@@ -356,7 +357,14 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
             if !parent_dir.exists() {
                 util::fs::create_dir_all(parent_dir)?;
             }
-            util::fs::write(&full_path, contents)?;
+            match contents {
+                FileContents::Text(text) => {
+                    util::fs::write(&full_path, text.as_bytes())?;
+                }
+                FileContents::Binary(bytes) => {
+                    util::fs::write(&full_path, bytes)?;
+                }
+            }
             add(&local_repo, &full_path)?;
         }
 
