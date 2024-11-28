@@ -30,6 +30,7 @@ pub struct DFOpts {
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
+    pub embedding_column: Option<String>,
     pub filter: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
@@ -46,6 +47,7 @@ pub struct DFOpts {
     pub should_page: bool,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
+    pub sort_by_embedding_query: Option<String>,
     pub sql: Option<String>,
     pub text2sql: Option<String>,
     pub tail: Option<usize>,
@@ -71,29 +73,31 @@ impl DFOpts {
             add_col: None,
             add_row: None,
             at: None,
-            item: None,
             columns: None,
             delete_row: None,
             delimiter: None,
+            embedding_column: None,
             filter: None,
             head: None,
             host: None,
+            item: None,
             output: None,
-            page_size: None,
             page: None,
+            page_size: None,
             path: None,
-            row: None,
             quote_char: None,
             repo_dir: None,
+            row: None,
+            should_page: false,
             should_randomize: false,
             should_reverse: false,
-            should_page: false,
             slice: None,
             sort_by: None,
+            sort_by_embedding_query: None,
             sql: None,
-            text2sql: None,
             tail: None,
             take: None,
+            text2sql: None,
             unique: None,
             vstack: None,
             write: None,
@@ -155,6 +159,7 @@ impl DFOpts {
             || self.should_randomize
             || self.should_reverse
             || self.sort_by.is_some()
+            || self.sort_by_embedding_query.is_some()
             || self.slice.is_some()
             || self.sql.is_some()
             || self.tail.is_some()
@@ -221,6 +226,10 @@ impl DFOpts {
 
     pub fn get_filter(&self) -> Result<Option<DFFilterExp>, OxenError> {
         filter::parse(self.filter.clone())
+    }
+
+    pub fn get_sort_by_embedding_query(&self) -> Result<Option<DFFilterExp>, OxenError> {
+        filter::parse(self.sort_by_embedding_query.clone())
     }
 
     pub fn get_host(&self) -> String {
@@ -303,6 +312,10 @@ impl DFOpts {
             ("sql", self.sql.clone()),
             ("take", self.take.clone()),
             ("unique", self.unique.clone()),
+            (
+                "sort_by_embedding_query",
+                self.sort_by_embedding_query.clone(),
+            ),
         ];
 
         let mut query = String::new();

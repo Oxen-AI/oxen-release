@@ -379,6 +379,7 @@ fn filter_df(mut df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenE
     if filter.vals.is_empty() {
         return Ok(df);
     }
+
     let mut vals = filter.vals.iter();
     let mut expr: Expr = filter_from_val(&mut df, vals.next().unwrap());
     for op in &filter.logical_ops {

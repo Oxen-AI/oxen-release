@@ -2,21 +2,64 @@ use arrow::array::FixedSizeListArray;
 use arrow::array::{Float32Array, Float64Array, ListArray, RecordBatch};
 use polars::frame::DataFrame;
 
+use crate::config::embedding_config::EmbeddingColumn;
+use crate::config::EmbeddingConfig;
+use crate::config::EMBEDDING_CONFIG_FILENAME;
 use crate::constants::TABLE_NAME;
 use crate::core::db::data_frames::df_db;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
 use crate::opts::EmbeddingQueryOpts;
-use crate::repositories;
+use crate::{repositories, util};
 
 use std::path::Path;
 use std::path::PathBuf;
 
-fn vector_length_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
+fn embedding_config_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     let parent = path.parent().unwrap();
-    parent.join("vector_length")
+    parent.join(EMBEDDING_CONFIG_FILENAME)
+}
+
+fn embedding_config(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+) -> Result<EmbeddingConfig, OxenError> {
+    let embedding_config = embedding_config_path(workspace, path);
+    let config_data = util::fs::read_from_path(&embedding_config)?;
+    Ok(toml::from_str(&config_data)?)
+}
+
+fn write_embedding_size_to_config(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    column_name: impl AsRef<str>,
+    vector_length: usize,
+) -> Result<(), OxenError> {
+    let embedding_config = embedding_config_path(workspace, path);
+    let config_data = util::fs::read_from_path(&embedding_config)?;
+    let mut config: EmbeddingConfig = toml::from_str(&config_data)?;
+    let column = EmbeddingColumn {
+        name: column_name.as_ref().to_string(),
+        vector_length,
+    };
+    config
+        .columns
+        .insert(column_name.as_ref().to_string(), column);
+    let config_str = toml::to_string(&config)?;
+    std::fs::write(embedding_config, config_str)?;
+    Ok(())
+}
+
+pub fn list_indexed_columns(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+) -> Result<Vec<EmbeddingColumn>, OxenError> {
+    let Ok(config) = embedding_config(workspace, path) else {
+        return Ok(vec![]);
+    };
+    Ok(config.columns.values().cloned().collect())
 }
 
 pub fn index(
@@ -88,8 +131,7 @@ pub fn index(
 
     log::debug!("Vector length: {}", vector_length);
     // Write the vector length to a file we can use in the query
-    let vector_length_path = vector_length_path(workspace, path);
-    std::fs::write(vector_length_path, vector_length.to_string())?;
+    write_embedding_size_to_config(workspace, path, column, vector_length)?;
 
     // Execute VSS commands separately
     conn.execute("INSTALL vss;", [])?;
@@ -107,8 +149,30 @@ pub fn index(
     Ok(())
 }
 
+pub fn embedding_from_query(
+    conn: &duckdb::Connection,
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    query: &EmbeddingQueryOpts,
+) -> Result<(Vec<f32>, usize), OxenError> {
+    let path = path.as_ref();
+    let column = query.column.clone();
+    let (key, value) = query.parse_query()?;
+    let sql = format!("SELECT {} FROM df WHERE {} = '{}';", column, key, value);
+    log::debug!("Executing: {}", sql);
+    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    log::debug!("Result set: {:?}", result_set);
+
+    // Read the vector length from the file we wrote in the index function
+    let config = embedding_config(workspace, path)?;
+    let vector_length = config.columns[&column].vector_length;
+    log::debug!("Vector length: {}", vector_length);
+    // Average the embeddings
+    let avg_embedding = get_avg_embedding(result_set)?;
+    Ok((avg_embedding, vector_length))
+}
+
 pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFrame, OxenError> {
-    let (key, value) = opts.parse_query()?;
     let column = opts.column.clone();
     let path = opts.path.clone();
     let similarity_column = opts.name.clone();
@@ -116,18 +180,8 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
     log::debug!("Embedding query DB Path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
+    let (avg_embedding, vector_length) = embedding_from_query(&conn, workspace, path, opts)?;
 
-    let sql = format!("SELECT {} FROM df WHERE {} = '{}';", column, key, value);
-    log::debug!("Executing: {}", sql);
-    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
-    log::debug!("Result set: {:?}", result_set);
-
-    // Read the vector length from the file we wrote in the index function
-    let vector_length_path = vector_length_path(workspace, path);
-    let vector_length = std::fs::read_to_string(vector_length_path)?.parse::<usize>()?;
-    log::debug!("Vector length: {}", vector_length);
-    // Average the embeddings
-    let avg_embedding = get_avg_embedding(result_set)?;
     log::debug!("Avg embedding: {:?}", avg_embedding);
     let embedding_str = format!(
         "[{}]",

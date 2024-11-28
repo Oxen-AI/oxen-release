@@ -5,6 +5,7 @@ use crate::constants::{
     DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
 };
 
+use crate::core::df::filter::{DFFilterExp, DFFilterOp};
 use crate::core::df::tabular;
 use crate::error::OxenError;
 
@@ -217,6 +218,21 @@ pub fn select_str(
         sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
     }
 
+    if let (Some(sort_by_embedding_query), Some(embedding_column)) = (
+        opts.get_sort_by_embedding_query()?,
+        opts.embedding_column.clone(),
+    ) {
+        // Right now only support sorting by a single column
+        if sort_by_embedding_query.vals.len() == 1 && sort_by_embedding_query.vals.first().unwrap().op == DFFilterOp::EQ {
+            let key = sort_by_embedding_query.vals[0].field.clone();
+            let val = sort_by_embedding_query.vals[0].value.clone();
+            sql.push_str(&format!(
+                " ORDER BY array_cosine_similarity('{}', {} = '{}')",
+                embedding_column, key, val
+            ));
+        }
+    }
+
     let pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
         let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
@@ -229,6 +245,25 @@ pub fn select_str(
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)
+}
+
+fn get_embedding_from_query(
+    conn: &duckdb::Connection,
+    query: &DFFilterExp,
+    embedding_column: &str,
+) -> Result<Vec<f32>, OxenError> {
+    if query.vals.len() == 1 && query.vals.first().unwrap().op == DFFilterOp::EQ {
+        let key = query.vals[0].field.clone();
+        let val = query.vals[0].value.clone();
+        let sql = format!(
+            "SELECT {} FROM {} WHERE {} = '{}'",
+            embedding_column, TABLE_NAME, key, val
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let result_set: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+        return Ok(vec![]);
+    }
+    Err(OxenError::basic_str("Currently only support sorting by a single embedding column"))
 }
 
 pub fn select_raw(

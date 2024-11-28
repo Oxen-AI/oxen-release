@@ -33,6 +33,12 @@ impl RunCmd for WorkspaceDFGetCmd {
                     .short('w')
                     .help("The workspace id to use."),
             )
+            .arg(
+                Arg::new("sort-by-embedding-query")
+                    .long("sort-by-embedding-query")
+                    .help("Sort the output by an embedding query.")
+                    .action(clap::ArgAction::Set),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -48,7 +54,10 @@ impl RunCmd for WorkspaceDFGetCmd {
 
         let repository = LocalRepository::from_current_dir()?;
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
-        let opts = DFOpts::empty();
+        let mut opts = DFOpts::empty();
+        if let Some(sort_by_embedding_query) = args.get_one::<String>("sort-by-embedding-query") {
+            opts.sort_by_embedding_query = Some(sort_by_embedding_query.to_string());
+        }
         let response =
             api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
                 .await?;

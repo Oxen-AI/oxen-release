@@ -27,21 +27,15 @@ pub async fn get(
     log::debug!("get_row {url}\n{row_id}");
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val),
-                Err(err) => {
-                    let err = format!("api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val),
         Err(err) => {
-            let err = format!("api::staging::get_row Request failed: {url}\n\nErr {err:?}");
+            let err = format!(
+                "api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+            );
             Err(OxenError::basic_str(err))
         }
     }
@@ -67,27 +61,18 @@ pub async fn update(
     log::debug!("update_row {url}\n{data}");
 
     let client = client::new_for_url(&url)?;
-    match client
+    let res = client
         .put(&url)
         .header("Content-Type", "application/json")
         .body(data)
         .send()
-        .await
-    {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val),
-                Err(err) => {
-                    let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+        .await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val),
         Err(err) => {
-            let err = format!("api::staging::update_row Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -112,22 +97,14 @@ pub async fn delete(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.delete(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("rm_df_mod got body: {}", body);
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.data_frame.view.to_df()),
-                Err(err) => {
-                    let err = format!("api::staging::rm_df_mod error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+    let res = client.delete(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("rm_df_mod got body: {}", body);
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.data_frame.view.to_df()),
         Err(err) => {
-            let err = format!("rm_df_mod Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::rm_df_mod error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
