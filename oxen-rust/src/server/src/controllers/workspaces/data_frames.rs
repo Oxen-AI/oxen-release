@@ -19,9 +19,10 @@ use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 
 pub mod columns;
+pub mod embeddings;
 pub mod rows;
 
-pub async fn get_by_resource(
+pub async fn get(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -63,8 +64,6 @@ pub async fn get_by_resource(
         log::error!("Failed to get schema for data frame {:?}", file_path);
         return Err(OxenHttpError::NotFound);
     };
-
-    let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     let resource = ResourceVersion {
         path: file_path.to_string_lossy().to_string(),

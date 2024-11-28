@@ -6,6 +6,7 @@ use serde::Deserialize;
 pub struct DFOptsQuery {
     pub columns: Option<String>,
     pub delimiter: Option<String>,
+    pub embedding_column: Option<String>,
     pub filter: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
@@ -14,6 +15,7 @@ pub struct DFOptsQuery {
     pub reverse: Option<bool>,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
+    pub sort_by_embedding_query: Option<String>,
     pub sql: Option<String>,
     pub take: Option<String>,
 }
@@ -38,13 +40,19 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
     }
 
     filter_ops.delimiter.clone_from(&query.delimiter);
+    filter_ops
+        .embedding_column
+        .clone_from(&query.embedding_column);
+    filter_ops.filter.clone_from(&query.filter);
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;
-    filter_ops.filter.clone_from(&query.filter);
     filter_ops.should_randomize = query.randomize.unwrap_or(false);
     filter_ops.should_reverse = query.reverse.unwrap_or(false);
     filter_ops.sort_by.clone_from(&query.sort_by);
+    filter_ops
+        .sort_by_embedding_query
+        .clone_from(&query.sort_by_embedding_query);
     filter_ops.sql.clone_from(&query.sql);
     filter_ops.take.clone_from(&query.take);
 

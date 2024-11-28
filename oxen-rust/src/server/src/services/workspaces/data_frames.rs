@@ -4,6 +4,7 @@ use actix_web::Scope;
 use crate::controllers;
 
 pub mod columns;
+pub mod embeddings;
 pub mod rows;
 
 pub fn data_frames() -> Scope {
@@ -13,12 +14,12 @@ pub fn data_frames() -> Scope {
             web::get().to(controllers::workspaces::data_frames::get_by_branch),
         )
         .route(
-            "/resource/{path:.*}",
-            web::get().to(controllers::workspaces::data_frames::get_by_resource),
-        )
-        .route(
             "/diff/{path:.*}",
             web::get().to(controllers::workspaces::data_frames::diff),
+        )
+        .route(
+            "/resource/{path:.*}",
+            web::get().to(controllers::workspaces::data_frames::get),
         )
         .route(
             "/resource/{path:.*}",
@@ -30,4 +31,5 @@ pub fn data_frames() -> Scope {
         )
         .service(rows::rows())
         .service(columns::columns())
+        .service(embeddings::embeddings())
 }

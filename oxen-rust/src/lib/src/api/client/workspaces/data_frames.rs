@@ -13,6 +13,7 @@ use crate::model::RemoteRepository;
 use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 
 pub mod columns;
+pub mod embeddings;
 pub mod rows;
 
 #[derive(Serialize, Deserialize)]
