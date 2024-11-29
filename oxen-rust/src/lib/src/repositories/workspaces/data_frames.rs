@@ -146,7 +146,13 @@ pub fn query(
 
     let select = Select::new().select(&col_names).from(TABLE_NAME);
 
-    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
+    // Right now embeddings and sql are mutually exclusive
+    let df = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
+        log::debug!("querying embeddings: {:?}", embedding_opts);
+        repositories::workspaces::data_frames::embeddings::query(&workspace, &embedding_opts)?
+    } else {
+        df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?
+    };
 
     Ok(df)
 }

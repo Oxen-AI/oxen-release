@@ -2,7 +2,7 @@ use arrow::array::FixedSizeListArray;
 use arrow::array::{Float32Array, Float64Array, ListArray, RecordBatch};
 use polars::frame::DataFrame;
 
-use crate::config::embedding_config::EmbeddingColumn;
+use crate::config::embedding_config::{EmbeddingColumn, EmbeddingStatus};
 use crate::config::EmbeddingConfig;
 use crate::config::EMBEDDING_CONFIG_FILENAME;
 use crate::constants::TABLE_NAME;
@@ -38,15 +38,40 @@ fn write_embedding_size_to_config(
     vector_length: usize,
 ) -> Result<(), OxenError> {
     let embedding_config = embedding_config_path(workspace, path);
-    let config_data = util::fs::read_from_path(&embedding_config)?;
-    let mut config: EmbeddingConfig = toml::from_str(&config_data)?;
+
+    // Try to read existing config, create new one if it doesn't exist
+    let config_data = util::fs::read_from_path(&embedding_config).unwrap_or_default();
+    let mut config: EmbeddingConfig = if config_data.is_empty() {
+        EmbeddingConfig::default()
+    } else {
+        toml::from_str(&config_data)?
+    };
+
     let column = EmbeddingColumn {
         name: column_name.as_ref().to_string(),
         vector_length,
+        status: EmbeddingStatus::InProgress,
     };
+
     config
         .columns
         .insert(column_name.as_ref().to_string(), column);
+
+    let config_str = toml::to_string(&config)?;
+    std::fs::write(embedding_config, config_str)?;
+    Ok(())
+}
+
+fn update_embedding_status(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    column_name: impl AsRef<str>,
+    status: EmbeddingStatus,
+) -> Result<(), OxenError> {
+    let embedding_config = embedding_config_path(workspace, path);
+    let config_data = util::fs::read_from_path(&embedding_config)?;
+    let mut config: EmbeddingConfig = toml::from_str(&config_data)?;
+    config.columns.get_mut(column_name.as_ref()).unwrap().status = status;
     let config_str = toml::to_string(&config)?;
     std::fs::write(embedding_config, config_str)?;
     Ok(())
@@ -67,9 +92,53 @@ pub fn index(
     path: impl AsRef<Path>,
     column: impl AsRef<str>,
 ) -> Result<(), OxenError> {
-    let path = path.as_ref();
+    let path = path.as_ref().to_path_buf();
     let column = column.as_ref();
 
+    let column_name = column.to_string();
+    let vector_length = get_embedding_length(workspace, &path, column)?;
+
+    // Clone necessary values for the background thread
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let workspace = workspace.clone();
+
+    // Spawn background thread for VSS setup
+    std::thread::spawn(move || -> Result<(), OxenError> {
+        let conn = df_db::get_connection(&db_path)?;
+
+        // Execute VSS commands separately
+        conn.execute("INSTALL vss;", [])?;
+        conn.execute("LOAD vss;", [])?;
+        conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
+
+        // Convert column type
+        let sql = format!(
+            "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
+            column_name, vector_length
+        );
+        log::debug!("Executing in background: {}", sql);
+        conn.execute(&sql, [])?;
+
+        log::debug!(
+            "Completed indexing embeddings for column `{}` on {}",
+            column_name,
+            path.display()
+        );
+        update_embedding_status(&workspace, path, column_name, EmbeddingStatus::Complete)?;
+
+        Ok(())
+    });
+
+    Ok(())
+}
+
+fn get_embedding_length(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    column: impl AsRef<str>,
+) -> Result<usize, OxenError> {
+    let path = path.as_ref();
+    let column = column.as_ref();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("Embedding index DB Path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
@@ -132,21 +201,7 @@ pub fn index(
     log::debug!("Vector length: {}", vector_length);
     // Write the vector length to a file we can use in the query
     write_embedding_size_to_config(workspace, path, column, vector_length)?;
-
-    // Execute VSS commands separately
-    conn.execute("INSTALL vss;", [])?;
-    conn.execute("LOAD vss;", [])?;
-    conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
-
-    // must convert float64 to float32 for the vector search to work
-    let sql = format!(
-        "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
-        column, vector_length
-    );
-    log::debug!("Executing: {}", sql);
-    conn.execute(&sql, [])?;
-
-    Ok(())
+    Ok(vector_length)
 }
 
 pub fn embedding_from_query(
@@ -161,12 +216,12 @@ pub fn embedding_from_query(
     let sql = format!("SELECT {} FROM df WHERE {} = '{}';", column, key, value);
     log::debug!("Executing: {}", sql);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
-    log::debug!("Result set: {:?}", result_set);
+    // log::debug!("Result set: {:?}", result_set);
 
     // Read the vector length from the file we wrote in the index function
     let config = embedding_config(workspace, path)?;
     let vector_length = config.columns[&column].vector_length;
-    log::debug!("Vector length: {}", vector_length);
+    // log::debug!("Vector length: {}", vector_length);
     // Average the embeddings
     let avg_embedding = get_avg_embedding(result_set)?;
     Ok((avg_embedding, vector_length))
@@ -182,7 +237,7 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
     let conn = df_db::get_connection(&db_path)?;
     let (avg_embedding, vector_length) = embedding_from_query(&conn, workspace, path, opts)?;
 
-    log::debug!("Avg embedding: {:?}", avg_embedding);
+    // log::debug!("Avg embedding: {:?}", avg_embedding);
     let embedding_str = format!(
         "[{}]",
         avg_embedding
@@ -192,12 +247,24 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
             .join(",")
     );
     let sql = format!("SELECT *, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
-    log::debug!("Executing: {}", sql);
+    // Print just the first 50 characters of the query
+    log::debug!("Executing similarity query: {}", &sql[..50]);
+    // Time the query
+    let start = std::time::Instant::now();
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    log::debug!("Similarity query took: {:?}", start.elapsed());
 
+    // Print the schema
     let mut schema = df_db::get_schema(&conn, TABLE_NAME)?;
     schema.fields.push(Field::new(&similarity_column, "f32"));
+
+    let start = std::time::Instant::now();
+    log::debug!("Serializing similarity query to Polars");
     let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, &schema)?;
+    log::debug!(
+        "Serializing similarity query to Polars took: {:?}",
+        start.elapsed()
+    );
     Ok(df)
 }
 

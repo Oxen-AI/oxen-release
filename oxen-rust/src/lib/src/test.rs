@@ -882,6 +882,57 @@ where
     Ok(())
 }
 
+/// Same as run_remote_repo_test_all_data_pushed but with just one file
+pub async fn run_remote_repo_test_embeddings_jsonl_pushed<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    log::info!("<<<<< run_remote_repo_test_embeddings_jsonl_pushed start");
+    let empty_dir = create_empty_dir(test_run_dir())?;
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let path = empty_dir.join(name);
+    let mut local_repo = repositories::init(&path)?;
+
+    // Write all the files
+    create_embeddings_jsonl(&local_repo.path)?;
+    repositories::add(&local_repo, &local_repo.path)?;
+    log::debug!("about to commit embeddings jsonl");
+    repositories::commit(&local_repo, "Adding embeddings jsonl")?;
+    log::debug!("successfully committed embeddings jsonl");
+
+    // Set the proper remote
+    let remote = repo_remote_url_from(&local_repo.dirname());
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+    // Create remote repo
+    let repo = create_remote_repo(&local_repo).await?;
+
+    repositories::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    log::info!(">>>>> run_remote_repo_test_embeddings_jsonl_pushed running test");
+    let result = match test(repo).await {
+        Ok(_repo) => {
+            // TODO: Cleanup remote repo
+            // this was failing
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Cleanup Local
+    util::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Run a test on a repo with a bunch of filees
 pub async fn run_training_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -1077,7 +1128,12 @@ where
     util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    match result {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {:?}", err);
+        }
+    }
     Ok(())
 }
 
@@ -1204,6 +1260,23 @@ train/cat_1.jpg,cat,57.0,35.5,304,427
 train/cat_2.jpg,cat,30.5,44.0,333,396
 ",
     )?;
+
+    Ok(())
+}
+
+fn create_embeddings_jsonl(repo_path: &Path) -> Result<(), OxenError> {
+    let dir = repo_path.join("annotations").join("train");
+    // Create dir
+    util::fs::create_dir_all(&dir)?;
+
+    // Make a jsonl file with 10k embeddings
+    let mut embeddings = Vec::new();
+    for i in 0..10000 {
+        embeddings.push(format!(r#"{{"prompt": "What is great way to version {0} images?", "response": "Checkout Oxen.ai", "embedding": [{0}.0, {0}.1, {0}.2]}}"#, i));
+    }
+
+    // Write all the files
+    write_txt_file_to_path(dir.join("embeddings.jsonl"), embeddings.join("\n"))?;
 
     Ok(())
 }

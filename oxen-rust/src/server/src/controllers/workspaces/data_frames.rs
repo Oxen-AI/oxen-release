@@ -37,6 +37,7 @@ pub async fn get(
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
+    opts.path = Some(file_path.clone());
 
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
@@ -56,6 +57,8 @@ pub async fn get(
         return Ok(HttpResponse::Ok().json(response));
     }
 
+    log::debug!("querying data frame {:?}", file_path);
+    log::debug!("opts: {:?}", opts);
     let count = repositories::workspaces::data_frames::count(&workspace, &file_path)?;
     let df = repositories::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
     let Some(mut df_schema) =

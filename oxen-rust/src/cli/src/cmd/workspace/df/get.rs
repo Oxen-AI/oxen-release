@@ -39,6 +39,12 @@ impl RunCmd for WorkspaceDFGetCmd {
                     .help("Sort the output by an embedding query.")
                     .action(clap::ArgAction::Set),
             )
+            .arg(
+                Arg::new("embedding-column")
+                    .long("embedding-column")
+                    .help("The column to sort by.")
+                    .action(clap::ArgAction::Set),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -57,6 +63,9 @@ impl RunCmd for WorkspaceDFGetCmd {
         let mut opts = DFOpts::empty();
         if let Some(sort_by_embedding_query) = args.get_one::<String>("sort-by-embedding-query") {
             opts.sort_by_embedding_query = Some(sort_by_embedding_query.to_string());
+        }
+        if let Some(embedding_column) = args.get_one::<String>("embedding-column") {
+            opts.embedding_column = Some(embedding_column.to_string());
         }
         let response =
             api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
