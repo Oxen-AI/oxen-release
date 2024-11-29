@@ -30,7 +30,7 @@ impl<'de> Deserialize<'de> for FileContents {
     {
         struct FileContentsVisitor;
 
-        impl<'de> Visitor<'de> for FileContentsVisitor {
+        impl Visitor<'_> for FileContentsVisitor {
             type Value = FileContents;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
