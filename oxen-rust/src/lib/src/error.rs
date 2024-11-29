@@ -42,6 +42,7 @@ pub enum OxenError {
 
     // Repo
     RepoNotFound(Box<RepoNew>),
+    LocalRepoNotFound(Box<PathBufError>),
     RepoAlreadyExists(Box<RepoNew>),
     RepoAlreadyExistsAtDestination(Box<StringError>),
 
@@ -252,8 +253,8 @@ impl OxenError {
         OxenError::NoCommitsFound(StringError::from("\n No commits found.\n"))
     }
 
-    pub fn local_repo_not_found() -> OxenError {
-        OxenError::basic_str(NO_REPO_FOUND)
+    pub fn local_repo_not_found(dir: impl AsRef<Path>) -> OxenError {
+        OxenError::LocalRepoNotFound(Box::new(dir.as_ref().into()))
     }
 
     pub fn email_and_name_not_set() -> OxenError {

@@ -13,7 +13,6 @@ use super::df_db;
 
 /// Builds on df_db, but for specific use cases involving remote staging -
 /// i.e., handling additional virtual columns beyond the formal schema, table names, etc.
-
 pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
     let all_col_names = OXEN_COLS
         .iter()

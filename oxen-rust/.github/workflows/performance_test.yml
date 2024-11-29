@@ -17,7 +17,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install dependencies
-        run: brew install pkg-config ffmpeg imagemagick
+        run: |
+          brew update
+          brew install pkg-config || brew upgrade pkg-config
+          brew install ffmpeg imagemagick
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -81,4 +84,4 @@ jobs:
         run: |
           cd cli-test
           bundle install
-          bundle exec rspec spec/test_cases/test.rb
+          bundle exec rspec spec/automated_test_cases/performance_test.rb

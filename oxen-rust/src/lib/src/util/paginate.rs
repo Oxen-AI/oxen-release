@@ -178,11 +178,7 @@ pub fn paginate_files_assuming_dirs<T: Clone>(
     let remaining_space = page_size - (end_a - start_a);
     if remaining_space > 0 {
         // Compute where to start and end for the files
-        let start_b = if start_idx < num_dirs {
-            0
-        } else {
-            start_idx - num_dirs
-        };
+        let start_b = start_idx.saturating_sub(num_dirs);
         let end_b = start_b + remaining_space.min(files.len() - start_b);
         result.extend_from_slice(&files[start_b..end_b]);
     }
