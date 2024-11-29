@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use toml;
 
-const FORK_STATUS_FILE: &str = ".oxen/fork_status.toml";
+pub const FORK_STATUS_FILE: &str = ".oxen/fork_status.toml";
 
 fn write_status(repo_path: &Path, status: &ForkStatus) -> Result<(), OxenError> {
     let status_path = repo_path.join(FORK_STATUS_FILE);

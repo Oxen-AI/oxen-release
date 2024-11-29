@@ -5,7 +5,8 @@ use crate::controllers;
 
 pub fn commits() -> Scope {
     web::scope("/commits")
-        .route("", web::get().to(controllers::commits::index))
+        //  This is commented out because the list_commit function reads from the head file, which should not be used server side
+        // .route("", web::get().to(controllers::commits::index))
         .route("", web::post().to(controllers::commits::create))
         .route("/bulk", web::post().to(controllers::commits::create_bulk))
         .route("/root", web::get().to(controllers::commits::root_commit))

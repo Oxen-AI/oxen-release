@@ -459,7 +459,7 @@ pub fn meta_entry_from_commit_entry(
         None
     };
 
-    return Ok(MetadataEntry {
+    Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         hash: entry.hash.to_string(),
         is_dir: false,
@@ -478,7 +478,7 @@ pub fn meta_entry_from_commit_entry(
         // Not applicable for files YET, but we will also compute this metadata
         metadata: None,
         is_queryable: is_indexed,
-    });
+    })
 }
 
 /// Get a DirEntry summing up the size of all files in a directory
@@ -524,7 +524,7 @@ pub fn meta_entry_from_dir(
     let dir_metadata = repositories::entries::get_dir_entry_metadata(repo, commit, path)?;
 
     let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
-    return Ok(MetadataEntry {
+    Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         hash: commit.id.to_string(),
         is_dir: true,
@@ -542,7 +542,7 @@ pub fn meta_entry_from_dir(
         }),
         metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
         is_queryable: None,
-    });
+    })
 }
 
 pub fn get_commit_history_path(

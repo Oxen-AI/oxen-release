@@ -26,17 +26,9 @@ impl DirDiffSummary {
                 let base_num_files = base_entry.num_files();
                 let head_num_files = head_entry.num_files();
 
-                let num_added_files = if base_num_files < head_num_files {
-                    head_num_files - base_num_files
-                } else {
-                    0
-                };
+                let num_added_files = head_num_files.saturating_sub(base_num_files);
 
-                let num_removed_files = if base_num_files > head_num_files {
-                    base_num_files - head_num_files
-                } else {
-                    0
-                };
+                let num_removed_files = base_num_files.saturating_sub(head_num_files);
 
                 Ok(DirDiffSummary {
                     dir: DirDiffSummaryImpl {

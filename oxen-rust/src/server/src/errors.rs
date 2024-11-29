@@ -1,3 +1,4 @@
+use actix_multipart::MultipartError;
 use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
@@ -16,6 +17,7 @@ use std::io;
 pub enum OxenHttpError {
     InternalServerError,
     BadRequest(StringError),
+    MultipartError(MultipartError),
     NotFound,
     AppDataDoesNotExist,
     PathParamDoesNotExist(StringError),
@@ -78,6 +80,9 @@ impl error::ResponseError for OxenHttpError {
         match self {
             OxenHttpError::InternalServerError => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+            OxenHttpError::MultipartError(_) => {
+                HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
             OxenHttpError::BadRequest(desc) => HttpResponse::BadRequest()
                 .json(StatusMessageDescription::bad_request(desc.to_string())),
@@ -430,6 +435,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::PathParamDoesNotExist(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::BadRequest(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::MultipartError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
             OxenHttpError::WorkspaceBehind(_) => StatusCode::CONFLICT,

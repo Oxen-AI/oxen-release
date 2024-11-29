@@ -83,7 +83,9 @@ impl LocalRepository {
     pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
         let config_path = util::fs::config_filepath(dir);
         if !config_path.exists() {
-            return Err(OxenError::local_repo_not_found());
+            return Err(OxenError::LocalRepoNotFound(Box::new(
+                dir.to_path_buf().into(),
+            )));
         }
         let cfg = RepositoryConfig::from_file(&config_path)?;
         let vnode_size = cfg.vnode_size();

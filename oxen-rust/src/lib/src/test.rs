@@ -11,6 +11,7 @@ use crate::core::refs::RefWriter;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
+use crate::model::file::FileContents;
 use crate::model::file::FileNew;
 use crate::model::RepoNew;
 use crate::model::Schema;
@@ -752,7 +753,7 @@ where
     };
     let files: Vec<FileNew> = vec![FileNew {
         path: PathBuf::from("README.md"),
-        contents: format!("# {}\n", &name),
+        contents: FileContents::Text(format!("# {}\n", &name)),
         user: user.clone(),
     }];
     let mut repo = RepoNew::from_files(namespace, &name, files);
