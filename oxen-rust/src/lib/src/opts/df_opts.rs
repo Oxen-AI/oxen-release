@@ -9,6 +9,8 @@ use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Schema;
 
+use super::EmbeddingQueryOpts;
+
 #[derive(Debug)]
 pub struct AddColVals {
     pub name: String,
@@ -228,8 +230,21 @@ impl DFOpts {
         filter::parse(self.filter.clone())
     }
 
-    pub fn get_sort_by_embedding_query(&self) -> Result<Option<DFFilterExp>, OxenError> {
-        filter::parse(self.sort_by_embedding_query.clone())
+    pub fn get_sort_by_embedding_query(&self) -> Option<EmbeddingQueryOpts> {
+        if let (Some(query), Some(column), Some(path)) = (
+            self.sort_by_embedding_query.clone(),
+            self.embedding_column.clone(),
+            self.path.clone(),
+        ) {
+            Some(EmbeddingQueryOpts {
+                path,
+                column,
+                query,
+                name: "similarity".to_string(),
+            })
+        } else {
+            None
+        }
     }
 
     pub fn get_host(&self) -> String {
@@ -312,6 +327,7 @@ impl DFOpts {
             ("sql", self.sql.clone()),
             ("take", self.take.clone()),
             ("unique", self.unique.clone()),
+            ("embedding_column", self.embedding_column.clone()),
             (
                 "sort_by_embedding_query",
                 self.sort_by_embedding_query.clone(),

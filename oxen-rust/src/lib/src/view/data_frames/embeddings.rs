@@ -9,3 +9,8 @@ pub struct EmbeddingColumnsResponse {
     pub status: StatusMessage,
     pub columns: Vec<EmbeddingColumn>,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct IndexEmbeddingRequest {
+    pub column: String,
+}
