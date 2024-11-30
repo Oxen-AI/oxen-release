@@ -212,8 +212,8 @@ pub fn embedding_from_query(
 ) -> Result<(Vec<f32>, usize), OxenError> {
     let path = path.as_ref();
     let column = query.column.clone();
-    let (key, value) = query.parse_query()?;
-    let sql = format!("SELECT {} FROM df WHERE {} = '{}';", column, key, value);
+    let query = query.query.clone();
+    let sql = format!("SELECT {} FROM df WHERE {};", column, query);
     log::debug!("Executing: {}", sql);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
     // log::debug!("Result set: {:?}", result_set);
@@ -246,7 +246,21 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
             .collect::<Vec<String>>()
             .join(",")
     );
-    let sql = format!("SELECT *, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+
+    // TODO: make sure we return the results with ID in the first column and SIMILARITY in the last
+
+    let mut sql = format!("SELECT *, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+
+    // Add LIMIT to the query, otherwise it will be slow to deserialize
+    let limit = opts.pagination.page_size;
+    let page_num = if opts.pagination.page_num > 0 {
+        opts.pagination.page_num
+    } else {
+        1
+    };
+    let offset = (page_num - 1) * limit;
+    sql = format!("{} LIMIT {} OFFSET {}", sql, limit, offset);
+
     // Print just the first 50 characters of the query
     log::debug!("Executing similarity query: {}", &sql[..50]);
     // Time the query
@@ -339,7 +353,7 @@ fn get_avg_embedding(result_set: Vec<RecordBatch>) -> Result<Vec<f32>, OxenError
     }
 
     if embeddings.is_empty() {
-        return Err(OxenError::basic_str("No embeddings found"));
+        return Err(OxenError::NoRowsFound("Query returned no rows".into()));
     }
 
     if vector_length == 0 {

@@ -111,7 +111,30 @@ pub struct DerivedDFResource {
     pub resource_type: DFResourceType,
 }
 
+impl WorkspaceJsonDataFrameViewResponse {
+    pub fn empty() -> WorkspaceJsonDataFrameViewResponse {
+        WorkspaceJsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: Some(JsonDataFrameViews::empty()),
+            commit: None,
+            resource: None,
+            derived_resource: None,
+            is_indexed: false,
+        }
+    }
+}
+
+impl JsonDataFrameViews {
+    pub fn empty() -> JsonDataFrameViews {
+        JsonDataFrameViews::from_df_and_opts(DataFrame::empty(), Schema::empty(), &DFOpts::empty())
+    }
+}
+
 impl JsonDataFrameView {
+    pub fn empty() -> JsonDataFrameView {
+        JsonDataFrameView::empty_with_schema(&Schema::empty(), 0, &DFOpts::empty())
+    }
+
     pub fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
         let full_width = df.width();
         let full_height = df.height();

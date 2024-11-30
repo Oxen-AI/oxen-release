@@ -16,7 +16,9 @@ use liboxen::view::data_frames::DataFramePayload;
 use liboxen::view::entries::ResourceVersion;
 use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
-use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
+use liboxen::view::{
+    JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage, StatusMessageDescription,
+};
 
 pub mod columns;
 pub mod embeddings;
@@ -60,7 +62,18 @@ pub async fn get(
     log::debug!("querying data frame {:?}", file_path);
     log::debug!("opts: {:?}", opts);
     let count = repositories::workspaces::data_frames::count(&workspace, &file_path)?;
-    let df = repositories::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
+
+    // Query the data frame
+    let df = match repositories::workspaces::data_frames::query(&workspace, &file_path, &opts) {
+        Ok(df) => df,
+        Err(e) => {
+            log::error!("Error querying data frame {:?}: {:?}", file_path, e);
+            let error_str = format!("{:?}", e);
+            let response = StatusMessageDescription::bad_request(error_str);
+            return Ok(HttpResponse::BadRequest().json(response));
+        }
+    };
+
     let Some(mut df_schema) =
         repositories::data_frames::schemas::get_by_path(&repo, &workspace.commit, &file_path)?
     else {
