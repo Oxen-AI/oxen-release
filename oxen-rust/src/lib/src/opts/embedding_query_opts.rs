@@ -2,12 +2,15 @@ use std::path::PathBuf;
 
 use crate::error::OxenError;
 
+use super::PaginateOpts;
+
 #[derive(Clone, Debug)]
 pub struct EmbeddingQueryOpts {
     pub path: PathBuf,  // path to the data frame
     pub column: String, // embedding column to query
     pub query: String,  // key=value
     pub name: String,   // name of the similarity column
+    pub pagination: PaginateOpts,
 }
 
 impl EmbeddingQueryOpts {

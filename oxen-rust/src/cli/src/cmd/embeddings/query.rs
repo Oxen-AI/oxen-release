@@ -2,10 +2,11 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{arg, Arg, Command};
+use liboxen::constants::{DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
 use liboxen::core::df::tabular;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::opts::EmbeddingQueryOpts;
+use liboxen::opts::{EmbeddingQueryOpts, PaginateOpts};
 use liboxen::repositories;
 
 use crate::cmd::RunCmd;
@@ -48,6 +49,16 @@ impl RunCmd for EmbeddingsQueryCmd {
                     .short('o')
                     .help("File path to save the output data frame to."),
             )
+            .arg(
+                Arg::new("page_size")
+                    .long("page-size")
+                    .help("The number of rows to return per page."),
+            )
+            .arg(
+                Arg::new("page_number")
+                    .long("page-number")
+                    .help("The page number to return."),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -69,6 +80,13 @@ impl RunCmd for EmbeddingsQueryCmd {
             return Err(OxenError::basic_str("Must supply a query."));
         };
 
+        let page_size = args
+            .get_one::<usize>("page_size")
+            .unwrap_or(&DEFAULT_PAGE_SIZE);
+        let page_number = args
+            .get_one::<usize>("page_number")
+            .unwrap_or(&DEFAULT_PAGE_NUM);
+
         let default_name = String::from("similarity");
         let name = args.get_one::<String>("name").unwrap_or(&default_name);
         let opts = EmbeddingQueryOpts {
@@ -76,6 +94,10 @@ impl RunCmd for EmbeddingsQueryCmd {
             column: column.to_string(),
             query: query.to_string(),
             name: name.to_string(),
+            pagination: PaginateOpts {
+                page_size: *page_size,
+                page_num: *page_number,
+            },
         };
 
         if opts.parse_query().is_err() {
@@ -89,9 +111,11 @@ impl RunCmd for EmbeddingsQueryCmd {
         let workspace_id = format!("{}-{}", path, commit.id);
         let workspace = repositories::workspaces::get(&repository, workspace_id)?;
 
+        let start = std::time::Instant::now();
         let mut df =
             liboxen::repositories::workspaces::data_frames::embeddings::query(&workspace, &opts)?;
         println!("{}", df);
+        println!("Query took: {:?}", start.elapsed());
 
         let Some(output) = args.get_one::<String>("output") else {
             return Ok(());

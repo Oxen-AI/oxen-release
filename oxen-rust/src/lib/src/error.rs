@@ -3,7 +3,7 @@
 //! Enumeration for all errors that can occur in the oxen library
 //!
 
-use derive_more::{Display, Error};
+use derive_more::Error;
 use duckdb::arrow::error::ArrowError;
 use std::fmt::Debug;
 use std::io;
@@ -34,7 +34,7 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
-#[derive(Debug, Display, Error)]
+#[derive(Error)]
 pub enum OxenError {
     /// Internal Oxen Errors
     // User
@@ -95,6 +95,7 @@ pub enum OxenError {
 
     // SQL
     SQLParseError(StringError),
+    NoRowsFound(StringError),
 
     // CLI Interaction
     OperationCancelled(StringError),
@@ -642,5 +643,23 @@ impl From<std::string::FromUtf8Error> for OxenError {
 impl From<image::ImageError> for OxenError {
     fn from(error: image::ImageError) -> Self {
         OxenError::ImageError(error)
+    }
+}
+
+impl std::fmt::Display for OxenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OxenError::Basic(err) => write!(f, "{}", err),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
+impl std::fmt::Debug for OxenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OxenError::Basic(err) => write!(f, "{}", err),
+            _ => write!(f, "{:?}", self),
+        }
     }
 }

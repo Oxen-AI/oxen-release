@@ -67,16 +67,22 @@ impl RunCmd for WorkspaceDFGetCmd {
         if let Some(embedding_column) = args.get_one::<String>("embedding-column") {
             opts.embedding_column = Some(embedding_column.to_string());
         }
-        let response =
-            api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
-                .await?;
-        if let Some(data_frame) = response.data_frame {
-            let df = data_frame.view.to_df();
-            let df = tabular::strip_excluded_cols(df)?;
-            println!("{:?}", df);
-        } else {
-            return Err(OxenError::basic_str(
-                format!("No data frame found. Index the data frame before querying.\n\n  oxen workspace df index {workspace_id} {path}\n")));
+        match api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
+            .await
+        {
+            Ok(response) => {
+                if let Some(data_frame) = response.data_frame {
+                    let df = data_frame.view.to_df();
+                    let df = tabular::strip_excluded_cols(df)?;
+                    println!("{:?}", df);
+                } else {
+                    return Err(OxenError::basic_str(
+                        format!("No data frame found. Index the data frame before querying.\n\n  oxen workspace df index {workspace_id} {path}\n")));
+                }
+            }
+            Err(e) => {
+                return Err(OxenError::basic_str(format!("{:?}", e)));
+            }
         }
 
         Ok(())

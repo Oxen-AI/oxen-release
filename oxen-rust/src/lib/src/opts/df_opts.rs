@@ -9,7 +9,7 @@ use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Schema;
 
-use super::EmbeddingQueryOpts;
+use super::{EmbeddingQueryOpts, PaginateOpts};
 
 #[derive(Debug)]
 pub struct AddColVals {
@@ -241,6 +241,7 @@ impl DFOpts {
                 column,
                 query,
                 name: "similarity".to_string(),
+                pagination: PaginateOpts::default(),
             })
         } else {
             None
