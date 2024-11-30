@@ -473,6 +473,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
 
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
+            log::debug!("transform_lazy selecting columns: {:?}", columns);
             let cols = columns.iter().map(col).collect::<Vec<Expr>>();
             df = df.select(&cols);
         }
@@ -520,7 +521,7 @@ pub fn strip_excluded_cols(df: DataFrame) -> Result<DataFrame, OxenError> {
     let fields = schema
         .iter_fields()
         .map(|f| f.name.to_string())
-        .collect::<HashSet<String>>();
+        .collect::<Vec<String>>();
     let select_cols = fields
         .iter()
         .filter(|c| !excluded_cols.contains(*c))

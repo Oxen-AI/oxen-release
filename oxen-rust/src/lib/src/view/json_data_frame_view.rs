@@ -236,7 +236,7 @@ impl JsonDataFrameView {
                     if !arr.is_empty() {
                         let data = self.data.to_string();
                         let content = Cursor::new(data.as_bytes());
-                        log::debug!("Deserializing df: [{}]", data);
+                        // log::debug!("Deserializing df: [{}]", data);
                         let df = JsonReader::new(content).finish().unwrap();
 
                         let opts = DFOpts::from_column_names(columns);
