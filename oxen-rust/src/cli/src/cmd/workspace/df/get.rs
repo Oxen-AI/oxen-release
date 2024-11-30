@@ -67,6 +67,8 @@ impl RunCmd for WorkspaceDFGetCmd {
         if let Some(embedding_column) = args.get_one::<String>("embedding-column") {
             opts.embedding_column = Some(embedding_column.to_string());
         }
+
+        let start = std::time::Instant::now();
         match api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
             .await
         {
@@ -75,6 +77,7 @@ impl RunCmd for WorkspaceDFGetCmd {
                     let df = data_frame.view.to_df();
                     let df = tabular::strip_excluded_cols(df)?;
                     println!("{:?}", df);
+                    println!("Query took: {:?}", start.elapsed());
                 } else {
                     return Err(OxenError::basic_str(
                         format!("No data frame found. Index the data frame before querying.\n\n  oxen workspace df index {workspace_id} {path}\n")));
