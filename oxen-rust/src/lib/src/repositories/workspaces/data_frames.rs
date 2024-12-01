@@ -2,11 +2,12 @@ use polars::frame::DataFrame;
 
 use sql_query_builder::Select;
 
-use crate::constants::TABLE_NAME;
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
+use crate::constants::{OXEN_COLS, TABLE_NAME};
 use crate::core;
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
+use crate::core::df::sql;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
@@ -149,12 +150,41 @@ pub fn query(
     // Right now embeddings and sql are mutually exclusive
     let df = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
         log::debug!("querying embeddings: {:?}", embedding_opts);
-        repositories::workspaces::data_frames::embeddings::query(&workspace, &embedding_opts)?
+        repositories::workspaces::data_frames::embeddings::query(workspace, &embedding_opts)?
     } else {
         df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?
     };
 
     Ok(df)
+}
+
+pub fn export(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    temp_file: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    log::debug!("export() got db_path: {:?}", db_path);
+
+    let conn = df_db::get_connection(db_path)?;
+
+    let sql = if let Some(sql) = opts.sql.clone() {
+        sql
+    } else {
+        // TODO: Make this more robust and handle the SQL above
+        let excluded_cols = OXEN_COLS
+            .iter()
+            .map(|col| format!("\"{}\"", col))
+            .collect::<Vec<String>>()
+            .join(", ");
+        format!("SELECT * EXCLUDE ({}) FROM {}", excluded_cols, TABLE_NAME)
+    };
+
+    sql::export_df(&conn, sql, Some(opts), temp_file)?;
+
+    Ok(())
 }
 
 pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {

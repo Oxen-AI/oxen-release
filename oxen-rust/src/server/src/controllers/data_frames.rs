@@ -101,6 +101,17 @@ pub async fn get(
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn download(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    log::info!("controllers::data_frames::download {:?}", resource);
+
+    Ok(HttpResponse::Ok().body("TODO"))
+}
+
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;

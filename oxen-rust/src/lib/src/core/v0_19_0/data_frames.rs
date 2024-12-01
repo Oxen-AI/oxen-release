@@ -111,7 +111,7 @@ fn handle_sql_querying(
         let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
         let mut conn = df_db::get_connection(db_path)?;
 
-        let df = sql::query_df(sql, &mut conn)?;
+        let df = sql::query_df(&mut conn, sql, opts)?;
         log::debug!("handle_sql_querying got df {:?}", df.height());
         let paginated_df = transform_new(df.clone().lazy(), opts.clone())?.collect()?;
 
