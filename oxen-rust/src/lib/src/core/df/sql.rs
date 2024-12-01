@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::model::LocalRepository;
+use crate::opts::DFOpts;
 use crate::repositories;
 use crate::{core::db::data_frames::df_db, error::OxenError};
 use polars::frame::DataFrame;
@@ -10,6 +11,7 @@ pub fn query_df_from_repo(
     sql: String,
     repo: &LocalRepository,
     path: &PathBuf,
+    opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let commit = repositories::commits::head_commit(repo)?;
 
@@ -28,11 +30,24 @@ pub fn query_df_from_repo(
 
     let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
     let mut conn = df_db::get_connection(db_path)?;
-    query_df(sql, &mut conn)
+    query_df(&mut conn, sql, opts)
 }
 
-pub fn query_df(sql: String, conn: &mut duckdb::Connection) -> Result<DataFrame, OxenError> {
-    let df = df_db::select_str(conn, sql, false, None, None)?;
+pub fn query_df(
+    conn: &mut duckdb::Connection,
+    sql: String,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let df = df_db::select_str(conn, sql, false, None, Some(opts))?;
 
     Ok(df)
+}
+
+pub fn export_df(
+    conn: &duckdb::Connection,
+    sql: String,
+    opts: Option<&DFOpts>,
+    tmp_path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    df_db::export(conn, sql, opts, tmp_path)
 }

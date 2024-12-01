@@ -39,8 +39,10 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let branch_name = path_param(&req, "branch_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
+    log::debug!("show branch {:?}", branch_name);
     let branch = repositories::branches::get_by_name(&repository, &branch_name)?
         .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+    log::debug!("show branch found {:?}", branch);
 
     let view = BranchResponse {
         status: StatusMessage::resource_found(),

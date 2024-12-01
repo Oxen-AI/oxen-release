@@ -6,6 +6,9 @@ use crate::constants::{
 };
 
 use crate::core::df::tabular;
+use crate::core::v0_19_0::workspaces::data_frames::{
+    is_valid_export_extension, wrap_sql_for_export,
+};
 use crate::error::OxenError;
 
 use crate::model::data_frame::schema::Field;
@@ -201,14 +204,26 @@ pub fn select(
     Ok(df)
 }
 
-pub fn select_str(
+pub fn export(
     conn: &duckdb::Connection,
-    stmt: String,
-    with_explicit_nulls: bool,
-    schema: Option<&Schema>,
+    sql: impl AsRef<str>,
     opts: Option<&DFOpts>,
-) -> Result<DataFrame, OxenError> {
-    let mut sql = stmt.clone();
+    tmp_path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let tmp_path = tmp_path.as_ref();
+    let sql = prepare_sql(sql, opts)?;
+    // Get the file extension from the tmp_path
+    if !is_valid_export_extension(tmp_path) {
+        return Err(OxenError::basic_str("Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson"));
+    }
+    let export_sql = wrap_sql_for_export(&sql, tmp_path);
+    log::debug!("export_sql: {}", export_sql);
+    conn.execute(&export_sql, [])?;
+    Ok(())
+}
+
+pub fn prepare_sql(stmt: impl AsRef<str>, opts: Option<&DFOpts>) -> Result<String, OxenError> {
+    let mut sql = stmt.as_ref().to_string();
     let empty_opts = DFOpts::empty();
     let opts = opts.unwrap_or(&empty_opts);
 
@@ -226,6 +241,17 @@ pub fn select_str(
     };
     sql.push_str(&pagination_clause);
     log::debug!("select_str() running sql: {}", sql);
+    Ok(sql)
+}
+
+pub fn select_str(
+    conn: &duckdb::Connection,
+    stmt: String,
+    with_explicit_nulls: bool,
+    schema: Option<&Schema>,
+    opts: Option<&DFOpts>,
+) -> Result<DataFrame, OxenError> {
+    let sql = prepare_sql(stmt, opts)?;
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)

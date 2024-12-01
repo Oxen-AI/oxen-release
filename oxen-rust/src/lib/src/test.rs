@@ -835,7 +835,7 @@ where
 /// Same as run_remote_repo_test_all_data_pushed but with just one file
 pub async fn run_remote_repo_test_bounding_box_csv_pushed<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(RemoteRepository) -> Fut,
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
@@ -863,7 +863,7 @@ where
 
     // Run test to see if it panic'd
     log::info!(">>>>> run_remote_repo_test_bounding_box_csv_pushed running test");
-    let result = match test(repo).await {
+    let result = match test(local_repo, repo).await {
         Ok(_repo) => {
             // TODO: Cleanup remote repo
             // this was failing

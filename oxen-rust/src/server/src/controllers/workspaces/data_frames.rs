@@ -20,9 +20,69 @@ use liboxen::view::{
     JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage, StatusMessageDescription,
 };
 
+use actix_web::web::Bytes;
+use futures_util::stream::Stream;
+use std::io::{BufReader, Read};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::sync::mpsc;
+
 pub mod columns;
 pub mod embeddings;
 pub mod rows;
+
+// Custom file stream that cleans up after completion
+struct CleanupFileStream {
+    reader: BufReader<std::fs::File>,
+    temp_path: PathBuf,
+    buffer: [u8; 8192], // 8KB buffer
+    tx: Option<mpsc::Sender<()>>,
+}
+
+impl CleanupFileStream {
+    fn new(path: PathBuf) -> std::io::Result<Self> {
+        let file = std::fs::File::open(&path)?;
+        let reader = BufReader::new(file);
+        let (tx, _) = mpsc::channel(1);
+
+        Ok(Self {
+            reader,
+            temp_path: path,
+            buffer: [0; 8192],
+            tx: Some(tx),
+        })
+    }
+}
+
+impl Stream for CleanupFileStream {
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = &mut *self;
+
+        match this.reader.read(&mut this.buffer) {
+            Ok(0) => {
+                // EOF reached - clean up the file
+                if let Some(tx) = this.tx.take() {
+                    let path = this.temp_path.clone();
+                    tokio::spawn(async move {
+                        log::debug!("removing temporary file {:?}", path);
+                        if let Err(e) = std::fs::remove_file(&path) {
+                            log::error!("Failed to remove temporary file: {:?}", e);
+                        }
+                        drop(tx); // Signal completion
+                    });
+                }
+                Poll::Ready(None)
+            }
+            Ok(n) => {
+                let bytes = Bytes::copy_from_slice(&this.buffer[..n]);
+                Poll::Ready(Some(Ok(bytes)))
+            }
+            Err(e) => Poll::Ready(Some(Err(e))),
+        }
+    }
+}
 
 pub async fn get(
     req: HttpRequest,
@@ -122,6 +182,78 @@ pub async fn get(
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn download(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+    opts.path = Some(file_path.clone());
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
+    let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+
+    if !is_indexed {
+        let response = WorkspaceJsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: None,
+            resource: None,
+            commit: None, // Not at a committed state
+            derived_resource: None,
+            is_indexed,
+        };
+
+        return Ok(HttpResponse::Ok().json(response));
+    }
+
+    log::debug!("exporting data frame {:?}", file_path);
+    log::debug!("opts: {:?}", opts);
+
+    // Create temporary file
+    let temp_dir = std::env::temp_dir();
+    let extension = file_path
+        .extension()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
+    let temp_file = temp_dir.join(format!("{}.{}", uuid::Uuid::new_v4(), extension));
+
+    // Export the data frame
+    match repositories::workspaces::data_frames::export(&workspace, &file_path, &opts, &temp_file) {
+        Ok(_) => (),
+        Err(e) => {
+            log::error!("Error exporting data frame {:?}: {:?}", file_path, e);
+            let error_str = format!("{:?}", e);
+            let response = StatusMessageDescription::bad_request(error_str);
+            return Ok(HttpResponse::BadRequest().json(response));
+        }
+    };
+
+    // Create streaming response
+    let filename = file_path.file_name().and_then(|n| n.to_str()).unwrap();
+
+    let stream = CleanupFileStream::new(temp_file)?;
+
+    Ok(HttpResponse::Ok()
+        .append_header(("Content-Type", "text/csv"))
+        .append_header((
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", filename),
+        ))
+        .streaming(stream))
 }
 
 pub async fn get_by_branch(

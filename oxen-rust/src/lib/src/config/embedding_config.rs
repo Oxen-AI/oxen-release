@@ -21,15 +21,9 @@ pub struct EmbeddingColumn {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Default)]
 pub struct EmbeddingConfig {
     // Map of column name to embedding vector length
     pub columns: HashMap<String, EmbeddingColumn>,
 }
 
-impl Default for EmbeddingConfig {
-    fn default() -> Self {
-        EmbeddingConfig {
-            columns: HashMap::new(),
-        }
-    }
-}

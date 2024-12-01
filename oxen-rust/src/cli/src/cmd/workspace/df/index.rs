@@ -88,8 +88,8 @@ impl RunCmd for WorkspaceDFIndexCmd {
             let path = Path::new(&path);
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,
-                &workspace_id,
-                &path,
+                workspace_id,
+                path,
                 column,
             )
             .await?;
