@@ -171,9 +171,8 @@ pub fn export(
     let conn = df_db::get_connection(db_path)?;
 
     let sql = if let Some(sql) = opts.sql.clone() {
-        sql
+        add_exclude_to_sql(&sql)?
     } else {
-        // TODO: Make this more robust and handle the SQL above
         let excluded_cols = OXEN_COLS
             .iter()
             .map(|col| format!("\"{}\"", col))
@@ -181,6 +180,8 @@ pub fn export(
             .join(", ");
         format!("SELECT * EXCLUDE ({}) FROM {}", excluded_cols, TABLE_NAME)
     };
+
+    log::debug!("exporting data frame with sql: {:?}", sql);
 
     sql::export_df(&conn, sql, Some(opts), temp_file)?;
 
@@ -297,12 +298,52 @@ pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBu
         .join("row_changes")
 }
 
+// Add this function after the existing imports
+fn add_exclude_to_sql(sql: &str) -> Result<String, OxenError> {
+    // Create the EXCLUDE clause
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    // Find the first SELECT in the query (case insensitive)
+    let select_idx = sql
+        .to_lowercase()
+        .find("select")
+        .ok_or_else(|| OxenError::basic_str("No SELECT found in query"))?;
+
+    // Find the first FROM after SELECT (case insensitive)
+    let from_idx = sql[select_idx..]
+        .to_lowercase()
+        .find("from")
+        .ok_or_else(|| OxenError::basic_str("No FROM found in query"))?;
+
+    // Split into parts
+    let before_from = &sql[..select_idx + from_idx];
+    let after_from = &sql[select_idx + from_idx..];
+
+    // If query is "SELECT *", replace with "SELECT * EXCLUDE (...)"
+    // Otherwise add "EXCLUDE (...)" after the SELECT columns
+    let modified_select = if before_from.trim().to_lowercase().ends_with("select *") {
+        format!("SELECT * EXCLUDE ({})", excluded_cols)
+    } else {
+        // Find where the SELECT clause ends
+        let (select_part, columns_part) = before_from.split_at(select_idx + "select".len());
+        let columns = columns_part[..from_idx - "select".len()].trim();
+        format!("{} {} EXCLUDE ({})", select_part, columns, excluded_cols)
+    };
+
+    Ok(format!("{} {}", modified_select, after_from))
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
     use serde_json::json;
 
+    use super::*;
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ID_COL};
     use crate::core::df;
@@ -1075,5 +1116,36 @@ mod tests {
             );
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_add_exclude_to_simple_select() -> Result<(), OxenError> {
+        let sql = "SELECT * FROM table";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT * EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") FROM table");
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_exclude_to_complex_select() -> Result<(), OxenError> {
+        let sql = "SELECT col1, col2, col3 FROM table WHERE col1 = 'value'";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT col1, col2, col3 EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") FROM table WHERE col1 = 'value'");
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_exclude_case_insensitive() -> Result<(), OxenError> {
+        let sql = "select * from table";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT * EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") from table");
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_sql() {
+        let sql = "DELETE FROM table";
+        let result = add_exclude_to_sql(sql);
+        assert!(result.is_err());
     }
 }

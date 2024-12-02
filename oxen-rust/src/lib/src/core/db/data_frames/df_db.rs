@@ -214,7 +214,9 @@ pub fn export(
     let sql = prepare_sql(sql, opts)?;
     // Get the file extension from the tmp_path
     if !is_valid_export_extension(tmp_path) {
-        return Err(OxenError::basic_str("Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson"));
+        return Err(OxenError::basic_str(
+            "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
+        ));
     }
     let export_sql = wrap_sql_for_export(&sql, tmp_path);
     log::debug!("export_sql: {}", export_sql);
