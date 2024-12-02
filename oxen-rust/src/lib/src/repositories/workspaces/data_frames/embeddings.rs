@@ -256,7 +256,7 @@ pub fn similarity_query(
         .fields
         .iter()
         .map(|f| f.name.as_str())
-        .filter(|c| !(EXCLUDE_OXEN_COLS.contains(&c) && exclude_cols))
+        .filter(|c| !(EXCLUDE_OXEN_COLS.contains(c) && exclude_cols))
         .collect::<Vec<&str>>();
 
     let columns_str = columns.join(", ");
