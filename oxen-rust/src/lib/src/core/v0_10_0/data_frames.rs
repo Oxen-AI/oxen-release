@@ -140,7 +140,7 @@ fn handle_sql_querying(
         let mut conn = df_db::get_connection(db_path)?;
 
         let mut slice_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
-        let df = sql::query_df(&mut conn, sql, opts)?;
+        let df = sql::query_df(&mut conn, sql, Some(opts))?;
 
         let source_schema = if let Some(schema) =
             repositories::data_frames::schemas::get_by_path(repo, &workspace.commit, path)?

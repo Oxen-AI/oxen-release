@@ -16,7 +16,7 @@ pub async fn get(
 ) -> Result<JsonDataFrameViewResponse, OxenError> {
     let path_str = util::fs::to_unix_str(path);
     let query_str = opts.to_http_query_params();
-    let uri = format!("/data_frames/{commit_or_branch}/{path_str}?{query_str}");
+    let uri = format!("/data_frames/resource/{commit_or_branch}/{path_str}?{query_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;

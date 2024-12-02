@@ -30,15 +30,15 @@ pub fn query_df_from_repo(
 
     let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
     let mut conn = df_db::get_connection(db_path)?;
-    query_df(&mut conn, sql, opts)
+    query_df(&mut conn, sql, Some(opts))
 }
 
 pub fn query_df(
     conn: &mut duckdb::Connection,
     sql: String,
-    opts: &DFOpts,
+    opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
-    let df = df_db::select_str(conn, sql, false, None, Some(opts))?;
+    let df = df_db::select_str(conn, sql, false, None, opts)?;
 
     Ok(df)
 }
