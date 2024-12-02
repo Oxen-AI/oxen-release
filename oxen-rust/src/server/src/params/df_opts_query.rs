@@ -49,7 +49,7 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
     filter_ops.filter.clone_from(&query.filter);
     filter_ops
         .output
-        .clone_from(&query.output.as_ref().map(|s| PathBuf::from(s)));
+        .clone_from(&query.output.as_ref().map(PathBuf::from));
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;

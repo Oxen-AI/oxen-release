@@ -219,7 +219,7 @@ pub fn export(
             "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
         ));
     }
-    let export_sql = wrap_sql_for_export(&sql, tmp_path);
+    let export_sql = wrap_sql_for_export(sql, tmp_path);
     log::debug!("export_sql: {}", export_sql);
     conn.execute(&export_sql, [])?;
     Ok(())

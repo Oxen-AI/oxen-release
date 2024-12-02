@@ -420,7 +420,7 @@ mod tests {
                 assert!(output_path.exists());
 
                 // Check the file contents are the same
-                let og_df = tabular::read_df(&local_repo.path.join(path), DFOpts::empty())?;
+                let og_df = tabular::read_df(local_repo.path.join(path), DFOpts::empty())?;
                 let download_df = tabular::read_df(&output_path, DFOpts::empty())?;
                 assert_eq!(og_df.height(), download_df.height());
                 assert_eq!(og_df.width(), download_df.width());
