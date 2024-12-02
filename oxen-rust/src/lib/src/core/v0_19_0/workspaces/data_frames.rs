@@ -221,7 +221,8 @@ pub fn extract_file_node_to_working_dir(
 
     let excluded_cols = get_existing_excluded_columns(&conn, TABLE_NAME)?;
     let sql = format!("SELECT * EXCLUDE ({}) FROM '{}'", excluded_cols, TABLE_NAME);
-    let query = wrap_sql_for_export(&sql, path);
+    let query = wrap_sql_for_export(&sql, &working_path);
+    log::debug!("extracting file node to working dir query: {:?}", query);
     conn.execute(&query, [])?;
 
     Ok(working_path)

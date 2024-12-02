@@ -20,10 +20,8 @@ pub struct EmbeddingColumn {
     pub status: EmbeddingStatus,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct EmbeddingConfig {
     // Map of column name to embedding vector length
     pub columns: HashMap<String, EmbeddingColumn>,
 }
-
