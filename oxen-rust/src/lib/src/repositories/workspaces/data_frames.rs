@@ -323,14 +323,19 @@ fn add_exclude_to_sql(sql: &str) -> Result<String, OxenError> {
     let before_from = &sql[..select_idx + from_idx];
     let after_from = &sql[select_idx + from_idx..];
 
-    // If query is "SELECT *", replace with "SELECT * EXCLUDE (...)"
-    // Otherwise add "EXCLUDE (...)" after the SELECT columns
-    let modified_select = if before_from.trim().to_lowercase().ends_with("select *") {
+    // Check if this is an aggregation query by looking for GROUP BY
+    let has_group_by = sql.to_lowercase().contains("group by");
+
+    // If query has GROUP BY, don't modify it
+    let modified_select = if has_group_by {
+        before_from.trim().to_string()
+    } else if before_from.trim().to_lowercase().ends_with("select *") {
+        // For SELECT *, replace with SELECT * EXCLUDE (...)
         format!("SELECT * EXCLUDE ({})", excluded_cols)
     } else {
-        // Find where the SELECT clause ends
+        // For explicit column selections, add EXCLUDE after the columns
         let (select_part, columns_part) = before_from.split_at(select_idx + "select".len());
-        let columns = columns_part[..from_idx - "select".len()].trim();
+        let columns = columns_part.trim();
         format!("{} {} EXCLUDE ({})", select_part, columns, excluded_cols)
     };
 
@@ -1147,5 +1152,13 @@ mod tests {
         let sql = "DELETE FROM table";
         let result = add_exclude_to_sql(sql);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_add_exclude_to_aggregation_query() -> Result<(), OxenError> {
+        let sql = "SELECT label, COUNT(*) FROM table GROUP BY label";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT label, COUNT(*) FROM table GROUP BY label");
+        Ok(())
     }
 }

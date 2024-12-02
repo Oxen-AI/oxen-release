@@ -393,6 +393,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_download_workspace_data_frames_with_aggregation_sql() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            let path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
+
+            test::run_empty_dir_test_async(|sync_dir| async move {
+                let output_path = sync_dir.join("test_download.csv");
+                let mut opts = DFOpts::empty();
+                opts.sql = Some("SELECT label, COUNT(*) FROM df GROUP BY label".to_string());
+                opts.output = Some(output_path.clone());
+                api::client::workspaces::data_frames::download(
+                    &remote_repo,
+                    workspace_id,
+                    &path,
+                    opts,
+                )
+                .await?;
+
+                assert!(output_path.exists());
+
+                // There should be 2 rows by 2 columns
+                let df = tabular::read_df(&output_path, DFOpts::empty())?;
+                println!("{df}");
+                assert_eq!(df.height(), 2);
+                assert_eq!(df.width(), 2);
+
+                Ok(sync_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_index_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations/train/bounding_box.csv");
