@@ -224,6 +224,94 @@ pub async fn download(
 
     // Create temporary file
     let temp_dir = std::env::temp_dir();
+    let mut extension = file_path
+        .extension()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
+    // If the user specified a format, we'll export to that format
+    if let Some(output) = &opts.output {
+        extension = output
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default();
+    }
+    let temp_file = temp_dir.join(format!("{}.{}", uuid::Uuid::new_v4(), extension));
+
+    // Export the data frame
+    match repositories::workspaces::data_frames::export(&workspace, &file_path, &opts, &temp_file) {
+        Ok(_) => (),
+        Err(e) => {
+            log::error!("Error exporting data frame {:?}: {:?}", file_path, e);
+            let error_str = format!("{:?}", e);
+            let response = StatusMessageDescription::bad_request(error_str);
+            return Ok(HttpResponse::BadRequest().json(response));
+        }
+    };
+
+    // Read the entire file into memory
+    let mut file = std::fs::File::open(&temp_file)?;
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents)?;
+
+    // Remove the temporary file
+    if let Err(e) = std::fs::remove_file(&temp_file) {
+        log::error!("Failed to remove temporary file: {:?}", e);
+    }
+
+    // Create non-streaming response
+    let filename = file_path.file_name().and_then(|n| n.to_str()).unwrap();
+
+    Ok(HttpResponse::Ok()
+        .append_header(("Content-Type", "text/csv"))
+        .append_header((
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", filename),
+        ))
+        .body(contents))
+}
+
+pub async fn download_streaming(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+    opts.path = Some(file_path.clone());
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
+    let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+
+    if !is_indexed {
+        let response = WorkspaceJsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: None,
+            resource: None,
+            commit: None, // Not at a committed state
+            derived_resource: None,
+            is_indexed,
+        };
+
+        return Ok(HttpResponse::Ok().json(response));
+    }
+
+    log::debug!("exporting data frame {:?}", file_path);
+    log::debug!("opts: {:?}", opts);
+
+    // Create temporary file
+    let temp_dir = std::env::temp_dir();
     let extension = file_path
         .extension()
         .unwrap_or_default()

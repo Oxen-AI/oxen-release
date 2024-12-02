@@ -238,7 +238,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -292,7 +292,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -311,7 +311,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -372,7 +372,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -395,7 +395,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -448,7 +448,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -490,7 +490,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -571,7 +571,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -623,7 +623,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -665,7 +665,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -717,7 +717,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -774,7 +774,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use actix_web::web;
 use liboxen::opts::DFOpts;
 use serde::Deserialize;
@@ -8,6 +10,7 @@ pub struct DFOptsQuery {
     pub delimiter: Option<String>,
     pub embedding_column: Option<String>,
     pub filter: Option<String>,
+    pub output: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
     pub row: Option<usize>,
@@ -44,6 +47,9 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
         .embedding_column
         .clone_from(&query.embedding_column);
     filter_ops.filter.clone_from(&query.filter);
+    filter_ops
+        .output
+        .clone_from(&query.output.as_ref().map(|s| PathBuf::from(s)));
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;

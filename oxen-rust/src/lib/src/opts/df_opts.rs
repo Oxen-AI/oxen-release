@@ -315,6 +315,7 @@ impl DFOpts {
         } else {
             None
         };
+
         let params = vec![
             ("item", self.item.clone()),
             ("columns", self.columns.clone()),
@@ -328,6 +329,12 @@ impl DFOpts {
             ("sql", self.sql.clone()),
             ("take", self.take.clone()),
             ("unique", self.unique.clone()),
+            (
+                "output",
+                self.output
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string()),
+            ),
             ("embedding_column", self.embedding_column.clone()),
             (
                 "sort_by_embedding_query",

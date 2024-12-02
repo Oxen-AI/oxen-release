@@ -248,12 +248,13 @@ pub fn prepare_sql(stmt: impl AsRef<str>, opts: Option<&DFOpts>) -> Result<Strin
 
 pub fn select_str(
     conn: &duckdb::Connection,
-    stmt: String,
+    sql: impl AsRef<str>,
     with_explicit_nulls: bool,
     schema: Option<&Schema>,
     opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
-    let sql = prepare_sql(stmt, opts)?;
+    let sql = sql.as_ref();
+    let sql = prepare_sql(sql, opts)?;
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)

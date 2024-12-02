@@ -67,7 +67,7 @@ impl RunCmd for WorkspaceDFIndexCmd {
             &remote_repo,
             &workspace_id,
             &path,
-            DFOpts::empty(),
+            &DFOpts::empty(),
         )
         .await?;
 

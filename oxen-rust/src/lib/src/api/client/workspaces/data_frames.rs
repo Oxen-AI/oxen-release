@@ -27,7 +27,7 @@ pub async fn get(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
-    opts: DFOpts,
+    opts: &DFOpts,
 ) -> Result<WorkspaceJsonDataFrameViewResponse, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
@@ -57,7 +57,7 @@ pub async fn download(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
-    opts: DFOpts, // opts holds output path
+    opts: &DFOpts, // opts holds output path
 ) -> Result<(), OxenError> {
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
@@ -68,7 +68,7 @@ pub async fn download(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     // Download the file and save it to the output path
-    let Some(output_path_str) = opts.output else {
+    let Some(output_path_str) = &opts.output else {
         return Err(OxenError::basic_str("output path is required"));
     };
     let output_path = Path::new(&output_path_str);
@@ -94,7 +94,7 @@ pub async fn is_indexed(
     workspace_id: &str,
     path: &Path,
 ) -> Result<bool, OxenError> {
-    let res = get(remote_repo, workspace_id, path, DFOpts::empty()).await?;
+    let res = get(remote_repo, workspace_id, path, &DFOpts::empty()).await?;
     Ok(res.is_indexed)
 }
 
@@ -266,7 +266,7 @@ mod tests {
                 &remote_repo,
                 workspace_id,
                 path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -306,6 +306,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_query_workspace_data_frames_with_sql() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            let path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
+
+            test::run_empty_dir_test_async(|sync_dir| async move {
+                let output_path = sync_dir.join("test_download.csv");
+                let mut opts = DFOpts::empty();
+                opts.sql = Some("SELECT * FROM df WHERE label = 'dog'".to_string());
+                opts.output = Some(output_path.clone());
+                let df = api::client::workspaces::data_frames::get(
+                    &remote_repo,
+                    workspace_id,
+                    &path,
+                    &opts,
+                )
+                .await?;
+
+                // There should be 4 rows with label = dog
+                let df = df.data_frame.unwrap();
+                let view_df = df.view.to_df();
+                assert_eq!(view_df.height(), 4);
+
+                Ok(sync_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_download_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -328,7 +370,7 @@ mod tests {
                     &remote_repo,
                     workspace_id,
                     &path,
-                    opts,
+                    &opts,
                 )
                 .await?;
 
@@ -338,6 +380,50 @@ mod tests {
                 let file_contents = std::fs::read_to_string(output_path)?;
                 let expected_contents = std::fs::read_to_string(local_repo.path.join(path))?;
                 assert_eq!(file_contents, expected_contents);
+
+                Ok(sync_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_workspace_data_frames_to_different_format() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            let path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
+
+            test::run_empty_dir_test_async(|sync_dir| async move {
+                let output_path = sync_dir.join("test_download.jsonl");
+                let mut opts = DFOpts::empty();
+                opts.output = Some(output_path.clone());
+                api::client::workspaces::data_frames::download(
+                    &remote_repo,
+                    workspace_id,
+                    &path,
+                    &opts,
+                )
+                .await?;
+
+                assert!(output_path.exists());
+
+                // Check the file contents are the same
+                let og_df = tabular::read_df(&local_repo.path.join(path), DFOpts::empty())?;
+                let download_df = tabular::read_df(&output_path, DFOpts::empty())?;
+                assert_eq!(og_df.height(), download_df.height());
+                assert_eq!(og_df.width(), download_df.width());
 
                 Ok(sync_dir)
             })
@@ -372,7 +458,7 @@ mod tests {
                     &remote_repo,
                     workspace_id,
                     &path,
-                    opts,
+                    &opts,
                 )
                 .await?;
 
@@ -416,7 +502,7 @@ mod tests {
                     &remote_repo,
                     workspace_id,
                     &path,
-                    opts,
+                    &opts,
                 )
                 .await?;
 
