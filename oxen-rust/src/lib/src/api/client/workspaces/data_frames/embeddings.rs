@@ -81,6 +81,7 @@ mod tests {
     use crate::config::embedding_config::EmbeddingStatus;
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_SIZE, OXEN_ROW_ID_COL};
+    use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::DFOpts;
     use crate::test;
@@ -256,6 +257,90 @@ mod tests {
             );
 
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_embeddings_by_id() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_embeddings_jsonl_pushed(|remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            let branch_name = DEFAULT_BRANCH_NAME;
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let path = Path::new("annotations")
+                .join("train")
+                .join("embeddings.jsonl");
+            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+            let column = "embedding";
+            api::client::workspaces::data_frames::embeddings::index(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                column,
+            )
+            .await?;
+
+            let mut indexing_status = EmbeddingStatus::NotIndexed;
+            let mut max_retries = 100; // just so it doesn't hang forever
+            while indexing_status != EmbeddingStatus::Complete && max_retries > 0 {
+                let result = api::client::workspaces::data_frames::embeddings::get(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                )
+                .await;
+
+                assert!(result.is_ok());
+                let response = result.unwrap();
+                indexing_status = response.columns[0].status.clone();
+
+                // sleep for 1 second
+                std::thread::sleep(std::time::Duration::from_secs(1));
+
+                max_retries -= 1;
+            }
+            assert_eq!(indexing_status, EmbeddingStatus::Complete);
+
+            test::run_empty_dir_test_async(|sync_dir| async move {
+                let output_path = sync_dir.join("test_download.parquet");
+
+                // Download the data frame sorted by embeddings
+                let opts = DFOpts {
+                    sort_by_embedding_query: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
+                    embedding_column: Some(column.to_string()),
+                    output: Some(output_path.clone()),
+                    ..DFOpts::empty()
+                };
+                api::client::workspaces::data_frames::download(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    &opts,
+                )
+                .await?;
+
+                assert!(output_path.exists());
+
+                // There should be 10000 rows by 4 columns
+                let df = tabular::read_df(&output_path, DFOpts::empty())?;
+                println!("{df}");
+                assert_eq!(df.width(), 4);
+                assert_eq!(df.height(), 10000);
+
+                Ok(sync_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
         })
         .await
     }

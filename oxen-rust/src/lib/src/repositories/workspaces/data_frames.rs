@@ -171,15 +171,18 @@ pub fn export(
 
     let conn = df_db::get_connection(db_path)?;
 
-    let sql = if let Some(sql) = opts.sql.clone() {
+    let sql = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
+        let exclude_cols = true;
+        repositories::workspaces::data_frames::embeddings::similarity_query(
+            workspace,
+            &embedding_opts,
+            exclude_cols,
+        )?
+    } else if let Some(sql) = opts.sql.clone() {
         add_exclude_to_sql(&sql)?
     } else {
-        let excluded_cols = OXEN_COLS
-            .iter()
-            .map(|col| format!("\"{}\"", col))
-            .collect::<Vec<String>>()
-            .join(", ");
-        format!("SELECT * EXCLUDE ({}) FROM {}", excluded_cols, TABLE_NAME)
+        let sql = format!("SELECT * FROM {}", TABLE_NAME);
+        add_exclude_to_sql(&sql)?
     };
 
     log::debug!("exporting data frame with sql: {:?}", sql);
