@@ -240,9 +240,13 @@ mod tests {
                 embedding_column: Some(column.to_string()),
                 ..DFOpts::empty()
             };
-            let result =
-                api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
-                    .await;
+            let result = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                &opts,
+            )
+            .await;
             assert!(result.is_ok());
             let response = result.unwrap();
             assert!(response.data_frame.is_some());
@@ -310,9 +314,13 @@ mod tests {
                 embedding_column: Some(column.to_string()),
                 ..DFOpts::empty()
             };
-            let result =
-                api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, &path, opts)
-                    .await;
+            let result = api::client::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                &opts,
+            )
+            .await;
             assert!(result.is_err());
 
             Ok(remote_repo)

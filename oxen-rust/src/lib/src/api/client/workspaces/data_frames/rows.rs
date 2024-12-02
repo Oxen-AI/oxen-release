@@ -461,7 +461,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -545,7 +545,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -710,7 +710,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             ).await?;
 
             let df_view = df.data_frame.unwrap().view;
@@ -752,7 +752,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
             let initial_row_count = initial_df
@@ -783,7 +783,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
             let updated_row_count = updated_df
@@ -829,7 +829,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -877,7 +877,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -941,7 +941,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -1009,7 +1009,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
