@@ -5,7 +5,7 @@ use polars::frame::DataFrame;
 use crate::config::embedding_config::{EmbeddingColumn, EmbeddingStatus};
 use crate::config::EmbeddingConfig;
 use crate::config::EMBEDDING_CONFIG_FILENAME;
-use crate::constants::TABLE_NAME;
+use crate::constants::{EXCLUDE_OXEN_COLS, TABLE_NAME};
 use crate::core::db::data_frames::df_db;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
@@ -227,7 +227,11 @@ pub fn embedding_from_query(
     Ok((avg_embedding, vector_length))
 }
 
-pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFrame, OxenError> {
+pub fn similarity_query(
+    workspace: &Workspace,
+    opts: &EmbeddingQueryOpts,
+    exclude_cols: bool,
+) -> Result<String, OxenError> {
     let column = opts.column.clone();
     let path = opts.path.clone();
     let similarity_column = opts.name.clone();
@@ -247,9 +251,24 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
             .join(",")
     );
 
-    // TODO: make sure we return the results with ID in the first column and SIMILARITY in the last
+    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let columns = schema
+        .fields
+        .iter()
+        .map(|f| f.name.as_str())
+        .filter(|c| !(EXCLUDE_OXEN_COLS.contains(&c) && exclude_cols))
+        .collect::<Vec<&str>>();
 
-    let mut sql = format!("SELECT *, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+    let columns_str = columns.join(", ");
+    let sql = format!("SELECT {columns_str}, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+    Ok(sql)
+}
+
+pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFrame, OxenError> {
+    let path = opts.path.clone();
+    let similarity_column = opts.name.clone();
+
+    let mut sql = similarity_query(workspace, opts, false)?;
 
     // Add LIMIT to the query, otherwise it will be slow to deserialize
     let limit = opts.pagination.page_size;
@@ -265,6 +284,8 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
     log::debug!("Executing similarity query: {}", &sql[..50]);
     // Time the query
     let start = std::time::Instant::now();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let conn = df_db::get_connection(&db_path)?;
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
     log::debug!("Similarity query took: {:?}", start.elapsed());
 

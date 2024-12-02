@@ -207,11 +207,12 @@ pub fn select(
 pub fn export(
     conn: &duckdb::Connection,
     sql: impl AsRef<str>,
-    opts: Option<&DFOpts>,
+    _opts: Option<&DFOpts>,
     tmp_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let tmp_path = tmp_path.as_ref();
-    let sql = prepare_sql(sql, opts)?;
+    let sql = sql.as_ref();
+    // let sql = prepare_sql(sql, opts)?;
     // Get the file extension from the tmp_path
     if !is_valid_export_extension(tmp_path) {
         return Err(OxenError::basic_str(
