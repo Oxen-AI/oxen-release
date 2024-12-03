@@ -9,6 +9,10 @@ pub fn tree() -> Scope {
             web::scope("/nodes")
                 .route("", web::post().to(controllers::tree::create_nodes))
                 .route(
+                    "/{resource:.*}",
+                    web::get().to(controllers::tree::get_node_hash_by_path),
+                )
+                .route(
                     "/missing_node_hashes",
                     web::post().to(controllers::tree::list_missing_node_hashes),
                 )

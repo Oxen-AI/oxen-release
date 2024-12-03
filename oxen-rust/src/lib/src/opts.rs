@@ -7,6 +7,7 @@ pub mod count_lines_opts;
 pub mod df_opts;
 pub mod diff_opts;
 pub mod download_opts;
+pub mod download_tree_opts;
 pub mod fetch_opts;
 pub mod helpers;
 pub mod info_opts;
