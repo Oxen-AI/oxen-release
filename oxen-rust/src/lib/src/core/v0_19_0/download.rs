@@ -16,6 +16,7 @@ use crate::core;
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
+    remote_path: &PathBuf,
     local_path: &Path,
 ) -> Result<(), OxenError> {
     log::debug!("downloading dir {:?}", entry.filename);
@@ -29,7 +30,7 @@ pub async fn download_dir(
         &tmp_repo,
         remote_repo,
         commit_id,
-        &entry.filename,
+        remote_path.to_string_lossy(),
         true,
     )
     .await?;

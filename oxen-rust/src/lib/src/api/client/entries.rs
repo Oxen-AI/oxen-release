@@ -161,7 +161,13 @@ pub async fn download_entry(
     }
 
     if entry.is_dir {
-        repositories::download::download_dir(remote_repo, &entry, &local_path).await
+        repositories::download::download_dir(
+            remote_repo,
+            &entry,
+            &remote_path.to_path_buf(),
+            &local_path,
+        )
+        .await
     } else {
         download_file(remote_repo, &entry, remote_path, local_path, revision).await
     }
