@@ -18,7 +18,7 @@ The documentation for the Oxen.ai tool chain can be found [here](https://docs.ox
   - [ ] Upload dataset to hub
   - [ ] Download dataset with `datasets` library
 - [ ] Configurable storage backends
-  - [ ] Local filesystem
+  - [x] Local filesystem
   - [ ] S3
   - [ ] GCS
   - [ ] Azure
