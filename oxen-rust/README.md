@@ -10,6 +10,21 @@ Oxen at it's core is a data version control library, written in Rust. It's goals
 
 The documentation for the Oxen.ai tool chain can be found [here](https://docs.oxen.ai).
 
+# ✅ TODO
+
+- [ ] Hugging face compatible APIs
+  - [ ] Upload model to hub
+  - [ ] Download model with `transformers` library
+  - [ ] Upload dataset to hub
+  - [ ] Download dataset with `datasets` library
+- [ ] Configurable storage backends
+  - [ ] Local filesystem
+  - [ ] S3
+  - [ ] GCS
+  - [ ] Azure
+  - [ ] Backblaze
+- [ ] Block level deduplication
+
 # 🔨 Build & Run
 
 ## Install Dependencies
@@ -89,7 +104,7 @@ rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
 
 ```
 
-# Run 
+# Run
 
 ## CLI
 
@@ -99,10 +114,10 @@ To run Oxen from the command line, add the `Oxen/target/debug` directory to the 
 export PATH="$PATH:/path/to/Oxen/target/debug"
 ```
 
-On Windows, you can use 
+On Windows, you can use
 
 ```
-$env:PATH += ";/path/to/Oxen/target/debug" 
+$env:PATH += ";/path/to/Oxen/target/debug"
 ```
 
 Initialize a new repository or clone an existing one
@@ -124,7 +139,7 @@ oxen push origin main
 
 ## Oxen Server
 
-To run a local Oxen Server, generate a config file and token to authenticate the user 
+To run a local Oxen Server, generate a config file and token to authenticate the user
 
 ```
 ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
