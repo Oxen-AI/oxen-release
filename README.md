@@ -22,7 +22,7 @@
   <br/>
 </div>
 
-# 
+#
 
 ![Oxen.ai Logo](/images/oxen-no-margin-white.svg#gh-dark-mode-only)
 ![Oxen.ai Logo](/images/oxen-no-margin-black.svg#gh-light-mode-only)
@@ -49,7 +49,7 @@ Oxen is designed to efficiently manage large datasets, including those with larg
 
 ## 🚀 Built for speed
 
-One of the main reasons datasets are hard to maintain is the pure performance of indexing the data and transferring the data over the network. We wanted to be able to index hundreds of thousands of images, videos, audio files, and text files in seconds. 
+One of the main reasons datasets are hard to maintain is the pure performance of indexing the data and transferring the data over the network. We wanted to be able to index hundreds of thousands of images, videos, audio files, and text files in seconds.
 
 Watch below as we version **hundreds of thousands of images** in seconds 🔥
 
@@ -57,7 +57,7 @@ Watch below as we version **hundreds of thousands of images** in seconds 🔥
     <img src="https://github.com/Oxen-AI/oxen-release/raw/main/images/cli-celeba.gif?raw=true" alt="oxen cli demo" />
 </p>
 
-But speed is only the beginning. 
+But speed is only the beginning.
 
 ## ✅ Features
 
@@ -73,10 +73,23 @@ Oxen is built around ergonomics, ease of use, and it is easy to learn. If you kn
 * 🌎 [Workspaces](https://docs.oxen.ai/concepts/workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
+## 🔨 Next Up
+
+- [ ] Hugging face compatible APIs
+  - [ ] Upload model to hub
+  - [ ] Download model with `transformers` library
+  - [ ] Upload dataset to hub
+  - [ ] Download dataset with `datasets` library
+- [ ] Configurable storage backends
+  - [ ] S3
+  - [ ] Backblaze
+  - [ ] GCS
+  - [ ] Azure
+- [ ] Block level deduplication
+
 ## 🐮 Learn The Basics
 
 To learn what everything Oxen can do, the full documentation can be found at [https://docs.oxen.ai](https://docs.oxen.ai).
-
 
 ## 🧑‍💻 Getting Started
 
@@ -137,7 +150,7 @@ Set up virtual environment:
 
 ```Bash
 # Set up your python virtual environment
-$ python -m venv ~/.venv_oxen # could be python3 
+$ python -m venv ~/.venv_oxen # could be python3
 $ source ~/.venv_oxen/bin/activate
 $ pip install maturin
 ```
@@ -158,7 +171,7 @@ $ pytest -s tests/
 
 ## Why build Oxen?
 
-Oxen was build by a team of machine learning engineers, who have spent countless hours in their careers managing datasets. We have used many different tools, but none of them were as easy to use and as ergonomic as we would like. 
+Oxen was build by a team of machine learning engineers, who have spent countless hours in their careers managing datasets. We have used many different tools, but none of them were as easy to use and as ergonomic as we would like.
 
 If you have ever tried [git lfs](https://git-lfs.com/) to version large datasets and became frustrated, we feel your pain. Solutions like git-lfs are too slow when it comes to the scale of data we need for machine learning.
 
