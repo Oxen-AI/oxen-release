@@ -153,9 +153,6 @@ pub fn decorate_fields_with_column_diffs(
 
     let db = db_open_result?;
 
-    // Because the schema is derived from the data, we need to reinsert the deleted columns into the schema to track diffs as they were deleted in the sql query.
-    reinsert_deleted_columns_into_schema(&db, df_views)?;
-
     df_views
         .source
         .schema

@@ -14,8 +14,10 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
+use crate::opts::download_tree_opts::DownloadTreeOpts;
 use crate::opts::fetch_opts::FetchOpts;
 use crate::view::tree::merkle_hashes::MerkleHashes;
+use crate::view::tree::MerkleHashResponse;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, repositories, util};
 
@@ -213,6 +215,61 @@ pub async fn download_commits_between(
     Ok(commits)
 }
 
+pub async fn get_node_hash_by_path(
+    remote_repo: &RemoteRepository,
+    commit_id: impl AsRef<str>,
+    path: PathBuf,
+) -> Result<MerkleHash, OxenError> {
+    let commit_id = commit_id.as_ref();
+    let path_str = path.to_string_lossy();
+    let uri = format!("/tree/nodes/{commit_id}/{path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let hash_response: MerkleHashResponse = serde_json::from_str(&body)?;
+    Ok(hash_response.hash)
+}
+
+pub async fn download_tree_from_path(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_id: impl AsRef<str>,
+    path: impl AsRef<str>,
+    is_dir: bool,
+) -> Result<MerkleTreeNode, OxenError> {
+    let download_tree_opts = DownloadTreeOpts {
+        subtree_paths: path.as_ref().into(),
+        depth: if is_dir { -1 } else { 0 },
+    };
+    let path: PathBuf = path.as_ref().into();
+    let commit_id = commit_id.as_ref();
+    let uri = append_download_tree_opts_to_uri(
+        format!("/tree/download/{commit_id}"),
+        &download_tree_opts,
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading trees {} from {}", commit_id, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    if is_dir {
+        let hash = get_node_hash_by_path(remote_repo, commit_id, path).await?;
+        let node = CommitMerkleTree::read_node(local_repo, &hash, true)?.unwrap();
+        Ok(node)
+    } else {
+        let parent_path = path
+            .parent()
+            .ok_or_else(|| OxenError::basic_str("Parent path not found"))?;
+        let hash = get_node_hash_by_path(remote_repo, commit_id, parent_path.to_path_buf()).await?;
+        let file_node = CommitMerkleTree::read_node(local_repo, &hash, true)?.unwrap();
+
+        Ok(file_node)
+    }
+}
+
 pub async fn download_trees_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -237,6 +294,14 @@ pub async fn download_trees_from(
 
 fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
     append_subtree_paths_and_depth_to_uri(uri, &fetch_opts.subtree_paths, &fetch_opts.depth)
+}
+
+fn append_download_tree_opts_to_uri(uri: String, download_tree_opts: &DownloadTreeOpts) -> String {
+    append_subtree_paths_and_depth_to_uri(
+        uri,
+        &Some(vec![download_tree_opts.subtree_paths.clone()]),
+        &Some(download_tree_opts.depth),
+    )
 }
 
 fn append_subtree_paths_and_depth_to_uri(
