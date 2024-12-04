@@ -146,8 +146,29 @@ fn version_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<Pa
 
 fn get_missing_entries(entries: &[Entry], dst: &Path) -> Vec<Entry> {
     let dst: &Path = dst;
-    let mut missing_entries: Vec<Entry> = vec![];
 
+    let version_path = util::fs::root_version_path(dst);
+
+    if !version_path.exists() {
+        get_missing_entries_for_download(entries, dst)
+    } else {
+        get_missing_entries_for_pull(entries, dst)
+    }
+}
+
+fn get_missing_entries_for_download(entries: &[Entry], dst: &Path) -> Vec<Entry> {
+    let mut missing_entries: Vec<Entry> = vec![];
+    for entry in entries {
+        let working_path = dst.join(entry.path());
+        if !working_path.exists() {
+            missing_entries.push(entry.to_owned())
+        }
+    }
+    missing_entries
+}
+
+fn get_missing_entries_for_pull(entries: &[Entry], dst: &Path) -> Vec<Entry> {
+    let mut missing_entries: Vec<Entry> = vec![];
     for entry in entries {
         let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         if !version_path.exists() {
