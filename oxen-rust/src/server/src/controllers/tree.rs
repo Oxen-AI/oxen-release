@@ -352,15 +352,25 @@ fn get_unique_node_hashes(
                 }
             }
 
-            for subtree_path in all_parent_paths {
+            for subtree in subtrees {
                 get_unique_node_hashes_for_subtree(
                     repository,
                     commit,
-                    &Some(subtree_path.clone()),
+                    &Some(subtree.clone()),
                     maybe_depth,
                     &mut unique_node_hashes,
                 )?;
             }
+
+            // for subtree_path in all_parent_paths {
+            //     get_unique_node_hashes_for_subtree(
+            //         repository,
+            //         commit,
+            //         &Some(subtree_path.clone()),
+            //         maybe_depth,
+            //         &mut unique_node_hashes,
+            //     )?;
+            // }
         } else {
             get_unique_node_hashes_for_subtree(
                 repository,
