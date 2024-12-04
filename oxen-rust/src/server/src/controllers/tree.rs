@@ -11,6 +11,7 @@ use liboxen::error::OxenError;
 use liboxen::model::Commit;
 use liboxen::model::LocalRepository;
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
+use liboxen::view::tree::MerkleHashResponse;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
@@ -32,6 +33,7 @@ use liboxen::view::tree::nodes::{
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
+use crate::params::parse_resource;
 use crate::params::TreeDepthQuery;
 use crate::params::{app_data, path_param};
 
@@ -213,6 +215,25 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let buffer = compress_tree(&repository)?;
 
     Ok(HttpResponse::Ok().body(buffer))
+}
+
+pub async fn get_node_hash_by_path(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repository)?;
+    let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
+
+    let node = repositories::tree::get_node_by_path(&repository, &commit, &resource.path)?
+        .ok_or(OxenHttpError::NotFound)?;
+
+    Ok(HttpResponse::Ok().json(MerkleHashResponse {
+        status: StatusMessage::resource_found(),
+        hash: node.hash,
+    }))
 }
 
 pub async fn download_tree_nodes(

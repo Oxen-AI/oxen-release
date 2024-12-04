@@ -12,8 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::core;
-use crate::model::MerkleHash;
-use std::str::FromStr;
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
@@ -26,14 +24,15 @@ pub async fn download_dir(
     let tmp_repo = LocalRepository::new(local_path)?;
 
     // Find and download dir node and its children from remote repo
-    let hash = MerkleHash::from_str(&entry.latest_commit.as_ref().unwrap().id)?;
-    let commit_node = api::client::tree::download_tree_from(&tmp_repo, remote_repo, &hash).await?;
-    let Some(dir_node) = commit_node.get_by_path(&entry.filename)? else {
-        return Err(OxenError::basic_str(format!(
-            "Directory not found: {}",
-            entry.filename
-        )));
-    };
+    let commit_id = &entry.latest_commit.as_ref().unwrap().id;
+    let dir_node = api::client::tree::download_tree_from_path(
+        &tmp_repo,
+        remote_repo,
+        commit_id,
+        &entry.filename,
+        true,
+    )
+    .await?;
 
     // Create local directory to pull entries into
     let directory = PathBuf::from("");
