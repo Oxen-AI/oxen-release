@@ -32,11 +32,12 @@ pub struct DFOpts {
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
-    pub embedding_column: Option<String>,
+    pub find_embedding_where: Option<String>,
     pub filter: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
     pub output: Option<PathBuf>,
+    pub output_column: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
     pub path: Option<PathBuf>,
@@ -49,7 +50,7 @@ pub struct DFOpts {
     pub should_page: bool,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
-    pub sort_by_embedding_query: Option<String>,
+    pub sort_by_similarity_to: Option<String>,
     pub sql: Option<String>,
     pub text2sql: Option<String>,
     pub tail: Option<usize>,
@@ -78,12 +79,13 @@ impl DFOpts {
             columns: None,
             delete_row: None,
             delimiter: None,
-            embedding_column: None,
+            find_embedding_where: None,
             filter: None,
             head: None,
             host: None,
             item: None,
             output: None,
+            output_column: None,
             page: None,
             page_size: None,
             path: None,
@@ -95,7 +97,7 @@ impl DFOpts {
             should_reverse: false,
             slice: None,
             sort_by: None,
-            sort_by_embedding_query: None,
+            sort_by_similarity_to: None,
             sql: None,
             tail: None,
             take: None,
@@ -161,7 +163,7 @@ impl DFOpts {
             || self.should_randomize
             || self.should_reverse
             || self.sort_by.is_some()
-            || self.sort_by_embedding_query.is_some()
+            || self.sort_by_similarity_to.is_some()
             || self.slice.is_some()
             || self.sql.is_some()
             || self.tail.is_some()
@@ -232,8 +234,8 @@ impl DFOpts {
 
     pub fn get_sort_by_embedding_query(&self) -> Option<EmbeddingQueryOpts> {
         if let (Some(query), Some(column), Some(path)) = (
-            self.sort_by_embedding_query.clone(),
-            self.embedding_column.clone(),
+            self.find_embedding_where.clone(),
+            self.sort_by_similarity_to.clone(),
             self.path.clone(),
         ) {
             Some(EmbeddingQueryOpts {
@@ -335,11 +337,8 @@ impl DFOpts {
                     .as_ref()
                     .map(|p| p.to_string_lossy().to_string()),
             ),
-            ("embedding_column", self.embedding_column.clone()),
-            (
-                "sort_by_embedding_query",
-                self.sort_by_embedding_query.clone(),
-            ),
+            ("sort_by_similarity_to", self.sort_by_similarity_to.clone()),
+            ("find_embedding_where", self.find_embedding_where.clone()),
         ];
 
         let mut query = String::new();

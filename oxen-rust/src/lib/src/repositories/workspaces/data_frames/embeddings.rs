@@ -219,7 +219,11 @@ pub fn embedding_from_query(
     // log::debug!("Result set: {:?}", result_set);
 
     // Read the vector length from the file we wrote in the index function
-    let config = embedding_config(workspace, path)?;
+    let Ok(config) = embedding_config(workspace, path) else {
+        return Err(OxenError::basic_str(
+            "Must index embeddings before querying",
+        ));
+    };
     let vector_length = config.columns[&column].vector_length;
     // log::debug!("Vector length: {}", vector_length);
     // Average the embeddings

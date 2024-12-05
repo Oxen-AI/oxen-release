@@ -59,15 +59,23 @@ impl RunCmd for WorkspaceDFGetCmd {
                     .help("The SQL query to run on the data frame."),
             )
             .arg(
-                Arg::new("sort-by-embedding-query")
-                    .long("sort-by-embedding-query")
-                    .help("Sort the output by an embedding query.")
+                Arg::new("find-embedding-where")
+                    .long("find-embedding-where")
+                    .help("Find the embeddings that match the where clause.")
                     .action(clap::ArgAction::Set),
             )
             .arg(
-                Arg::new("embedding-column")
-                    .long("embedding-column")
-                    .help("The column to sort by.")
+                Arg::new("sort-by-similarity-to")
+                    .long("sort-by-similarity-to")
+                    .help("The column of embeddings to sort by.")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("output-column")
+                    .long("output-column")
+                    .help(
+                        "The column to output the similarity scores to. Defaults to 'similarity'.",
+                    )
                     .action(clap::ArgAction::Set),
             )
     }
@@ -131,11 +139,14 @@ impl WorkspaceDFGetCmd {
         if let Some(sql) = args.get_one::<String>("sql") {
             opts.sql = Some(sql.to_string());
         }
-        if let Some(sort_by_embedding_query) = args.get_one::<String>("sort-by-embedding-query") {
-            opts.sort_by_embedding_query = Some(sort_by_embedding_query.to_string());
+        if let Some(find_embedding_where) = args.get_one::<String>("find-embedding-where") {
+            opts.find_embedding_where = Some(find_embedding_where.to_string());
         }
-        if let Some(embedding_column) = args.get_one::<String>("embedding-column") {
-            opts.embedding_column = Some(embedding_column.to_string());
+        if let Some(sort_by_similarity_to) = args.get_one::<String>("sort-by-similarity-to") {
+            opts.sort_by_similarity_to = Some(sort_by_similarity_to.to_string());
+        }
+        if let Some(output_column) = args.get_one::<String>("output-column") {
+            opts.output_column = Some(output_column.to_string());
         }
         if let Some(output) = args.get_one::<String>("output") {
             opts.output = Some(PathBuf::from(output));

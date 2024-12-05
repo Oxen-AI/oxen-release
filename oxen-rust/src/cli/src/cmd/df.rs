@@ -67,6 +67,12 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("output-column")
+                .long("output-column")
+                .help("The column to output the results to.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("item")
                 .long("item")
                 .help("Select a specific row item from column to view it fully. Format: 'column:idx' ie: 'my_col_name:3'")
@@ -129,15 +135,15 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("embedding-column")
-                .long("embedding-column")
-                .help("The column to use for embedding similarity sorting.")
+            Arg::new("find-embedding-where")
+                .long("find-embedding-where")
+                .help("Find the embedding where clause.")
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("sort-by-embedding-query")
-                .long("sort-by-embedding-query")
-                .help("Sort the output by an embedding query.")
+            Arg::new("sort-by-similarity-to")
+                .long("sort-by-similarity-to")
+                .help("Sort the output by similarity to a column.")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -287,7 +293,9 @@ impl DFCmd {
             delete_row: args.get_one::<String>("delete-row").map(String::from),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
             filter: args.get_one::<String>("filter").map(String::from),
-            embedding_column: args.get_one::<String>("embedding-column").map(String::from),
+            find_embedding_where: args
+                .get_one::<String>("find-embedding-where")
+                .map(String::from),
             head: args
                 .get_one::<String>("head")
                 .map(|x| x.parse::<usize>().expect("head must be valid int")),
@@ -296,6 +304,7 @@ impl DFCmd {
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
+            output_column: args.get_one::<String>("output-column").map(String::from),
             page: args
                 .get_one::<String>("page")
                 .map(|x| x.parse::<usize>().expect("page must be valid int")),
@@ -313,8 +322,8 @@ impl DFCmd {
             should_reverse: args.get_flag("reverse"),
             slice: args.get_one::<String>("slice").map(String::from),
             sort_by: args.get_one::<String>("sort").map(String::from),
-            sort_by_embedding_query: args
-                .get_one::<String>("sort-by-embedding-query")
+            sort_by_similarity_to: args
+                .get_one::<String>("sort-by-similarity-to")
                 .map(String::from),
             sql: args.get_one::<String>("sql").map(String::from),
             tail: args
