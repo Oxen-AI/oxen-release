@@ -48,6 +48,7 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
 
     Ok(Workspace {
         id: workspace_id.to_owned(),
+        name: Some(config.workspace_name),
         base_repo: repo.clone(),
         workspace_repo: LocalRepository::new(&workspace_dir)?,
         commit,
@@ -62,8 +63,18 @@ pub fn create(
     workspace_id: impl AsRef<str>,
     is_editable: bool,
 ) -> Result<Workspace, OxenError> {
+    create_with_name(base_repo, commit, workspace_id, None, is_editable)
+}
+
+pub fn create_with_name(
+    base_repo: &LocalRepository,
+    commit: &Commit,
+    workspace_id: impl AsRef<str>,
+    workspace_name: Option<String>,
+    is_editable: bool,
+) -> Result<Workspace, OxenError> {
     let workspace_id = workspace_id.as_ref();
-    let workspace_name = workspace_id.to_owned();
+    let workspace_name = workspace_name.unwrap_or_else(|| workspace_id.to_string());
     let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
     let workspace_dir = Workspace::workspace_dir(base_repo, &workspace_id_hash);
     let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
@@ -103,7 +114,7 @@ pub fn create(
     let workspace_config = WorkspaceConfig {
         workspace_commit_id: commit.id.clone(),
         is_editable,
-        workspace_name: workspace_name.clone(),
+        workspace_name: workspace_name.to_string(),
     };
 
     let toml_string = match toml::to_string(&workspace_config) {
@@ -129,6 +140,7 @@ pub fn create(
 
     Ok(Workspace {
         id: workspace_id.to_owned(),
+        name: Some(workspace_name),
         base_repo: base_repo.clone(),
         workspace_repo,
         commit: commit.clone(),

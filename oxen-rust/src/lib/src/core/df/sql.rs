@@ -1,33 +1,53 @@
-use crate::constants::{CACHE_DIR, HISTORY_DIR};
-use crate::core::v0_10_0::index::CommitReader;
+use std::path::{Path, PathBuf};
+
 use crate::model::LocalRepository;
-use crate::util::fs;
+use crate::opts::DFOpts;
+use crate::repositories;
 use crate::{core::db::data_frames::df_db, error::OxenError};
 use polars::frame::DataFrame;
+use uuid::Uuid;
 
 pub fn query_df_from_repo(
     sql: String,
     repo: &LocalRepository,
-    // directory: impl AsRef<Path>
+    path: &PathBuf,
+    opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    let commit_reader = CommitReader::new(repo)?;
-    let commit = commit_reader.head_commit()?;
+    let commit = repositories::commits::head_commit(repo)?;
 
-    let path = fs::oxen_hidden_dir(&repo.path)
-        .join(HISTORY_DIR)
-        .join(commit.id)
-        .join(CACHE_DIR)
-        .join("metadata")
-        // .join(directory)
-        .join("metadata.duckdb");
+    if !repositories::workspaces::data_frames::is_queryable_data_frame_indexed(repo, path, &commit)?
+    {
+        // If not, proceed to create a new workspace and index the data frame.
+        let workspace_id = Uuid::new_v4().to_string();
+        let workspace = repositories::workspaces::create(repo, &commit, workspace_id, false)?;
+        repositories::workspaces::data_frames::index(repo, &workspace, path)?;
+    }
 
-    let mut conn = df_db::get_connection(path)?;
+    let workspace =
+        crate::core::v0_19_0::workspaces::data_frames::get_queryable_data_frame_workspace(
+            repo, path, &commit,
+        )?;
 
-    query_df(sql, &mut conn)
+    let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
+    let mut conn = df_db::get_connection(db_path)?;
+    query_df(&mut conn, sql, Some(opts))
 }
 
-pub fn query_df(sql: String, conn: &mut duckdb::Connection) -> Result<DataFrame, OxenError> {
-    let df = df_db::select_str(conn, sql, false, None, None)?;
+pub fn query_df(
+    conn: &mut duckdb::Connection,
+    sql: String,
+    opts: Option<&DFOpts>,
+) -> Result<DataFrame, OxenError> {
+    let df = df_db::select_str(conn, sql, false, None, opts)?;
 
     Ok(df)
+}
+
+pub fn export_df(
+    conn: &duckdb::Connection,
+    sql: String,
+    opts: Option<&DFOpts>,
+    tmp_path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    df_db::export(conn, sql, opts, tmp_path)
 }

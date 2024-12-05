@@ -9,6 +9,8 @@ use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Schema;
 
+use super::{EmbeddingQueryOpts, PaginateOpts};
+
 #[derive(Debug)]
 pub struct AddColVals {
     pub name: String,
@@ -30,12 +32,15 @@ pub struct DFOpts {
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
+    pub find_embedding_where: Option<String>,
     pub filter: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
     pub output: Option<PathBuf>,
+    pub output_column: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
+    pub path: Option<PathBuf>,
     pub row: Option<usize>,
     pub item: Option<String>,
     pub quote_char: Option<String>,
@@ -45,6 +50,7 @@ pub struct DFOpts {
     pub should_page: bool,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
+    pub sort_by_similarity_to: Option<String>,
     pub sql: Option<String>,
     pub text2sql: Option<String>,
     pub tail: Option<usize>,
@@ -70,28 +76,32 @@ impl DFOpts {
             add_col: None,
             add_row: None,
             at: None,
-            item: None,
             columns: None,
             delete_row: None,
             delimiter: None,
+            find_embedding_where: None,
             filter: None,
             head: None,
             host: None,
+            item: None,
             output: None,
-            page_size: None,
+            output_column: None,
             page: None,
+            page_size: None,
+            path: None,
             row: None,
             quote_char: None,
             repo_dir: None,
+            should_page: false,
             should_randomize: false,
             should_reverse: false,
-            should_page: false,
             slice: None,
             sort_by: None,
+            sort_by_similarity_to: None,
             sql: None,
-            text2sql: None,
             tail: None,
             take: None,
+            text2sql: None,
             unique: None,
             vstack: None,
             write: None,
@@ -153,6 +163,7 @@ impl DFOpts {
             || self.should_randomize
             || self.should_reverse
             || self.sort_by.is_some()
+            || self.sort_by_similarity_to.is_some()
             || self.slice.is_some()
             || self.sql.is_some()
             || self.tail.is_some()
@@ -219,6 +230,24 @@ impl DFOpts {
 
     pub fn get_filter(&self) -> Result<Option<DFFilterExp>, OxenError> {
         filter::parse(self.filter.clone())
+    }
+
+    pub fn get_sort_by_embedding_query(&self) -> Option<EmbeddingQueryOpts> {
+        if let (Some(query), Some(column), Some(path)) = (
+            self.find_embedding_where.clone(),
+            self.sort_by_similarity_to.clone(),
+            self.path.clone(),
+        ) {
+            Some(EmbeddingQueryOpts {
+                path,
+                column,
+                query,
+                name: "similarity".to_string(),
+                pagination: PaginateOpts::default(),
+            })
+        } else {
+            None
+        }
     }
 
     pub fn get_host(&self) -> String {
@@ -288,6 +317,7 @@ impl DFOpts {
         } else {
             None
         };
+
         let params = vec![
             ("item", self.item.clone()),
             ("columns", self.columns.clone()),
@@ -301,6 +331,14 @@ impl DFOpts {
             ("sql", self.sql.clone()),
             ("take", self.take.clone()),
             ("unique", self.unique.clone()),
+            (
+                "output",
+                self.output
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string()),
+            ),
+            ("sort_by_similarity_to", self.sort_by_similarity_to.clone()),
+            ("find_embedding_where", self.find_embedding_where.clone()),
         ];
 
         let mut query = String::new();

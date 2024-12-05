@@ -27,21 +27,15 @@ pub async fn get(
     log::debug!("get_row {url}\n{row_id}");
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val),
-                Err(err) => {
-                    let err = format!("api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val),
         Err(err) => {
-            let err = format!("api::staging::get_row Request failed: {url}\n\nErr {err:?}");
+            let err = format!(
+                "api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+            );
             Err(OxenError::basic_str(err))
         }
     }
@@ -67,27 +61,18 @@ pub async fn update(
     log::debug!("update_row {url}\n{data}");
 
     let client = client::new_for_url(&url)?;
-    match client
+    let res = client
         .put(&url)
         .header("Content-Type", "application/json")
         .body(data)
         .send()
-        .await
-    {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val),
-                Err(err) => {
-                    let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+        .await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val),
         Err(err) => {
-            let err = format!("api::staging::update_row Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -112,22 +97,14 @@ pub async fn delete(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.delete(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("rm_df_mod got body: {}", body);
-            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.data_frame.view.to_df()),
-                Err(err) => {
-                    let err = format!("api::staging::rm_df_mod error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+    let res = client.delete(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("rm_df_mod got body: {}", body);
+    let response: Result<JsonDataFrameRowResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.data_frame.view.to_df()),
         Err(err) => {
-            let err = format!("rm_df_mod Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::rm_df_mod error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -288,7 +265,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
@@ -318,7 +295,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_should_not_stage_invalid_schema_for_dataframe() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(
                 &remote_repo,
@@ -356,7 +333,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
@@ -405,7 +382,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
@@ -460,7 +437,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(
                 &remote_repo,
@@ -484,7 +461,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -542,7 +519,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::client::branches::create_from_branch(
                 &remote_repo,
@@ -568,7 +545,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -706,7 +683,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
 
             let workspace_id = "my_workspace";
@@ -733,7 +710,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             ).await?;
 
             let df_view = df.data_frame.unwrap().view;
@@ -759,7 +736,7 @@ mod tests {
         if std::env::consts::OS == "windows" {
             return Ok(());
         }
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let workspace_id = UserConfig::identifier()?;
             let path = Path::new("annotations")
                 .join("train")
@@ -775,7 +752,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
             let initial_row_count = initial_df
@@ -806,7 +783,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
             let updated_row_count = updated_df
@@ -837,7 +814,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -852,7 +829,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -900,7 +877,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -949,7 +926,7 @@ mod tests {
             return Ok(());
         }
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -964,7 +941,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
@@ -1032,7 +1009,7 @@ mod tests {
                 &remote_repo,
                 &workspace_id,
                 &path,
-                DFOpts::empty(),
+                &DFOpts::empty(),
             )
             .await?;
 
