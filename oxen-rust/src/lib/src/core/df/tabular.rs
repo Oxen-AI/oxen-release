@@ -460,6 +460,22 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
         }
     }
 
+    if opts.should_randomize {
+        log::debug!("transform_lazy randomizing df");
+        let full_df = df.collect()
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+        let n = Series::new("".into(), &[full_df.height() as i64]);
+        
+        df = full_df.sample_n(
+                &n,    // no specific rows to sample, use n parameter instead
+                false,   // without replacement
+                true,    // shuffle
+                None,    // seed
+            )
+            .map_err(|e| OxenError::basic_str(format!("Failed to randomize dataframe: {e:?}")))?
+            .lazy();
+    }
+
     if let Some(columns) = opts.unique_columns() {
         df = unique_df(df, columns)?;
     }
