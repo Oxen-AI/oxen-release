@@ -237,8 +237,8 @@ mod tests {
 
             // Query the embeddings by id
             let opts = DFOpts {
-                sort_by_embedding_query: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
-                embedding_column: Some(column.to_string()),
+                find_embedding_where: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
+                sort_by_similarity_to: Some(column.to_string()),
                 ..DFOpts::empty()
             };
             let result = api::client::workspaces::data_frames::get(
@@ -315,8 +315,8 @@ mod tests {
 
                 // Download the data frame sorted by embeddings
                 let opts = DFOpts {
-                    sort_by_embedding_query: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
-                    embedding_column: Some(column.to_string()),
+                    find_embedding_where: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
+                    sort_by_similarity_to: Some(column.to_string()),
                     output: Some(output_path.clone()),
                     ..DFOpts::empty()
                 };
@@ -395,8 +395,8 @@ mod tests {
 
             // Query the embeddings by id
             let opts = DFOpts {
-                sort_by_embedding_query: Some("non_existent_column = test".to_string()),
-                embedding_column: Some(column.to_string()),
+                find_embedding_where: Some("non_existent_column = test".to_string()),
+                sort_by_similarity_to: Some(column.to_string()),
                 ..DFOpts::empty()
             };
             let result = api::client::workspaces::data_frames::get(

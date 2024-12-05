@@ -76,7 +76,7 @@ impl RunCmd for WorkspaceDFIndexCmd {
             api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
             println!("{:?} indexed in {:?}", path, start.elapsed());
         } else {
-            println!("Data frame is already indexed.");
+            log::debug!("Data frame is already indexed.");
         }
 
         if args.get_flag("embeddings") {
@@ -85,6 +85,7 @@ impl RunCmd for WorkspaceDFIndexCmd {
                     "Must supply a column to index for embeddings.",
                 ));
             };
+            println!("Indexing embeddings for column: {}", column);
             let path = Path::new(&path);
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,

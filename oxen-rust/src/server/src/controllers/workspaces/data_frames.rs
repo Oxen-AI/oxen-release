@@ -124,15 +124,7 @@ pub async fn get(
     let count = repositories::workspaces::data_frames::count(&workspace, &file_path)?;
 
     // Query the data frame
-    let df = match repositories::workspaces::data_frames::query(&workspace, &file_path, &opts) {
-        Ok(df) => df,
-        Err(e) => {
-            log::error!("Error querying data frame {:?}: {:?}", file_path, e);
-            let error_str = format!("{:?}", e);
-            let response = StatusMessageDescription::bad_request(error_str);
-            return Ok(HttpResponse::BadRequest().json(response));
-        }
-    };
+    let df = repositories::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
 
     let Some(mut df_schema) =
         repositories::data_frames::schemas::get_by_path(&repo, &workspace.commit, &file_path)?

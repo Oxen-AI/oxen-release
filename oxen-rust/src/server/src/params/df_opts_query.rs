@@ -8,9 +8,10 @@ use serde::Deserialize;
 pub struct DFOptsQuery {
     pub columns: Option<String>,
     pub delimiter: Option<String>,
-    pub embedding_column: Option<String>,
+    pub find_embedding_where: Option<String>,
     pub filter: Option<String>,
     pub output: Option<String>,
+    pub output_column: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
     pub row: Option<usize>,
@@ -18,7 +19,7 @@ pub struct DFOptsQuery {
     pub reverse: Option<bool>,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
-    pub sort_by_embedding_query: Option<String>,
+    pub sort_by_similarity_to: Option<String>,
     pub sql: Option<String>,
     pub take: Option<String>,
 }
@@ -44,12 +45,13 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
 
     filter_ops.delimiter.clone_from(&query.delimiter);
     filter_ops
-        .embedding_column
-        .clone_from(&query.embedding_column);
+        .find_embedding_where
+        .clone_from(&query.find_embedding_where);
     filter_ops.filter.clone_from(&query.filter);
     filter_ops
         .output
         .clone_from(&query.output.as_ref().map(PathBuf::from));
+    filter_ops.output_column.clone_from(&query.output_column);
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;
@@ -57,8 +59,8 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
     filter_ops.should_reverse = query.reverse.unwrap_or(false);
     filter_ops.sort_by.clone_from(&query.sort_by);
     filter_ops
-        .sort_by_embedding_query
-        .clone_from(&query.sort_by_embedding_query);
+        .sort_by_similarity_to
+        .clone_from(&query.sort_by_similarity_to);
     filter_ops.sql.clone_from(&query.sql);
     filter_ops.take.clone_from(&query.take);
 
