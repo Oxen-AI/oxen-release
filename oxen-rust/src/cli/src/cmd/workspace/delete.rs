@@ -17,23 +17,21 @@ impl RunCmd for WorkspaceDeleteCmd {
 
     fn args(&self) -> Command {
         Command::new(NAME).about("Deletes a workspace").arg(
-            Arg::new("workspace_id")
-                .long("workspace_id")
-                .short('w')
+            Arg::new("id")
                 .required(true)
-                .help("The workspace_id of the workspace to delete"),
+                .help("The id of the workspace to delete"),
         )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
         let repo = LocalRepository::from_current_dir()?;
 
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
-            return Err(OxenError::basic_str("Must supply workspace_id"));
+        let Some(id) = args.get_one::<String>("id") else {
+            return Err(OxenError::basic_str("Must supply id"));
         };
 
         let remote_repo = api::client::repositories::get_default_remote(&repo).await?;
-        api::client::workspaces::delete(&remote_repo, &workspace_id).await?;
+        api::client::workspaces::delete(&remote_repo, &id).await?;
 
         Ok(())
     }

@@ -5,7 +5,6 @@
 
 use std::fmt;
 
-#[derive(Debug)]
 pub struct StringError(String);
 
 impl StringError {
@@ -27,6 +26,12 @@ impl From<String> for StringError {
 }
 
 impl std::fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::fmt::Debug for StringError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }

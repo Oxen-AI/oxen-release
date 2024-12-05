@@ -33,6 +33,12 @@ pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
         req.headers().get("user-agent")
     );
 
+    log::debug!(
+        "Request URL: {:?}, Query: {:?}",
+        req.uri(),
+        req.query_string()
+    );
+
     let user_agent = req.headers().get("user-agent");
     let Some(user_agent) = user_agent else {
         // No user agent, so we can't check the version

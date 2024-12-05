@@ -67,6 +67,12 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("output-column")
+                .long("output-column")
+                .help("The column to output the results to.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("item")
                 .long("item")
                 .help("Select a specific row item from column to view it fully. Format: 'column:idx' ie: 'my_col_name:3'")
@@ -126,6 +132,18 @@ impl RunCmd for DFCmd {
                 .long("sort")
                 .short('s')
                 .help("Sort the output by a column name. Is run at the end of all the other transforms.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("find-embedding-where")
+                .long("find-embedding-where")
+                .help("Find the embedding where clause.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("sort-by-similarity-to")
+                .long("sort-by-similarity-to")
+                .help("Sort the output by similarity to a column.")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -217,10 +235,11 @@ impl RunCmd for DFCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let opts = DFCmd::parse_df_args(args);
+        let mut opts = DFCmd::parse_df_args(args);
         let Some(path) = args.get_one::<String>("PATH") else {
             return Err(OxenError::basic_str("Must supply a DataFrame to process."));
         };
+        opts.path = Some(PathBuf::from(path));
 
         if let Some(revision) = args.get_one::<String>("revision") {
             let repo = LocalRepository::from_current_dir()?;
@@ -265,48 +284,56 @@ impl DFCmd {
             | args.get_one::<String>("page-size").is_some();
 
         liboxen::opts::DFOpts {
-            write: write_path,
-            output: args
-                .get_one::<String>("output")
-                .map(std::path::PathBuf::from),
-            delimiter: args.get_one::<String>("delimiter").map(String::from),
-            filter: args.get_one::<String>("filter").map(String::from),
-            slice: args.get_one::<String>("slice").map(String::from),
-            page_size: args
-                .get_one::<String>("page-size")
-                .map(|x| x.parse::<usize>().expect("page-size must be valid int")),
-            page: args
-                .get_one::<String>("page")
-                .map(|x| x.parse::<usize>().expect("page must be valid int")),
-            head: args
-                .get_one::<String>("head")
-                .map(|x| x.parse::<usize>().expect("head must be valid int")),
-            tail: args
-                .get_one::<String>("tail")
-                .map(|x| x.parse::<usize>().expect("tail must be valid int")),
-            row: args
-                .get_one::<String>("row")
-                .map(|x| x.parse::<usize>().expect("row must be valid int")),
-            take: args.get_one::<String>("take").map(String::from),
-            columns: args.get_one::<String>("columns").map(String::from),
-            item: args.get_one::<String>("item").map(String::from),
-            vstack,
             add_col: args.get_one::<String>("add-col").map(String::from),
             add_row: args.get_one::<String>("add-row").map(String::from),
             at: args
                 .get_one::<String>("at")
                 .map(|x| x.parse::<usize>().expect("at must be valid int")),
+            columns: args.get_one::<String>("columns").map(String::from),
             delete_row: args.get_one::<String>("delete-row").map(String::from),
-            sort_by: args.get_one::<String>("sort").map(String::from),
-            sql: args.get_one::<String>("sql").map(String::from),
-            text2sql: args.get_one::<String>("text2sql").map(String::from),
+            delimiter: args.get_one::<String>("delimiter").map(String::from),
+            filter: args.get_one::<String>("filter").map(String::from),
+            find_embedding_where: args
+                .get_one::<String>("find-embedding-where")
+                .map(String::from),
+            head: args
+                .get_one::<String>("head")
+                .map(|x| x.parse::<usize>().expect("head must be valid int")),
             host: args.get_one::<String>("host").map(String::from),
-            unique: args.get_one::<String>("unique").map(String::from),
-            should_randomize: args.get_flag("randomize"),
-            should_reverse: args.get_flag("reverse"),
-            should_page: args.get_flag("full") || page_specified,
+            item: args.get_one::<String>("item").map(String::from),
+            output: args
+                .get_one::<String>("output")
+                .map(std::path::PathBuf::from),
+            output_column: args.get_one::<String>("output-column").map(String::from),
+            page: args
+                .get_one::<String>("page")
+                .map(|x| x.parse::<usize>().expect("page must be valid int")),
+            page_size: args
+                .get_one::<String>("page-size")
+                .map(|x| x.parse::<usize>().expect("page-size must be valid int")),
+            path: None,
             quote_char: args.get_one::<String>("quote").map(String::from),
             repo_dir,
+            row: args
+                .get_one::<String>("row")
+                .map(|x| x.parse::<usize>().expect("row must be valid int")),
+            should_page: args.get_flag("full") || page_specified,
+            should_randomize: args.get_flag("randomize"),
+            should_reverse: args.get_flag("reverse"),
+            slice: args.get_one::<String>("slice").map(String::from),
+            sort_by: args.get_one::<String>("sort").map(String::from),
+            sort_by_similarity_to: args
+                .get_one::<String>("sort-by-similarity-to")
+                .map(String::from),
+            sql: args.get_one::<String>("sql").map(String::from),
+            tail: args
+                .get_one::<String>("tail")
+                .map(|x| x.parse::<usize>().expect("tail must be valid int")),
+            take: args.get_one::<String>("take").map(String::from),
+            text2sql: args.get_one::<String>("text2sql").map(String::from),
+            unique: args.get_one::<String>("unique").map(String::from),
+            vstack,
+            write: write_path,
         }
     }
 }

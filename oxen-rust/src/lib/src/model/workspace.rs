@@ -16,6 +16,7 @@ pub struct WorkspaceConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Workspace {
     pub id: String,
+    pub name: Option<String>,
     // Workspaces have a base repository that they are created in .oxen/
     pub base_repo: LocalRepository,
     // And a sub repository that is just to make changes in

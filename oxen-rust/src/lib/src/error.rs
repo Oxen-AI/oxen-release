@@ -3,9 +3,8 @@
 //! Enumeration for all errors that can occur in the oxen library
 //!
 
-use derive_more::{Display, Error};
+use derive_more::{Debug, Display, Error};
 use duckdb::arrow::error::ArrowError;
-use std::fmt::Debug;
 use std::io;
 use std::num::ParseIntError;
 use std::path::Path;
@@ -34,7 +33,7 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
-#[derive(Debug, Display, Error)]
+#[derive(Display, Debug, Error)]
 pub enum OxenError {
     /// Internal Oxen Errors
     // User
@@ -95,6 +94,7 @@ pub enum OxenError {
 
     // SQL
     SQLParseError(StringError),
+    NoRowsFound(StringError),
 
     // CLI Interaction
     OperationCancelled(StringError),

@@ -80,7 +80,7 @@ pub fn get_queryable_data_frame_workspace(
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
 ) -> Result<bool, OxenError> {
     match index::workspaces::data_frames::get_queryable_data_frame_workspace(repo, path, commit) {
         Ok(_workspace) => Ok(true),

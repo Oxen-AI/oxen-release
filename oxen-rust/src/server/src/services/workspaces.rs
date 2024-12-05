@@ -11,6 +11,7 @@ pub fn workspace() -> Scope {
         .route("", web::get().to(controllers::workspaces::list))
         .service(
             web::scope("/{workspace_id}")
+                .route("", web::get().to(controllers::workspaces::get))
                 .route("", web::delete().to(controllers::workspaces::delete))
                 .route(
                     "/changes/{path:.*}",

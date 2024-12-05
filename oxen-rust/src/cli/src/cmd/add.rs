@@ -48,18 +48,7 @@ impl RunCmd for AddCmd {
                     OxenError::basic_str(format!("Failed to get current directory: {}", e))
                 })?;
                 let joined_path = current_dir.join(p);
-                joined_path.canonicalize().map_err(|e| {
-                    log::warn!(
-                        "Failed to canonicalize path {}: {}",
-                        joined_path.display(),
-                        e
-                    );
-                    OxenError::basic_str(format!(
-                        "Failed to canonicalize path {}: {}",
-                        joined_path.display(),
-                        e
-                    ))
-                })
+                joined_path.canonicalize().or_else(|_| Ok(joined_path))
             })
             .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
