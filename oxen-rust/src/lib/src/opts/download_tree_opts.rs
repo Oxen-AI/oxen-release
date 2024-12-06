@@ -4,6 +4,7 @@ use std::path::PathBuf;
 pub struct DownloadTreeOpts {
     pub subtree_paths: PathBuf,
     pub depth: i32,
+    pub is_download: bool,
 }
 
 impl Default for DownloadTreeOpts {
@@ -17,6 +18,7 @@ impl DownloadTreeOpts {
         DownloadTreeOpts {
             subtree_paths: PathBuf::new(),
             depth: 0,
+            is_download: true,
         }
     }
 }

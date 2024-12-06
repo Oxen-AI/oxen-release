@@ -2056,12 +2056,6 @@ A: Checkout Oxen.ai
                     api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
                         .await?;
 
-                println!(
-                    "root_dir_entries ({}) {:?}",
-                    root_dir_entries.entries.len(),
-                    root_dir_entries
-                );
-
                 assert!(root_dir_entries
                     .entries
                     .iter()

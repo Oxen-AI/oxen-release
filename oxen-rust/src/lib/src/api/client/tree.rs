@@ -242,6 +242,7 @@ pub async fn download_tree_from_path(
     let download_tree_opts = DownloadTreeOpts {
         subtree_paths: path.as_ref().into(),
         depth: if is_dir { -1 } else { 0 },
+        is_download: true,
     };
     let path: PathBuf = path.as_ref().into();
     let commit_id = commit_id.as_ref();
@@ -293,7 +294,7 @@ pub async fn download_trees_from(
 }
 
 fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
-    append_subtree_paths_and_depth_to_uri(uri, &fetch_opts.subtree_paths, &fetch_opts.depth)
+    append_subtree_paths_and_depth_to_uri(uri, &fetch_opts.subtree_paths, &fetch_opts.depth, false)
 }
 
 fn append_download_tree_opts_to_uri(uri: String, download_tree_opts: &DownloadTreeOpts) -> String {
@@ -301,6 +302,7 @@ fn append_download_tree_opts_to_uri(uri: String, download_tree_opts: &DownloadTr
         uri,
         &Some(vec![download_tree_opts.subtree_paths.clone()]),
         &Some(download_tree_opts.depth),
+        download_tree_opts.is_download,
     )
 }
 
@@ -308,26 +310,40 @@ fn append_subtree_paths_and_depth_to_uri(
     uri: String,
     subtree_paths: &Option<Vec<PathBuf>>,
     depth: &Option<i32>,
+    is_download: bool,
 ) -> String {
     let mut uri = uri;
-    if let Some(depth) = &depth {
-        uri = format!("{uri}?depth={depth}");
+
+    // Start building the query string
+    let mut query_params = Vec::new();
+
+    // Add depth parameter if it exists
+    if let Some(depth_value) = depth {
+        query_params.push(format!("depth={}", depth_value));
     }
-    if let Some(subtree_paths) = &subtree_paths {
-        if !uri.contains("?depth=") {
-            uri = format!("{uri}?");
-        } else {
-            uri = format!("{uri}&");
-        }
-        let subtree_str = subtree_paths
+
+    // Add is_download parameter
+    if is_download {
+        query_params.push("is_download=true".to_string());
+    }
+
+    // Add subtree_paths parameter if it exists
+    if let Some(paths) = subtree_paths {
+        let subtree_str = paths
             .iter()
             .map(|p| p.display().to_string())
             .collect::<Vec<String>>()
             .join(",");
-        // uri encode the subtree paths
-        let subtree_str = urlencoding::encode(&subtree_str);
-        uri = format!("{uri}subtrees={subtree_str}");
+        // URI encode the subtree paths
+        let encoded_subtree_str = urlencoding::encode(&subtree_str);
+        query_params.push(format!("subtrees={}", encoded_subtree_str));
     }
+
+    // Construct the final URI
+    if !query_params.is_empty() {
+        uri = format!("{}?{}", uri, query_params.join("&"));
+    }
+
     uri
 }
 
@@ -459,6 +475,7 @@ pub async fn list_missing_file_hashes_from_commits(
         uri,
         &local_repo.subtree_paths(),
         &local_repo.depth(),
+        false,
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
