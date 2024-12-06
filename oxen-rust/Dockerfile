@@ -52,6 +52,7 @@ RUN apt-get update && apt-get install -y openssl
 WORKDIR /oxen-server
 COPY --from=builder /usr/src/oxen-server/target/release/oxen /usr/local/bin
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
+ENV RUST_LOG=debug
 ENV SYNC_DIR=/var/oxen/data
 ENV REDIS_URL=redis://localhost:6379
 EXPOSE 3001
