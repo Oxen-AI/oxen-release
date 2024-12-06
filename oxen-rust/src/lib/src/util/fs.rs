@@ -183,6 +183,10 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     }
 }
 
+pub fn root_version_path(path: impl AsRef<Path>) -> PathBuf {
+    util::fs::oxen_hidden_dir(path).join(constants::VERSIONS_DIR)
+}
+
 pub fn version_path_from_hash_and_filename(
     repo: &LocalRepository,
     hash: impl AsRef<str>,
