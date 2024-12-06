@@ -8,6 +8,7 @@ pub struct OxenResponse {
     pub status_description: Option<String>,
     pub error: Option<ErrorResponse>,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ErrorResponse {
     title: String,
@@ -27,7 +28,7 @@ impl OxenResponse {
     pub fn full_err_msg(&self) -> String {
         match self.error.to_owned() {
             Some(err) => format!("{}\n{}", err.title, err.detail.unwrap_or("".to_string())),
-            None => self.status_message.to_owned(),
+            None => self.desc_or_msg(),
         }
     }
 

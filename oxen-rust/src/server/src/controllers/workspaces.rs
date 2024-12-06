@@ -44,6 +44,7 @@ pub async fn get_or_create(
             status: StatusMessage::resource_created(),
             workspace: WorkspaceResponse {
                 id: workspace_id,
+                name: workspace.name.clone(),
                 commit: workspace.commit.into(),
             },
         }));
@@ -52,13 +53,39 @@ pub async fn get_or_create(
     let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
     // Create the workspace
-    repositories::workspaces::create(&repo, &commit, &workspace_id, true)?;
+    repositories::workspaces::create_with_name(
+        &repo,
+        &commit,
+        &workspace_id,
+        data.name.clone(),
+        true,
+    )?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
             id: workspace_id,
+            name: data.name.clone(),
             commit: commit.into(),
+        },
+    }))
+}
+
+pub async fn get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+
+    Ok(HttpResponse::Ok().json(WorkspaceResponseView {
+        status: StatusMessage::resource_created(),
+        workspace: WorkspaceResponse {
+            id: workspace_id,
+            name: workspace.name,
+            commit: workspace.commit.into(),
         },
     }))
 }
@@ -75,6 +102,7 @@ pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         .iter()
         .map(|workspace| WorkspaceResponse {
             id: workspace.id.clone(),
+            name: workspace.name.clone(),
             commit: workspace.commit.clone().into(),
         })
         .collect();
@@ -100,6 +128,7 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
             id: workspace_id,
+            name: workspace.name,
             commit: workspace.commit.into(),
         },
     }))

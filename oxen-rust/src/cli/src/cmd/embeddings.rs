@@ -1,34 +1,32 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use clap::Command;
+use std::collections::HashMap;
 
 use liboxen::error::OxenError;
 
-// subcommands
-pub mod get;
-use get::WorkspaceDFGetCmd;
+use crate::cmd::RunCmd;
+pub const NAME: &str = "embeddings";
 
 pub mod index;
-use index::WorkspaceDFIndexCmd;
+pub use index::EmbeddingsIndexCmd;
 
-use crate::cmd::RunCmd;
+pub mod query;
+pub use query::EmbeddingsQueryCmd;
 
-pub const NAME: &str = "df";
-pub struct WorkspaceDfCmd;
+pub struct EmbeddingsCmd;
 
 #[async_trait]
-impl RunCmd for WorkspaceDfCmd {
+impl RunCmd for EmbeddingsCmd {
     fn name(&self) -> &str {
         NAME
     }
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        let mut command = Command::new(NAME).about(
-            "Interact with remote data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.",
-        );
+        let mut command = Command::new(NAME).about("Index and query embeddings from a data frame.");
 
+        // These are all the subcommands for the schemas command
+        // including `index` and `query`
         let sub_commands = self.get_subcommands();
         for cmd in sub_commands.values() {
             command = command.subcommand(cmd.args());
@@ -37,13 +35,12 @@ impl RunCmd for WorkspaceDfCmd {
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
-        // Parse Args
         let sub_commands = self.get_subcommands();
         if let Some((name, sub_matches)) = args.subcommand() {
             let Some(cmd) = sub_commands.get(name) else {
-                eprintln!("Unknown df subcommand {name}");
+                eprintln!("Unknown schema subcommand {name}");
                 return Err(OxenError::basic_str(format!(
-                    "Unknown df subcommand {name}"
+                    "Unknown schema subcommand {name}"
                 )));
             };
 
@@ -56,10 +53,10 @@ impl RunCmd for WorkspaceDfCmd {
     }
 }
 
-impl WorkspaceDfCmd {
+impl EmbeddingsCmd {
     fn get_subcommands(&self) -> HashMap<String, Box<dyn RunCmd>> {
         let commands: Vec<Box<dyn RunCmd>> =
-            vec![Box::new(WorkspaceDFIndexCmd), Box::new(WorkspaceDFGetCmd)];
+            vec![Box::new(EmbeddingsIndexCmd), Box::new(EmbeddingsQueryCmd)];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
         for cmd in commands {
             runners.insert(cmd.name().to_string(), cmd);

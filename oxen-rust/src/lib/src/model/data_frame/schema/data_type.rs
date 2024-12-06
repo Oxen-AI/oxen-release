@@ -21,6 +21,7 @@ pub enum DataType {
     Date,
     Time,
     Datetime,
+    Embedding(usize),
     List(Box<DataType>),
     Struct(Box<Vec<Field>>),
     Duration,
@@ -73,51 +74,64 @@ impl DataType {
             "list[date]" => DataType::List(Box::new(DataType::Date)),
             "list[time]" => DataType::List(Box::new(DataType::Time)),
             "list[?]" => DataType::List(Box::new(DataType::Unknown)),
-            _ => DataType::Unknown,
+            type_name => {
+                // handle embedding[N] types
+                if let Some(captures) = regex::Regex::new(r"^embedding\[(\d+)\]$")
+                    .unwrap()
+                    .captures(type_name)
+                {
+                    if let Some(size) = captures.get(1) {
+                        return DataType::Embedding(size.as_str().parse::<usize>().unwrap());
+                    }
+                }
+                log::error!("TODO: from_string unknown type {}", type_name);
+                DataType::Unknown
+            }
         }
     }
 
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> String {
         match self {
-            DataType::Boolean => "bool",
-            DataType::UInt8 => "uint8",
-            DataType::UInt16 => "u16",
-            DataType::UInt32 => "u32",
-            DataType::UInt64 => "u64",
-            DataType::Int8 => "i8",
-            DataType::Int16 => "i16",
-            DataType::Int32 => "i32",
-            DataType::Int64 => "i64",
-            DataType::Float32 => "f32",
-            DataType::Float64 => "f64",
-            DataType::String => "str",
-            DataType::Date => "date",
-            DataType::Datetime => "datetime",
-            DataType::Time => "time",
-            DataType::Duration => "duration",
-            DataType::Struct(_) => "struct",
+            DataType::Boolean => "bool".to_string(),
+            DataType::UInt8 => "uint8".to_string(),
+            DataType::UInt16 => "u16".to_string(),
+            DataType::UInt32 => "u32".to_string(),
+            DataType::UInt64 => "u64".to_string(),
+            DataType::Int8 => "i8".to_string(),
+            DataType::Int16 => "i16".to_string(),
+            DataType::Int32 => "i32".to_string(),
+            DataType::Int64 => "i64".to_string(),
+            DataType::Float32 => "f32".to_string(),
+            DataType::Float64 => "f64".to_string(),
+            DataType::String => "str".to_string(),
+            DataType::Date => "date".to_string(),
+            DataType::Datetime => "datetime".to_string(),
+            DataType::Time => "time".to_string(),
+            DataType::Duration => "duration".to_string(),
+            DataType::Struct(_) => "struct".to_string(),
             DataType::List(val) => match **val {
-                DataType::Boolean => "list[bool]",
-                DataType::UInt8 => "list[uint8]",
-                DataType::UInt16 => "list[u16]",
-                DataType::UInt32 => "list[u32]",
-                DataType::UInt64 => "list[u64]",
-                DataType::Int8 => "list[i8]",
-                DataType::Int16 => "list[i16]",
-                DataType::Int32 => "list[i32]",
-                DataType::Int64 => "list[i64]",
-                DataType::Float32 => "list[f32]",
-                DataType::Float64 => "list[f64]",
-                DataType::String => "list[str]",
-                DataType::Date => "list[date]",
-                DataType::Time => "list[time]",
-                _ => "list[?]",
+                DataType::Boolean => "list[bool]".to_string(),
+                DataType::UInt8 => "list[uint8]".to_string(),
+                DataType::UInt16 => "list[u16]".to_string(),
+                DataType::UInt32 => "list[u32]".to_string(),
+                DataType::UInt64 => "list[u64]".to_string(),
+                DataType::Int8 => "list[i8]".to_string(),
+                DataType::Int16 => "list[i16]".to_string(),
+                DataType::Int32 => "list[i32]".to_string(),
+                DataType::Int64 => "list[i64]".to_string(),
+                DataType::Float32 => "list[f32]".to_string(),
+                DataType::Float64 => "list[f64]".to_string(),
+                DataType::String => "list[str]".to_string(),
+                DataType::Date => "list[date]".to_string(),
+                DataType::Time => "list[time]".to_string(),
+                _ => "list[?]".to_string(),
             },
-            DataType::Null => "null",
+            DataType::Embedding(size) => format!("embedding[{}]", size).to_string(),
+            DataType::Null => "null".to_string(),
             DataType::Unknown => {
                 // DO NOT USE {} HERE, IT WILL CAUSE A STACK OVERFLOW
                 log::error!("TODO: as_str unknown DataType::Unknown type {:?}", self);
-                "?"
+                "?".to_string()
             }
         }
     }
@@ -138,6 +152,9 @@ impl DataType {
             DataType::String => polars::prelude::DataType::String,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
+            DataType::Embedding(_) => {
+                polars::prelude::DataType::List(Box::new(polars::prelude::DataType::Float32))
+            }
             DataType::Duration => {
                 polars::prelude::DataType::Duration(polars::prelude::TimeUnit::Milliseconds)
             }
@@ -174,50 +191,51 @@ impl DataType {
         }
     }
 
-    pub fn to_sql(&self) -> &'static str {
+    pub fn to_sql(&self) -> String {
         match self {
-            DataType::Boolean => "BOOL",
-            DataType::UInt8 => "UTINYINT", // unsigned one-byte integer
-            DataType::UInt16 => "USMALLINT", // unsigned two-byte integer
-            DataType::UInt32 => "UINTEGER", // unsigned four-byte integer
-            DataType::UInt64 => "UBIGINT", // unsigned eight-byte integer
-            DataType::Int8 => "TINYINT",   // signed one-byte integer
-            DataType::Int16 => "SMALLINT", // signed two-byte integer
-            DataType::Int32 => "INTEGER",  // signed four-byte integer
-            DataType::Int64 => "BIGINT",   // signed eight-byte integer
-            DataType::Float32 => "FLOAT", // alias for REAL, single precision floating-point number (4 bytes)
-            DataType::Float64 => "DOUBLE", // double-precision floating point number
-            DataType::String => "VARCHAR", // variable-length character string
-            DataType::Date => "DATE",     // calendar date (year, month day)
-            DataType::Time => "TIME",     // time of day (no time zone)
-            DataType::Datetime => "DATETIME", // combination of time and date
-            DataType::Duration => "INTERVAL",
-            DataType::Struct(_) => "JSON",
+            DataType::Boolean => "BOOL".to_string(),
+            DataType::UInt8 => "UTINYINT".to_string(), // unsigned one-byte integer
+            DataType::UInt16 => "USMALLINT".to_string(), // unsigned two-byte integer
+            DataType::UInt32 => "UINTEGER".to_string(), // unsigned four-byte integer
+            DataType::UInt64 => "UBIGINT".to_string(), // unsigned eight-byte integer
+            DataType::Int8 => "TINYINT".to_string(),   // signed one-byte integer
+            DataType::Int16 => "SMALLINT".to_string(), // signed two-byte integer
+            DataType::Int32 => "INTEGER".to_string(),  // signed four-byte integer
+            DataType::Int64 => "BIGINT".to_string(),   // signed eight-byte integer
+            DataType::Float32 => "FLOAT".to_string(), // alias for REAL, single precision floating-point number (4 bytes)
+            DataType::Float64 => "DOUBLE".to_string(), // double-precision floating point number
+            DataType::String => "VARCHAR".to_string(), // variable-length character string
+            DataType::Date => "DATE".to_string(),     // calendar date (year, month day)
+            DataType::Time => "TIME".to_string(),     // time of day (no time zone)
+            DataType::Datetime => "DATETIME".to_string(), // combination of time and date
+            DataType::Duration => "INTERVAL".to_string(),
+            DataType::Struct(_) => "JSON".to_string(),
+            DataType::Embedding(size) => format!("FLOAT[{}]", size).to_string(),
             DataType::List(dtype) => match dtype.as_ref() {
-                DataType::Boolean => "BOOL[]",
-                DataType::UInt8 => "UTINYINT[]",
-                DataType::UInt16 => "USMALLINT[]",
-                DataType::UInt32 => "UINTEGER[]",
-                DataType::UInt64 => "UBIGINT[]",
-                DataType::Int8 => "TINYINT[]",
-                DataType::Int16 => "SMALLINT[]",
-                DataType::Int32 => "INTEGER[]",
-                DataType::Int64 => "BIGINT[]",
-                DataType::Float32 => "FLOAT[]",
-                DataType::Float64 => "DOUBLE[]",
-                DataType::String => "VARCHAR[]",
-                DataType::Date => "DATE[]",
-                DataType::Time => "TIME[]",
-                DataType::Datetime => "DATETIME[]",
+                DataType::Boolean => "BOOL[]".to_string(),
+                DataType::UInt8 => "UTINYINT[]".to_string(),
+                DataType::UInt16 => "USMALLINT[]".to_string(),
+                DataType::UInt32 => "UINTEGER[]".to_string(),
+                DataType::UInt64 => "UBIGINT[]".to_string(),
+                DataType::Int8 => "TINYINT[]".to_string(),
+                DataType::Int16 => "SMALLINT[]".to_string(),
+                DataType::Int32 => "INTEGER[]".to_string(),
+                DataType::Int64 => "BIGINT[]".to_string(),
+                DataType::Float32 => "FLOAT[]".to_string(),
+                DataType::Float64 => "DOUBLE[]".to_string(),
+                DataType::String => "VARCHAR[]".to_string(),
+                DataType::Date => "DATE[]".to_string(),
+                DataType::Time => "TIME[]".to_string(),
+                DataType::Datetime => "DATETIME[]".to_string(),
                 _ => {
                     log::error!("TODO: to_sql unknown SQL DataType::List type {}", dtype);
-                    "UNKNOWN[]"
+                    "UNKNOWN[]".to_string()
                 }
             }, // https://duckdb.org/docs/sql/data_types/list
-            DataType::Null => "NULL", // null value
+            DataType::Null => "NULL".to_string(), // null value
             DataType::Unknown => {
                 log::error!("TODO: to_sql unknown SQL DataType::Unknown type {}", self);
-                "UNKNOWN"
+                "UNKNOWN".to_string()
             }
         }
     }
@@ -261,7 +279,18 @@ impl DataType {
             "VARCHAR[]" => DataType::List(Box::new(DataType::String)),
             "DATE[]" => DataType::List(Box::new(DataType::Date)),
             "TIME[]" => DataType::List(Box::new(DataType::Time)),
-            _ => {
+            type_name => {
+                // Handle FLOAT[N] types
+                if let Some(captures) = regex::Regex::new(r"^FLOAT\[(\d+)\]$")
+                    .unwrap()
+                    .captures(type_name)
+                {
+                    if let Some(size) = captures.get(1) {
+                        log::debug!("FLOAT[{}]", size.as_str());
+                        return DataType::Embedding(size.as_str().parse::<usize>().unwrap());
+                    }
+                }
+
                 log::error!("TODO: from_sql unknown SQL type {}", s.as_ref());
                 DataType::Unknown
             }

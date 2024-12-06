@@ -1,6 +1,6 @@
 [package]
 name = "Oxen"
-version = "0.22.2"
+version = "0.23.0"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version large machine learning datasets written in Rust."
@@ -99,6 +99,7 @@ rand = "0.8.5"
 rayon = "1.7.0"
 rmp-serde = "1.3.0"
 redis = { version = "0.27.2", features = ["r2d2"] }
+regex = "1.10.2"
 reqwest = { version = "0.12.5", features = [
     "multipart",
     "json",
@@ -111,7 +112,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "zlib",
     "multi-threaded-cf",
 ] }
-sanitize-filename = "0.5.0"
+sanitize-filename = "0.6.0"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_derive = "1.0.188"
 serde_json = "1.0.106"

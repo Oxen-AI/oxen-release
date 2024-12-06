@@ -3,7 +3,6 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
-pub mod commit_cache;
 pub mod config;
 pub mod db;
 pub mod df;
