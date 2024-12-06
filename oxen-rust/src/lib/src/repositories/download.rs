@@ -36,7 +36,7 @@ pub async fn download(
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
-    remote_path: &PathBuf,
+    remote_path: &Path,
     local_path: &PathBuf,
 ) -> Result<(), OxenError> {
     match remote_repo.min_version() {
