@@ -145,6 +145,7 @@ members = ["src/cli", "src/lib", "src/server"]
 
 [profile.release]
 codegen-units = 1
+lto = true
 
 [lib]
 name = "liboxen"
