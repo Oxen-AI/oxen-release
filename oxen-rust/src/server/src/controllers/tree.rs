@@ -342,14 +342,20 @@ fn get_unique_node_hashes(
     for commit in commits {
         if let Some(subtrees) = maybe_subtrees {
             // Traverse up the tree to get all the parent directories
-            let mut all_parent_paths: HashSet<PathBuf> = HashSet::new();
+            let mut all_parent_paths: Vec<PathBuf> = Vec::new();
             for subtree_path in subtrees {
-                let mut path = subtree_path.clone();
-                all_parent_paths.insert(path.clone());
-                while let Some(parent) = path.parent() {
-                    all_parent_paths.insert(parent.to_path_buf());
-                    path = parent.to_path_buf();
+                let path = subtree_path.clone();
+                let mut current_path = path.clone();
+
+                // Add the original subtree path first
+                all_parent_paths.push(current_path.clone());
+
+                // Traverse up the tree to add parent paths
+                while let Some(parent) = current_path.parent() {
+                    all_parent_paths.push(parent.to_path_buf());
+                    current_path = parent.to_path_buf();
                 }
+                all_parent_paths.reverse();
             }
 
             for subtree in subtrees {
@@ -362,15 +368,12 @@ fn get_unique_node_hashes(
                 )?;
             }
 
-            // for subtree_path in all_parent_paths {
-            //     get_unique_node_hashes_for_subtree(
-            //         repository,
-            //         commit,
-            //         &Some(subtree_path.clone()),
-            //         maybe_depth,
-            //         &mut unique_node_hashes,
-            //     )?;
-            // }
+            repositories::tree::read_nodes_along_path(
+                repository,
+                commit,
+                all_parent_paths,
+                &mut unique_node_hashes,
+            )?;
         } else {
             get_unique_node_hashes_for_subtree(
                 repository,
