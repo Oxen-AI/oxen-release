@@ -2017,24 +2017,30 @@ A: Checkout Oxen.ai
             test::run_empty_dir_test_async(|repos_base_dir| async move {
                 let repos_base_dir_copy = repos_base_dir.clone();
                 let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+                println!("eloy 1");
 
                 // Make sure to clone a subtree to test subtree merge conflicts
                 let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
                 clone_opts.fetch_opts.subtree_paths =
                     Some(vec![PathBuf::from("nlp").join("classification")]);
                 clone_opts.fetch_opts.depth = Some(2);
+                println!("eloy 2");
                 let user_a_repo = repositories::clone(&clone_opts).await?;
-
+                println!("eloy 3");
                 // User adds a file and pushes
                 let new_file = PathBuf::from("nlp")
                     .join("classification")
                     .join("new_data.tsv");
+                println!("eloy 4");
                 let new_file_path = user_a_repo.path.join(&new_file);
                 let new_file_path = test::write_txt_file_to_path(new_file_path, "image\tlabel")?;
                 repositories::add(&user_a_repo, &new_file_path)?;
+                println!("new_file_path {:?}", new_file_path);
                 let commit =
                     repositories::commit(&user_a_repo, "Adding nlp/classification/new_data.tsv")?;
                 repositories::push(&user_a_repo).await?;
+
+                println!("commiti commiti {:?}", commit);
 
                 // Make sure the file is in the remote repo
                 let dir_entries = api::client::dir::list(
@@ -2045,6 +2051,8 @@ A: Checkout Oxen.ai
                     100,
                 )
                 .await?;
+
+                println!("dir_entries {:?}", dir_entries);
 
                 assert!(dir_entries
                     .entries

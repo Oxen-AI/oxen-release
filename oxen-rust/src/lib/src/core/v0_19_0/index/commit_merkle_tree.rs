@@ -322,6 +322,7 @@ impl CommitMerkleTree {
             let Some(hash) = dir_hashes.get(path) else {
                 continue;
             };
+
             // log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 1)? else {
                 log::warn!(
@@ -610,14 +611,17 @@ impl CommitMerkleTree {
                         } else {
                             traversed_depth + 1
                         };
-                        let mut node_db = MerkleNodeDB::open_read_only(repo, &child.hash)?;
-                        CommitMerkleTree::read_children_until_depth(
-                            repo,
-                            &mut node_db,
-                            &mut child,
-                            requested_depth,
-                            traversed_depth,
-                        )?;
+                        // Here we have to not panic on error, because if we clone a subtree we might not have all of the children nodes of a particular dir
+                        // given that we are only loading the nodes that are needed.
+                        if let Ok(mut node_db) = MerkleNodeDB::open_read_only(repo, &child.hash) {
+                            CommitMerkleTree::read_children_until_depth(
+                                repo,
+                                &mut node_db,
+                                &mut child,
+                                requested_depth,
+                                traversed_depth,
+                            )?;
+                        }
                     }
                     node.children.push(child);
                 }
