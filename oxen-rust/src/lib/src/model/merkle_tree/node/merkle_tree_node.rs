@@ -534,7 +534,7 @@ impl MerkleTreeNode {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            match self.children.binary_search_by(|child| {
+            if let Ok(index) = self.children.binary_search_by(|child| {
                 let child_name = match &child.node {
                     EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
                     EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
@@ -542,35 +542,30 @@ impl MerkleTreeNode {
                 };
                 child_name.unwrap_or("".to_string()).cmp(&target_name)
             }) {
-                Ok(index) => {
-                    let child = &self.children[index];
-                    if let EMerkleTreeNode::Directory(dir_node) = &child.node {
-                        // Check if the directory name matches the next component of the path
-                        if dir_node.name == target_name {
-                            path_components.remove(0); // Remove the matched component
-                            if let (Some(node), mut child_traversed_nodes) = child
-                                .get_nodes_along_path_helper(
-                                    &traversed_path.join(&dir_node.name),
-                                    path_components.clone(),
-                                )?
-                            {
-                                traversed_nodes.push(self.clone());
-                                traversed_nodes.append(&mut child_traversed_nodes);
-                                return Ok((Some(node), traversed_nodes));
-                            }
-                        }
-                    } else {
+                let child = &self.children[index];
+                if let EMerkleTreeNode::Directory(dir_node) = &child.node {
+                    // Check if the directory name matches the next component of the path
+                    if dir_node.name == target_name {
+                        path_components.remove(0); // Remove the matched component
                         if let (Some(node), mut child_traversed_nodes) = child
-                            .get_nodes_along_path_helper(traversed_path, path_components.clone())
-                            .unwrap_or((None, Vec::new()))
+                            .get_nodes_along_path_helper(
+                                &traversed_path.join(&dir_node.name),
+                                path_components.clone(),
+                            )?
                         {
                             traversed_nodes.push(self.clone());
                             traversed_nodes.append(&mut child_traversed_nodes);
                             return Ok((Some(node), traversed_nodes));
                         }
                     }
+                } else if let (Some(node), mut child_traversed_nodes) = child
+                    .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                    .unwrap_or((None, Vec::new()))
+                {
+                    traversed_nodes.push(self.clone());
+                    traversed_nodes.append(&mut child_traversed_nodes);
+                    return Ok((Some(node), traversed_nodes));
                 }
-                Err(_) => {}
             }
         }
 
