@@ -23,8 +23,11 @@ fn read_status(repo_path: &Path) -> Result<Option<ForkStatus>, OxenError> {
     if !status_path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(status_path)?;
-    let status_file: ForkStatusFile = toml::from_str(&content)?;
+    let content = fs::read_to_string(&status_path)?;
+    let status_file: ForkStatusFile = toml::from_str(&content).map_err(|e| {
+        log::error!("Failed to parse fork status on file: {:?} error: {}", status_path, e);
+        OxenError::basic_str(format!("Failed to parse fork status on file: {}", e))
+    })?;
 
     let status = &status_file.status;
 
