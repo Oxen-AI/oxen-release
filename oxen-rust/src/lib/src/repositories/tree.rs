@@ -141,6 +141,22 @@ pub fn get_entries(
     }
 }
 
+pub fn read_nodes_along_path(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: Vec<PathBuf>,
+    hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    let root_path = path.first().unwrap();
+    let tree = CommitMerkleTree::from_path(repo, commit, root_path, true)?;
+
+    let (_root_node, nodes) = tree.root.get_nodes_along_path(path)?;
+    for node in nodes {
+        hashes.insert(node.hash);
+    }
+    Ok(())
+}
+
 pub fn get_node_data_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,

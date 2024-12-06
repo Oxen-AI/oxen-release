@@ -486,6 +486,111 @@ impl MerkleTreeNode {
             }
         }
     }
+
+    pub fn get_nodes_along_path(
+        &self,
+        path: Vec<PathBuf>,
+    ) -> Result<(Option<MerkleTreeNode>, Vec<MerkleTreeNode>), OxenError> {
+        let traversed_path = Path::new("");
+        self.get_nodes_along_path_helper(traversed_path, path)
+    }
+
+    fn get_nodes_along_path_helper(
+        &self,
+        traversed_path: &Path,
+        path: Vec<PathBuf>,
+    ) -> Result<(Option<MerkleTreeNode>, Vec<MerkleTreeNode>), OxenError> {
+        let mut traversed_nodes = Vec::new(); // Vector to store traversed nodes
+        let mut path_components = path.clone(); // Use the provided path directly
+
+        if traversed_path.components().count() > path_components.len() {
+            return Ok((None, traversed_nodes));
+        }
+
+        // Check if there are still components to check
+        if path_components.is_empty() {
+            return Ok((None, traversed_nodes));
+        }
+
+        if let EMerkleTreeNode::File(_) = &self.node {
+            let file_node = self.file()?;
+            let file_path = traversed_path.join(file_node.clone().name);
+            if &file_path == path_components.last().unwrap() {
+                traversed_nodes.push(self.clone()); // Add the current node to the traversed nodes
+                return Ok((Some(self.clone()), traversed_nodes));
+            }
+        }
+
+        if let EMerkleTreeNode::Directory(_) = &self.node {
+            if traversed_path == path_components.last().unwrap() {
+                traversed_nodes.push(self.clone());
+                return Ok((Some(self.clone()), traversed_nodes));
+            }
+        }
+
+        if let EMerkleTreeNode::VNode(_) = &self.node {
+            let target_name = path_components[0]
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            if let Ok(index) = self.children.binary_search_by(|child| {
+                let child_name = match &child.node {
+                    EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
+                    EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
+                    _ => None,
+                };
+                child_name.unwrap_or("".to_string()).cmp(&target_name)
+            }) {
+                let child = &self.children[index];
+                if let EMerkleTreeNode::Directory(dir_node) = &child.node {
+                    // Check if the directory name matches the next component of the path
+                    if dir_node.name == target_name {
+                        path_components.remove(0); // Remove the matched component
+                        if let (Some(node), mut child_traversed_nodes) = child
+                            .get_nodes_along_path_helper(
+                                &traversed_path.join(&dir_node.name),
+                                path_components.clone(),
+                            )?
+                        {
+                            traversed_nodes.push(self.clone());
+                            traversed_nodes.append(&mut child_traversed_nodes);
+                            return Ok((Some(node), traversed_nodes));
+                        }
+                    }
+                } else if let (Some(node), mut child_traversed_nodes) = child
+                    .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                    .unwrap_or((None, Vec::new()))
+                {
+                    traversed_nodes.push(self.clone());
+                    traversed_nodes.append(&mut child_traversed_nodes);
+                    return Ok((Some(node), traversed_nodes));
+                }
+            }
+        }
+
+        for child in &self.children {
+            if let EMerkleTreeNode::Directory(dir_node) = &child.node {
+                if let (Some(node), mut child_traversed_nodes) = child.get_nodes_along_path_helper(
+                    &traversed_path.join(&dir_node.name),
+                    path_components.clone(),
+                )? {
+                    traversed_nodes.push(self.clone());
+                    traversed_nodes.append(&mut child_traversed_nodes);
+                    return Ok((Some(node), traversed_nodes));
+                }
+            } else if let (Some(node), mut child_traversed_nodes) = child
+                .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                .unwrap_or((None, Vec::new()))
+            {
+                traversed_nodes.push(self.clone());
+                traversed_nodes.append(&mut child_traversed_nodes);
+                return Ok((Some(node), traversed_nodes));
+            }
+        }
+
+        Ok((None, traversed_nodes))
+    }
 }
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)

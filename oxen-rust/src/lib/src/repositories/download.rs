@@ -36,6 +36,7 @@ pub async fn download(
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
+    remote_path: &Path,
     local_path: &PathBuf,
 ) -> Result<(), OxenError> {
     match remote_repo.min_version() {
@@ -45,7 +46,8 @@ pub async fn download_dir(
         }
         MinOxenVersion::V0_19_0 => {
             log::debug!("Calling v0_19_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
-            core::v0_19_0::download::download_dir(remote_repo, entry, local_path).await?;
+            core::v0_19_0::download::download_dir(remote_repo, entry, remote_path, local_path)
+                .await?;
         }
     }
 

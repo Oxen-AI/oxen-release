@@ -245,6 +245,7 @@ pub async fn download_tree_nodes(
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
     let base_head_str = path_param(&req, "base_head")?;
+    let is_download = query.is_download.unwrap_or(false);
 
     log::debug!("download_tree_nodes for base_head: {}", base_head_str);
     log::debug!(
@@ -270,7 +271,7 @@ pub async fn download_tree_nodes(
 
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
-        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth)?;
+        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth, is_download)?;
 
     log::debug!("Compressing {} unique nodes...", unique_node_hashes.len());
     for hash in unique_node_hashes {
@@ -330,6 +331,7 @@ fn get_unique_node_hashes(
     commits: &[Commit],
     maybe_subtrees: &Option<Vec<PathBuf>>,
     maybe_depth: &Option<i32>,
+    is_download: bool,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     // Collect the unique node hashes for all the commits
     // There could be duplicate nodes across commits, hence the need to dedup
@@ -342,22 +344,37 @@ fn get_unique_node_hashes(
     for commit in commits {
         if let Some(subtrees) = maybe_subtrees {
             // Traverse up the tree to get all the parent directories
-            let mut all_parent_paths: HashSet<PathBuf> = HashSet::new();
+            let mut all_parent_paths: Vec<PathBuf> = Vec::new();
             for subtree_path in subtrees {
-                let mut path = subtree_path.clone();
-                all_parent_paths.insert(path.clone());
-                while let Some(parent) = path.parent() {
-                    all_parent_paths.insert(parent.to_path_buf());
-                    path = parent.to_path_buf();
+                let path = subtree_path.clone();
+                let mut current_path = path.clone();
+
+                // Add the original subtree path first
+                all_parent_paths.push(current_path.clone());
+
+                // Traverse up the tree to add parent paths
+                while let Some(parent) = current_path.parent() {
+                    all_parent_paths.push(parent.to_path_buf());
+                    current_path = parent.to_path_buf();
                 }
+                all_parent_paths.reverse();
             }
 
-            for subtree_path in all_parent_paths {
+            for subtree in subtrees {
                 get_unique_node_hashes_for_subtree(
                     repository,
                     commit,
-                    &Some(subtree_path.clone()),
+                    &Some(subtree.clone()),
                     maybe_depth,
+                    &mut unique_node_hashes,
+                )?;
+            }
+
+            if !is_download {
+                repositories::tree::read_nodes_along_path(
+                    repository,
+                    commit,
+                    all_parent_paths,
                     &mut unique_node_hashes,
                 )?;
             }
