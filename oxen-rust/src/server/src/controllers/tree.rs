@@ -245,6 +245,7 @@ pub async fn download_tree_nodes(
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
     let base_head_str = path_param(&req, "base_head")?;
+    let is_download = query.is_download.unwrap_or(false);
 
     log::debug!("download_tree_nodes for base_head: {}", base_head_str);
     log::debug!(
@@ -270,7 +271,7 @@ pub async fn download_tree_nodes(
 
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
-        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth)?;
+        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth, is_download)?;
 
     log::debug!("Compressing {} unique nodes...", unique_node_hashes.len());
     for hash in unique_node_hashes {
@@ -330,6 +331,7 @@ fn get_unique_node_hashes(
     commits: &[Commit],
     maybe_subtrees: &Option<Vec<PathBuf>>,
     maybe_depth: &Option<i32>,
+    is_download: bool,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     // Collect the unique node hashes for all the commits
     // There could be duplicate nodes across commits, hence the need to dedup
@@ -368,12 +370,14 @@ fn get_unique_node_hashes(
                 )?;
             }
 
-            repositories::tree::read_nodes_along_path(
-                repository,
-                commit,
-                all_parent_paths,
-                &mut unique_node_hashes,
-            )?;
+            if !is_download {
+                repositories::tree::read_nodes_along_path(
+                    repository,
+                    commit,
+                    all_parent_paths,
+                    &mut unique_node_hashes,
+                )?;
+            }
         } else {
             get_unique_node_hashes_for_subtree(
                 repository,

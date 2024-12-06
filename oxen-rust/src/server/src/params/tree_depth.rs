@@ -4,4 +4,5 @@ use serde::Deserialize;
 pub struct TreeDepthQuery {
     pub depth: Option<i32>,
     pub subtrees: Option<String>,
+    pub is_download: Option<bool>,
 }
