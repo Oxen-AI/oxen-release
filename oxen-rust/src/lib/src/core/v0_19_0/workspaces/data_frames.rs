@@ -19,7 +19,7 @@ pub mod schemas;
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
 ) -> Result<bool, OxenError> {
     match get_queryable_data_frame_workspace(repo, path, commit) {
         Ok(_workspace) => Ok(true),
@@ -219,97 +219,66 @@ pub fn extract_file_node_to_working_dir(
     let res = conn.execute(&delete.to_string(), [])?;
     log::debug!("delete query result is: {:?}", res);
 
-    match path.extension() {
-        Some(ext) => match ext.to_str() {
-            Some("csv") => export_csv(&working_path, &conn)?,
-            Some("tsv") => export_tsv(&working_path, &conn)?,
-            Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&working_path, &conn)?,
-            Some("parquet") => export_parquet(&working_path, &conn)?,
-            _ => {
-                return Err(OxenError::basic_str(
-                    "File format not supported, must be tabular.",
-                ))
-            }
-        },
-        None => {
-            return Err(OxenError::basic_str(
-                "File format not supported, must be tabular.",
-            ))
-        }
-    }
-
-    // let df_after = tabular::read_df(&working_path, DFOpts::empty())?;
-    // log::debug!("extract_to_working_dir() got df_after: {:?}", df_after);
+    let excluded_cols = get_existing_excluded_columns(&conn, TABLE_NAME)?;
+    let sql = format!("SELECT * EXCLUDE ({}) FROM '{}'", excluded_cols, TABLE_NAME);
+    let query = wrap_sql_for_export(&sql, &working_path);
+    log::debug!("extracting file node to working dir query: {:?}", query);
+    conn.execute(&query, [])?;
 
     Ok(working_path)
 }
 
-fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    log::debug!("export_rest() to {:?}", path);
-    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
-
-    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
-    // let temp_res = df_db::select(conn, &temp_select_query)?;
-    // log::debug!("export_rest() got df: {:?}", temp_res);
-
-    conn.execute(&query, [])?;
-    Ok(())
+pub fn valid_export_extensions() -> Vec<&'static str> {
+    vec!["csv", "tsv", "parquet", "jsonl", "json", "ndjson"]
 }
 
-fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    log::debug!("export_csv() to {:?}", path);
-    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
-
-    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
-
-    // let temp_res = df_db::select(conn, &temp_select_query)?;
-    // log::debug!("export_csv() got df: {:?}", temp_res);
-
-    conn.execute(&query, [])?;
-
-    Ok(())
+pub fn is_valid_export_extension(path: impl AsRef<Path>) -> bool {
+    let path = path.as_ref();
+    let extension = path
+        .extension()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
+    valid_export_extensions().contains(&extension)
 }
 
-fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    log::debug!("export_tsv() to {:?}", path);
-    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
-
-    conn.execute(&query, [])?;
-    Ok(())
+pub fn wrap_sql_for_export(sql: &str, path: impl AsRef<Path>) -> String {
+    let path = path.as_ref();
+    let extension = path
+        .extension()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
+    match extension {
+        "csv" => format!(
+            "COPY ({}) TO '{}' (HEADER, DELIMITER ',');",
+            sql,
+            path.to_string_lossy()
+        ),
+        "tsv" => format!(
+            "COPY ({}) TO '{}' (HEADER, DELIMITER '\t');",
+            sql,
+            path.to_string_lossy()
+        ),
+        "parquet" => format!(
+            "COPY ({}) TO '{}' (FORMAT PARQUET);",
+            sql,
+            path.to_string_lossy()
+        ),
+        "jsonl" | "ndjson" => format!(
+            "COPY ({}) TO '{}' (FORMAT JSON);",
+            sql,
+            path.to_string_lossy()
+        ),
+        "json" => format!(
+            "COPY ({}) TO '{}' (FORMAT JSON, ARRAY true);",
+            sql,
+            path.to_string_lossy()
+        ),
+        _ => sql.to_string(),
+    }
 }
 
-fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    log::debug!("export_parquet() to {:?}", path);
-    let excluded_cols = get_existing_excluded_columns(conn, TABLE_NAME)?;
-
-    let query = format!(
-        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
-        excluded_cols,
-        TABLE_NAME,
-        path.to_string_lossy()
-    );
-    conn.execute(&query, [])?;
-
-    Ok(())
-}
 fn get_existing_excluded_columns(conn: &Connection, table_name: &str) -> Result<String, OxenError> {
     // Query to get existing columns in the table
     let existing_cols_query = format!(

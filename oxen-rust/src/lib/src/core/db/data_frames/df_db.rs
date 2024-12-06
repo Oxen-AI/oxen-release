@@ -6,6 +6,9 @@ use crate::constants::{
 };
 
 use crate::core::df::tabular;
+use crate::core::v0_19_0::workspaces::data_frames::{
+    is_valid_export_extension, wrap_sql_for_export,
+};
 use crate::error::OxenError;
 
 use crate::model::data_frame::schema::Field;
@@ -106,7 +109,7 @@ pub fn get_schema(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
+            &model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
@@ -138,7 +141,7 @@ pub fn get_schema_excluding_cols(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
+            &model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
@@ -201,14 +204,29 @@ pub fn select(
     Ok(df)
 }
 
-pub fn select_str(
+pub fn export(
     conn: &duckdb::Connection,
-    stmt: String,
-    with_explicit_nulls: bool,
-    schema: Option<&Schema>,
-    opts: Option<&DFOpts>,
-) -> Result<DataFrame, OxenError> {
-    let mut sql = stmt.clone();
+    sql: impl AsRef<str>,
+    _opts: Option<&DFOpts>,
+    tmp_path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let tmp_path = tmp_path.as_ref();
+    let sql = sql.as_ref();
+    // let sql = prepare_sql(sql, opts)?;
+    // Get the file extension from the tmp_path
+    if !is_valid_export_extension(tmp_path) {
+        return Err(OxenError::basic_str(
+            "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
+        ));
+    }
+    let export_sql = wrap_sql_for_export(sql, tmp_path);
+    log::debug!("export_sql: {}", export_sql);
+    conn.execute(&export_sql, [])?;
+    Ok(())
+}
+
+pub fn prepare_sql(stmt: impl AsRef<str>, opts: Option<&DFOpts>) -> Result<String, OxenError> {
+    let mut sql = stmt.as_ref().to_string();
     let empty_opts = DFOpts::empty();
     let opts = opts.unwrap_or(&empty_opts);
 
@@ -226,6 +244,18 @@ pub fn select_str(
     };
     sql.push_str(&pagination_clause);
     log::debug!("select_str() running sql: {}", sql);
+    Ok(sql)
+}
+
+pub fn select_str(
+    conn: &duckdb::Connection,
+    sql: impl AsRef<str>,
+    with_explicit_nulls: bool,
+    schema: Option<&Schema>,
+    opts: Option<&DFOpts>,
+) -> Result<DataFrame, OxenError> {
+    let sql = sql.as_ref();
+    let sql = prepare_sql(sql, opts)?;
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)
@@ -521,7 +551,7 @@ pub fn preview(
     Ok(df)
 }
 
-fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, OxenError> {
+pub fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, OxenError> {
     if records.is_empty() {
         return Ok(DataFrame::default());
     }
@@ -533,6 +563,12 @@ fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, O
     writer.finish()?;
 
     let json_bytes = writer.into_inner();
+
+    // log the json string
+    // log::debug!(
+    //     "json_bytes: {}",
+    //     String::from_utf8(json_bytes.clone()).unwrap()
+    // );
 
     let content = Cursor::new(json_bytes);
 
@@ -556,6 +592,10 @@ pub fn record_batches_to_polars_df_explicit_nulls(
     writer.write_batches(&records[..]).unwrap();
     writer.finish().unwrap();
     let json_bytes = writer.into_inner();
+    // log::debug!(
+    //     "json_bytes: {}",
+    //     String::from_utf8(json_bytes.clone()).unwrap()
+    // );
 
     let content = Cursor::new(json_bytes);
 

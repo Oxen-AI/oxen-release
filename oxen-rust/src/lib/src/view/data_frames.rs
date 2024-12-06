@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub mod columns;
+pub mod embeddings;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DataFramePayload {

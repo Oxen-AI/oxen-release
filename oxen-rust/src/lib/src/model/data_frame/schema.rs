@@ -195,8 +195,6 @@ impl Schema {
         self.fields
             .iter()
             .filter(|f| {
-                println!("{:?}", f);
-
                 // Perform the actual filter condition check
                 f.changes
                     .as_ref()

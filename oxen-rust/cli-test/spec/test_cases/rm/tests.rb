@@ -56,4 +56,31 @@ RSpec.describe 'rm - test relative paths', type: :aruba do
     expect(File.exist?(File.join(directory_path, 'root.txt'))).to be false
     expect(File.exist?(File.join(directory_path, 'images/test/nested.txt'))).to be false
   end
+
+  it 'tests oxen rm with removed path from disk' do
+    directory_path = 'tmp/aruba/test-removed-path'
+
+    # Setup base repo
+    run_command_and_stop('mkdir test-removed-path')
+    cd 'test-removed-path'
+    run_command_and_stop('oxen init')
+
+    # Create and commit root file
+    file_path = File.join(directory_path, 'root.txt')
+    File.open(file_path, 'w') do |file|
+      file.puts 'root file'
+    end
+    run_command_and_stop('oxen add root.txt')
+    run_command_and_stop('oxen commit -m "adding root file"')
+
+    # Test removing file before running oxen rm
+    run_command_and_stop('rm root.txt')
+    run_command_and_stop('oxen rm root.txt')
+
+    # Should show files as removed in staging
+    expect(last_command_started).to have_output(/removed 1 file/)
+
+    # Files should not exist on disk
+    expect(File.exist?(File.join(directory_path, 'root.txt'))).to be false
+  end
 end

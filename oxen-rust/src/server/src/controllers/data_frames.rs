@@ -60,6 +60,7 @@ pub async fn get(
         version: resource.version.to_string_lossy().into(),
     };
 
+    opts.path = Some(resource.path.clone());
     let data_frame_slice =
         repositories::data_frames::get_slice(&repo, &commit, &resource.path, &opts)?;
 

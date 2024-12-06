@@ -2,11 +2,12 @@ use polars::frame::DataFrame;
 
 use sql_query_builder::Select;
 
-use crate::constants::TABLE_NAME;
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
+use crate::constants::{OXEN_COLS, TABLE_NAME};
 use crate::core;
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
+use crate::core::df::sql;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
@@ -22,6 +23,7 @@ use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use std::path::{Path, PathBuf};
 
 pub mod columns;
+pub mod embeddings;
 pub mod rows;
 pub mod schemas;
 
@@ -44,7 +46,7 @@ pub fn is_indexed(workspace: &Workspace, path: &Path) -> Result<bool, OxenError>
 
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
     match repo.min_version() {
@@ -56,6 +58,23 @@ pub fn is_queryable_data_frame_indexed(
         MinOxenVersion::V0_19_0 => {
             core::v0_19_0::workspaces::data_frames::is_queryable_data_frame_indexed(
                 repo, commit, path,
+            )
+        }
+    }
+}
+
+pub fn get_queryable_data_frame_workspace(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    commit: &Commit,
+) -> Result<Workspace, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            panic!("get_queryable_data_frame_workspace not implemented for v0.10.0");
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::get_queryable_data_frame_workspace(
+                repo, path, commit,
             )
         }
     }
@@ -126,11 +145,51 @@ pub fn query(
 
     let col_names = select_cols_from_schema(&schema)?;
 
-    let select = Select::new().select(&col_names).from(TABLE_NAME);
-
-    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
+    // Right now embeddings and sql are mutually exclusive
+    let df = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
+        log::debug!("querying embeddings: {:?}", embedding_opts);
+        repositories::workspaces::data_frames::embeddings::query(workspace, &embedding_opts)?
+    } else if let Some(sql) = &opts.sql {
+        df_db::select_str(&conn, sql, true, Some(&full_schema), Some(opts))?
+    } else {
+        let select = Select::new().select(&col_names).from(TABLE_NAME);
+        df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?
+    };
 
     Ok(df)
+}
+
+pub fn export(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    temp_file: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    log::debug!("export() got db_path: {:?}", db_path);
+
+    let conn = df_db::get_connection(db_path)?;
+
+    let sql = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
+        let exclude_cols = true;
+        repositories::workspaces::data_frames::embeddings::similarity_query(
+            workspace,
+            &embedding_opts,
+            exclude_cols,
+        )?
+    } else if let Some(sql) = opts.sql.clone() {
+        add_exclude_to_sql(&sql)?
+    } else {
+        let sql = format!("SELECT * FROM {}", TABLE_NAME);
+        add_exclude_to_sql(&sql)?
+    };
+
+    log::debug!("exporting data frame with sql: {:?}", sql);
+
+    sql::export_df(&conn, sql, Some(opts), temp_file)?;
+
+    Ok(())
 }
 
 pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
@@ -243,12 +302,57 @@ pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBu
         .join("row_changes")
 }
 
+// Add this function after the existing imports
+fn add_exclude_to_sql(sql: &str) -> Result<String, OxenError> {
+    // Create the EXCLUDE clause
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    // Find the first SELECT in the query (case insensitive)
+    let select_idx = sql
+        .to_lowercase()
+        .find("select")
+        .ok_or_else(|| OxenError::basic_str("No SELECT found in query"))?;
+
+    // Find the first FROM after SELECT (case insensitive)
+    let from_idx = sql[select_idx..]
+        .to_lowercase()
+        .find("from")
+        .ok_or_else(|| OxenError::basic_str("No FROM found in query"))?;
+
+    // Split into parts
+    let before_from = &sql[..select_idx + from_idx];
+    let after_from = &sql[select_idx + from_idx..];
+
+    // Check if this is an aggregation query by looking for GROUP BY
+    let has_group_by = sql.to_lowercase().contains("group by");
+
+    // If query has GROUP BY, don't modify it
+    let modified_select = if has_group_by {
+        before_from.trim().to_string()
+    } else if before_from.trim().to_lowercase().ends_with("select *") {
+        // For SELECT *, replace with SELECT * EXCLUDE (...)
+        format!("SELECT * EXCLUDE ({})", excluded_cols)
+    } else {
+        // For explicit column selections, add EXCLUDE after the columns
+        let (select_part, columns_part) = before_from.split_at(select_idx + "select".len());
+        let columns = columns_part.trim();
+        format!("{} {} EXCLUDE ({})", select_part, columns, excluded_cols)
+    };
+
+    Ok(format!("{} {}", modified_select, after_from))
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
     use serde_json::json;
 
+    use super::*;
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ID_COL};
     use crate::core::df;
@@ -1021,5 +1125,44 @@ mod tests {
             );
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_add_exclude_to_simple_select() -> Result<(), OxenError> {
+        let sql = "SELECT * FROM table";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT * EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") FROM table");
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_exclude_to_complex_select() -> Result<(), OxenError> {
+        let sql = "SELECT col1, col2, col3 FROM table WHERE col1 = 'value'";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT col1, col2, col3 EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") FROM table WHERE col1 = 'value'");
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_exclude_case_insensitive() -> Result<(), OxenError> {
+        let sql = "select * from table";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT * EXCLUDE (\"_oxen_id\", \"_oxen_diff_status\", \"_oxen_row_id\", \"_oxen_diff_hash\") from table");
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_sql() {
+        let sql = "DELETE FROM table";
+        let result = add_exclude_to_sql(sql);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_add_exclude_to_aggregation_query() -> Result<(), OxenError> {
+        let sql = "SELECT label, COUNT(*) FROM table GROUP BY label";
+        let result = add_exclude_to_sql(sql)?;
+        assert_eq!(result, "SELECT label, COUNT(*) FROM table GROUP BY label");
+        Ok(())
     }
 }

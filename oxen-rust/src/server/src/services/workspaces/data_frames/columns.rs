@@ -25,8 +25,4 @@ pub fn columns() -> Scope {
             "/{column_name:.*}/restore/{path:.*}",
             web::post().to(controllers::workspaces::data_frames::columns::restore),
         )
-    // .route(
-    //     "/{row_id}/resource/{path:.*}",
-    //     web::get().to(controllers::workspaces::data_frames::rows::get),
-    // )
 }

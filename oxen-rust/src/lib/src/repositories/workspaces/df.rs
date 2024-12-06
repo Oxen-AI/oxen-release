@@ -33,7 +33,7 @@ pub async fn df(
         let output = opts.output.clone();
         let workspace_id = UserConfig::identifier()?;
         let val =
-            api::client::workspaces::data_frames::get(&remote_repo, workspace_id, input, opts)
+            api::client::workspaces::data_frames::get(&remote_repo, workspace_id, input, &opts)
                 .await;
 
         match val {
@@ -84,7 +84,7 @@ pub async fn staged_df<P: AsRef<Path>>(
         let remote_repo = api::client::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
         let val =
-            api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, input, opts)
+            api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, input, &opts)
                 .await;
 
         if let Ok(val) = val {

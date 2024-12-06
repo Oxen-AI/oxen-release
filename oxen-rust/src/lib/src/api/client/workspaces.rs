@@ -30,12 +30,47 @@ pub async fn list(remote_repo: &RemoteRepository) -> Result<Vec<WorkspaceRespons
     }
 }
 
+pub async fn get(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+) -> Result<WorkspaceResponse, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let url = api::endpoint::url_from_repo(remote_repo, &format!("/workspaces/{workspace_id}"))?;
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.workspace),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
+
 pub async fn create(
     remote_repo: &RemoteRepository,
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
 ) -> Result<WorkspaceResponse, OxenError> {
-    create_with_path(remote_repo, branch_name, workspace_id, Path::new("/")).await
+    create_with_path(remote_repo, branch_name, workspace_id, Path::new("/"), None).await
+}
+
+pub async fn create_with_name(
+    remote_repo: &RemoteRepository,
+    branch_name: impl AsRef<str>,
+    workspace_id: impl AsRef<str>,
+    workspace_name: impl AsRef<str>,
+) -> Result<WorkspaceResponse, OxenError> {
+    let workspace_name = workspace_name.as_ref().to_string();
+    create_with_path(
+        remote_repo,
+        branch_name,
+        workspace_id,
+        Path::new("/"),
+        Some(workspace_name),
+    )
+    .await
 }
 
 pub async fn create_with_path(
@@ -43,6 +78,7 @@ pub async fn create_with_path(
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
+    workspace_name: Option<String>,
 ) -> Result<WorkspaceResponse, OxenError> {
     let branch_name = branch_name.as_ref();
     let workspace_id = workspace_id.as_ref();
@@ -56,6 +92,8 @@ pub async fn create_with_path(
         // These two are needed for the oxen hub right now, ignored by the server
         resource_path: Some(path.to_str().unwrap().to_string()),
         entity_type: Some("user".to_string()),
+        name: workspace_name,
+        force: Some(true),
     };
 
     let client = client::new_for_url(&url)?;
@@ -116,6 +154,27 @@ mod tests {
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
+            assert_eq!(workspace.id, workspace_id);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_with_name() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            let branch_name = "main";
+            let workspace_id = "test_workspace_id";
+            let workspace_name = "test_workspace_name";
+            let workspace =
+                create_with_name(&remote_repo, branch_name, workspace_id, workspace_name).await?;
+
+            assert_eq!(workspace.id, workspace_id);
+            assert_eq!(workspace.name, Some(workspace_name.to_string()));
+
+            let workspace = get(&remote_repo, &workspace_id).await?;
+            assert_eq!(workspace.name, Some(workspace_name.to_string()));
             assert_eq!(workspace.id, workspace_id);
 
             Ok(remote_repo)
@@ -249,7 +308,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             // Create branch behind-main off main
             let new_branch = "behind-main";
             let main_branch = "main";

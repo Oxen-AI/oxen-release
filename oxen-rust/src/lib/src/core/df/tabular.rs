@@ -1,10 +1,12 @@
 use duckdb::ToSql;
 use polars::prelude::*;
 use serde_json::json;
+use std::collections::HashSet;
 use std::fs::File;
 use std::num::NonZeroUsize;
 
 use crate::constants;
+use crate::constants::EXCLUDE_OXEN_COLS;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::core::df::sql;
@@ -377,6 +379,7 @@ fn filter_df(mut df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenE
     if filter.vals.is_empty() {
         return Ok(df);
     }
+
     let mut vals = filter.vals.iter();
     let mut expr: Expr = filter_from_val(&mut df, vals.next().unwrap());
     for op in &filter.logical_ops {
@@ -451,8 +454,28 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
     if let Some(sql) = opts.sql.clone() {
         if let Some(repo_dir) = opts.repo_dir.as_ref() {
             let repo = LocalRepository::from_dir(repo_dir)?;
-            df = sql::query_df_from_repo(sql, &repo)?.lazy();
+            df =
+                sql::query_df_from_repo(sql, &repo, &opts.path.clone().unwrap_or_default(), &opts)?
+                    .lazy();
         }
+    }
+
+    if opts.should_randomize {
+        log::debug!("transform_lazy randomizing df");
+        let full_df = df
+            .collect()
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+        let n = Series::new("".into(), &[full_df.height() as i64]);
+
+        df = full_df
+            .sample_n(
+                &n,    // no specific rows to sample, use n parameter instead
+                false, // without replacement
+                true,  // shuffle
+                None,  // seed
+            )
+            .map_err(|e| OxenError::basic_str(format!("Failed to randomize dataframe: {e:?}")))?
+            .lazy();
     }
 
     if let Some(columns) = opts.unique_columns() {
@@ -469,6 +492,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
 
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
+            log::debug!("transform_lazy selecting columns: {:?}", columns);
             let cols = columns.iter().map(col).collect::<Vec<Expr>>();
             df = df.select(&cols);
         }
@@ -505,6 +529,26 @@ pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
 
     log::debug!("transform_slice_lazy before collect");
     Ok(df)
+}
+
+pub fn strip_excluded_cols(df: DataFrame) -> Result<DataFrame, OxenError> {
+    let schema = df.schema();
+    let excluded_cols = EXCLUDE_OXEN_COLS
+        .iter()
+        .map(|c| c.to_string())
+        .collect::<HashSet<String>>();
+    let fields = schema
+        .iter_fields()
+        .map(|f| f.name.to_string())
+        .collect::<Vec<String>>();
+    let select_cols = fields
+        .iter()
+        .filter(|c| !excluded_cols.contains(*c))
+        .map(|c| c.to_string())
+        .collect::<Vec<String>>();
+    let cols = select_cols.iter().map(col).collect::<Vec<Expr>>();
+    let result = df.lazy().select(&cols).collect();
+    result.map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
@@ -1248,7 +1292,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
         for field in schema.iter_fields() {
             let dtype = DataType::from_polars(field.dtype());
             let field_str = field.name().to_string();
-            let dtype_str = String::from(DataType::as_str(&dtype));
+            let dtype_str = DataType::as_str(&dtype);
             table.add_row(vec![field_str, dtype_str]);
         }
 
@@ -1265,7 +1309,7 @@ pub fn polars_schema_to_flat_str(schema: &Schema) -> String {
 
         let dtype = DataType::from_polars(field.dtype());
         let field_str = field.name().to_string();
-        let dtype_str = String::from(DataType::as_str(&dtype));
+        let dtype_str = DataType::as_str(&dtype);
         result = format!("{result}{field_str}:{dtype_str}");
     }
 

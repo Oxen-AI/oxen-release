@@ -23,9 +23,13 @@ impl RunCmd for WorkspaceListCmd {
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
         let workspaces = api::client::workspaces::list(&remote_repo).await?;
         for workspace in workspaces {
+            println!("id\tname\tcommit_id\tcommit_message");
             println!(
-                "{}\t{}\t{}",
-                workspace.id, workspace.commit.id, workspace.commit.message
+                "{}\t{}\t{}\t{}",
+                workspace.id,
+                workspace.name.unwrap_or("".to_string()),
+                workspace.commit.id,
+                workspace.commit.message
             );
         }
         Ok(())
