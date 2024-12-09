@@ -152,7 +152,7 @@ fn handle_json_creation(
     let repo_new: RepoNew = data.into_inner();
     let repo_new_clone = repo_new.clone();
     match repositories::create(&app_data.path, repo_new) {
-        Ok(repo) => match repositories::commits::latest_commit(&repo) {
+        Ok(repo) => match repositories::commits::latest_commit(&repo.local_repo) {
             Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
                 status: STATUS_SUCCESS.to_string(),
                 status_message: MSG_RESOURCE_FOUND.to_string(),
@@ -160,8 +160,9 @@ fn handle_json_creation(
                     namespace: repo_new_clone.namespace.clone(),
                     latest_commit: Some(latest_commit.clone()),
                     name: repo_new_clone.name.clone(),
-                    min_version: Some(repo.min_version().to_string()),
+                    min_version: Some(repo.local_repo.min_version().to_string()),
                 },
+                metadata_entries: None,
             })),
             Err(OxenError::NoCommitsFound(_)) => {
                 Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
@@ -171,8 +172,9 @@ fn handle_json_creation(
                         namespace: repo_new_clone.namespace.clone(),
                         latest_commit: None,
                         name: repo_new_clone.name.clone(),
-                        min_version: Some(repo.min_version().to_string()),
+                        min_version: Some(repo.local_repo.min_version().to_string()),
                     },
+                    metadata_entries: None,
                 }))
             }
             Err(err) => {
@@ -290,7 +292,7 @@ async fn handle_multipart_creation(
 
     // Create repository
     match repositories::create(&app_data.path, repo_data) {
-        Ok(repo) => match repositories::commits::latest_commit(&repo) {
+        Ok(repo) => match repositories::commits::latest_commit(&repo.local_repo) {
             Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
                 status: STATUS_SUCCESS.to_string(),
                 status_message: MSG_RESOURCE_FOUND.to_string(),
@@ -298,8 +300,9 @@ async fn handle_multipart_creation(
                     namespace: repo_data_clone.namespace,
                     latest_commit: Some(latest_commit),
                     name: repo_data_clone.name,
-                    min_version: Some(repo.min_version().to_string()),
+                    min_version: Some(repo.local_repo.min_version().to_string()),
                 },
+                metadata_entries: repo.entries,
             })),
             Err(OxenError::NoCommitsFound(_)) => {
                 Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
@@ -309,8 +312,9 @@ async fn handle_multipart_creation(
                         namespace: repo_data_clone.namespace,
                         latest_commit: None,
                         name: repo_data_clone.name,
-                        min_version: Some(repo.min_version().to_string()),
+                        min_version: Some(repo.local_repo.min_version().to_string()),
                     },
+                    metadata_entries: repo.entries,
                 }))
             }
             Err(err) => {

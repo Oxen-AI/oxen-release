@@ -14,10 +14,14 @@ use crate::error::OxenError;
 use crate::error::NO_REPO_FOUND;
 use crate::model::file::FileContents;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::repository::local_repository::LocalRepositoryWithEntries;
+use crate::model::Commit;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
+use crate::model::MetadataEntry;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepoNew};
+use crate::repositories;
 use crate::repositories::fork::FORK_STATUS_FILE;
 use crate::util;
 use fd_lock::RwLock;
@@ -319,7 +323,7 @@ pub fn transfer_namespace(
     }
 }
 
-pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, OxenError> {
+pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithEntries, OxenError> {
     let repo_dir = root_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
@@ -362,6 +366,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
     }
 
     // If the user supplied files, add and commit them
+    let mut commit: Option<Commit> = None;
     if let Some(files) = &new_repo.files {
         let user = &files[0].user;
         // Add the files
@@ -387,11 +392,44 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
             add(&local_repo, &full_path)?;
         }
 
-        let commit = core::v0_19_0::commits::commit_with_user(&local_repo, "Initial commit", user)?;
-        branches::create(&local_repo, constants::DEFAULT_BRANCH_NAME, &commit.id)?;
+        commit = Some(core::v0_19_0::commits::commit_with_user(
+            &local_repo,
+            "Initial commit",
+            user,
+        )?);
+        branches::create(
+            &local_repo,
+            constants::DEFAULT_BRANCH_NAME,
+            &commit.as_ref().unwrap().id,
+        )?;
     }
 
-    Ok(local_repo)
+    let metadata_entries: Option<Vec<MetadataEntry>> = if let Some(files) = &new_repo.files {
+        let entries: Vec<MetadataEntry> = files
+            .iter()
+            .filter_map(|file| {
+                repositories::entries::get_meta_entry(
+                    &local_repo,
+                    &commit.as_ref().unwrap(),
+                    &file.path,
+                )
+                .ok()
+            })
+            .collect();
+
+        if entries.is_empty() {
+            None
+        } else {
+            Some(entries)
+        }
+    } else {
+        None
+    };
+
+    Ok(LocalRepositoryWithEntries {
+        local_repo,
+        entries: metadata_entries,
+    })
 }
 
 pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
