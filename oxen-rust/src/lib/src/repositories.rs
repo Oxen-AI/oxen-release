@@ -410,7 +410,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
             .filter_map(|file| {
                 repositories::entries::get_meta_entry(
                     &local_repo,
-                    &commit.as_ref().unwrap(),
+                    commit.as_ref().unwrap(),
                     &file.path,
                 )
                 .ok()
