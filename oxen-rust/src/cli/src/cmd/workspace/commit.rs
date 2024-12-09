@@ -24,8 +24,8 @@ impl RunCmd for WorkspaceCommitCmd {
         Command::new(NAME)
             .about("Commit the staged files to the repository.")
             .arg(
-                Arg::new("workspace_id")
-                    .long("workspace_id")
+                Arg::new("workspace-id")
+                    .long("workspace-id")
                     .short('w')
                     .required(true)
                     .help("The workspace_id of the workspace"),
@@ -48,7 +48,7 @@ impl RunCmd for WorkspaceCommitCmd {
             ));
         };
 
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
             return Err(OxenError::basic_str(
                 "Err: Usage `oxen workspace commit -w <workspace_id> -m <message>`",
             ));

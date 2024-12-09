@@ -2,10 +2,11 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use actix_web::{web::Bytes, web::Query, HttpRequest, HttpResponse};
 use liboxen::repositories;
 use liboxen::view::data_frames::embeddings::{EmbeddingColumnsResponse, IndexEmbeddingRequest};
 use liboxen::view::StatusMessage;
+use serde::Deserialize;
 
 /// Get the embedding status for a data frame
 pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
@@ -30,7 +31,16 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn post(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+#[derive(Deserialize)]
+pub struct EmbeddingParams {
+    use_background_thread: Option<bool>,
+}
+
+pub async fn post(
+    req: HttpRequest,
+    query: Query<EmbeddingParams>,
+    bytes: Bytes,
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -49,8 +59,14 @@ pub async fn post(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHt
 
     let request: IndexEmbeddingRequest = serde_json::from_str(&data)?;
     let column = request.column;
+    let use_background_thread = query.use_background_thread.unwrap_or(false);
 
-    repositories::workspaces::data_frames::embeddings::index(&workspace, &file_path, &column)?;
+    repositories::workspaces::data_frames::embeddings::index(
+        &workspace,
+        &file_path,
+        &column,
+        use_background_thread,
+    )?;
 
     let response = EmbeddingColumnsResponse {
         columns: repositories::workspaces::data_frames::embeddings::list_indexed_columns(

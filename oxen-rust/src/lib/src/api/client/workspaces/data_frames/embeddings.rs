@@ -41,6 +41,7 @@ pub async fn index(
     workspace_id: &str,
     path: &Path,
     column: &str,
+    use_background_thread: bool,
 ) -> Result<EmbeddingColumnsResponse, OxenError> {
     let Some(file_path_str) = path.to_str() else {
         return Err(OxenError::basic_str(format!(
@@ -49,12 +50,13 @@ pub async fn index(
         )));
     };
 
-    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/{file_path_str}?use_background_thread={use_background_thread}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("index_embeddings {url}");
 
     let data = json!({
-        "column": column
+        "column": column,
+        "use_background_thread": use_background_thread,
     });
     let data = data.to_string();
     let client = client::new_for_url(&url)?;
@@ -149,11 +151,13 @@ mod tests {
                 .join("embeddings.jsonl");
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let column = "embedding";
+            let use_background_thread = true;
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,
                 &workspace_id,
                 &path,
                 column,
+                use_background_thread,
             )
             .await?;
 
@@ -206,33 +210,26 @@ mod tests {
                 .join("embeddings.jsonl");
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let column = "embedding";
+            let use_background_thread = false;
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,
                 &workspace_id,
                 &path,
                 column,
+                use_background_thread,
             )
             .await?;
 
-            let mut indexing_status = EmbeddingStatus::NotIndexed;
-            let mut max_retries = 100; // just so it doesn't hang forever
-            while indexing_status != EmbeddingStatus::Complete && max_retries > 0 {
-                let result = api::client::workspaces::data_frames::embeddings::get(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                )
-                .await;
+            let result = api::client::workspaces::data_frames::embeddings::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+            )
+            .await;
 
-                assert!(result.is_ok());
-                let response = result.unwrap();
-                indexing_status = response.columns[0].status.clone();
-
-                // sleep for 1 second
-                std::thread::sleep(std::time::Duration::from_secs(1));
-
-                max_retries -= 1;
-            }
+            assert!(result.is_ok());
+            let response = result.unwrap();
+            let indexing_status = response.columns[0].status.clone();
             assert_eq!(indexing_status, EmbeddingStatus::Complete);
 
             // Query the embeddings by id
@@ -281,11 +278,13 @@ mod tests {
                 .join("embeddings.jsonl");
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let column = "embedding";
+            let use_background_thread = true;
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,
                 &workspace_id,
                 &path,
                 column,
+                use_background_thread,
             )
             .await?;
 
@@ -364,11 +363,13 @@ mod tests {
                 .join("embeddings.jsonl");
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let column = "embedding";
+            let use_background_thread = true;
             api::client::workspaces::data_frames::embeddings::index(
                 &remote_repo,
                 &workspace_id,
                 &path,
                 column,
+                use_background_thread,
             )
             .await?;
 
