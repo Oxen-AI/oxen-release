@@ -58,7 +58,7 @@ class Repo:
         self._repo.init()
         return self
 
-    def clone(self, url: str, branch: str = "main", shallow=False, all=False):
+    def clone(self, url: str, branch: str = "main", all=False):
         """
         Clone repository from a remote url.
 
@@ -67,12 +67,10 @@ class Repo:
                 The url of the remote repository. ex) https://hub.oxen.ai/ox/chatbot
             branch: `str`
                 The name of the branch to clone. Default: main
-            shallow: `bool`
-                Whether to do a shallow clone or not. Default: False
             all: `bool`
                 Whether to clone the full commit history or not. Default: False
         """
-        return self._repo.clone(url, branch, shallow, all)
+        return self._repo.clone(url, branch, all)
 
     def branches(self):
         """

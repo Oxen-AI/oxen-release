@@ -88,11 +88,3 @@ To clone a repository from remote server you can use the URL you provided previo
 ```bash
 $ oxen clone http://<HOST>/MyNamespace/MyRepoName
 ```
-
-Note: Due to the potential size of data, you can supply the `--shallow` flag so that oxen does not immediately pull all the data. You can then navigate into the directory, and pull the specific branch that you want.
-
-```bash
-$ oxen clone http://<HOST>/MyNamespace/MyRepoName --shallow
-$ cd MyRepoName
-$ oxen pull origin main
-```

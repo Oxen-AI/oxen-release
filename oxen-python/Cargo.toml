@@ -28,7 +28,7 @@ polars = { version = "0.44.0", features = [
 ] }
 serde_json = "1.0.106"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
-liboxen = "0.19.0"
+liboxen = "0.23.1"
 # liboxen = { path = "../../Oxen/src/lib" }
 
 [build-dependencies]
