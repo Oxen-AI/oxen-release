@@ -4,7 +4,7 @@ use crate::constants::{self, DEFAULT_VNODE_SIZE, MIN_OXEN_VERSION};
 use crate::core::versions::MinOxenVersion;
 use crate::error;
 use crate::error::OxenError;
-use crate::model::{Remote, RemoteRepository};
+use crate::model::{MetadataEntry, Remote, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -21,6 +21,12 @@ pub struct LocalRepository {
     vnode_size: Option<u64>,     // Size of the vnodes
     subtree_paths: Option<Vec<PathBuf>>, // If the user clones a subtree, we store the paths here so that we know we don't have the full tree
     depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LocalRepositoryWithEntries {
+    pub local_repo: LocalRepository,
+    pub entries: Option<Vec<MetadataEntry>>,
 }
 
 impl LocalRepository {
