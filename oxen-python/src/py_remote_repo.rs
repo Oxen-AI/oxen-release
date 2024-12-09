@@ -1,5 +1,5 @@
 
-use liboxen::model::file::FileNew;
+use liboxen::model::file::{FileContents, FileNew};
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
@@ -104,7 +104,7 @@ impl PyRemoteRepo {
                 let user = config.to_user();
                 let files: Vec<FileNew> = vec![FileNew {
                     path: PathBuf::from("README.md"),
-                    contents: format!("# {}\n", &self.repo.name),
+                    contents: FileContents::Text(format!("# {}\n", &self.repo.name)),
                     user: user.clone()
                 }];
                 let mut repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);

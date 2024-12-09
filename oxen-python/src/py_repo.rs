@@ -10,6 +10,7 @@ use pyo3::prelude::*;
 
 use liboxen::api;
 use liboxen::repositories;
+use liboxen::opts::FetchOpts;
 
 use std::path::PathBuf;
 
@@ -41,14 +42,18 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn clone(&mut self, url: &str, branch: &str, shallow: bool, all: bool) -> Result<(), PyOxenError> {
+    pub fn clone(&mut self, url: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
         let repo = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let opts = CloneOpts {
                 url: url.to_string(),
                 dst: self.path.clone(),
-                branch: branch.to_string(),
-                shallow,
-                all
+                fetch_opts: FetchOpts {
+                    branch: branch.to_string(),
+                    subtree_paths: None,
+                    depth: None,
+                    all,
+                    ..FetchOpts::new()
+                },
             };
             repositories::clone(&opts).await
         })?;
@@ -186,7 +191,15 @@ impl PyRepo {
     pub fn pull(&self, remote: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
-            repositories::pull_remote_branch(&repo, remote, branch, all).await
+            let fetch_opts = FetchOpts {
+                remote: remote.to_string(),
+                branch: branch.to_string(),
+                subtree_paths: None,
+                depth: None,
+                all,
+                ..FetchOpts::new()
+            };
+            repositories::pull_remote_branch(&repo, &fetch_opts).await
         })?;
         Ok(())
     }
