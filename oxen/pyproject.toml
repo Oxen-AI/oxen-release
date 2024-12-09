@@ -12,14 +12,14 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "pandas==2.0.1",
-    "polars==0.17.11",
-    "pyarrow==15.0.2",
+    "pandas",
+    "polars>=1.15.0",
+    "pyarrow>=7.0.0",
     "opencv-python-headless==4.7.0.72",
-    "numpy==1.26.4",
-    "tqdm==4.65.0",
+    "numpy>=1.16.0",
+    "tqdm==4.67.1",
     "toml==0.10.2",
-    "requests==2.31.0",
+    "requests==2.32.3",
 ]
 
 
