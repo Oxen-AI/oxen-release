@@ -26,8 +26,8 @@ impl RunCmd for WorkspaceDFIndexCmd {
             .about("Index the data frame for querying.")
             .arg(Arg::new("path").help("Path to the data frame you want to index or query."))
             .arg(
-                Arg::new("workspace_id")
-                    .long("workspace_id")
+                Arg::new("workspace-id")
+                    .long("workspace-id")
                     .short('w')
                     .help("The workspace id to use."),
             )
@@ -44,11 +44,18 @@ impl RunCmd for WorkspaceDFIndexCmd {
                     .short('e')
                     .action(clap::ArgAction::SetTrue),
             )
+            .arg(
+                Arg::new("use-background-thread")
+                    .help("Use a background thread to index the embeddings.")
+                    .long("use-background-thread")
+                    .short('b')
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
             return Err(OxenError::basic_str("Must supply a workspace id."));
         };
 
@@ -85,6 +92,7 @@ impl RunCmd for WorkspaceDFIndexCmd {
                     "Must supply a column to index for embeddings.",
                 ));
             };
+            let use_background_thread = args.get_flag("use-background-thread");
             println!("Indexing embeddings for column: {}", column);
             let path = Path::new(&path);
             api::client::workspaces::data_frames::embeddings::index(
@@ -92,6 +100,7 @@ impl RunCmd for WorkspaceDFIndexCmd {
                 workspace_id,
                 path,
                 column,
+                use_background_thread,
             )
             .await?;
         }

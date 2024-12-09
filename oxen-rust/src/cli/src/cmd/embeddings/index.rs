@@ -27,6 +27,12 @@ impl RunCmd for EmbeddingsIndexCmd {
                     .short('c')
                     .help("The column that you want to index the embeddings for."),
             )
+            .arg(
+                Arg::new("use-background-thread")
+                    .long("use-background-thread")
+                    .short('b')
+                    .help("Run the indexing asynchronously in the background."),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -44,6 +50,8 @@ impl RunCmd for EmbeddingsIndexCmd {
             return Err(OxenError::basic_str(err_msg));
         };
 
+        let use_background_thread = args.get_flag("use-background-thread");
+
         let repository = LocalRepository::from_current_dir()?;
         let commit = repositories::commits::head_commit(&repository)?;
         if !repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
@@ -57,7 +65,12 @@ impl RunCmd for EmbeddingsIndexCmd {
             let workspace =
                 repositories::workspaces::create(&repository, &commit, workspace_id, false)?;
             repositories::workspaces::data_frames::index(&repository, &workspace, path)?;
-            repositories::workspaces::data_frames::embeddings::index(&workspace, path, column)
+            repositories::workspaces::data_frames::embeddings::index(
+                &workspace,
+                path,
+                column,
+                use_background_thread,
+            )
         } else {
             Err(OxenError::basic_str("Data frame is already indexed."))
         }

@@ -17,8 +17,8 @@ impl RunCmd for WorkspaceAddCmd {
 
     fn args(&self) -> Command {
         add_args().arg(
-            Arg::new("workspace_id")
-                .long("workspace_id")
+            Arg::new("workspace-id")
+                .long("workspace-id")
                 .short('w')
                 .required(true)
                 .help("The workspace_id of the workspace"),
@@ -33,7 +33,7 @@ impl RunCmd for WorkspaceAddCmd {
             .map(PathBuf::from)
             .collect();
 
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
             return Err(OxenError::basic_str("Must supply a workspace id"));
         };
 

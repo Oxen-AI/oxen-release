@@ -24,8 +24,8 @@ impl RunCmd for WorkspaceDiffCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         DiffCmd.args().arg(
-            Arg::new("workspace_id")
-                .long("workspace_id")
+            Arg::new("workspace-id")
+                .long("workspace-id")
                 .short('w')
                 .help("The workspace to compare against.")
                 .action(clap::ArgAction::Set),
@@ -35,7 +35,7 @@ impl RunCmd for WorkspaceDiffCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let opts = DiffCmd::parse_args(args);
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
             return Err(OxenError::basic_str("Must supply a workspace id."));
         };
 

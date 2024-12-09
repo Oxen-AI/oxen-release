@@ -31,8 +31,8 @@ impl RunCmd for WorkspaceDFGetCmd {
                     .required(true),
             )
             .arg(
-                Arg::new("workspace_id")
-                    .long("workspace_id")
+                Arg::new("workspace-id")
+                    .long("workspace-id")
                     .short('w')
                     .help("The workspace id to use."),
             )
@@ -87,7 +87,7 @@ impl RunCmd for WorkspaceDFGetCmd {
                 "Must supply a path to the data frame you want to get.",
             ));
         };
-        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
             return Err(OxenError::basic_str("Must supply a workspace id."));
         };
 
@@ -121,7 +121,7 @@ impl RunCmd for WorkspaceDFGetCmd {
                     println!("Query took: {:?}", start.elapsed());
                 } else {
                     return Err(OxenError::basic_str(
-                        format!("No data frame found. Index the data frame before querying.\n\n  oxen workspace df index {workspace_id} {path}\n")));
+                        format!("No data frame found. Index the data frame before querying.\n\n  oxen workspace df index {path} -w {workspace_id}\n")));
                 }
             }
             Err(e) => {

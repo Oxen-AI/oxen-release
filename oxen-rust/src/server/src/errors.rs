@@ -429,6 +429,19 @@ impl error::ResponseError for OxenHttpError {
                         });
                         HttpResponse::InternalServerError().json(error_json)
                     }
+                    OxenError::NoRowsFound(msg) => {
+                        log::error!("No rows found: {}", msg);
+                        let error_json = json!({
+                            "error": {
+                                "type": "no_rows_found",
+                                "title": "No rows found",
+                                "detail": format!("{}", msg),
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_INTERNAL_SERVER_ERROR,
+                        });
+                        HttpResponse::NotFound().json(error_json)
+                    }
                     err => {
                         log::error!("Internal server error: {:?}", err);
                         HttpResponse::InternalServerError()

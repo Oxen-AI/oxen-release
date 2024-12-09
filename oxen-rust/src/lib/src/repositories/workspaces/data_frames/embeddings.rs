@@ -87,10 +87,43 @@ pub fn list_indexed_columns(
     Ok(config.columns.values().cloned().collect())
 }
 
+fn perform_indexing(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    column_name: String,
+    vector_length: usize,
+) -> Result<(), OxenError> {
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let conn = df_db::get_connection(&db_path)?;
+
+    // Execute VSS commands separately
+    conn.execute("INSTALL vss;", [])?;
+    conn.execute("LOAD vss;", [])?;
+    conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
+
+    // Convert column type
+    let sql = format!(
+        "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
+        column_name, vector_length
+    );
+    log::debug!("Executing: {}", sql);
+    conn.execute(&sql, [])?;
+
+    log::debug!(
+        "Completed indexing embeddings for column `{}` on {}",
+        column_name,
+        path.as_ref().display()
+    );
+    update_embedding_status(workspace, path, column_name, EmbeddingStatus::Complete)?;
+
+    Ok(())
+}
+
 pub fn index(
     workspace: &Workspace,
     path: impl AsRef<Path>,
     column: impl AsRef<str>,
+    use_background_thread: bool,
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
     let column = column.as_ref();
@@ -98,36 +131,21 @@ pub fn index(
     let column_name = column.to_string();
     let vector_length = get_embedding_length(workspace, &path, column)?;
 
-    // Clone necessary values for the background thread
-    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
-    let workspace = workspace.clone();
+    if use_background_thread {
+        // Clone necessary values for the background thread
+        let workspace = workspace.clone();
+        let column_name = column_name.clone();
+        let path = path.clone();
 
-    // Spawn background thread for VSS setup
-    std::thread::spawn(move || -> Result<(), OxenError> {
-        let conn = df_db::get_connection(&db_path)?;
-
-        // Execute VSS commands separately
-        conn.execute("INSTALL vss;", [])?;
-        conn.execute("LOAD vss;", [])?;
-        conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
-
-        // Convert column type
-        let sql = format!(
-            "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
-            column_name, vector_length
-        );
-        log::debug!("Executing in background: {}", sql);
-        conn.execute(&sql, [])?;
-
-        log::debug!(
-            "Completed indexing embeddings for column `{}` on {}",
-            column_name,
-            path.display()
-        );
-        update_embedding_status(&workspace, path, column_name, EmbeddingStatus::Complete)?;
-
-        Ok(())
-    });
+        // Spawn background thread for VSS setup
+        std::thread::spawn(move || {
+            if let Err(e) = perform_indexing(&workspace, path, column_name, vector_length) {
+                log::error!("Error in background indexing thread: {}", e);
+            }
+        });
+    } else {
+        perform_indexing(workspace, path, column_name, vector_length)?;
+    }
 
     Ok(())
 }

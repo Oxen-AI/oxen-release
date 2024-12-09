@@ -3,8 +3,9 @@
 //! Enumeration for all errors that can occur in the oxen library
 //!
 
-use derive_more::{Debug, Display, Error};
+use derive_more::{Debug, Error};
 use duckdb::arrow::error::ArrowError;
+use std::fmt;
 use std::io;
 use std::num::ParseIntError;
 use std::path::Path;
@@ -33,7 +34,7 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
-#[derive(Display, Debug, Error)]
+#[derive(Error)]
 pub enum OxenError {
     /// Internal Oxen Errors
     // User
@@ -131,6 +132,24 @@ pub enum OxenError {
 
     // Fallback
     Basic(StringError),
+}
+
+impl fmt::Display for OxenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OxenError::Basic(err) => write!(f, "{}", err),
+            _ => write!(f, "Unimplemented Display Error"),
+        }
+    }
+}
+
+impl fmt::Debug for OxenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OxenError::Basic(err) => write!(f, "{}", err),
+            _ => write!(f, "Unimplemented Debug Error"),
+        }
+    }
 }
 
 impl OxenError {
