@@ -1,4 +1,4 @@
-use crate::model::{Commit, EntryDataType, RemoteRepository};
+use crate::model::{Commit, EntryDataType, MetadataEntry, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 use super::{DataTypeCount, StatusMessage};
@@ -49,6 +49,7 @@ pub struct RepositoryCreationResponse {
     pub status: String,
     pub status_message: String,
     pub repository: RepositoryCreationView,
+    pub metadata_entries: Option<Vec<MetadataEntry>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
