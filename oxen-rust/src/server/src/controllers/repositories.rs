@@ -163,7 +163,7 @@ pub async fn create(
                 .unwrap_or("")
                 .starts_with("multipart/form-data");
             {
-                let multipart = Multipart::new(&req.headers(), payload);
+                let multipart = Multipart::new(req.headers(), payload);
                 return handle_multipart_creation(app_data, multipart).await;
             }
         }
