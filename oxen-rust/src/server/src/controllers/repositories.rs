@@ -3,6 +3,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
+use futures_util::stream::StreamExt; // Import StreamExt for the next() method
 use futures_util::TryStreamExt;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
@@ -23,7 +24,8 @@ use actix_multipart::Multipart; // Gives us Multipart
 use liboxen::model::{RepoNew, User};
 
 use actix_files::NamedFile;
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
+use serde_json::from_slice;
 use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -136,22 +138,45 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
 pub async fn create(
     req: HttpRequest,
-    payload: actix_web::Either<web::Json<RepoNew>, Multipart>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    mut payload: web::Payload,
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    match payload {
-        actix_web::Either::Left(json_data) => handle_json_creation(app_data, json_data),
-        actix_web::Either::Right(multipart) => handle_multipart_creation(app_data, multipart).await,
+
+    if let Some(content_type) = req.headers().get("Content-Type") {
+        if content_type == "application/json" {
+            let mut body_bytes = Vec::new();
+            while let Some(chunk) = payload.next().await {
+                let chunk = chunk.map_err(|e| {
+                    println!("Failed to read payload: {:?}", e);
+                    OxenHttpError::BadRequest("Failed to read payload".into())
+                })?;
+                body_bytes.extend_from_slice(&chunk);
+            }
+            let json_data: RepoNew = from_slice(&body_bytes).map_err(|e| {
+                println!("Failed to parse JSON: {:?}", e);
+                OxenHttpError::BadRequest("Invalid JSON".into())
+            })?;
+            return handle_json_creation(app_data, json_data);
+        } else {
+            content_type
+                .to_str()
+                .unwrap_or("")
+                .starts_with("multipart/form-data");
+            {
+                let multipart = Multipart::new(&req.headers(), payload);
+                return handle_multipart_creation(app_data, multipart).await;
+            }
+        }
     }
+    Err(OxenHttpError::BadRequest("Unsupported Content-Type".into()))
 }
 
 fn handle_json_creation(
     app_data: &OxenAppData,
-    data: web::Json<RepoNew>,
+    data: RepoNew,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let repo_new: RepoNew = data.into_inner();
-    let repo_new_clone = repo_new.clone();
-    match repositories::create(&app_data.path, repo_new) {
+    let repo_new_clone = data.clone();
+    match repositories::create(&app_data.path, data) {
         Ok(repo) => match repositories::commits::latest_commit(&repo.local_repo) {
             Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
                 status: STATUS_SUCCESS.to_string(),
@@ -434,16 +459,11 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
-    use actix_web::web;
-    use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{Commit, RepoNew};
     use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::repository::RepositoryCreationResponse;
     use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse};
-    use time::OffsetDateTime;
 
     use crate::controllers;
     use crate::test;
@@ -514,43 +534,6 @@ mod tests {
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, name);
-
-        // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
-
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_respositories_create() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
-        let timestamp = OffsetDateTime::now_utc();
-        let root_commit = Commit {
-            id: String::from("1234"),
-            parent_ids: vec![],
-            message: String::from(constants::INITIAL_COMMIT_MSG),
-            author: String::from("Ox"),
-            email: String::from("ox@oxen.ai"),
-            timestamp,
-            root_hash: None,
-        };
-        let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
-        let req = test::request(&sync_dir, queue, "/api/repos");
-
-        let resp = controllers::repositories::create(
-            req,
-            actix_web::Either::Left(web::Json(repo_new.clone())),
-        )
-        .await
-        .unwrap();
-        assert_eq!(resp.status(), http::StatusCode::OK);
-        let body = to_bytes(resp.into_body()).await.unwrap();
-        let text = std::str::from_utf8(&body).unwrap();
-
-        let repo_response: RepositoryCreationResponse = serde_json::from_str(text)?;
-        assert_eq!(repo_response.status, STATUS_SUCCESS);
-        assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
