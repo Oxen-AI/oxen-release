@@ -186,6 +186,7 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         OxenHttpError::BadRequest("Failed to parse request body into JSON".into())
     })?;
 
+    let mut metadata_json: Option<serde_json::Value> = None;
     if let Some(obj) = body_json.as_object_mut() {
         if obj.contains_key("name") {
             let name_value = obj.remove("name").unwrap(); // Safe to unwrap because we just checked it exists
@@ -197,6 +198,9 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
 
         obj.insert("name".to_string(), json!(column_name));
+        if obj.contains_key("metadata") {
+            metadata_json = Some(obj.remove("metadata").unwrap()); // Safe to unwrap because we just checked it exists
+        }
     } else {
         return Err(OxenHttpError::BadRequest(
             "Request body is not a valid JSON object".into(),
@@ -224,6 +228,16 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
+    }
+
+    if let Some(metadata) = metadata_json {
+        repositories::workspaces::data_frames::columns::add_column_metadata(
+            &repo,
+            &workspace,
+            file_path.clone(),
+            column_name.clone(),
+            &metadata,
+        )?;
     }
 
     let column_df = repositories::workspaces::data_frames::columns::update(
