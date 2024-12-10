@@ -2069,4 +2069,139 @@ A: Checkout Oxen.ai
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_push_partial_clone_nlp_classification() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo
+            test::run_empty_dir_test_async(|repos_base_dir| async move {
+                let repos_base_dir_copy = repos_base_dir.clone();
+                let user_a_repo_dir = repos_base_dir.join("user_a_repo");
+
+                // Make sure to clone a subtree to test subtree merge conflicts
+                let mut clone_opts = CloneOpts::new(&remote_repo.remote.url, &user_a_repo_dir);
+                clone_opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("nlp").join("classification")]);
+                clone_opts.fetch_opts.depth = Some(2);
+                let user_a_repo = repositories::clone(&clone_opts).await?;
+
+                // User adds multiple files and modifies an existing file
+                let new_file_1 = PathBuf::from("nlp")
+                    .join("classification")
+                    .join("new_partial_data_1.tsv");
+                let new_file_path_1 = user_a_repo.path.join(&new_file_1);
+                let new_file_path_1 =
+                    test::write_txt_file_to_path(new_file_path_1, "image\tlabel1")?;
+                repositories::add(&user_a_repo, &new_file_path_1)?;
+
+                let new_file_2 = PathBuf::from("nlp")
+                    .join("classification")
+                    .join("new_partial_data_2.tsv");
+                let new_file_path_2 = user_a_repo.path.join(&new_file_2);
+                let new_file_path_2 =
+                    test::write_txt_file_to_path(new_file_path_2, "image\tlabel2")?;
+                repositories::add(&user_a_repo, &new_file_path_2)?;
+
+                // Modify an existing file
+                let existing_file_path = user_a_repo
+                    .path
+                    .join("nlp/classification/existing_file.tsv");
+                let modified_file_path =
+                    test::write_txt_file_to_path(existing_file_path, "image\tmodified_label")?;
+                repositories::add(&user_a_repo, &modified_file_path)?;
+
+                // Commit changes
+                let commit = repositories::commit(
+                    &user_a_repo,
+                    "Adding new partial data files and modifying existing file",
+                )?;
+                repositories::push(&user_a_repo).await?;
+
+                // Verify that the new files are in the remote repo
+                let dir_entries = api::client::dir::list(
+                    &remote_repo,
+                    &commit.id,
+                    &PathBuf::from("nlp").join("classification"),
+                    1,
+                    100,
+                )
+                .await?;
+
+                assert!(dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "new_partial_data_1.tsv"));
+                assert!(dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "new_partial_data_2.tsv"));
+                assert!(dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "existing_file.tsv"));
+
+                // Verify the content of the modified existing file
+                api::client::entries::download_file(
+                    &remote_repo,
+                    &dir_entries
+                        .entries
+                        .iter()
+                        .find(|entry| entry.filename == "existing_file.tsv")
+                        .unwrap(),
+                    &PathBuf::from("nlp/classification/existing_file.tsv"),
+                    &user_a_repo
+                        .path
+                        .join("nlp/classification/existing_file.tsv"),
+                    &commit.id,
+                )
+                .await?;
+                let modified_file_content = std::fs::read_to_string(
+                    &user_a_repo
+                        .path
+                        .join("nlp/classification/existing_file.tsv"),
+                )?;
+                assert_eq!(modified_file_content, "image\tmodified_label");
+
+                // Verify that the root directory is intact
+                let root_dir_entries =
+                    api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
+                        .await?;
+
+                assert!(root_dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "README.md"));
+
+                // Verify that the original repo structure is intact
+                let classification_dir_entries = api::client::dir::list(
+                    &remote_repo,
+                    &commit.id,
+                    &PathBuf::from("nlp").join("classification"),
+                    1,
+                    100,
+                )
+                .await?;
+
+                assert!(classification_dir_entries.entries.len() > 0); // Ensure there are entries in the classification directory
+
+                let root_dir_entries =
+                    api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)
+                        .await?;
+
+                assert!(root_dir_entries
+                    .entries
+                    .iter()
+                    .any(|entry| entry.filename == "README.md"));
+
+                Ok(repos_base_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
 }
