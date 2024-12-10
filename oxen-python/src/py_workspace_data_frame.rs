@@ -49,7 +49,7 @@ fn _get(
 
     let data = pyo3_asyncio::tokio::get_runtime()
         .block_on(async {
-            api::client::workspaces::data_frames::get(repo, &workspace_id, path, opts).await 
+            api::client::workspaces::data_frames::get(repo, &workspace_id, path, &opts).await 
         })?;
 
     let Some(data_frame) = data.data_frame else {
@@ -134,7 +134,7 @@ impl PyWorkspaceDataFrame {
                     &self.workspace.repo.repo,
                     &self.workspace.id,
                     &self.path,
-                    opts
+                    &opts
                 ).await 
             })?;
         

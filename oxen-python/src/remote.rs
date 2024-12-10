@@ -1,4 +1,5 @@
 
+use liboxen::model::file::FileContents;
 use pyo3::prelude::*;
 use std::path::PathBuf;
 
@@ -65,7 +66,7 @@ pub fn create_repo(
             let files: Vec<FileNew> = files.iter().map(|(path, contents)| {
                 FileNew {
                     path: PathBuf::from(path),
-                    contents: contents.to_string(),
+                    contents: FileContents::Text(contents.to_string()),
                     user: user.clone()
                 }
             }).collect();
