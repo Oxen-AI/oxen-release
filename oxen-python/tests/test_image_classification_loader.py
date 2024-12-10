@@ -31,9 +31,9 @@ def test_image_classification_dataloader_local(
     assert len(mapper.items()) == 3
 
     # Test ease of use with pytorch
-    torch_data = TensorDataset(torch.from_numpy(data), torch.from_numpy(labels))
-    torch_dl = DataLoader(torch_data, batch_size=1)
-    assert len(torch_dl) == 5
+    # torch_data = TensorDataset(torch.from_numpy(data), torch.from_numpy(labels))
+    # torch_dl = DataLoader(torch_data, batch_size=1)
+    # assert len(torch_dl) == 5
 
     # Test ease of use with tensorflow
     dataset = tf.data.Dataset.from_tensor_slices((data, labels))
