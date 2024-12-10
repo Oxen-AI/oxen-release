@@ -223,6 +223,13 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     // Get the workspace
     let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
+    // Make sure the data frame is indexed
+    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+
+    if !is_editable {
+        return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
+    }
+
     if let Some(metadata) = metadata_json {
         repositories::workspaces::data_frames::columns::add_column_metadata(
             &repo,
@@ -231,13 +238,6 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
             column_name.clone(),
             &metadata,
         )?;
-    }
-
-    // Make sure the data frame is indexed
-    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
-
-    if !is_editable {
-        return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
     let column_df = repositories::workspaces::data_frames::columns::update(
