@@ -32,7 +32,8 @@ impl PyWorkspace {
                 &repo.repo,
                 &branch_name,
                 &name,
-                Path::new(&path.unwrap_or("/".to_string()))
+                Path::new(&path.unwrap_or("/".to_string())),
+                Some(name.clone())
             )
             .await
         })?;
