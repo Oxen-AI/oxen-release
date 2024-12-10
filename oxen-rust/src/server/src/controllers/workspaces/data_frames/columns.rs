@@ -263,6 +263,13 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         &mut df_views,
     )?;
 
+    let new_schema =
+        repositories::data_frames::schemas::get_staged(&workspace.workspace_repo, &file_path)?;
+    repositories::workspaces::data_frames::columns::update_column_schemas(
+        new_schema,
+        &mut df_views,
+    )?;
+
     let diff =
         repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
