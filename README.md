@@ -152,7 +152,7 @@ Set up virtual environment:
 # Set up your python virtual environment
 $ python -m venv ~/.venv_oxen # could be python3
 $ source ~/.venv_oxen/bin/activate
-$ pip install maturin
+$ pip install -r requirements.txt
 ```
 
 ```Bash
@@ -160,6 +160,7 @@ $ pip install maturin
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Run maturin
+$ cd oxen
 $ maturin develop
 ```
 

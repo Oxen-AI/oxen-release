@@ -8,7 +8,6 @@ def clone(
     host: str = "hub.oxen.ai",
     branch: str = "main",
     scheme: str = "https",
-    shallow=False,
     all=False,
 ):
     """
@@ -26,8 +25,6 @@ def clone(
             The branch name id to clone. Defaults to 'main'
         scheme: `str`
             The scheme to use. Defaults to 'https'
-        shallow: `bool`
-            Whether to do a shallow clone or not. Default: False
         all: `bool`
             Whether to clone the full commit history or not. Default: False
      Returns:
@@ -43,7 +40,7 @@ def clone(
     if repo_id.startswith("http"):
         # Clone repo
         repo = Repo(path)
-        repo.clone(repo_id, branch=branch, shallow=shallow, all=all)
+        repo.clone(repo_id, branch=branch, all=all)
     else:
         # Verify repo_id format
         if "/" not in repo_id:
@@ -52,5 +49,5 @@ def clone(
         repo_url = f"{scheme}://{host}/{repo_id}"
         # Clone repo
         repo = Repo(path)
-        repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
+        repo.clone(repo_url, branch=branch, all=all)
     return repo

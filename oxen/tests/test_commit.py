@@ -14,8 +14,7 @@ def test_commit_one_file(celeba_local_repo_no_commits):
 
     # oxen log
     history = repo.log()
-    # There is always an initial commit + the one we just made
-    assert len(history) == 2
+    assert len(history) == 1
 
 
 def test_commit_all(celeba_local_repo_no_commits):
@@ -35,4 +34,4 @@ def test_commit_all(celeba_local_repo_no_commits):
 
     # oxen log
     history = repo.log()
-    assert len(history) == 3
+    assert len(history) == 2
