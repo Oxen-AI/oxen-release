@@ -8,5 +8,5 @@ class StrColTemplate(oxen.Op):
 
     def call(self, args):
         value, column = args
-        result = column.apply(lambda x: value.replace(self.search, x))
+        result = column.map_elements(lambda x: value.replace(self.search, x))
         return result
