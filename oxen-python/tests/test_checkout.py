@@ -4,8 +4,6 @@ import os
 def test_checkout(chat_bot_local_repo_no_commits):
     repo = chat_bot_local_repo_no_commits
 
-    initial_branch = repo.current_branch.name
-
     # oxen add prompt.txt
     prompt_file = "prompt.txt"
     full_path = os.path.join(repo.path, prompt_file)
@@ -17,6 +15,8 @@ def test_checkout(chat_bot_local_repo_no_commits):
     # read prompt contents
     with open(full_path, "r") as f:
         old_contents = f.read()
+
+    initial_branch = repo.current_branch.name
 
     # oxen checkout -b new_branch
     new_branch = "new_branch"
