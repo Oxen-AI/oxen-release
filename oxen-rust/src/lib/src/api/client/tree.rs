@@ -496,10 +496,13 @@ mod tests {
     use crate::api;
     use crate::error::OxenError;
     use crate::model::MerkleHash;
+    use crate::opts::FetchOpts;
     use crate::repositories;
     use crate::test;
+    use std::fs;
 
     use std::collections::HashSet;
+    use std::path::PathBuf;
     use std::str::FromStr;
 
     #[tokio::test]
@@ -509,6 +512,159 @@ mod tests {
             let commit_hash = MerkleHash::from_str(&commit.id)?;
             let has_node = api::client::tree::has_node(&remote_repo, commit_hash).await?;
             assert!(has_node);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_tree_from_path() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let remote_repo_clone = remote_repo.clone();
+            let download_repo_path_1 = local_repo.path.join("download_repo_test_1");
+            let download_repo_path_2 = local_repo.path.join("download_repo_test_2");
+            let download_local_repo_1 = repositories::init(&download_repo_path_1)?;
+            let download_local_repo_2 = repositories::init(&download_repo_path_2)?;
+            api::client::tree::download_tree_from_path(
+                &download_local_repo_1,
+                &remote_repo_clone,
+                &commit.id,
+                "",
+                true,
+            )
+            .await?;
+
+            let dir_path = download_local_repo_1.path.join(".oxen/tree/nodes");
+            let entries = fs::read_dir(&dir_path)?;
+            let dir_count = entries
+                .filter_map(|entry| match entry {
+                    Ok(e) => {
+                        if let Ok(file_type) = e.file_type() {
+                            if file_type.is_dir() {
+                                return Some(1);
+                            }
+                        }
+                        None
+                    }
+                    Err(_) => None,
+                })
+                .count();
+
+            assert!(dir_count > 16);
+
+            api::client::tree::download_tree_from_path(
+                &download_local_repo_2,
+                &remote_repo_clone,
+                &commit.id,
+                "annotations/test",
+                true,
+            )
+            .await?;
+
+            let dir_path = download_local_repo_2.path.join(".oxen/tree/nodes");
+            let entries = fs::read_dir(&dir_path)?;
+            let dir_count = entries
+                .filter_map(|entry| match entry {
+                    Ok(e) => {
+                        if let Ok(file_type) = e.file_type() {
+                            if file_type.is_dir() {
+                                return Some(1);
+                            }
+                        }
+                        None
+                    }
+                    Err(_) => None,
+                })
+                .count();
+
+            // Here we expect very few nodes (but more than on the download_tree_from_path function) because we only download the nodes that actually
+            // contain the files in the subtree path, no parents, no siblings.
+            assert!(dir_count < 4);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_trees_from() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let remote_repo_clone = remote_repo.clone();
+            let download_repo_path = local_repo.path.join("download_repo_test_1");
+            let download_local_repo = repositories::init(&download_repo_path)?;
+            let fetch_opts = FetchOpts {
+                subtree_paths: None,
+                depth: None,
+                all: false,
+                remote: remote_repo_clone.url().to_string(),
+                branch: "main".to_string(),
+            };
+            api::client::tree::download_trees_from(
+                &download_local_repo,
+                &remote_repo_clone,
+                &commit.id,
+                &fetch_opts,
+            )
+            .await?;
+
+            let dir_path = download_local_repo.path.join(".oxen/tree/nodes");
+            let entries = fs::read_dir(&dir_path)?;
+            let dir_count = entries
+                .filter_map(|entry| match entry {
+                    Ok(e) => {
+                        if let Ok(file_type) = e.file_type() {
+                            if file_type.is_dir() {
+                                return Some(1);
+                            }
+                        }
+                        None
+                    }
+                    Err(_) => None,
+                })
+                .count();
+
+            assert!(dir_count > 35);
+
+            let download_repo_path_2 = local_repo.path.join("download_repo_test_2");
+            let download_local_repo_2 = repositories::init(&download_repo_path_2)?;
+            let fetch_opts = FetchOpts {
+                subtree_paths: Some(vec![PathBuf::from("annotations/test")]),
+                depth: Some(1),
+                all: false,
+                remote: remote_repo_clone.url().to_string(),
+                branch: "main".to_string(),
+            };
+            api::client::tree::download_trees_from(
+                &download_local_repo_2,
+                &remote_repo_clone,
+                &commit.id,
+                &fetch_opts,
+            )
+            .await?;
+
+            let dir_path = download_local_repo_2.path.join(".oxen/tree/nodes");
+            let entries = fs::read_dir(&dir_path)?;
+            let dir_count = entries
+                .filter_map(|entry| match entry {
+                    Ok(e) => {
+                        if let Ok(file_type) = e.file_type() {
+                            if file_type.is_dir() {
+                                return Some(1);
+                            }
+                        }
+                        None
+                    }
+                    Err(_) => None,
+                })
+                .count();
+
+            // Here we expect few nodes (but more than on the download_tree_from_path function) because we download the nodes that
+            // contain the files in the subtree path, with the parents. This allows us to keep the remote repo intact when we push
+            // back the changes applied to this subset of files.
+            assert!(dir_count < 8);
 
             Ok(remote_repo)
         })
