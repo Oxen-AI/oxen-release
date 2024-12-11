@@ -151,7 +151,10 @@ pub fn aggregate_stats(
     let count_vec: Vec<i64> = data_type_counts.iter().map(|(_, v)| *v).collect();
 
     let data_type_df = DataFrame::new(vec![
-        Column::Series(Series::new(PlSmallStr::from_str("data_type"), data_type_vec)),
+        Column::Series(Series::new(
+            PlSmallStr::from_str("data_type"),
+            data_type_vec,
+        )),
         Column::Series(Series::new(PlSmallStr::from_str("count"), count_vec)),
     ])?;
 
@@ -160,7 +163,10 @@ pub fn aggregate_stats(
     let count_vec: Vec<i64> = mime_type_counts.iter().map(|(_, v)| *v).collect();
 
     let mime_type_df = DataFrame::new(vec![
-        Column::Series(Series::new(PlSmallStr::from_str("mime_type"), mime_type_vec)),
+        Column::Series(Series::new(
+            PlSmallStr::from_str("mime_type"),
+            mime_type_vec,
+        )),
         Column::Series(Series::new(PlSmallStr::from_str("count"), count_vec)),
     ])?;
 
