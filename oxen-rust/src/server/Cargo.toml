@@ -32,7 +32,7 @@ liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
 os_path = "0.8.0"
-polars = { version = "0.45.1", features = [
+polars = { version = "0.44.2", features = [
     "lazy",
     "parquet",
     "json",
