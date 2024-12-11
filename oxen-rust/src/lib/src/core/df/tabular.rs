@@ -737,9 +737,10 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         }
                         pb.finish_and_clear();
 
-                        Ok(Some(Column::Series(
-                            Series::new(PlSmallStr::from_str(""), hashes),
-                        )))
+                        Ok(Some(Column::Series(Series::new(
+                            PlSmallStr::from_str(""),
+                            hashes,
+                        ))))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
@@ -809,9 +810,10 @@ pub fn df_hash_rows_on_cols(
                         }
                         pb.finish_and_clear();
 
-                        Ok(Some(Column::Series(
-                            Series::new(PlSmallStr::from_str(""), hashes),
-                        )))
+                        Ok(Some(Column::Series(Series::new(
+                            PlSmallStr::from_str(""),
+                            hashes,
+                        ))))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
