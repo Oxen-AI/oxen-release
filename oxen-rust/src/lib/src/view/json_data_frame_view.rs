@@ -246,8 +246,7 @@ impl JsonDataFrameView {
                             .iter()
                             .map(|name| {
                                 Column::Series(
-                                    Series::new(PlSmallStr::from_str(name), Vec::<&str>::new())
-                                        .into(),
+                                    Series::new(PlSmallStr::from_str(name), Vec::<&str>::new()),
                                 )
                             })
                             .collect::<Vec<Column>>();

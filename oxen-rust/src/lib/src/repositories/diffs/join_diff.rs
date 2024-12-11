@@ -83,7 +83,7 @@ pub fn diff(
     log::debug!("joined_df after add_diff_status_column is {:?}", joined_df);
     let unchanged_vec = vec![DIFF_STATUS_UNCHANGED; joined_df.height()];
     let unchanged_series = Column::Series(
-        Series::new(PlSmallStr::from_str(DIFF_STATUS_UNCHANGED), unchanged_vec).into(),
+        Series::new(PlSmallStr::from_str(DIFF_STATUS_UNCHANGED), unchanged_vec),
     );
     let mut joined_df = joined_df.filter(
         &joined_df
@@ -396,7 +396,7 @@ fn add_diff_status_column(
                             ));
                         }
                         Ok(Some(Column::Series(
-                            Series::new(PlSmallStr::from_str(""), results).into(),
+                            Series::new(PlSmallStr::from_str(""), results),
                         )))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),

@@ -2146,7 +2146,7 @@ A: Checkout Oxen.ai
                 // Verify the content of the modified existing file
                 api::client::entries::download_file(
                     &remote_repo,
-                    &dir_entries
+                    dir_entries
                         .entries
                         .iter()
                         .find(|entry| entry.filename == "existing_file.tsv")
@@ -2159,7 +2159,7 @@ A: Checkout Oxen.ai
                 )
                 .await?;
                 let modified_file_content = std::fs::read_to_string(
-                    &user_a_repo
+                    user_a_repo
                         .path
                         .join("nlp/classification/existing_file.tsv"),
                 )?;
@@ -2185,7 +2185,7 @@ A: Checkout Oxen.ai
                 )
                 .await?;
 
-                assert!(classification_dir_entries.entries.len() > 0); // Ensure there are entries in the classification directory
+                assert!(!classification_dir_entries.entries.is_empty()); // Ensure there are entries in the classification directory
 
                 let root_dir_entries =
                     api::client::dir::list(&remote_repo, &commit.id, &PathBuf::from(""), 1, 100)

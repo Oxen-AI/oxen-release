@@ -39,8 +39,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         Series::new(
             PlSmallStr::from_str(DIFF_STATUS_COL),
             vec![StagedRowStatus::Added.to_string(); df.height()],
-        )
-        .into(),
+        ),
     );
     let df = df.hstack(&[added_column])?;
 
@@ -50,8 +49,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
             Series::new(
                 PlSmallStr::from_str(DIFF_STATUS_COL),
                 vec![StagedRowStatus::Added.to_string()],
-            )
-            .into(),
+            ),
         );
         DataFrame::new(vec![added_column])?
     } else {
