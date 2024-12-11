@@ -131,10 +131,10 @@ impl JsonDataFrame {
                         let cols = columns
                             .iter()
                             .map(|name| {
-                                Column::Series(Series::new(
-                                    PlSmallStr::from_str(name),
-                                    Vec::<&str>::new(),
-                                ))
+                                Column::Series(
+                                    Series::new(PlSmallStr::from_str(name), Vec::<&str>::new())
+                                        .into(),
+                                )
                             })
                             .collect::<Vec<Column>>();
                         DataFrame::new(cols).unwrap()
