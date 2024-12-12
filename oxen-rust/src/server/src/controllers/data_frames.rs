@@ -126,7 +126,11 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
         log::debug!("data frame is not indexed");
         // If not, proceed to create a new workspace and index the data frame.
         let workspace_id = Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, false)?;
+        let workspace = match repositories::workspaces::create(&repo, &commit, workspace_id, false)
+        {
+            Ok(workspace) => workspace,
+            Err(_e) => repositories::workspaces::get_non_editable_by_commit_id(&repo, &commit.id)?,
+        };
         repositories::workspaces::data_frames::index(&repo, &workspace, &path)?;
     }
 
