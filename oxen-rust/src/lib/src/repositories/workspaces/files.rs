@@ -21,6 +21,21 @@ pub fn add(workspace: &Workspace, path: impl AsRef<Path>) -> Result<PathBuf, Oxe
     }
 }
 
+pub fn rename(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    new_path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    match workspace.base_repo.min_version() {
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::files::rename(workspace, path, new_path)
+        }
+        _ => Err(OxenError::basic_str(
+            "rename is not supported for this version of oxen",
+        )),
+    }
+}
+
 pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
     match workspace.base_repo.min_version() {
         MinOxenVersion::V0_10_0 => {

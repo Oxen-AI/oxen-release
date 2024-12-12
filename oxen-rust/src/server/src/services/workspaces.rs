@@ -31,6 +31,10 @@ pub fn workspace() -> Scope {
                     web::post().to(controllers::workspaces::files::add),
                 )
                 .route(
+                    "/files/rename/{path:.*}",
+                    web::put().to(controllers::workspaces::files::rename),
+                )
+                .route(
                     "/files/{path:.*}",
                     web::delete().to(controllers::workspaces::files::delete),
                 )
