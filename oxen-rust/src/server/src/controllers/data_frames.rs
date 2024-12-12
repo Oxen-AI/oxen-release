@@ -117,11 +117,13 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
         &resource.path,
         &commit,
     )? {
+        log::debug!("data frame is already indexed");
         // If the data frame is already indexed, return the appropriate error.
         return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
             path,
         )));
     } else {
+        log::debug!("data frame is not indexed");
         // If not, proceed to create a new workspace and index the data frame.
         let workspace_id = Uuid::new_v4().to_string();
         let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, false)?;
