@@ -55,6 +55,8 @@ pub fn get_queryable_data_frame_workspace_from_file_node(
     log::debug!("Looking for workspace with commit id {:?}", commit_id);
 
     for workspace in workspaces {
+        log::debug!("is workspace editable: {:?}", workspace.is_editable);
+        log::debug!("workspace commit id: {:?}", workspace.commit.id);
         // Ensure the workspace is not editable and matches the commit ID of the resource
         if !workspace.is_editable && workspace.commit.id == commit_id.to_string() {
             // Construct the path to the DuckDB resource within the workspace
