@@ -7,10 +7,11 @@ use sql_query_builder::Delete;
 
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, EntryDataType, LocalRepository, Workspace};
+use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash, Workspace};
 use crate::repositories;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 pub mod columns;
 pub mod rows;
@@ -36,7 +37,7 @@ pub fn is_queryable_data_frame_indexed_from_file_node(
     file_node: &FileNode,
     path: &Path,
 ) -> Result<bool, OxenError> {
-    match get_queryable_data_frame_workspace_from_file_node(repo, file_node, path) {
+    match get_queryable_data_frame_workspace_from_file_node(repo, &file_node.last_commit_id, path) {
         Ok(_workspace) => Ok(true),
         Err(e) => match e {
             OxenError::QueryableWorkspaceNotFound() => Ok(false),
@@ -47,15 +48,14 @@ pub fn is_queryable_data_frame_indexed_from_file_node(
 
 pub fn get_queryable_data_frame_workspace_from_file_node(
     repo: &LocalRepository,
-    file_node: &FileNode,
+    commit_id: &MerkleHash,
     path: &Path,
 ) -> Result<Workspace, OxenError> {
     let workspaces = repositories::workspaces::list(repo)?;
-    let latest_commit_id = file_node.last_commit_id;
 
     for workspace in workspaces {
         // Ensure the workspace is not editable and matches the commit ID of the resource
-        if !workspace.is_editable && workspace.commit.id == latest_commit_id.to_string() {
+        if !workspace.is_editable && workspace.commit.id == commit_id.to_string() {
             // Construct the path to the DuckDB resource within the workspace
             let workspace_file_db_path =
                 repositories::workspaces::data_frames::duckdb_path(&workspace, path);
@@ -85,7 +85,11 @@ pub fn get_queryable_data_frame_workspace(
             "File format not supported, must be tabular.",
         ));
     }
-    get_queryable_data_frame_workspace_from_file_node(repo, &file_node, path)
+    get_queryable_data_frame_workspace_from_file_node(
+        repo,
+        &MerkleHash::from_str(&commit.id)?,
+        path,
+    )
 }
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
