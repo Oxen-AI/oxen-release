@@ -203,6 +203,21 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
     Ok(workspaces)
 }
 
+pub fn get_non_editable_by_commit_id(
+    repo: &LocalRepository,
+    commit_id: impl AsRef<str>,
+) -> Result<Workspace, OxenError> {
+    let workspaces = list(repo)?;
+    for workspace in workspaces {
+        if workspace.commit.id == commit_id.as_ref() && !workspace.is_editable {
+            return Ok(workspace);
+        }
+    }
+    Err(OxenError::basic_str(
+        "No non-editable workspace found for the given commit ID".to_string(),
+    ))
+}
+
 pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
     let workspace_id = workspace.id.to_string();
     let workspace_dir = workspace.dir();
