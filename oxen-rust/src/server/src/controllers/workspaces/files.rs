@@ -8,6 +8,7 @@ use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
+use liboxen::view::workspaces::RenameRequest;
 use liboxen::view::{FilePathsResponse, StatusMessage};
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -101,14 +102,22 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     }
 }
 
-pub async fn rename(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+pub async fn rename(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let path = PathBuf::from(path_param(&req, "path")?);
-    let new_path = PathBuf::from(path_param(&req, "new_path")?);
+    // Attempt to parse the body
+    let body: RenameRequest = serde_json::from_str(&body)?; // Use the Json wrapper to get the inner value
+
+    // Check if new_path is valid
+    if body.new_path.is_empty() {
+        return Err(OxenHttpError::BadRequest("new_path cannot be empty".into()));
+    }
+
+    let new_path = PathBuf::from(body.new_path);
 
     let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 

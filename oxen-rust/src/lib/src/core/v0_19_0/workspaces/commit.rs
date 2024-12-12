@@ -145,11 +145,16 @@ fn export_tabular_data_frames(
                         log::debug!("exported path: {:?}", exported_path);
 
                         // Update the metadata in the new staged merkle tree node
-                        let new_staged_merkle_tree_node = compute_staged_merkle_tree_node(
-                            workspace,
-                            &exported_path,
-                            dir_entry.status,
-                        )?;
+                        let new_staged_merkle_tree_node = if exported_path.exists() {
+                            compute_staged_merkle_tree_node(
+                                workspace,
+                                &exported_path,
+                                dir_entry.status,
+                            )?
+                        } else {
+                            dir_entry
+                        };
+
                         log::debug!(
                             "export_tabular_data_frames new_staged_merkle_tree_node: {:?}",
                             new_staged_merkle_tree_node
