@@ -52,6 +52,7 @@ pub fn get_queryable_data_frame_workspace_from_file_node(
     path: &Path,
 ) -> Result<Workspace, OxenError> {
     let workspaces = repositories::workspaces::list(repo)?;
+    log::debug!("Looking for workspace with commit id {:?}", commit_id);
 
     for workspace in workspaces {
         // Ensure the workspace is not editable and matches the commit ID of the resource
