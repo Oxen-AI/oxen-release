@@ -101,6 +101,22 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     }
 }
 
+pub async fn rename(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let path = PathBuf::from(path_param(&req, "path")?);
+    let new_path = PathBuf::from(path_param(&req, "new_path")?);
+
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+
+    repositories::workspaces::files::rename(&workspace, &path, &new_path)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
+}
+
 async fn save_parts(
     workspace: &Workspace,
     directory: &Path,
