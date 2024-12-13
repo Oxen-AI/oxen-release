@@ -95,6 +95,21 @@ pub fn index(
     }
 }
 
+pub fn rename(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    new_path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    match workspace.base_repo.min_version() {
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::rename(workspace, path, new_path)
+        }
+        _ => Err(OxenError::basic_str(
+            "rename is not supported for this version of oxen",
+        )),
+    }
+}
+
 pub fn unindex(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
     let path = path.as_ref();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
