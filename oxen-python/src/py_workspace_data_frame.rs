@@ -135,7 +135,67 @@ impl PyWorkspaceDataFrame {
                     &self.workspace.id,
                     &self.path,
                     &opts
-                ).await 
+                ).await
+            })?;
+        
+        // Extract the serde_json::Value from the JsonDataFrameView
+        let view = data.data_frame.unwrap().view.data;
+
+        // convert json to String
+        let result: String = serde_json::to_string(&view).unwrap();
+        Ok(result)
+    }
+
+    /// Query the data frame using SQL
+    fn query(&self, sql: String) -> Result<String, PyOxenError> {
+        let mut opts = DFOpts::empty();
+        opts.sql = Some(sql);
+
+        let data = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async {
+                api::client::workspaces::data_frames::get(
+                    &self.workspace.repo.repo,
+                    &self.workspace.id,
+                    &self.path,
+                    &opts
+                ).await
+            })?;
+        
+        // Extract the serde_json::Value from the JsonDataFrameView
+        let view = data.data_frame.unwrap().view.data;
+
+        // convert json to String
+        let result: String = serde_json::to_string(&view).unwrap();
+        Ok(result)
+    }
+
+    fn index_embeddings(&self, column: String) -> Result<(), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async {
+                api::client::workspaces::data_frames::embeddings::index(
+                    &self.workspace.repo.repo,
+                    &self.workspace.id,
+                    &self.path,
+                    &column
+                ).await
+            })?;
+        Ok(())
+    }
+
+    /// Get the nearest neighbors to the embedding
+    fn nearest_neighbors(&self, find_embedding_where: String, sort_by_similarity_to: String) -> Result<String, PyOxenError> {
+        let mut opts = DFOpts::empty();
+        opts.find_embedding_where = Some(find_embedding_where);
+        opts.sort_by_similarity_to = Some(sort_by_similarity_to);
+
+        let data = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async {
+                api::client::workspaces::data_frames::get(
+                    &self.workspace.repo.repo,
+                    &self.workspace.id,
+                    &self.path,
+                    &opts
+                ).await
             })?;
         
         // Extract the serde_json::Value from the JsonDataFrameView

@@ -45,9 +45,9 @@ class ResizeImages(oxen.Op):
         y_center = (size - old_height) // 2
 
         # copy img image into center of result image
-        result[
-            y_center : y_center + old_height, x_center : x_center + old_width
-        ] = resized
+        result[y_center : y_center + old_height, x_center : x_center + old_width] = (
+            resized
+        )
 
         return result.astype(image.dtype)
 

@@ -60,6 +60,43 @@ def celeba_local_repo_no_commits(shared_datadir):
 
 
 @pytest.fixture
+def question_embeddings_local_repo_no_commits(shared_datadir):
+    repo_dir = os.path.join(shared_datadir, "QuestionEmbeddings")
+    repo = Repo(repo_dir)
+    repo.init()
+
+    yield repo
+
+
+@pytest.fixture
+def question_embeddings_local_repo_fully_committed(
+    question_embeddings_local_repo_no_commits,
+):
+    repo = question_embeddings_local_repo_no_commits
+
+    repo.add(os.path.join(repo.path, "chunk_embeddings.parquet"))
+    repo.add(os.path.join(repo.path, "question_embeddings.parquet"))
+    repo.add(os.path.join(repo.path, "smol.jsonl"))
+    repo.commit("Adding question and chunk embeddings")
+    yield repo
+
+
+@pytest.fixture
+def question_embeddings_remote_repo_fully_pushed(
+    question_embeddings_local_repo_fully_committed, empty_remote_repo
+):
+    local_repo = question_embeddings_local_repo_fully_committed
+    remote_repo = empty_remote_repo
+
+    remote_name = "origin"
+    branch_name = "main"
+    local_repo.set_remote(remote_name, remote_repo.url)
+    local_repo.push(remote_name, branch_name)
+
+    yield local_repo, remote_repo
+
+
+@pytest.fixture
 def chat_bot_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "ChatBot")
     repo = Repo(repo_dir)
