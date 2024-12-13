@@ -214,7 +214,7 @@ pub fn get_non_editable_by_commit_id(
         }
     }
     Err(OxenError::basic_str(
-        "No non-editable workspace found for the given commit ID".to_string(),
+        "No non-editable workspace found for the given commit ID",
     ))
 }
 
