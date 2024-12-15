@@ -156,7 +156,8 @@ class DataFrame:
         data = json.dumps(data)
         return self.data_frame.insert_row(data)
 
-    def where_sql_from_dict(self, attributes: dict) -> str:
+    # TODO: Allow `where_from_str` to be passed in so user could write their own where clause
+    def where_sql_from_dict(self, attributes: dict, operator: str = "AND") -> str:
         """
         Generate the SQL from the attributes.
         """
@@ -164,9 +165,16 @@ class DataFrame:
         sql = ""
         i = 0
         for key, value in attributes.items():
-            sql += f"{key} = '{value}'"
+            # only accept string and numeric values
+            if not isinstance(value, (str, int, float, bool)):
+                raise ValueError(f"Invalid value type for {key}: {type(value)}")
+
+            # if the value is a str put it in quotes
+            if isinstance(value, str):
+                value = f"'{value}'"
+            sql += f"{key} = {value}"
             if i < len(attributes) - 1:
-                sql += " AND "
+                sql += f" {operator} "
             i += 1
         return sql
 
@@ -198,20 +206,41 @@ class DataFrame:
         embeddings = [r[column] for r in result]
         return embeddings
 
-    def index_embeddings(self, column: str = "embedding"):
+    def is_nearest_neighbors_enabled(self, column="embedding"):
+        """
+        Check if the embeddings column is indexed in the data frame.
+        """
+        return self.data_frame.is_nearest_neighbors_enabled(column)
+
+    def enable_nearest_neighbors(self, column: str = "embedding"):
         """
         Index the embeddings in the data frame.
         """
-        self.data_frame.index_embeddings(column)
+        self.data_frame.enable_nearest_neighbors(column)
 
-    def nearest_neighbors(
+    def sort_by_embedding(
+        self,
+        column: str,
+        embedding: list[float],
+        page_num: int = 1,
+        page_size: int = 10,
+    ):
+        """
+        Sort the data frame by the embedding.
+        """
+        result = self.data_frame.sort_by_embedding(
+            column, embedding, page_num, page_size
+        )
+        return json.loads(result)
+
+    def nearest_neighbors_search(
         self, find_embedding_where: dict, sort_by_similarity_to: str = "embedding"
     ):
         """
         Get the nearest neighbors to the embedding.
         """
         find_embedding_where = self.where_sql_from_dict(find_embedding_where)
-        result = self.data_frame.nearest_neighbors(
+        result = self.data_frame.nearest_neighbors_search(
             find_embedding_where, sort_by_similarity_to
         )
         result = json.loads(result)

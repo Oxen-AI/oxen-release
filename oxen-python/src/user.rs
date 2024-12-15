@@ -23,5 +23,3 @@ pub fn current_user(path: String) -> Result<PyUser, PyOxenError> {
     let config = UserConfig::new(&path);
     Ok(config.to_user().into())
 }
-
-

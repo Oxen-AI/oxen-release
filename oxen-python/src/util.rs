@@ -7,8 +7,8 @@ use std::path::PathBuf;
 
 use crate::error::PyOxenError;
 
-use liboxen::{opts::DFOpts, util};
 use liboxen::util::fs::oxen_config_dir;
+use liboxen::{opts::DFOpts, util};
 
 /// Get the default home directory for exen
 #[pyfunction]

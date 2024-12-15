@@ -1,11 +1,11 @@
-use std::path::PathBuf;
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::opts::DFOpts;
 use pyo3::prelude::*;
+use std::path::PathBuf;
 
-use crate::py_remote_repo::PyRemoteRepo;
 use crate::error::PyOxenError;
+use crate::py_remote_repo::PyRemoteRepo;
 
 #[pyclass]
 pub struct PyRemoteDataFrame {
@@ -18,7 +18,10 @@ impl PyRemoteDataFrame {
     #[new]
     #[pyo3(signature = (repo, path))]
     fn new(repo: PyRemoteRepo, path: String) -> Result<Self, PyOxenError> {
-        Ok(Self { repo, path: PathBuf::from(path) })
+        Ok(Self {
+            repo,
+            path: PathBuf::from(path),
+        })
     }
 
     fn size(&self) -> Result<(usize, usize), PyOxenError> {
@@ -34,14 +37,17 @@ impl PyRemoteDataFrame {
             )
             .await?;
 
-            Ok((response.data_frame.source.size.width, response.data_frame.source.size.height))
+            Ok((
+                response.data_frame.source.size.width,
+                response.data_frame.source.size.height,
+            ))
         })
     }
 
     fn get_row_by_index(&self, row: usize) -> Result<String, PyOxenError> {
         let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
-            opts.slice = Some(format!("{}..{}", row, row+1));
+            opts.slice = Some(format!("{}..{}", row, row + 1));
 
             let response = api::client::data_frames::get(
                 &self.repo.repo,
@@ -54,7 +60,10 @@ impl PyRemoteDataFrame {
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {
                 Ok(json) => Ok(json),
-                Err(e) => Err(OxenError::basic_str(format!("Could not convert view to json: {}", e)))
+                Err(e) => Err(OxenError::basic_str(format!(
+                    "Could not convert view to json: {}",
+                    e
+                ))),
             }
         })?;
         Ok(data)
@@ -64,7 +73,7 @@ impl PyRemoteDataFrame {
         &self,
         start: usize,
         end: usize,
-        columns: Vec<String>
+        columns: Vec<String>,
     ) -> Result<String, PyOxenError> {
         let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
@@ -87,7 +96,10 @@ impl PyRemoteDataFrame {
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {
                 Ok(json) => Ok(json),
-                Err(e) => Err(OxenError::basic_str(format!("Could not convert view to json: {}", e)))
+                Err(e) => Err(OxenError::basic_str(format!(
+                    "Could not convert view to json: {}",
+                    e
+                ))),
             }
         })?;
         Ok(data)
