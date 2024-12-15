@@ -28,16 +28,25 @@ pub struct PyPaginatedDirEntries {
 #[pymethods]
 impl PyPaginatedDirEntries {
     fn __repr__(&self) -> String {
-        let entries = self._entries.entries.iter().map(|e| {
-            if e.is_dir {
-                format!("{}/", e.filename)
-            } else {
-                format!("{}", e.filename)
-            }
-        } ).collect::<Vec<String>>();
-        let entries_str = entries
-            .join("\n");
-        format!("{}\n\nShowing {} of {} entries", entries_str, self._entries.entries.len(), self._entries.total_entries)
+        let entries = self
+            ._entries
+            .entries
+            .iter()
+            .map(|e| {
+                if e.is_dir {
+                    format!("{}/", e.filename)
+                } else {
+                    format!("{}", e.filename)
+                }
+            })
+            .collect::<Vec<String>>();
+        let entries_str = entries.join("\n");
+        format!(
+            "{}\n\nShowing {} of {} entries",
+            entries_str,
+            self._entries.entries.len(),
+            self._entries.total_entries
+        )
     }
 
     fn __str__(&self) -> String {
@@ -55,9 +64,13 @@ impl PyPaginatedDirEntries {
             index
         };
         if index < 0 || index >= self._entries.entries.len() as isize {
-            Err(pyo3::exceptions::PyIndexError::new_err("Index out of bounds"))
+            Err(pyo3::exceptions::PyIndexError::new_err(
+                "Index out of bounds",
+            ))
         } else {
-            Ok(PyEntry::from(self._entries.entries[index as usize].to_owned()))
+            Ok(PyEntry::from(
+                self._entries.entries[index as usize].to_owned(),
+            ))
         }
     }
 
@@ -83,7 +96,8 @@ impl PyPaginatedDirEntries {
 
     #[getter]
     pub fn entries(&self) -> Vec<PyEntry> {
-        self._entries.entries
+        self._entries
+            .entries
             .iter()
             .map(|e| PyEntry::from(e.to_owned()))
             .collect()

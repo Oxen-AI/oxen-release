@@ -9,8 +9,8 @@ use liboxen::opts::RmOpts;
 use pyo3::prelude::*;
 
 use liboxen::api;
-use liboxen::repositories;
 use liboxen::opts::FetchOpts;
+use liboxen::repositories;
 
 use std::path::PathBuf;
 
@@ -76,7 +76,12 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn add_schema_metadata(&self, path: &str, column: &str, metadata: &str) -> Result<(), PyOxenError> {
+    pub fn add_schema_metadata(
+        &self,
+        path: &str,
+        column: &str,
+        metadata: &str,
+    ) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
 
         // make sure metadata is valid json, return oxen error if not
@@ -87,13 +92,13 @@ impl PyRepo {
                 e
             ))
         })?;
-    
+
         for (path, schema) in
             repositories::data_frames::schemas::add_column_metadata(&repo, path, column, &metadata)?
         {
             println!("{:?}\n{}", path, schema.verbose_str());
         }
-    
+
         Ok(())
     }
 
@@ -173,16 +178,17 @@ impl PyRepo {
     }
 
     pub fn push(&self, remote: &str, branch: &str, delete: bool) -> Result<PyBranch, PyOxenError> {
-        let result: Result<Branch, OxenError> = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            let repo = LocalRepository::from_dir(&self.path)?;
-            if delete {
-                // Delete the remote branch
-                api::client::branches::delete_remote(&repo, remote, branch).await
-            } else {
-                // Push to the remote branch
-                repositories::push::push_remote_branch(&repo, remote, branch).await
-            }
-        });
+        let result: Result<Branch, OxenError> =
+            pyo3_asyncio::tokio::get_runtime().block_on(async {
+                let repo = LocalRepository::from_dir(&self.path)?;
+                if delete {
+                    // Delete the remote branch
+                    api::client::branches::delete_remote(&repo, remote, branch).await
+                } else {
+                    // Push to the remote branch
+                    repositories::push::push_remote_branch(&repo, remote, branch).await
+                }
+            });
 
         let py_branch = PyBranch::from(result?);
         Ok(py_branch)
@@ -206,6 +212,6 @@ impl PyRepo {
 
     // pub fn diff(&self, path: &str) -> Result<PyDiff, PyOxenError> {
     //     let repo = LocalRepository::from_dir(&self.path)?;
-    //     let diff = 
+    //     let diff =
     // }
 }

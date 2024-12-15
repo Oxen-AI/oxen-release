@@ -1,4 +1,3 @@
-
 use liboxen::model::file::{FileContents, FileNew};
 use pyo3::prelude::*;
 
@@ -35,9 +34,10 @@ impl PyRemoteRepo {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
-                return Err(PyValueError::new_err(
-                    format!("Invalid repo name, must be in format namespace/repo_name. Got {}", repo),
-                ))
+                return Err(PyValueError::new_err(format!(
+                    "Invalid repo name, must be in format namespace/repo_name. Got {}",
+                    repo
+                )))
             }
         };
 
@@ -47,7 +47,7 @@ impl PyRemoteRepo {
                 name: repo_name.to_owned(),
                 remote: Remote {
                     url: liboxen::api::endpoint::remote_url_from_namespace_name_scheme(
-                        &host, &namespace, &repo_name, scheme
+                        &host, &namespace, &repo_name, scheme,
                     ),
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
@@ -61,7 +61,12 @@ impl PyRemoteRepo {
     }
 
     fn __repr__(&self) -> String {
-        format!("RemoteRepo(namespace='{}', name='{}', url='{}')", self.namespace(), self.name(), self.url())
+        format!(
+            "RemoteRepo(namespace='{}', name='{}', url='{}')",
+            self.namespace(),
+            self.name(),
+            self.url()
+        )
     }
 
     fn __str__(&self) -> String {
@@ -105,7 +110,7 @@ impl PyRemoteRepo {
                 let files: Vec<FileNew> = vec![FileNew {
                     path: PathBuf::from("README.md"),
                     contents: FileContents::Text(format!("# {}\n", &self.repo.name)),
-                    user: user.clone()
+                    user: user.clone(),
                 }];
                 let mut repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
                 repo.host = Some(self.host.clone());
@@ -139,7 +144,12 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn download(&self, remote_path: PathBuf, local_path: PathBuf, revision: &str) -> Result<(), PyOxenError> {
+    fn download(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        revision: &str,
+    ) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             if !revision.is_empty() {
                 repositories::download(&self.repo, &remote_path, &local_path, revision).await
@@ -167,16 +177,14 @@ impl PyRemoteRepo {
             .collect())
     }
 
-    fn ls(&self, path: PathBuf, page_num: usize, page_size: usize) -> Result<PyPaginatedDirEntries, PyOxenError> {
+    fn ls(
+        &self,
+        path: PathBuf,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<PyPaginatedDirEntries, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::client::dir::list(
-                &self.repo,
-                &self.revision,
-                &path,
-                page_num,
-                page_size,
-            )
-            .await
+            api::client::dir::list(&self.repo, &self.revision, &path, page_num, page_size).await
         })?;
 
         // Convert remote status to a PyStagedData using the from method

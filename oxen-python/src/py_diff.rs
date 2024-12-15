@@ -21,36 +21,24 @@ impl PyDiff {
     #[getter]
     pub fn format(&self) -> String {
         match &self.diff {
-            DiffResult::Tabular(_diff) => {
-                "tabular".to_string()
-            },
-            DiffResult::Text(_diff) => {
-                "text".to_string()
-            },
+            DiffResult::Tabular(_diff) => "tabular".to_string(),
+            DiffResult::Text(_diff) => "text".to_string(),
         }
     }
 
     #[getter]
     pub fn tabular(&self) -> Result<PyTabularDiff, PyOxenError> {
         match &self.diff {
-            DiffResult::Tabular(diff) => {
-                Ok(PyTabularDiff::from(diff))
-            },
-            _ => {
-                Err(OxenError::basic_str("Diff is not tabular").into())
-            },
+            DiffResult::Tabular(diff) => Ok(PyTabularDiff::from(diff)),
+            _ => Err(OxenError::basic_str("Diff is not tabular").into()),
         }
     }
 
     #[getter]
     pub fn text(&self) -> Result<PyTextDiff, PyOxenError> {
         match &self.diff {
-            DiffResult::Text(diff) => {
-                Ok(PyTextDiff::from(diff))
-            },
-            _ => {
-                Err(OxenError::basic_str("Diff is not text").into())
-            },
+            DiffResult::Text(diff) => Ok(PyTextDiff::from(diff)),
+            _ => Err(OxenError::basic_str("Diff is not text").into()),
         }
     }
 }
