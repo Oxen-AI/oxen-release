@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
+use crate::constants::{
+    DEFAULT_HOST, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME,
+    ROW_NUM_COL_NAME,
+};
 use crate::core::df::filter::{self, DFFilterExp};
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
@@ -32,6 +35,7 @@ pub struct DFOpts {
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
+    pub embedding: Option<Vec<f32>>,
     pub find_embedding_where: Option<String>,
     pub filter: Option<String>,
     pub head: Option<usize>,
@@ -59,6 +63,7 @@ pub struct DFOpts {
     pub vstack: Option<Vec<PathBuf>>,
     pub write: Option<PathBuf>,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DFOptsView {
     pub opts: Vec<DFOptView>,
@@ -79,6 +84,7 @@ impl DFOpts {
             columns: None,
             delete_row: None,
             delimiter: None,
+            embedding: None,
             find_embedding_where: None,
             filter: None,
             head: None,
@@ -243,7 +249,10 @@ impl DFOpts {
                 column,
                 query,
                 name: "similarity".to_string(),
-                pagination: PaginateOpts::default(),
+                pagination: PaginateOpts {
+                    page_num: self.page.unwrap_or(DEFAULT_PAGE_NUM),
+                    page_size: self.page_size.unwrap_or(DEFAULT_PAGE_SIZE),
+                },
             })
         } else {
             None

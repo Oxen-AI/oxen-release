@@ -10,7 +10,7 @@ use crate::core::db::data_frames::df_db;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
-use crate::opts::EmbeddingQueryOpts;
+use crate::opts::{EmbeddingQueryOpts, PaginateOpts};
 use crate::{repositories, util};
 
 use std::path::Path;
@@ -284,6 +284,67 @@ pub fn similarity_query(
     let columns_str = columns.join(", ");
     let sql = format!("SELECT {columns_str}, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
     Ok(sql)
+}
+
+pub fn nearest_neighbors(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    column: impl AsRef<str>,
+    embedding: Vec<f32>,
+    pagination: &PaginateOpts,
+    exclude_cols: bool,
+) -> Result<DataFrame, OxenError> {
+    // Time the query
+    let start = std::time::Instant::now();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let conn = df_db::get_connection(&db_path)?;
+
+    let column = column.as_ref();
+    let vector_length = embedding.len();
+    let similarity_column = "similarity";
+    let embedding_str = format!(
+        "[{}]",
+        embedding
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    );
+    let mut schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let columns = schema
+        .fields
+        .iter()
+        .map(|f| f.name.as_str())
+        .filter(|c| !(EXCLUDE_OXEN_COLS.contains(c) && exclude_cols))
+        .collect::<Vec<&str>>();
+    let columns_str = columns.join(", ");
+
+    let mut sql = format!("SELECT {columns_str}, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+    let limit = pagination.page_size;
+    let page_num = if pagination.page_num > 0 {
+        pagination.page_num
+    } else {
+        1
+    };
+    let offset = (page_num - 1) * limit;
+    sql = format!("{} LIMIT {} OFFSET {}", sql, limit, offset);
+
+    // Print just the first 50 characters of the query
+    log::debug!("Executing similarity query: {}", &sql);
+
+    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    log::debug!("Similarity query took: {:?}", start.elapsed());
+
+    schema.fields.push(Field::new(similarity_column, "f32"));
+
+    let start = std::time::Instant::now();
+    log::debug!("Serializing similarity query to Polars");
+    let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, &schema)?;
+    log::debug!(
+        "Serializing similarity query to Polars took: {:?}",
+        start.elapsed()
+    );
+    Ok(df)
 }
 
 pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFrame, OxenError> {

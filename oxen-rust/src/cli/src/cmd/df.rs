@@ -292,6 +292,7 @@ impl DFCmd {
             columns: args.get_one::<String>("columns").map(String::from),
             delete_row: args.get_one::<String>("delete-row").map(String::from),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
+            embedding: None, // Not really feasible to provide an embedding from the CLI
             filter: args.get_one::<String>("filter").map(String::from),
             find_embedding_where: args
                 .get_one::<String>("find-embedding-where")

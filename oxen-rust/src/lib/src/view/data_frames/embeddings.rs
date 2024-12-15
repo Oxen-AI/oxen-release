@@ -15,3 +15,11 @@ pub struct IndexEmbeddingRequest {
     pub column: String,
     pub use_background_thread: Option<bool>,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EmbeddingQuery {
+    pub column: String,
+    pub embedding: Vec<f32>,
+    pub page_size: usize,
+    pub page_num: usize,
+}
