@@ -1,4 +1,3 @@
-
 use pyo3::prelude::*;
 
 use liboxen::model::diff::ChangeType;
@@ -23,7 +22,10 @@ pub struct PyLineDiff {
 #[pymethods]
 impl PyLineDiff {
     fn __repr__(&self) -> String {
-        format!("PyLineDiff(modification={:?}, text={})", self.modification, self.text)
+        format!(
+            "PyLineDiff(modification={:?}, text={})",
+            self.modification, self.text
+        )
     }
 
     #[getter]
@@ -67,18 +69,22 @@ impl PyTextDiff {
 
 impl From<&TextDiff> for PyTextDiff {
     fn from(other: &TextDiff) -> Self {
-        let lines = other.lines.iter().map(|line| {
-            let modification = match line.modification {
-                ChangeType::Added => PyChangeType::Added,
-                ChangeType::Removed => PyChangeType::Removed,
-                ChangeType::Modified => PyChangeType::Modified,
-                ChangeType::Unchanged => PyChangeType::Unchanged,
-            };
-            PyLineDiff {
-                modification,
-                text: line.text.clone(),
-            }
-        }).collect();
+        let lines = other
+            .lines
+            .iter()
+            .map(|line| {
+                let modification = match line.modification {
+                    ChangeType::Added => PyChangeType::Added,
+                    ChangeType::Removed => PyChangeType::Removed,
+                    ChangeType::Modified => PyChangeType::Modified,
+                    ChangeType::Unchanged => PyChangeType::Unchanged,
+                };
+                PyLineDiff {
+                    modification,
+                    text: line.text.clone(),
+                }
+            })
+            .collect();
         Self { lines }
     }
 }

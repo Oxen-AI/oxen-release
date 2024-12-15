@@ -14,7 +14,12 @@ pub struct PyStagedData {
 #[pymethods]
 impl PyStagedData {
     fn __repr__(&self) -> String {
-        format!("PyStagedData(added={}, removed={}, modified={})", self.data.staged_files.len(), self.data.removed_files.len(), self.data.modified_files.len())
+        format!(
+            "PyStagedData(added={}, removed={}, modified={})",
+            self.data.staged_files.len(),
+            self.data.removed_files.len(),
+            self.data.modified_files.len()
+        )
     }
 
     fn __str__(&self) -> String {

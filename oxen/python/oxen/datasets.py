@@ -2,8 +2,6 @@ from oxen import RemoteRepo
 
 from typing import Optional
 
-from datasets import load_dataset as hf_load_dataset
-
 
 def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=None):
     """
@@ -30,6 +28,8 @@ def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=No
 
 
 def _load_hf(path: str):
+    from datasets import load_dataset as hf_load_dataset
+
     if path.endswith(".csv"):
         return hf_load_dataset("csv", data_files=path)
     elif path.endswith(".json"):

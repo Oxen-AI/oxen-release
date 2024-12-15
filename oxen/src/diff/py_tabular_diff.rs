@@ -1,10 +1,9 @@
-
 use liboxen::model::diff::tabular_diff::TabularDiff;
 use pyo3::prelude::*;
 use pyo3_polars::PyDataFrame;
 
-use liboxen::model::diff::AddRemoveModifyCounts;
 use liboxen::model::data_frame::schema::Schema;
+use liboxen::model::diff::AddRemoveModifyCounts;
 
 #[pyclass]
 pub struct PyTabularDiffMods {
@@ -27,7 +26,12 @@ pub struct PyTabularDiff {
 impl PyTabularDiff {
     fn __repr__(&self) -> String {
         let df = self.data.as_ref();
-        format!("PyTabularDiff(shape=({},{}))\n{:?}", df.height(), df.width(), df)
+        format!(
+            "PyTabularDiff(shape=({},{}))\n{:?}",
+            df.height(),
+            df.width(),
+            df
+        )
     }
 
     #[getter]
@@ -45,9 +49,7 @@ impl From<&TabularDiff> for PyTabularDiff {
             removed: summary.modifications.row_counts.removed,
             modified: summary.modifications.row_counts.modified,
         };
-        let mods = PyTabularDiffMods {
-            rows,
-        };
+        let mods = PyTabularDiffMods { rows };
         let summary = PyTabularDiffSummary {
             modifications: mods,
             schema: Schema::from_polars(&df.schema()),
