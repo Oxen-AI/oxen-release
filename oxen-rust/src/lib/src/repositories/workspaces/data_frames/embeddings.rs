@@ -106,7 +106,7 @@ fn perform_indexing(
         "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
         column_name, vector_length
     );
-    log::debug!("Executing: {}", sql);
+    log::debug!("Updating column type: {}", sql);
     conn.execute(&sql, [])?;
 
     log::debug!(
@@ -129,6 +129,12 @@ pub fn index(
     let column = column.as_ref();
 
     let column_name = column.to_string();
+    log::debug!(
+        "Indexing embeddings for column: {} using background thread: {}",
+        column_name,
+        use_background_thread
+    );
+
     let vector_length = get_embedding_length(workspace, &path, column)?;
 
     if use_background_thread {
@@ -335,7 +341,7 @@ pub fn nearest_neighbors(
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
     log::debug!("Similarity query took: {:?}", start.elapsed());
 
-    schema.fields.push(Field::new(similarity_column, "f32"));
+    schema.fields.push(Field::new(&similarity_column, "f32"));
 
     let start = std::time::Instant::now();
     log::debug!("Serializing similarity query to Polars");
