@@ -61,3 +61,8 @@ pub struct ListWorkspaceResponseView {
     pub status: StatusMessage,
     pub workspaces: Vec<WorkspaceResponse>,
 }
+
+#[derive(Deserialize)]
+pub struct RenameRequest {
+    pub new_path: String,
+}
