@@ -8,7 +8,6 @@ use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
-use liboxen::view::workspaces::RenameRequest;
 use liboxen::view::{FilePathsResponse, StatusMessage};
 
 use actix_web::{web, HttpRequest, HttpResponse};
