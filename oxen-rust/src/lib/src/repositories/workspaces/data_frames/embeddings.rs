@@ -341,7 +341,7 @@ pub fn nearest_neighbors(
     let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
     log::debug!("Similarity query took: {:?}", start.elapsed());
 
-    schema.fields.push(Field::new(&similarity_column, "f32"));
+    schema.fields.push(Field::new(similarity_column, "f32"));
 
     let start = std::time::Instant::now();
     log::debug!("Serializing similarity query to Polars");
