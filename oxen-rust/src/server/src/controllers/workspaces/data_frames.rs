@@ -16,6 +16,7 @@ use liboxen::view::data_frames::DataFramePayload;
 use liboxen::view::entries::ResourceVersion;
 use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
+use liboxen::view::workspaces::RenameRequest;
 use liboxen::view::{
     JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage, StatusMessageDescription,
 };
@@ -484,4 +485,32 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     repositories::workspaces::data_frames::restore(&repo, &workspace, file_path)?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}
+
+pub async fn rename(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let path = PathBuf::from(path_param(&req, "path")?);
+    // Attempt to parse the body
+    let body: RenameRequest = serde_json::from_str(&body)?; // Use the Json wrapper to get the inner value
+
+    // Check if new_path is valid
+    if body.new_path.is_empty() {
+        return Err(OxenHttpError::BadRequest("new_path cannot be empty".into()));
+    }
+
+    let new_path = PathBuf::from(body.new_path);
+
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+
+    if repositories::entries::get_file(&repo, &workspace.commit, &new_path)?.is_some() {
+        return Err(OxenHttpError::BadRequest("new_path already exists".into()));
+    }
+
+    repositories::workspaces::data_frames::rename(&workspace, &path, &new_path)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }

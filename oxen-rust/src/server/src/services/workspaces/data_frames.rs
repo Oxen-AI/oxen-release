@@ -22,6 +22,10 @@ pub fn data_frames() -> Scope {
             web::get().to(controllers::workspaces::data_frames::download),
         )
         .route(
+            "/rename/{path:.*}",
+            web::put().to(controllers::workspaces::data_frames::rename),
+        )
+        .route(
             "/resource/{path:.*}",
             web::get().to(controllers::workspaces::data_frames::get),
         )

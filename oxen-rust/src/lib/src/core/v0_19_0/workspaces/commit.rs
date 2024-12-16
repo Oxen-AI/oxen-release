@@ -150,6 +150,7 @@ fn export_tabular_data_frames(
                             &exported_path,
                             dir_entry.status,
                         )?;
+
                         log::debug!(
                             "export_tabular_data_frames new_staged_merkle_tree_node: {:?}",
                             new_staged_merkle_tree_node

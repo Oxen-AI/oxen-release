@@ -1,9 +1,18 @@
 use duckdb::Connection;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, STAGED_DIR, TABLE_NAME};
+use crate::core::db;
 use crate::core::db::data_frames::df_db;
+use crate::core::v0_19_0::add::add_dir_to_staged_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
+use crate::core::v0_19_0::workspaces::files::track_modified_data_frame;
+use rmp_serde::Serializer;
+use serde::Serialize;
 use sql_query_builder::Delete;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
 use crate::model::staged_row_status::StagedRowStatus;
@@ -172,6 +181,73 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     util::fs::write_to_path(commit_path, &commit.id)?;
 
     Ok(())
+}
+
+pub fn rename(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    new_path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+    let new_path = new_path.as_ref();
+    let workspace_repo = &workspace.workspace_repo;
+
+    let og_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let og_db_path_parent = og_db_path.parent().unwrap();
+    let new_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, new_path);
+    let new_db_path_parent = new_db_path.parent().unwrap();
+
+    if !new_db_path_parent.exists() {
+        util::fs::create_dir_all(new_db_path_parent)?;
+    }
+
+    util::fs::copy_dir_all(og_db_path_parent, new_db_path_parent)?;
+
+    util::fs::remove_dir_all(og_db_path_parent)?;
+
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
+    let mut staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let mut staged_entry = staged_db.get(
+        path.to_str()
+            .ok_or(OxenError::basic_str("path not found"))?,
+    )?;
+    if staged_entry.is_none() {
+        drop(staged_db);
+        track_modified_data_frame(workspace, path)?;
+        staged_db = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+        staged_entry = staged_db.get(
+            path.to_str()
+                .ok_or(OxenError::basic_str("path not found"))?,
+        )?;
+    }
+    let mut new_staged_entry: StagedMerkleTreeNode =
+        rmp_serde::from_slice(&staged_entry.ok_or(OxenError::basic_str("path not found"))?)
+            .unwrap();
+    if let EMerkleTreeNode::File(file) = &mut new_staged_entry.node.node {
+        file.name = new_path.to_str().unwrap().to_string();
+    }
+
+    let mut buf = Vec::new();
+    new_staged_entry
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
+
+    staged_db.put(new_path.to_str().unwrap(), buf)?;
+    staged_db.delete(path.to_str().unwrap())?;
+
+    // If the new path is a directory, we need to add the parent directories to the staged db
+    let parents = new_path.parent();
+    if let Some(parents) = parents {
+        let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+        for dir in parents.ancestors() {
+            add_dir_to_staged_db(&staged_db, dir, &seen_dirs)?;
+        }
+    }
+
+    let relative_path = util::fs::path_relative_to_dir(new_path, &workspace_repo.path)?;
+    Ok(relative_path)
 }
 
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
