@@ -614,7 +614,7 @@ pub fn p_add_file_node_to_staged_db(
     Ok(Some(staged_file_node))
 }
 
-fn add_dir_to_staged_db(
+pub fn add_dir_to_staged_db(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     relative_path: impl AsRef<Path>,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
