@@ -506,6 +506,10 @@ pub async fn rename(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
+    if repositories::entries::get_file(&repo, &workspace.commit, &new_path)?.is_some() {
+        return Err(OxenHttpError::BadRequest("new_path already exists".into()));
+    }
+
     repositories::workspaces::data_frames::rename(&workspace, &path, &new_path)?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
