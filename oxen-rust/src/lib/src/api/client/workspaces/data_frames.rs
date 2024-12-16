@@ -229,6 +229,36 @@ pub async fn diff(
     }
 }
 
+pub async fn rename_data_frame(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
+    new_path: impl AsRef<Path>,
+) -> Result<StatusMessage, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let path = path.as_ref();
+    let file_path_str = path.to_string_lossy();
+
+    let uri = format!("/workspaces/{workspace_id}/data_frames/rename/{file_path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let params = serde_json::to_string(&serde_json::json!({
+        "new_path": new_path.as_ref().to_string_lossy()
+    }))?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.put(&url).body(params).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response),
+        Err(err) => {
+            let err =
+                format!("api::workspaces::put error parsing from {url}\n\nErr {err:?} \n\n{body}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -299,6 +329,171 @@ mod tests {
             .await?;
 
             assert_eq!(res.entries.entries.len(), 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rename_data_frame() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            // Define the original and new paths for the data frame
+            let original_path = Path::new("annotations/train/bounding_box.csv");
+            let new_path = Path::new("new/dir/bounding_box_renamed.csv");
+
+            // Index the original data frame
+            api::client::workspaces::data_frames::index(
+                &remote_repo,
+                &workspace.id,
+                &original_path,
+            )
+            .await?;
+
+            // Rename the data frame
+            let rename_response = api::client::workspaces::data_frames::rename_data_frame(
+                &remote_repo,
+                &workspace.id,
+                &original_path,
+                &new_path,
+            )
+            .await?;
+            assert_eq!(rename_response.status, "success");
+            let user = UserConfig::get()?.to_user();
+            // Commit the changes
+            let new_commit = NewCommitBody {
+                author: user.name.to_owned(),
+                email: user.email.to_owned(),
+                message: "renamed data frame".to_string(),
+            };
+
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace.id,
+                &new_commit,
+            )
+            .await?;
+
+            // Verify that the data frame has been renamed
+            let renamed_df = api::client::data_frames::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &new_path,
+                DFOpts::empty(),
+            )
+            .await?;
+            assert_eq!(renamed_df.status.status_message, "resource_found");
+
+            let original_df = api::client::data_frames::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &original_path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            assert_eq!(original_df.status.status_message, "resource_found");
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_edit_rename_and_commit_data_frame() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            // Define the original path for the data frame
+            let original_path = Path::new("annotations/train/bounding_box.csv");
+            let new_path = Path::new("annotations/train/bounding_box_edited.csv");
+
+            // Index the original data frame
+            api::client::workspaces::data_frames::index(
+                &remote_repo,
+                &workspace.id,
+                &original_path,
+            )
+            .await?;
+
+            let original_df = api::client::data_frames::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &original_path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            let og_row_count = original_df.data_frame.view.to_df().height();
+            let new_row = r#"{"file": "train/dog_4.jpg", "label": "dog", "min_x": 15.0, "min_y": 20.0, "width": 300, "height": 400}"#;
+
+
+            // Edit the data frame (this is a placeholder for your actual edit logic)
+            let edit_response = api::client::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace.id,
+                &original_path,
+                new_row.to_string(), // Assuming this function takes the new path as a parameter
+            )
+            .await?;
+
+            api::client::workspaces::data_frames::rename_data_frame(
+                &remote_repo,
+                &workspace.id,
+                &original_path,
+                &new_path,
+            )
+            .await?;
+
+            // Commit the changes
+            let user = UserConfig::get()?.to_user();
+            let new_commit = NewCommitBody {
+                author: user.name.to_owned(),
+                email: user.email.to_owned(),
+                message: "edited data frame".to_string(),
+            };
+
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace.id,
+                &new_commit,
+            )
+            .await?;
+
+            // Verify that the edited data frame has the new name
+            let edited_df = api::client::data_frames::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &new_path,
+                DFOpts::empty(),
+            )
+            .await?;
+            assert_eq!(edited_df.status.status_message, "resource_found");
+            let new_row_count = edited_df.data_frame.view.to_df().height();
+            assert_eq!(new_row_count, og_row_count + 1);
+
+            // Verify that the original data frame still exists
+            let original_df = api::client::data_frames::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &original_path,
+                DFOpts::empty(),
+            )
+            .await?;
+            assert_eq!(original_df.data_frame.view.to_df().height(), og_row_count);
+            assert_eq!(original_df.status.status_message, "resource_found");
 
             Ok(remote_repo)
         })
