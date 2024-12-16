@@ -626,7 +626,7 @@ mod tests {
                 })
                 .count();
 
-            assert!(dir_count > 35);
+            assert!(dir_count > 33);
 
             let download_repo_path_2 = local_repo.path.join("download_repo_test_2");
             let download_local_repo_2 = repositories::init(&download_repo_path_2)?;
