@@ -60,7 +60,7 @@ pub async fn neighbors(
     let body = body.to_string();
 
     let client = client::new_for_url(&url)?;
-    let res = client.get(&url).body(body).send().await?;
+    let res = client.post(&url).body(body).send().await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: Result<WorkspaceJsonDataFrameViewResponse, serde_json::Error> =
         serde_json::from_str(&body);

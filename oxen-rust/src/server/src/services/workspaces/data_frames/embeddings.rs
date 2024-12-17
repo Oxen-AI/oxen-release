@@ -15,6 +15,6 @@ pub fn embeddings() -> Scope {
         )
         .route(
             "/neighbors/{path:.*}",
-            web::get().to(controllers::workspaces::data_frames::embeddings::neighbors),
+            web::post().to(controllers::workspaces::data_frames::embeddings::neighbors),
         )
 }

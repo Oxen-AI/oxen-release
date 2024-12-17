@@ -187,7 +187,7 @@ pub fn export(
         add_exclude_to_sql(&sql)?
     };
 
-    log::debug!("exporting data frame with sql: {:?}", sql);
+    // log::debug!("exporting data frame with sql: {:?}", sql);
 
     sql::export_df(&conn, sql, Some(opts), temp_file)?;
 
