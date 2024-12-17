@@ -49,7 +49,7 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
 
     let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
-
+    log::debug!("neighbors is_indexed: {}", is_indexed);
     if !is_indexed {
         let response = WorkspaceJsonDataFrameViewResponse {
             status: StatusMessage::resource_found(),
@@ -63,6 +63,7 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
         return Ok(HttpResponse::Ok().json(response));
     }
 
+    log::debug!("neighbors: Embedding query: {:?}", body);
     let request: EmbeddingQuery = serde_json::from_str(&body)?;
     let count = repositories::workspaces::data_frames::count(&workspace, &file_path)?;
 
