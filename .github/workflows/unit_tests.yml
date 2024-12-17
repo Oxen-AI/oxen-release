@@ -40,6 +40,7 @@ jobs:
         pip install maturin
         pip install pytest
         pip install -e .
+        pip install -r requirements.txt
 
     - name: Run Tests
       run: |
