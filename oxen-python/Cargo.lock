@@ -3065,9 +3065,9 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "liboxen"
-version = "0.23.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f3664ff4024664df31df3f22f6fa9ac33a7bd0d0d29dcc63b5ce2493b204a9"
+checksum = "278dec93798898bcb0ca4f135642099ae5d35850b594aa50e6e19d9482efd97d"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3141,7 +3141,7 @@ dependencies = [
  "signal-hook",
  "simdutf8",
  "sql_query_builder",
- "sysinfo 0.32.0",
+ "sysinfo 0.33.0",
  "tar",
  "threadpool",
  "time",
@@ -5906,9 +5906,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.32.0"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3b5ae3f4f7d64646c46c4cae4e3f01d1c5d255c7406fdd7c7f999a94e488791"
+checksum = "948512566b1895f93b1592c7574baeb2de842f224f2aab158799ecadb8ebbb46"
 dependencies = [
  "core-foundation-sys",
  "libc",
