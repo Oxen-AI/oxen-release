@@ -27,7 +27,7 @@ jobs:
 
     - name: Install oxen-server
       run: |
-        sudo dpkg -i oxen-server-ubuntu-22.04.deb
+        sudo dpkg -i /home/runner/work/oxen-release/oxen-release/oxen-server-ubuntu-22.04.deb
 
     - name: Set up Python
       uses: actions/setup-python@v4
