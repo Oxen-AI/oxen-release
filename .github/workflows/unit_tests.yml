@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: $GITHUB_WORKSPACE/oxen
+        working-directory: ./oxen
 
     steps:
     - uses: actions/checkout@v3
@@ -27,7 +27,7 @@ jobs:
 
     - name: Install oxen-server
       run: |
-        sudo dpkg -i $GITHUB_WORKSPACE/oxen/oxen-server/oxen-server-ubuntu-22.04.deb
+        sudo dpkg -i ./oxen/oxen-server/oxen-server-ubuntu-22.04.deb
 
     - name: Set up Python
       uses: actions/setup-python@v4
