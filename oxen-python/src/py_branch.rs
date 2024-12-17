@@ -34,7 +34,7 @@ impl PyBranch {
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self._branch.name)
+        self._branch.name.to_string()
     }
 }
 

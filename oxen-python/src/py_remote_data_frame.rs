@@ -79,7 +79,7 @@ impl PyRemoteDataFrame {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", start, end));
 
-            if columns.len() > 0 {
+            if !columns.is_empty() {
                 // turn columns into comma separated list
                 let columns = columns.join(",");
                 opts.columns = Some(columns);

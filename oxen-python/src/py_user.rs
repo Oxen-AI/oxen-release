@@ -34,7 +34,7 @@ impl PyUser {
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self._user.name)
+        self._user.name.to_string()
     }
 }
 

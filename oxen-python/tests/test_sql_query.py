@@ -17,10 +17,16 @@ def test_workspace_df_sql_query(
     assert sql == "SELECT * FROM df WHERE id = '290'"
 
     sql = remote_df.select_sql_from_dict(
-        {"id": "290", "question": "What is the capital of France?"}
+        {"id": "290", "title": "A"}
     )
     print(sql)
     assert (
         sql
-        == "SELECT * FROM df WHERE id = '290' AND question = 'What is the capital of France?'"
+        == "SELECT * FROM df WHERE id = '290' AND title = 'A'"
     )
+
+    results = remote_df.query(sql=sql)
+    print(results)
+    assert len(results) == 1
+    assert results[0]["id"] == "290"
+    assert results[0]["title"] == "A"

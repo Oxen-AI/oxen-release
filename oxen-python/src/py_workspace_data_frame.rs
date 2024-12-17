@@ -149,7 +149,7 @@ impl PyWorkspaceDataFrame {
     }
 
     /// Query the data frame using SQL
-    fn query(&self, sql: String) -> Result<String, PyOxenError> {
+    fn sql_query(&self, sql: String) -> Result<String, PyOxenError> {
         let mut opts = DFOpts::empty();
         opts.sql = Some(sql);
 
@@ -238,10 +238,14 @@ impl PyWorkspaceDataFrame {
         &self,
         find_embedding_where: String,
         sort_by_similarity_to: String,
+        page_num: usize,
+        page_size: usize,
     ) -> Result<String, PyOxenError> {
         let mut opts = DFOpts::empty();
         opts.find_embedding_where = Some(find_embedding_where);
         opts.sort_by_similarity_to = Some(sort_by_similarity_to);
+        opts.page = Some(page_num);
+        opts.page_size = Some(page_size);
 
         let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::client::workspaces::data_frames::get(
@@ -267,7 +271,7 @@ impl PyWorkspaceDataFrame {
                 &self.workspace.repo.repo,
                 &self.workspace.id,
                 &self.path,
-                &id.as_str(),
+                id.as_str(),
             )
             .await
         })?;
@@ -280,7 +284,9 @@ impl PyWorkspaceDataFrame {
 
     fn insert_row(&self, data: String) -> Result<String, PyOxenError> {
         let Ok(_) = serde_json::from_str::<serde_json::Value>(&data) else {
-            return Err(OxenError::basic_str(format!("Failed to parse json data: {}", data)).into());
+            return Err(
+                OxenError::basic_str(format!("Failed to parse json data: {}", data)).into(),
+            );
         };
 
         let (_, Some(row_id)) = pyo3_asyncio::tokio::get_runtime().block_on(async {
@@ -301,7 +307,9 @@ impl PyWorkspaceDataFrame {
 
     fn update_row(&self, id: String, data: String) -> Result<String, PyOxenError> {
         let Ok(_) = serde_json::from_str::<serde_json::Value>(&data) else {
-            return Err(OxenError::basic_str(format!("Failed to parse json data: {}", data)).into());
+            return Err(
+                OxenError::basic_str(format!("Failed to parse json data: {}", data)).into(),
+            );
         };
 
         let view = pyo3_asyncio::tokio::get_runtime().block_on(async {
@@ -309,7 +317,7 @@ impl PyWorkspaceDataFrame {
                 &self.workspace.repo.repo,
                 &self.workspace.id,
                 &self.path,
-                &id.as_str(),
+                id.as_str(),
                 data,
             )
             .await
@@ -326,7 +334,7 @@ impl PyWorkspaceDataFrame {
                 &self.workspace.repo.repo,
                 &self.workspace.id,
                 &self.path,
-                &id.as_str(),
+                id.as_str(),
             )
             .await
         })?;

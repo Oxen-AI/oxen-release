@@ -85,7 +85,7 @@ impl PyRepo {
         let repo = LocalRepository::from_dir(&self.path)?;
 
         // make sure metadata is valid json, return oxen error if not
-        let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
+        let metadata: serde_json::Value = serde_json::from_str(metadata).map_err(|e| {
             OxenError::basic_str(format!(
                 "Metadata must be valid JSON: ''\n{}",
                 // metadata.as_ref(),
@@ -202,8 +202,7 @@ impl PyRepo {
                 branch: branch.to_string(),
                 subtree_paths: None,
                 depth: None,
-                all,
-                ..FetchOpts::new()
+                all
             };
             repositories::pull_remote_branch(&repo, &fetch_opts).await
         })?;
