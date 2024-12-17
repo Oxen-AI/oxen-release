@@ -33,7 +33,8 @@ pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, 
     Ok(commit_id != workspace.commit.id)
 }
 
-pub fn is_indexed(workspace: &Workspace, path: &Path) -> Result<bool, OxenError> {
+pub fn is_indexed(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
+    let path = path.as_ref();
     log::debug!("checking dataset is indexed for {:?}", path);
     let db_path = duckdb_path(workspace, path);
     log::debug!("getting conn at path {:?}", db_path);
@@ -149,6 +150,7 @@ pub fn query(
     let path = path.as_ref();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("query_staged_df() got db_path: {:?}", db_path);
+    log::debug!("query() opts: {:?}", opts);
 
     let conn = df_db::get_connection(db_path)?;
 
@@ -200,7 +202,7 @@ pub fn export(
         add_exclude_to_sql(&sql)?
     };
 
-    log::debug!("exporting data frame with sql: {:?}", sql);
+    // log::debug!("exporting data frame with sql: {:?}", sql);
 
     sql::export_df(&conn, sql, Some(opts), temp_file)?;
 

@@ -3,7 +3,9 @@ use serde_json::json;
 use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
+use crate::opts::PaginateOpts;
 use crate::view::data_frames::embeddings::EmbeddingColumnsResponse;
+use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
 
 use crate::model::RemoteRepository;
@@ -19,7 +21,7 @@ pub async fn get(
             path
         )));
     };
-    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/columns/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("get_embeddings {url}");
 
@@ -27,13 +29,42 @@ pub async fn get(
     let res = client.get(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: Result<EmbeddingColumnsResponse, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(val) => Ok(val),
-        Err(err) => {
-            let err = format!("api::staging::get_embeddings error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-            Err(OxenError::basic_str(err))
-        }
-    }
+    Ok(response?)
+}
+
+pub async fn neighbors(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+    column: impl AsRef<str>,
+    embedding: &Vec<f32>,
+    paginate_opts: &PaginateOpts,
+) -> Result<WorkspaceJsonDataFrameViewResponse, OxenError> {
+    let Some(file_path_str) = path.to_str() else {
+        return Err(OxenError::basic_str(format!(
+            "Path must be a string: {:?}",
+            path
+        )));
+    };
+    let uri =
+        format!("/workspaces/{workspace_id}/data_frames/embeddings/neighbors/{file_path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("get_embeddings {url}");
+
+    let body = json!({
+        "column": column.as_ref(),
+        "embedding": embedding,
+        "page_size": paginate_opts.page_size,
+        "page_num": paginate_opts.page_num,
+    });
+    let body = body.to_string();
+
+    let client = client::new_for_url(&url)?;
+    let res = client.post(&url).body(body).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<WorkspaceJsonDataFrameViewResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    Ok(response?)
 }
 
 pub async fn index(
@@ -50,7 +81,7 @@ pub async fn index(
         )));
     };
 
-    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/embeddings/columns/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("index_embeddings {url}");
 
@@ -68,25 +99,21 @@ pub async fn index(
         .await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: Result<EmbeddingColumnsResponse, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(val) => Ok(val),
-        Err(err) => {
-            let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-            Err(OxenError::basic_str(err))
-        }
-    }
+    Ok(response?)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
+    use serde_json::json;
+
     use crate::config::embedding_config::EmbeddingStatus;
     use crate::config::UserConfig;
-    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_SIZE, OXEN_ROW_ID_COL};
+    use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ROW_ID_COL};
     use crate::core::df::tabular;
     use crate::error::OxenError;
-    use crate::opts::DFOpts;
+    use crate::opts::{DFOpts, PaginateOpts};
     use crate::test;
+    use crate::{api, repositories};
 
     use std::path::Path;
 
@@ -236,6 +263,7 @@ mod tests {
             let opts = DFOpts {
                 find_embedding_where: Some(format!("{} = 1", OXEN_ROW_ID_COL)),
                 sort_by_similarity_to: Some(column.to_string()),
+                page_size: Some(23),
                 ..DFOpts::empty()
             };
             let result = api::client::workspaces::data_frames::get(
@@ -250,8 +278,79 @@ mod tests {
             assert!(response.data_frame.is_some());
             assert_eq!(
                 response.data_frame.unwrap().view.size.height,
-                DEFAULT_PAGE_SIZE
+                opts.page_size.unwrap()
             );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_query_embeddings_by_embedding() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let branch_name = DEFAULT_BRANCH_NAME;
+
+            // Write a small embeddings.json file
+            let path = Path::new("embeddings.json");
+            let data = json!([
+                {"id": 1, "text": "oxen is the best data platform", "embedding": [1.0, 2.0, 3.0]},
+                {"id": 2, "text": "collaborate on data in oxen.ai", "embedding": [2.0, 3.0, 4.0]},
+                {"id": 3, "text": "oxen is an open source data platform", "embedding": [3.0, 4.0, 5.0]},
+                {"id": 4, "text": "what is a good place to collaborate on data? Oxen.ai", "embedding": [4.0, 5.0, 6.0]},
+            ]);
+            let full_path = local_repo.path.join(path);
+            std::fs::write(&full_path, data.to_string())?;
+
+            // Add, commit, and push the file
+            repositories::add(&local_repo, &full_path)?;
+            repositories::commit(&local_repo, "Add embeddings.json")?;
+            repositories::push(&local_repo).await?;
+
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+            let column = "embedding";
+            let use_background_thread = false;
+            api::client::workspaces::data_frames::embeddings::index(
+                &remote_repo,
+                &workspace_id,
+                path,
+                column,
+                use_background_thread,
+            )
+            .await?;
+
+            let embedding = vec![3.0, 4.0, 5.0];
+            let paginate_opts = PaginateOpts {
+                page_num: 1,
+                page_size: 2,
+            };
+            let result = api::client::workspaces::data_frames::embeddings::neighbors(
+                &remote_repo,
+                &workspace_id,
+                path,
+                &column,
+                &embedding,
+                &paginate_opts,
+            )
+            .await;
+
+            assert!(result.is_ok());
+            let response = result.unwrap();
+            assert!(response.data_frame.is_some());
+            assert_eq!(
+                response.data_frame.as_ref().unwrap().view.size.height,
+                paginate_opts.page_size
+            );
+            let rows = response.data_frame.as_ref().unwrap().view.data.as_array().unwrap();
+            assert_eq!(rows.len(), paginate_opts.page_size);
+            let first_row = rows[0].as_object().unwrap();
+            let first_row_id = first_row["id"].as_u64().unwrap();
+            assert_eq!(first_row_id, 3);
 
             Ok(remote_repo)
         })
