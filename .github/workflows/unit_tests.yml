@@ -23,11 +23,11 @@ jobs:
         repository: "Oxen-AI/Oxen"
         latest: true
         fileName: "oxen-server-ubuntu-22.04.deb"
-        out-file-path: "oxen-server"
+        out-file-path: "."
 
     - name: Install oxen-server
       run: |
-        sudo dpkg -i oxen-server/oxen-server-ubuntu-22.04.deb
+        sudo dpkg -i oxen-server-ubuntu-22.04.deb
 
     - name: Set up Python
       uses: actions/setup-python@v4
