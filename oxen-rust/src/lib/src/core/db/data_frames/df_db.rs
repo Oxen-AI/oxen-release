@@ -220,7 +220,7 @@ pub fn export(
         ));
     }
     let export_sql = wrap_sql_for_export(sql, tmp_path);
-    log::debug!("export_sql: {}", export_sql);
+    // log::debug!("export_sql: {}", export_sql);
     conn.execute(&export_sql, [])?;
     Ok(())
 }
