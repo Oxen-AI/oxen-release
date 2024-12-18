@@ -20,6 +20,8 @@ dependencies = [
     "requests",
     "toml",
     "tqdm",
+    "torch",
+    "tensorflow",
 ]
 
 
