@@ -85,10 +85,6 @@ impl PyRemoteRepo {
         &self.repo.name
     }
 
-    fn revision(&self) -> &str {
-        &self.revision
-    }
-
     fn set_revision(&mut self, new_revision: String) {
         self.revision = new_revision;
     }

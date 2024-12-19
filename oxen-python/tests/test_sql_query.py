@@ -1,6 +1,3 @@
-import pandas as pd
-import pytest
-import os
 from oxen import Workspace, DataFrame
 
 
@@ -16,14 +13,9 @@ def test_workspace_df_sql_query(
     print(sql)
     assert sql == "SELECT * FROM df WHERE id = '290'"
 
-    sql = remote_df.select_sql_from_dict(
-        {"id": "290", "title": "A"}
-    )
+    sql = remote_df.select_sql_from_dict({"id": "290", "title": "A"})
     print(sql)
-    assert (
-        sql
-        == "SELECT * FROM df WHERE id = '290' AND title = 'A'"
-    )
+    assert sql == "SELECT * FROM df WHERE id = '290' AND title = 'A'"
 
     results = remote_df.query(sql=sql)
     print(results)

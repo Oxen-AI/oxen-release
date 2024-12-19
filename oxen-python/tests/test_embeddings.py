@@ -1,6 +1,3 @@
-import pandas as pd
-import pytest
-import os
 from oxen import Workspace, DataFrame
 
 
@@ -43,7 +40,7 @@ def test_workspace_df_sort_by_embedding_nearest_neighbors(
 
     column = "embedding"
     is_indexed = remote_df.is_nearest_neighbors_enabled(column=column)
-    assert is_indexed == False
+    assert not is_indexed
 
     remote_df.enable_nearest_neighbors(column=column)
 
@@ -69,7 +66,7 @@ def test_workspace_df_sort_by_embedding_nearest_neighbors_large_embedding(
 
     column = "question_embeddings"
     is_indexed = remote_df.is_nearest_neighbors_enabled(column=column)
-    assert is_indexed == False
+    assert not is_indexed
 
     remote_df.enable_nearest_neighbors(column=column)
 
@@ -97,7 +94,7 @@ def test_workspace_df_sort_by_embedding_search(
     column = "question_embeddings"
 
     is_indexed = remote_df.is_nearest_neighbors_enabled(column=column)
-    assert is_indexed == False
+    assert not is_indexed
 
     remote_df.enable_nearest_neighbors(column=column)
 
@@ -111,4 +108,4 @@ def test_workspace_df_sort_by_embedding_search(
     assert rows[0]["title"] == "A"
 
     is_indexed = remote_df.is_nearest_neighbors_enabled(column=column)
-    assert is_indexed == True
+    assert is_indexed
