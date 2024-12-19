@@ -443,10 +443,11 @@ mod tests {
             let edit_response = api::client::workspaces::data_frames::rows::add(
                 &remote_repo,
                 &workspace.id,
-                &original_path,
+                original_path,
                 new_row.to_string(), // Assuming this function takes the new path as a parameter
             )
-            .await?;
+            .await;
+            assert!(edit_response.is_ok());
 
             api::client::workspaces::data_frames::rename_data_frame(
                 &remote_repo,

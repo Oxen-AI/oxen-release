@@ -27,18 +27,18 @@ pub fn parse_resource_from_path_v0_19_0(
     let mut components = path.components().collect::<Vec<_>>();
 
     // See if the first component is the commit id
-    log::debug!(
-        "parse_resource_from_path_v0_19_0 looking for commit id in path {:?}",
-        path
-    );
+    // log::debug!(
+    //     "parse_resource_from_path_v0_19_0 looking for commit id in path {:?}",
+    //     path
+    // );
 
     if let Some(first_component) = components.first() {
         let base_path: &Path = first_component.as_ref();
         let maybe_commit_id = base_path.to_str().unwrap();
-        log::debug!(
-            "parse_resource_from_path_v0_19_0 looking at component {}",
-            maybe_commit_id
-        );
+        // log::debug!(
+        //     "parse_resource_from_path_v0_19_0 looking at component {}",
+        //     maybe_commit_id
+        // );
         if let Some(commit) = repositories::commits::get_by_id(repo, maybe_commit_id)? {
             let mut file_path = PathBuf::new();
             for (i, component) in components.iter().enumerate() {
@@ -59,12 +59,13 @@ pub fn parse_resource_from_path_v0_19_0(
                 version: PathBuf::from(commit.id.to_string()),
                 resource: path.to_owned(),
             }));
-        } else {
-            log::debug!(
-                "parse_resource_from_path_v0_19_0 did not find commit [{}]",
-                maybe_commit_id
-            );
         }
+        //  else {
+        //     log::debug!(
+        //         "parse_resource_from_path_v0_19_0 did not find commit [{}]",
+        //         maybe_commit_id
+        //     );
+        // }
     }
 
     // See if the component has a valid branch name in it
@@ -79,19 +80,19 @@ pub fn parse_resource_from_path_v0_19_0(
             file_path = component_path.join(file_path);
         }
 
-        log::debug!(
-            "parse_resource_from_path_v0_19_0 got file path [{:?}] with {} remaining components",
-            file_path,
-            components.len()
-        );
+        // log::debug!(
+        //     "parse_resource_from_path_v0_19_0 got file path [{:?}] with {} remaining components",
+        //     file_path,
+        //     components.len()
+        // );
         // if we have no components, looking at base dir within that branch
         if components.is_empty() {
             let branch_name = util::fs::linux_path_str(file_path.to_str().unwrap());
             if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
-                // log::debug!(
-                //     "parse_resource got branch [{}] with no file path",
-                //     branch_name
-                // );
+                log::debug!(
+                    "parse_resource got branch [{}] with no file path",
+                    branch_name
+                );
 
                 let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?;
                 file_path = PathBuf::from("");
@@ -114,10 +115,10 @@ pub fn parse_resource_from_path_v0_19_0(
         }
 
         let branch_name = util::fs::linux_path_str(branch_path.to_str().unwrap());
-        log::debug!(
-            "parse_resource_from_path_v0_19_0 looking for branch [{}]",
-            branch_name
-        );
+        // log::debug!(
+        //     "parse_resource_from_path_v0_19_0 looking for branch [{}]",
+        //     branch_name
+        // );
         if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
             log::debug!(
                 "parse_resource_from_path_v0_19_0 got branch [{}] and filepath [{:?}]",

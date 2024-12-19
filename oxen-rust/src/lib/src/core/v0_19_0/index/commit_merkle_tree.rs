@@ -567,12 +567,12 @@ impl CommitMerkleTree {
         traversed_depth: i32,
     ) -> Result<(), OxenError> {
         let dtype = node.node.node_type();
-        log::debug!(
-            "read_children_until_depth requested_depth {} traversed_depth {} node {}",
-            requested_depth,
-            traversed_depth,
-            node
-        );
+        // log::debug!(
+        //     "read_children_until_depth requested_depth {} traversed_depth {} node {}",
+        //     requested_depth,
+        //     traversed_depth,
+        //     node
+        // );
 
         if dtype != MerkleTreeNodeType::Commit
             && dtype != MerkleTreeNodeType::Dir
