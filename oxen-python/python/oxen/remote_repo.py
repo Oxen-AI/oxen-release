@@ -17,7 +17,13 @@ def get_repo(name: str, host: str = "hub.oxen.ai"):
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
-    return remote.get_repo(name, host)
+    py_repo = remote.get_repo(name, host)
+
+    if py_repo is None:
+        raise ValueError(f"Repository {name} not found")
+
+    repo_id = f"{py_repo.namespace()}/{py_repo.name()}"
+    return RemoteRepo(repo_id, py_repo.host, py_repo.revision, py_repo.scheme)
 
 
 def create_repo(
@@ -96,7 +102,7 @@ class RemoteRepo:
 
     def __init__(
         self,
-        path: str,
+        repo_id: str,
         host: str = "hub.oxen.ai",
         revision: str = "main",
         scheme: str = "https",
@@ -105,7 +111,7 @@ class RemoteRepo:
         Create a new RemoteRepo object to interact with.
 
         Args:
-            path: `str`
+            repo_id: `str`
                 Name of the repository in the format 'namespace/repo_name'.
                 For example 'ox/chatbot'
             host: `str`
@@ -115,7 +121,7 @@ class RemoteRepo:
             scheme: `str`
                 The scheme to use for the remote url. Default: 'https'
         """
-        self._repo = PyRemoteRepo(path, host, revision, scheme)
+        self._repo = PyRemoteRepo(repo_id, host, revision, scheme)
 
     def __repr__(self):
         return f"RemoteRepo({self._repo.url()})"
