@@ -6,7 +6,9 @@ use crate::params::{app_data, df_opts_query, path_param, DFOptsQuery, PageNumQue
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
-use liboxen::constants;
+use liboxen::constants::{self, TABLE_NAME};
+use liboxen::core::db::data_frames::df_db;
+use liboxen::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
@@ -175,6 +177,30 @@ pub async fn get(
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_schema(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+
+    let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+
+    if !is_indexed {
+        repositories::workspaces::data_frames::index(&repo, &workspace, &file_path)?;
+    }
+
+    let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, &file_path);
+
+    let conn = df_db::get_connection(db_path)?;
+    let schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
+
+    Ok(HttpResponse::Ok().json(schema))
 }
 
 pub async fn download(
