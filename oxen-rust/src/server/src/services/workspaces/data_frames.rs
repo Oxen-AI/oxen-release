@@ -30,6 +30,10 @@ pub fn data_frames() -> Scope {
             web::get().to(controllers::workspaces::data_frames::get),
         )
         .route(
+            "/schema/{path:.*}",
+            web::get().to(controllers::workspaces::data_frames::get_schema),
+        )
+        .route(
             "/resource/{path:.*}",
             web::put().to(controllers::workspaces::data_frames::put),
         )

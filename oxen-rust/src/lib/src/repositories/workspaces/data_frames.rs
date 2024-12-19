@@ -152,7 +152,7 @@ pub fn query(
     log::debug!("query_staged_df() got db_path: {:?}", db_path);
     log::debug!("query() opts: {:?}", opts);
 
-    let conn = df_db::get_connection(db_path)?;
+    let mut conn = df_db::get_connection(db_path)?;
 
     // Get the schema of this commit entry
     let schema = df_db::get_schema(&conn, TABLE_NAME)?;
@@ -167,7 +167,7 @@ pub fn query(
         log::debug!("querying embeddings: {:?}", embedding_opts);
         repositories::workspaces::data_frames::embeddings::query(workspace, &embedding_opts)?
     } else if let Some(sql) = &opts.sql {
-        df_db::select_str(&conn, sql, true, Some(&full_schema), Some(opts))?
+        sql::query_df(&mut conn, sql.clone(), None)?
     } else {
         let select = Select::new().select(&col_names).from(TABLE_NAME);
         df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?
