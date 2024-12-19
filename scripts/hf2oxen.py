@@ -1,7 +1,7 @@
 
 import argparse
 import os
-from huggingface_hub import list_repo_refs, HfApi
+from huggingface_hub import HfApi
 from datasets import load_dataset
 from oxen.remote_repo import create_repo, get_repo
 from oxen import Repo
@@ -83,7 +83,7 @@ def download_dataset_subsets(dataset_name, subsets, local_repo, data_dir, commit
             branch_names = [branch.name for branch in local_repo.branches()]
             print(f"Branches: {branch_names}")
             print(f"Checking out branch {branch_name}...")
-            if not branch_name in branch_names:
+            if branch_name not in branch_names:
                 print(f"Creating branch {branch_name}...")
                 local_repo.checkout(branch_name, create=True)
             
