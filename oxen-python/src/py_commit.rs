@@ -12,7 +12,15 @@ pub struct PyCommit {
 #[pymethods]
 impl PyCommit {
     fn __repr__(&self) -> String {
-        format!("PyCommit(id={}, message={}, author={}, email={}, timestamp={}, parent_ids=[{}])", self.commit.id, self.commit.message, self.commit.author, self.commit.email, self.commit.timestamp, self.commit.parent_ids.join(", "))
+        format!(
+            "PyCommit(id={}, message={}, author={}, email={}, timestamp={}, parent_ids=[{}])",
+            self.commit.id,
+            self.commit.message,
+            self.commit.author,
+            self.commit.email,
+            self.commit.timestamp,
+            self.commit.parent_ids.join(", ")
+        )
     }
 
     fn __str__(&self) -> String {

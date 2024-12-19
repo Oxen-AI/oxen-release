@@ -1,10 +1,8 @@
 import os
 import pytest
-import torch
 import tensorflow as tf
 import numpy as np
 from oxen.loaders import ImageClassificationLoader
-from torch.utils.data import TensorDataset, DataLoader
 
 
 def test_image_classification_dataloader_local(

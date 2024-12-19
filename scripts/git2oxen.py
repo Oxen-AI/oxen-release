@@ -1,7 +1,6 @@
 from git import Repo as GitRepo
 from oxen import Repo as OxenRepo
 
-import pandas as pd
 import time
 import os
 import shutil

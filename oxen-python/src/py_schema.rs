@@ -39,7 +39,10 @@ impl PySchema {
     }
 
     fn __repr__(&self) -> String {
-        format!("Schema(hash={}, fields={:?}, metadata={:?})", self.hash, self.fields, self.metadata)
+        format!(
+            "Schema(hash={}, fields={:?}, metadata={:?})",
+            self.hash, self.fields, self.metadata
+        )
     }
 }
 
@@ -47,9 +50,11 @@ impl From<Schema> for PySchema {
     fn from(schema: Schema) -> PySchema {
         PySchema {
             hash: schema.hash,
-            fields: schema.fields.into_iter().map(|field| {
-                (field.name, field.dtype)
-            }).collect(),
+            fields: schema
+                .fields
+                .into_iter()
+                .map(|field| (field.name, field.dtype))
+                .collect(),
             metadata: schema.metadata.map(|m| serde_json::to_string(&m).unwrap()),
         }
     }
