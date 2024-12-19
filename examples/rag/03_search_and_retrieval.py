@@ -1,5 +1,3 @@
-from PIL import Image
-import requests
 import oxen
 import os
 import argparse
@@ -7,7 +5,6 @@ import pandas as pd
 from typing import List
 from oxen import Workspace, DataFrame, RemoteRepo
 
-from transformers import CLIPProcessor, CLIPModel
 
 HTTP_HOST = "localhost:3001"
 HTTP_SCHEME = "http"
