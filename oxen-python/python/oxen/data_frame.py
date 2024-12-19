@@ -82,7 +82,9 @@ class DataFrame:
         elif isinstance(remote, Workspace):
             self._workspace = remote
         else:
-            raise ValueError("Invalid remote type. Must be a string, RemoteRepo, or Workspace")
+            raise ValueError(
+                "Invalid remote type. Must be a string, RemoteRepo, or Workspace"
+            )
         self._path = path
 
         # this will return an error if the data frame file does not exist
@@ -93,7 +95,7 @@ class DataFrame:
         name = f"{self._workspace._repo.namespace}/{self._workspace._repo.name}"
         return f"DataFrame(repo={name}, path={self._path})"
 
-    def size(self) -> (int, int):
+    def size(self) -> tuple[int, int]:
         """
         Get the size of the data frame. Returns a tuple of (rows, columns)
         """
@@ -153,6 +155,123 @@ class DataFrame:
         # this is not the most efficient but gets it working
         data = json.dumps(data)
         return self.data_frame.insert_row(data)
+
+    # TODO: Allow `where_from_str` to be passed in so user could write their own where clause
+    def where_sql_from_dict(self, attributes: dict, operator: str = "AND") -> str:
+        """
+        Generate the SQL from the attributes.
+        """
+        # df is the name of the data frame
+        sql = ""
+        i = 0
+        for key, value in attributes.items():
+            # only accept string and numeric values
+            if not isinstance(value, (str, int, float, bool)):
+                raise ValueError(f"Invalid value type for {key}: {type(value)}")
+
+            # if the value is a str put it in quotes
+            if isinstance(value, str):
+                value = f"'{value}'"
+            sql += f"{key} = {value}"
+            if i < len(attributes) - 1:
+                sql += f" {operator} "
+            i += 1
+        return sql
+
+    def select_sql_from_dict(
+        self, attributes: dict, columns: Optional[List[str]] = None
+    ) -> str:
+        """
+        Generate the SQL from the attributes.
+        """
+        # df is the name of the data frame
+        sql = "SELECT "
+        if columns is not None:
+            sql += ", ".join(columns)
+        else:
+            sql += "*"
+        sql += " FROM df WHERE "
+        sql += self.where_sql_from_dict(attributes)
+        return sql
+
+    def get_embeddings(
+        self, attributes: dict, column: str = "embedding"
+    ) -> List[float]:
+        """
+        Get the embedding from the data frame.
+        """
+        sql = self.select_sql_from_dict(attributes, columns=[column])
+        result = self.data_frame.sql_query(sql)
+        result = json.loads(result)
+        embeddings = [r[column] for r in result]
+        return embeddings
+
+    def is_nearest_neighbors_enabled(self, column="embedding"):
+        """
+        Check if the embeddings column is indexed in the data frame.
+        """
+        return self.data_frame.is_nearest_neighbors_enabled(column)
+
+    def enable_nearest_neighbors(self, column: str = "embedding"):
+        """
+        Index the embeddings in the data frame.
+        """
+        self.data_frame.enable_nearest_neighbors(column)
+
+    def query(
+        self,
+        sql: Optional[str] = None,
+        find_embedding_where: Optional[dict] = None,
+        embedding: Optional[list[float]] = None,
+        sort_by_similarity_to: Optional[str] = None,
+        page_num: int = 1,
+        page_size: int = 10,
+    ):
+        """
+        Sort the data frame by the embedding.
+        """
+
+        if sql is not None:
+            result = self.data_frame.sql_query(sql)
+        elif find_embedding_where is not None and sort_by_similarity_to is not None:
+            find_embedding_where = self.where_sql_from_dict(find_embedding_where)
+            result = self.data_frame.nearest_neighbors_search(
+                find_embedding_where, sort_by_similarity_to, page_num, page_size
+            )
+        elif embedding is not None and sort_by_similarity_to is not None:
+            result = self.data_frame.sort_by_embedding(
+                sort_by_similarity_to, embedding, page_num, page_size
+            )
+        else:
+            raise ValueError(
+                "Must provide either sql or find_embedding_where as well as sort_by_similarity_to"
+            )
+
+        return json.loads(result)
+
+    def nearest_neighbors_search(
+        self, find_embedding_where: dict, sort_by_similarity_to: str = "embedding"
+    ):
+        """
+        Get the nearest neighbors to the embedding.
+        """
+        result = self.data_frame.nearest_neighbors_search(
+            find_embedding_where, sort_by_similarity_to
+        )
+        result = json.loads(result)
+        return result
+
+    def get_by(self, attributes: dict):
+        """
+        Get a single row of data by attributes.
+        """
+        # Write the SQL from the attributes
+        sql = self.select_sql_from_dict(attributes)
+
+        # convert dict to json string
+        data = self.data_frame.sql_query(sql)
+        data = json.loads(data)
+        return data
 
     def get_row_by_id(self, id: str):
         """

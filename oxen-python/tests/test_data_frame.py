@@ -4,14 +4,18 @@ import pandas as pd
 
 from oxen import DataFrame, RemoteRepo, Workspace
 
-def test_data_frame_crud(
-    celeba_remote_repo_fully_pushed
-):
+
+def test_data_frame_crud(celeba_remote_repo_fully_pushed):
     _, remote_repo = celeba_remote_repo_fully_pushed
 
     new_row = {"file": "images/123456.png", "hair_color": "purple"}
 
-    df = DataFrame(remote_repo.identifier, "annotations/train.csv", host="localhost:3000", scheme="http")
+    df = DataFrame(
+        remote_repo.identifier,
+        "annotations/train.csv",
+        host="localhost:3000",
+        scheme="http",
+    )
     _width, og_height = df.size()
 
     # List the rows
@@ -34,14 +38,17 @@ def test_data_frame_crud(
     assert height == og_height, "Error removing row"
 
 
-def test_data_frame_commit(
-    celeba_remote_repo_fully_pushed
-):
+def test_data_frame_commit(celeba_remote_repo_fully_pushed):
     _, remote_repo = celeba_remote_repo_fully_pushed
 
     new_row = {"file": "images/123456.png", "hair_color": "purple"}
 
-    df = DataFrame(remote_repo.identifier, "annotations/train.csv", host="localhost:3000", scheme="http")
+    df = DataFrame(
+        remote_repo.identifier,
+        "annotations/train.csv",
+        host="localhost:3000",
+        scheme="http",
+    )
 
     # List commits before
     og_commits = remote_repo.log()
@@ -49,11 +56,10 @@ def test_data_frame_commit(
     # Add a row and commit
     df.insert_row(new_row)
     df.commit("Add row")
-    
+
     # List commits after
     new_commits = remote_repo.log()
     assert len(new_commits) == len(og_commits) + 1, "Error committing row"
-
 
 
 def test_remove_data_frame_row(

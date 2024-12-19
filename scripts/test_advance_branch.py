@@ -1,8 +1,5 @@
 from oxen import RemoteRepo
 from oxen import RemoteDataset
-import openai
-import tqdm
-from oxen.data_frame import index_dataset
 
 print("Creating Remote Repo")
 repo = RemoteRepo("ox/Testing123", "staging.hub.oxen.ai")
