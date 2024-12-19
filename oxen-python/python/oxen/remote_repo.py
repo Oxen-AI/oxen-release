@@ -289,4 +289,4 @@ class RemoteRepo:
         """
         The branch or commit id for the repo
         """
-        return self._repo.revision()
+        return self._repo.revision
