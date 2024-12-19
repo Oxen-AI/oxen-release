@@ -12,10 +12,7 @@ impl PyUser {
     #[pyo3(signature = (name, email))]
     pub fn new(name: String, email: String) -> Self {
         Self {
-            _user: User {
-                name,
-                email
-            },
+            _user: User { name, email },
         }
     }
 
@@ -30,11 +27,14 @@ impl PyUser {
     }
 
     fn __repr__(&self) -> String {
-        format!("PyUser(name='{}', email={})", self._user.name, self._user.email)
+        format!(
+            "PyUser(name='{}', email={})",
+            self._user.name, self._user.email
+        )
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self._user.name)
+        self._user.name.to_string()
     }
 }
 

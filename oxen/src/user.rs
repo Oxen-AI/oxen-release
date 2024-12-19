@@ -20,8 +20,6 @@ pub fn config_user(name: String, email: String, path: String) -> Result<PyUser, 
 #[pyfunction]
 pub fn current_user(path: String) -> Result<PyUser, PyOxenError> {
     let path = Path::new(&path);
-    let config = UserConfig::new(&path);
+    let config = UserConfig::new(path);
     Ok(config.to_user().into())
 }
-
-

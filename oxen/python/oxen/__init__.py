@@ -20,6 +20,7 @@ from oxen.data_frame import DataFrame
 from oxen.dag import DAG
 from oxen.op import Op
 from oxen import auth
+from oxen import datasets
 from oxen import loaders
 from oxen.clone import clone
 from oxen.diff.diff import diff
@@ -46,6 +47,7 @@ __all__ = [
     "DataFrame",
     "Repo",
     "auth",
+    "datasets",
     "loaders",
     "util",
     "diff",

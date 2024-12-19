@@ -14,7 +14,12 @@ pub struct PyStagedData {
 #[pymethods]
 impl PyStagedData {
     fn __repr__(&self) -> String {
-        format!("PyStagedData(added={}, removed={}, modified={})", self.data.staged_files.len(), self.data.removed_files.len(), self.data.modified_files.len())
+        format!(
+            "PyStagedData(added={}, removed={}, modified={})",
+            self.data.staged_files.len(),
+            self.data.removed_files.len(),
+            self.data.modified_files.len()
+        )
     }
 
     fn __str__(&self) -> String {
@@ -22,11 +27,11 @@ impl PyStagedData {
     }
 
     pub fn is_dirty(&self) -> bool {
-        return !self.data.is_clean();
+        !self.data.is_clean()
     }
 
     pub fn is_clean(&self) -> bool {
-        return self.data.is_clean();
+        self.data.is_clean()
     }
 
     pub fn added_files(&self) -> PyResult<Vec<String>> {

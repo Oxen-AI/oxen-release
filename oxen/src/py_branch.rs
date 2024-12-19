@@ -12,10 +12,7 @@ impl PyBranch {
     #[pyo3(signature = (name, commit_id))]
     pub fn new(name: String, commit_id: String) -> Self {
         Self {
-            _branch: Branch {
-                name,
-                commit_id,
-            },
+            _branch: Branch { name, commit_id },
         }
     }
 
@@ -30,11 +27,14 @@ impl PyBranch {
     }
 
     fn __repr__(&self) -> String {
-        format!("Branch(name={}, commit_id={})", self._branch.name, self._branch.commit_id)
+        format!(
+            "Branch(name={}, commit_id={})",
+            self._branch.name, self._branch.commit_id
+        )
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self._branch.name)
+        self._branch.name.to_string()
     }
 }
 
