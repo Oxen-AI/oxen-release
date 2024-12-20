@@ -47,7 +47,7 @@ impl RunCmd for ConfigCmd {
             .arg(
                 Arg::new("delete-remote")
                     .long("delete-remote")
-                    .number_of_values(2)
+                    .value_name("REMOTE_NAME")
                     .help("Delete a remote from the current working repository.")
                     .action(clap::ArgAction::Set),
             )
