@@ -5,7 +5,7 @@ from typing import List, Tuple
 from .oxen import PyRemoteRepo, remote
 
 
-def get_repo(name: str, host: str = "hub.oxen.ai"):
+def get_repo(name: str, host: str = "hub.oxen.ai", scheme: str = "https"):
     """
     Get a RemoteRepo object for the specified name. For example 'ox/CatDogBBox'.
 
@@ -17,7 +17,7 @@ def get_repo(name: str, host: str = "hub.oxen.ai"):
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
-    py_repo = remote.get_repo(name, host)
+    py_repo = remote.get_repo(name, host, scheme)
 
     if py_repo is None:
         raise ValueError(f"Repository {name} not found")
