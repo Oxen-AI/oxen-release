@@ -1,5 +1,5 @@
 from oxen import RemoteRepo
-from oxen import RemoteDataset
+from oxen import DataFrame
 import openai
 import tqdm
 
@@ -7,13 +7,9 @@ import tqdm
 print("Creating Remote Repo")
 repo = RemoteRepo("ox/LLM-Dataset", "localhost:3001", scheme="http")
 
-# Index the dataset
-# from oxen.remote_dataset import index_dataset
-# index_dataset(repo, "prompts.jsonl")
-
 print("Creating Remote Dataset")
 # Gets dataset if exists
-dataset = RemoteDataset(repo, "prompts.parquet")
+dataset = DataFrame(repo, "prompts.parquet")
 
 size = dataset.size()
 print("size: ", size)
@@ -25,17 +21,17 @@ model = "gpt-4o"
 results = dataset.list_page(1)
 for result in tqdm.tqdm(results):
     print(result)
-    prompt = result["input"]
-    instruction = result["instruction"]
+    prompt = result["instruction"]
+    context = result["context"]
+
+    prompt = f"Context: {context}\n\nInstruction: {prompt}"
 
     completion = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": instruction},
             {"role": "user", "content": prompt}
         ]
     )
-    print("Assistant: " + completion.choices[0].message.content)
     response = completion.choices[0].message.content
+    print("Assistant: " + response)
 
-    dataset.update_row(result["_oxen_id"], {"output": response})
