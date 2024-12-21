@@ -416,8 +416,13 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             // Define the original path for the data frame
-            let original_path = Path::new("annotations/train/bounding_box.csv");
-            let new_path = Path::new("annotations/train/bounding_box_edited.csv");
+
+            let original_path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
+            let new_path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box_edited.csv"));
 
             // Index the original data frame
             api::client::workspaces::data_frames::index(
@@ -443,7 +448,7 @@ mod tests {
             let edit_response = api::client::workspaces::data_frames::rows::add(
                 &remote_repo,
                 &workspace.id,
-                original_path,
+                &original_path,
                 new_row.to_string(), // Assuming this function takes the new path as a parameter
             )
             .await;
