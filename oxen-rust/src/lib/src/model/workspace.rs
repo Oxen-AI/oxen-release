@@ -11,6 +11,7 @@ pub struct WorkspaceConfig {
     pub workspace_commit_id: String,
     pub is_editable: bool,
     pub workspace_name: String,
+    pub workspace_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

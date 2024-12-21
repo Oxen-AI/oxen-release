@@ -1,6 +1,6 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, path_param};
+use crate::params::{app_data, path_param, NameParam};
 
 use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
@@ -8,7 +8,7 @@ use liboxen::repositories;
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{CommitResponse, StatusMessage, WorkspaceResponseView};
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 
 pub mod changes;
 pub mod data_frames;
@@ -134,7 +134,10 @@ pub async fn create(
     }))
 }
 
-pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn list(
+    req: HttpRequest,
+    params: web::Query<NameParam>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -149,12 +152,30 @@ pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
             name: workspace.name.clone(),
             commit: workspace.commit.clone().into(),
         })
+        .filter(|workspace| {
+            // TODO: Would be faster to have a map of names to namespaces, but this works for now
+            //       if getting a workspace is slow then we can optimize it
+            if let Some(name) = &params.name {
+                workspace.name == Some(name.to_string())
+            } else {
+                true
+            }
+        })
         .collect();
 
     Ok(HttpResponse::Ok().json(ListWorkspaceResponseView {
         status: StatusMessage::resource_created(),
         workspaces: workspace_views,
     }))
+}
+
+pub async fn clear(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    repositories::workspaces::clear(&repo)?;
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
 pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

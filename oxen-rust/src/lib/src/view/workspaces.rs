@@ -17,7 +17,7 @@ pub struct NewWorkspace {
 
 // HACK to get this to work with our hub where we don't keep parent_ids 🤦‍♂️
 // TODO: it should just be a Commit object
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct WorkspaceCommit {
     pub id: String,
     pub message: String,
@@ -41,7 +41,7 @@ impl From<WorkspaceCommit> for Commit {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct WorkspaceResponse {
     pub id: String,
     pub name: Option<String>,

@@ -29,9 +29,19 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
     log::debug!("workspace::get workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
 
     let workspace_dir = Workspace::workspace_dir(repo, &workspace_id_hash);
+    get_by_dir(repo, workspace_dir)
+}
+
+pub fn get_by_dir(
+    repo: &LocalRepository,
+    workspace_dir: impl AsRef<Path>,
+) -> Result<Workspace, OxenError> {
+    let workspace_dir = workspace_dir.as_ref();
     let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+    let workspace_id = workspace_dir.file_name().unwrap().to_str().unwrap();
 
     if !config_path.exists() {
+        log::debug!("workspace::get workspace not found: {:?}", workspace_dir);
         return Err(OxenError::workspace_not_found(workspace_id.into()));
     }
 
@@ -47,10 +57,10 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
     };
 
     Ok(Workspace {
-        id: workspace_id.to_owned(),
+        id: config.workspace_id.unwrap_or(workspace_id.to_owned()),
         name: Some(config.workspace_name),
         base_repo: repo.clone(),
-        workspace_repo: LocalRepository::new(&workspace_dir)?,
+        workspace_repo: LocalRepository::new(workspace_dir)?,
         commit,
         is_editable: config.is_editable,
     })
@@ -115,6 +125,7 @@ pub fn create_with_name(
         workspace_commit_id: commit.id.clone(),
         is_editable,
         workspace_name: workspace_name.to_string(),
+        workspace_id: Some(workspace_id.to_string()),
     };
 
     let toml_string = match toml::to_string(&workspace_config) {
@@ -165,33 +176,8 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
 
     let mut workspaces = Vec::new();
     for workspace_hash in workspaces_hashes {
-        let workspace_config_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
-
-        if !workspace_config_path.exists() {
-            log::warn!("Workspace config not found at: {:?}", workspace_config_path);
-            continue;
-        }
-
-        // Read the workspace config file
-        let config_toml = match util::fs::read_from_path(&workspace_config_path) {
-            Ok(content) => content,
-            Err(e) => {
-                log::error!("Failed to read workspace config: {}", e);
-                continue;
-            }
-        };
-
-        // Deserialize the TOML content
-        let workspace_config: WorkspaceConfig = match toml::from_str(&config_toml) {
-            Ok(config) => config,
-            Err(e) => {
-                log::error!("Failed to deserialize workspace config: {}", e);
-                continue;
-            }
-        };
-
         // Construct the Workspace and add it to the list
-        match get(repo, workspace_config.workspace_name) {
+        match get_by_dir(repo, workspace_hash) {
             Ok(workspace) => workspaces.push(workspace),
             Err(e) => {
                 log::error!("Failed to create workspace: {}", e);
@@ -237,6 +223,16 @@ pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
         Err(e) => log::error!("workspace::delete error removing workspace dir: {:?}", e),
     }
 
+    Ok(())
+}
+
+pub fn clear(repo: &LocalRepository) -> Result<(), OxenError> {
+    let workspaces_dir = Workspace::workspaces_dir(repo);
+    if !workspaces_dir.exists() {
+        return Ok(());
+    }
+
+    util::fs::remove_dir_all(&workspaces_dir)?;
     Ok(())
 }
 

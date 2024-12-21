@@ -10,6 +10,7 @@ pub fn workspace() -> Scope {
         .route("", web::put().to(controllers::workspaces::get_or_create))
         .route("", web::post().to(controllers::workspaces::create))
         .route("", web::get().to(controllers::workspaces::list))
+        .route("", web::delete().to(controllers::workspaces::clear))
         .service(
             web::scope("/{workspace_id}")
                 .route("", web::get().to(controllers::workspaces::get))
