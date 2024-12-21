@@ -30,6 +30,19 @@ impl PyWorkspace {
     ) -> Result<Self, PyOxenError> {
         let name = name.unwrap_or_else(|| format!("workspace-{}", Uuid::new_v4()));
 
+        // Get the workspace by name
+        let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::client::workspaces::get_by_name(&repo.repo, &name).await
+        })?;
+
+        if let Some(workspace) = workspace {
+            return Ok(Self {
+                repo,
+                branch_name: branch_name.clone(),
+                id: workspace.id,
+            });
+        }
+
         let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::client::workspaces::create_with_path(
                 &repo.repo,
