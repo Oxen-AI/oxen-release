@@ -13,7 +13,7 @@ use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::workspaces::ListWorkspaceResponseView;
 use crate::view::workspaces::{NewWorkspace, WorkspaceResponse};
-use crate::view::WorkspaceResponseView;
+use crate::view::{StatusMessage, WorkspaceResponseView};
 
 pub async fn list(remote_repo: &RemoteRepository) -> Result<Vec<WorkspaceResponse>, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
@@ -42,6 +42,36 @@ pub async fn get(
     let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val.workspace),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
+
+pub async fn get_by_name(
+    remote_repo: &RemoteRepository,
+    name: impl AsRef<str>,
+) -> Result<Option<WorkspaceResponse>, OxenError> {
+    let name = name.as_ref();
+    let url = api::endpoint::url_from_repo(remote_repo, &format!("/workspaces?name={name}"))?;
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<ListWorkspaceResponseView, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(val) => {
+            if val.workspaces.len() == 1 {
+                Ok(Some(val.workspaces[0].clone()))
+            } else if val.workspaces.is_empty() {
+                Ok(None)
+            } else {
+                Err(OxenError::basic_str(format!(
+                    "expected 1 workspace, got {}",
+                    val.workspaces.len()
+                )))
+            }
+        }
         Err(err) => Err(OxenError::basic_str(format!(
             "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
         ))),
@@ -132,6 +162,24 @@ pub async fn delete(
     }
 }
 
+pub async fn clear(remote_repo: &RemoteRepository) -> Result<(), OxenError> {
+    let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
+    log::debug!("clear workspaces {}\n", url);
+
+    let client = client::new_for_url(&url)?;
+    let res = client.delete(&url).send().await?;
+
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("delete workspace got body: {}", body);
+    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(_) => Ok(()),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -176,6 +224,73 @@ mod tests {
             let workspace = get(&remote_repo, &workspace_id).await?;
             assert_eq!(workspace.name, Some(workspace_name.to_string()));
             assert_eq!(workspace.id, workspace_id);
+
+            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
+            assert!(workspace.is_some());
+            assert_eq!(
+                workspace.as_ref().unwrap().name,
+                Some(workspace_name.to_string())
+            );
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_name() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            let branch_name = "main";
+            let workspace_id = "test_workspace_id";
+            let workspace_name = "test_workspace_name";
+            create_with_name(&remote_repo, branch_name, workspace_id, workspace_name).await?;
+
+            // Create a second workspace with a different name
+            let workspace_id2 = "test_workspace_id2";
+            let workspace_name2 = "test_workspace_name2";
+            create_with_name(&remote_repo, branch_name, workspace_id2, workspace_name2).await?;
+
+            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
+            assert!(workspace.is_some());
+            assert_eq!(
+                workspace.as_ref().unwrap().name,
+                Some(workspace_name.to_string())
+            );
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
+
+            let workspace2 = get_by_name(&remote_repo, &workspace_name2).await?;
+            assert!(workspace2.is_some());
+            assert_eq!(
+                workspace2.as_ref().unwrap().name,
+                Some(workspace_name2.to_string())
+            );
+            assert_eq!(workspace2.as_ref().unwrap().id, workspace_id2);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clear_workspaces() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            // Create 10 workspaces
+            for i in 0..10 {
+                create(
+                    &remote_repo,
+                    DEFAULT_BRANCH_NAME,
+                    &format!("test_workspace_{i}"),
+                )
+                .await?;
+            }
+
+            // Clear them
+            clear(&remote_repo).await?;
+
+            // Check they are gone
+            let workspaces = list(&remote_repo).await?;
+            assert_eq!(workspaces.len(), 0);
 
             Ok(remote_repo)
         })

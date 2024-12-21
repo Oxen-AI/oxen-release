@@ -1,6 +1,9 @@
 pub mod add;
 pub use add::WorkspaceAddCmd;
 
+pub mod clear;
+pub use clear::WorkspaceClearCmd;
+
 pub mod create;
 pub use create::WorkspaceCreateCmd;
 
@@ -80,6 +83,7 @@ impl WorkspaceCmd {
     fn get_subcommands(&self) -> HashMap<String, Box<dyn RunCmd>> {
         let commands: Vec<Box<dyn RunCmd>> = vec![
             Box::new(WorkspaceAddCmd),
+            Box::new(WorkspaceClearCmd),
             Box::new(WorkspaceCommitCmd),
             Box::new(WorkspaceCreateCmd),
             Box::new(WorkspaceDfCmd),

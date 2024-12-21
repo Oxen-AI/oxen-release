@@ -1,21 +1,22 @@
 use async_trait::async_trait;
 use clap::{ArgMatches, Command};
 
+use dialoguer::Confirm;
 use liboxen::api;
 use liboxen::{error::OxenError, model::LocalRepository};
 
 use crate::cmd::RunCmd;
-pub const NAME: &str = "list";
-pub struct WorkspaceListCmd;
+pub const NAME: &str = "clear";
+pub struct WorkspaceClearCmd;
 
 #[async_trait]
-impl RunCmd for WorkspaceListCmd {
+impl RunCmd for WorkspaceClearCmd {
     fn name(&self) -> &str {
         NAME
     }
 
     fn args(&self) -> Command {
-        Command::new(NAME).about("Lists all workspaces").arg(
+        Command::new(NAME).about("Clears all workspaces").arg(
             clap::Arg::new("remote")
                 .short('r')
                 .long("remote")
@@ -39,17 +40,27 @@ impl RunCmd for WorkspaceListCmd {
             None => api::client::repositories::get_default_remote(&repository).await?,
         };
 
-        let workspaces = api::client::workspaces::list(&remote_repo).await?;
-        for workspace in workspaces {
-            println!("id\tname\tcommit_id\tcommit_message");
-            println!(
-                "{}\t{}\t{}\t{}",
-                workspace.id,
-                workspace.name.unwrap_or("".to_string()),
-                workspace.commit.id,
-                workspace.commit.message
-            );
+        match Confirm::new()
+            .with_prompt(format!(
+                "Are you sure you want to clear all workspaces for remote: {}?",
+                remote_repo.name
+            ))
+            .interact()
+        {
+            Ok(true) => {
+                api::client::workspaces::clear(&remote_repo).await?;
+                println!("All workspaces cleared");
+            }
+            Ok(false) => {
+                return Ok(());
+            }
+            Err(e) => {
+                return Err(OxenError::basic_str(format!(
+                    "Error confirming deletion: {e}"
+                )));
+            }
         }
+
         Ok(())
     }
 }

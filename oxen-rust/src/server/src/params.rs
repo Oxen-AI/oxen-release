@@ -15,6 +15,9 @@ use crate::errors::OxenHttpError;
 pub mod aggregate_query;
 pub use aggregate_query::AggregateQuery;
 
+pub mod name_param;
+pub use name_param::NameParam;
+
 pub mod page_num_query;
 pub use page_num_query::PageNumQuery;
 pub use page_num_query::PageNumVersionQuery;
