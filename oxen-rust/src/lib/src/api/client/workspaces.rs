@@ -459,7 +459,18 @@ mod tests {
                 api::client::workspaces::create(&remote_repo, new_branch, "test_workspace").await?;
             let identifier = workspace.id;
 
-            // Make an EMPTY commit to behind-main
+            // Add a file to behind-main
+            let image_path = test::test_1k_parquet();
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &identifier,
+                main_path,
+                image_path,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            // Make a commit to behind-main
             let body = NewCommitBody {
                 message: "Add behind main".to_string(),
                 author: "Test User".to_string(),
@@ -472,7 +483,7 @@ mod tests {
             let identifier = workspace.id;
 
             // Add file at images/folder to behind-main, committed to main
-            let image_path = test::test_1k_parquet();
+            let image_path = test::test_100_parquet();
             let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &identifier,
