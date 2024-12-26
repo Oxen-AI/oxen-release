@@ -76,6 +76,10 @@ pub fn commit(
             &commit_progress_bar,
         )?;
 
+        if dir_entries.is_empty() {
+            return Err(OxenError::basic_str("No changes to commit"));
+        }
+
         core::v0_19_0::index::commit_writer::commit_dir_entries(
             &workspace.base_repo,
             dir_entries,
