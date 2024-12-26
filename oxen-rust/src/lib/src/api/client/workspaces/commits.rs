@@ -92,8 +92,6 @@ mod tests {
             assert!(remote_commit.is_some());
             assert_eq!(commit.id, remote_commit.unwrap().id);
 
-            println!("DONE!!");
-
             Ok(remote_repo)
         })
         .await
@@ -169,6 +167,91 @@ mod tests {
             {
                 panic!("Column `{}` does not exist in the data frame", column_name);
             }
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_same_data_frame_file_twice() -> Result<(), OxenError> {
+        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
+            let branch_name = "main";
+            let branch = api::client::branches::create_from_branch(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let workspace_id = UserConfig::identifier()?;
+            let directory_name = "";
+            let paths = vec![test::test_100_parquet()];
+            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            let result = api::client::workspaces::files::add_many(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                paths,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Adding 100 row parquet".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            let commit =
+                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
+                    .await?;
+
+            let remote_commit = api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
+            assert!(remote_commit.is_some());
+            assert_eq!(commit.id, remote_commit.unwrap().id);
+
+            // List the files on main
+            let revision = "main";
+            let path = "";
+            let page = 1;
+            let page_size = 100;
+            let entries =
+                api::client::dir::list(&remote_repo, revision, path, page, page_size).await?;
+
+            // There should be the README and the parquet file
+            assert_eq!(entries.total_entries, 2);
+            assert_eq!(entries.entries.len(), 2);
+
+            // Add the same file again
+            let workspace_id = UserConfig::identifier()? + "2";
+            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            let paths = vec![test::test_100_parquet()];
+            let result = api::client::workspaces::files::add_many(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                paths,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            // Commit the changes
+            let body = NewCommitBody {
+                message: "Adding 100 row parquet AGAIN".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            let result =
+                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
+                    .await;
+            assert!(result.is_err());
+
+            // List the files on main
+            let entries =
+                api::client::dir::list(&remote_repo, revision, path, page, page_size).await?;
+            assert_eq!(entries.total_entries, 2);
+            assert_eq!(entries.entries.len(), 2);
 
             Ok(remote_repo)
         })

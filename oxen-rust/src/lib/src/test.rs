@@ -735,7 +735,7 @@ where
     Ok(())
 }
 
-/// Test interacting with a remote repo that has nothing synced
+/// Test interacting with a remote repo that has a README
 pub async fn run_remote_created_and_readme_remote_repo_test<T, Fut>(
     test: T,
 ) -> Result<(), OxenError>
@@ -1615,6 +1615,14 @@ pub fn test_200k_csv() -> PathBuf {
         .join("test")
         .join("text")
         .join("celeb_a_200k.csv")
+}
+
+/// Returns: data/test/parquet/sft 100.parquet
+pub fn test_100_parquet() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("parquet")
+        .join("sft 100.parquet")
 }
 
 /// Returns: data/test/parquet/wiki_1k.parquet

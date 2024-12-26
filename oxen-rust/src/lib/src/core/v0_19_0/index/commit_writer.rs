@@ -401,6 +401,10 @@ pub fn commit_dir_entries(
         );
     }
 
+    if dir_entries.is_empty() {
+        return Err(OxenError::basic_str("No changes to commit"));
+    }
+
     let message = &new_commit.message;
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
