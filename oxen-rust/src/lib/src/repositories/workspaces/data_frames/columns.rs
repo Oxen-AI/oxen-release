@@ -34,7 +34,7 @@ pub fn add(
             file_path.as_ref(),
             new_column,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::add(
+        _ => core::v_latest::workspaces::data_frames::columns::add(
             workspace,
             file_path.as_ref(),
             new_column,
@@ -54,7 +54,7 @@ pub fn update(
             file_path.as_ref(),
             column_to_update,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::update(
+        _ => core::v_latest::workspaces::data_frames::columns::update(
             workspace,
             file_path.as_ref(),
             column_to_update,
@@ -74,7 +74,7 @@ pub fn delete(
             file_path.as_ref(),
             column_to_delete,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::delete(
+        _ => core::v_latest::workspaces::data_frames::columns::delete(
             workspace,
             file_path.as_ref(),
             column_to_delete,
@@ -91,11 +91,9 @@ pub fn add_column_metadata(
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("Not implemented")),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::columns::add_column_metadata(
-                repo, workspace, file_path, column, metadata,
-            )
-        }
+        _ => core::v_latest::workspaces::data_frames::columns::add_column_metadata(
+            repo, workspace, file_path, column, metadata,
+        ),
     }
 }
 
@@ -111,7 +109,7 @@ pub fn restore(
             file_path.as_ref(),
             column_to_restore,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::restore(
+        _ => core::v_latest::workspaces::data_frames::columns::restore(
             workspace,
             file_path.as_ref(),
             column_to_restore,

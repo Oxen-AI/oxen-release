@@ -698,17 +698,17 @@ pub fn diff_entries(
     df_opts: DFOpts,
 ) -> Result<DiffEntry, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::diff_entries(
+        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::diff_entries(
             repo,
-            file_path,
             base_entry,
             base_commit,
             head_entry,
             head_commit,
             df_opts,
         ),
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::diff_entries(
+        _ => core::v_latest::diff::diff_entries(
             repo,
+            file_path,
             base_entry,
             base_commit,
             head_entry,
@@ -730,7 +730,7 @@ pub fn list_diff_entries_in_dir_top_level(
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::list_diff_entries_in_dir_top_level(
+        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries_in_dir_top_level(
             repo,
             dir,
             base_commit,
@@ -738,7 +738,7 @@ pub fn list_diff_entries_in_dir_top_level(
             page,
             page_size,
         ),
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries_in_dir_top_level(
+        _ => core::v_latest::diff::list_diff_entries_in_dir_top_level(
             repo,
             dir,
             base_commit,
@@ -755,12 +755,10 @@ pub fn list_changed_dirs(
     head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::diff::list_changed_dirs(repo, base_commit, head_commit)
-        }
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::diff::list_changed_dirs(repo, base_commit, head_commit)
         }
+        _ => core::v_latest::diff::list_changed_dirs(repo, base_commit, head_commit),
     }
 }
 
@@ -976,14 +974,14 @@ pub fn get_dir_diff_entry_with_summary(
     summary: GenericDiffSummary,
 ) -> Result<Option<DiffEntry>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::get_dir_diff_entry_with_summary(
+        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::get_dir_diff_entry_with_summary(
             repo,
             dir,
             base_commit,
             head_commit,
             summary,
         ),
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::get_dir_diff_entry_with_summary(
+        _ => core::v_latest::diff::get_dir_diff_entry_with_summary(
             repo,
             dir,
             base_commit,
@@ -1002,7 +1000,7 @@ pub fn list_diff_entries(
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::list_diff_entries(
+        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries(
             repo,
             base_commit,
             head_commit,
@@ -1010,7 +1008,7 @@ pub fn list_diff_entries(
             page,
             page_size,
         ),
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries(
+        _ => core::v_latest::diff::list_diff_entries(
             repo,
             base_commit,
             head_commit,

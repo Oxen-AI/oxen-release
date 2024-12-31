@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
-use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v_latest::index::merkle_node_db::node_db_path;
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{
     DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,

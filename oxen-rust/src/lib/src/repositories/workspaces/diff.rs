@@ -18,9 +18,9 @@ pub fn diff(
     path: impl AsRef<Path>,
 ) -> Result<DiffResult, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::diff::diff(workspace, path),
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::index::workspaces::data_frames::diff(workspace, path)
         }
+        _ => core::v_latest::workspaces::diff::diff(workspace, path),
     }
 }

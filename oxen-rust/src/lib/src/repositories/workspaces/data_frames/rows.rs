@@ -35,8 +35,8 @@ pub fn add(
             file_path.as_ref(),
             data,
         ),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::rows::add(workspace, file_path.as_ref(), data)
+        _ => {
+            core::v_latest::workspaces::data_frames::rows::add(workspace, file_path.as_ref(), data)
         }
     }
 }
@@ -66,7 +66,7 @@ pub fn update(
             row_id,
             data,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::rows::update(
+        _ => core::v_latest::workspaces::data_frames::rows::update(
             workspace,
             path.as_ref(),
             row_id,
@@ -89,7 +89,7 @@ pub fn batch_update(
                 data,
             )
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::rows::batch_update(
+        _ => core::v_latest::workspaces::data_frames::rows::batch_update(
             workspace,
             path.as_ref(),
             data,
@@ -109,8 +109,8 @@ pub fn delete(
             path.as_ref(),
             row_id,
         ),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::rows::delete(workspace, path.as_ref(), row_id)
+        _ => {
+            core::v_latest::workspaces::data_frames::rows::delete(workspace, path.as_ref(), row_id)
         }
     }
 }
@@ -128,8 +128,8 @@ pub fn restore(
             path.as_ref(),
             row_id,
         ),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id)
+        _ => {
+            core::v_latest::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id)
         }
     }
 }

@@ -26,7 +26,7 @@ use crate::core::v0_10_0::index::{CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
-use crate::core::v0_19_0::structs::push_progress::PushProgress;
+use crate::core::v_latest::structs::push_progress::PushProgress;
 use crate::{api, util};
 
 pub async fn push(

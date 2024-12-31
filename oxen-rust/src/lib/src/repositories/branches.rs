@@ -326,7 +326,7 @@ pub async fn checkout_branch_from_commit(
     log::debug!("checkout_branch {}", name);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name, from_commit).await,
+        _ => core::v_latest::branches::checkout(repo, name, from_commit).await,
     }
 }
 
@@ -341,8 +341,8 @@ pub async fn checkout_subtrees_from_commit(
         MinOxenVersion::V0_10_0 => {
             panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
+        _ => {
+            core::v_latest::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
                 .await
         }
     }
@@ -358,9 +358,7 @@ pub async fn checkout_commit_from_commit(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::branches::checkout_commit_id(repo, &commit.id).await
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_commit(repo, commit, from_commit).await
-        }
+        _ => core::v_latest::branches::checkout_commit(repo, commit, from_commit).await,
     }
 }
 
@@ -424,7 +422,7 @@ pub fn list_entry_versions_on_branch(
             &branch.commit_id,
             path,
         ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::list_entry_versions_for_commit(
+        _ => core::v_latest::branches::list_entry_versions_for_commit(
             local_repo,
             &branch.commit_id,
             path,
@@ -441,9 +439,7 @@ pub async fn set_working_repo_to_commit(
         MinOxenVersion::V0_10_0 => {
             panic!("set_working_repo_to_commit not implemented for oxen v0.10.0")
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, from_commit).await
-        }
+        _ => core::v_latest::branches::set_working_repo_to_commit(repo, commit, from_commit).await,
     }
 }
 

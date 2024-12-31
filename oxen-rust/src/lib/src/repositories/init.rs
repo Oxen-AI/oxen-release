@@ -37,7 +37,7 @@ pub fn init_with_version(
     let path = path.as_ref();
     match version {
         MinOxenVersion::V0_10_0 => core::v0_10_0::init(path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::init(path),
+        _ => core::v_latest::init(path),
     }
 }
 

@@ -86,8 +86,8 @@ pub async fn fetch_remote_branch(
                 .pull_most_recent_commit_object(remote_repo, &rb, false)
                 .await?;
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
+        _ => {
+            core::v_latest::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
         }
     }
 

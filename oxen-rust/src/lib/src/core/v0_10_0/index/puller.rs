@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
-use crate::core::v0_19_0::structs::PullProgress;
+use crate::core::v_latest::structs::PullProgress;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;

@@ -47,7 +47,7 @@ pub fn add_with_version(
 ) -> Result<(), OxenError> {
     match version {
         MinOxenVersion::V0_10_0 => core::v0_10_0::add::add(repo, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::add::add(repo, path),
+        _ => core::v_latest::add::add(repo, path),
     }
 }
 

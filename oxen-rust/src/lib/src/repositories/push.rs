@@ -50,7 +50,7 @@ use crate::model::{Branch, LocalRepository};
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::push::push(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::push::push(repo).await,
+        _ => core::v_latest::push::push(repo).await,
     }
 }
 
@@ -64,9 +64,7 @@ pub async fn push_remote_branch(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::push::push_remote_branch(repo, remote, branch_name).await
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::push::push_remote_branch(repo, remote, branch_name).await
-        }
+        _ => core::v_latest::push::push_remote_branch(repo, remote, branch_name).await,
     }
 }
 

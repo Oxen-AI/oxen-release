@@ -31,7 +31,7 @@ pub fn get_directory(
 ) -> Result<Option<DirNode>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_directory(repo, commit, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_directory(repo, commit, path),
+        _ => core::v_latest::entries::get_directory(repo, commit, path),
     }
 }
 
@@ -43,7 +43,7 @@ pub fn get_file(
 ) -> Result<Option<FileNode>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_file(repo, commit, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
+        _ => core::v_latest::entries::get_file(repo, commit, path),
     }
 }
 
@@ -78,7 +78,7 @@ pub fn list_directory_w_version(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
-        MinOxenVersion::V0_19_0 => {
+        _ => {
             let revision = revision.as_ref().to_string();
             let branch = repositories::branches::get_by_name(repo, &revision)?;
             let commit = repositories::revisions::get(repo, &revision)?;
@@ -89,7 +89,12 @@ pub fn list_directory_w_version(
                 version: PathBuf::from(&revision),
                 resource: PathBuf::from(&revision).join(&directory),
             };
-            core::v0_19_0::entries::list_directory(repo, directory, &parsed_resource, paginate_opts)
+            core::v_latest::entries::list_directory(
+                repo,
+                directory,
+                &parsed_resource,
+                paginate_opts,
+            )
         }
     }
 }
@@ -103,7 +108,7 @@ pub fn get_meta_entry(
 ) -> Result<MetadataEntry, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, &path),
-        MinOxenVersion::V0_19_0 => {
+        _ => {
             let path = path.as_ref();
             let parsed_resource = ParsedResource {
                 path: path.to_path_buf(),
@@ -112,7 +117,7 @@ pub fn get_meta_entry(
                 version: PathBuf::from(&commit.id),
                 resource: PathBuf::from(&commit.id).join(path),
             };
-            core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
+            core::v_latest::entries::get_meta_entry(repo, &parsed_resource, path)
         }
     }
 }
@@ -124,8 +129,8 @@ pub fn list_dir_paths(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Pat
             let dir_reader = CommitEntryReader::new(repo, commit)?;
             dir_reader.list_dirs()
         }
-        MinOxenVersion::V0_19_0 => {
-            let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(repo, commit)?;
+        _ => {
+            let tree = core::v_latest::index::CommitMerkleTree::from_commit(repo, commit)?;
             tree.list_dir_paths()
         }
     }
@@ -142,7 +147,7 @@ pub fn get_commit_entry(
             let reader = CommitEntryReader::new(repo, commit)?;
             reader.get_entry(path)
         }
-        MinOxenVersion::V0_19_0 => match core::v0_19_0::entries::get_file(repo, commit, path)? {
+        _ => match core::v_latest::entries::get_file(repo, commit, path)? {
             None => Ok(None),
             Some(file) => {
                 let entry = CommitEntry {
@@ -165,14 +170,14 @@ pub fn list_for_commit(
 ) -> Result<Vec<CommitEntry>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::list_for_commit(repo, commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::list_for_commit(repo, commit),
+        _ => core::v_latest::entries::list_for_commit(repo, commit),
     }
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::count_for_commit(repo, commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::count_for_commit(repo, commit),
+        _ => core::v_latest::entries::count_for_commit(repo, commit),
     }
 }
 
@@ -394,9 +399,7 @@ pub fn list_tabular_files_in_repo(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::entries::list_tabular_files_in_repo(local_repo, commit)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::entries::list_tabular_files_in_repo(local_repo, commit)
-        }
+        _ => core::v_latest::entries::list_tabular_files_in_repo(local_repo, commit),
     }
 }
 

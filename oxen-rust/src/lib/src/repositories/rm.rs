@@ -37,9 +37,9 @@ fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Resu
                 core::v0_10_0::index::rm(repo, &opts)?;
             }
         }
-        MinOxenVersion::V0_19_0 => {
+        _ => {
             log::debug!("Version found: V0_19_0");
-            core::v0_19_0::rm::rm(paths, repo, opts)?;
+            core::v_latest::rm::rm(paths, repo, opts)?;
         }
     }
     Ok(())

@@ -46,7 +46,7 @@ use std::path::{Path, PathBuf};
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::commit(repo, message),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::commit(repo, message),
+        _ => core::v_latest::commits::commit(repo, message),
     }
 }
 
@@ -54,7 +54,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::latest_commit(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::latest_commit(repo),
+        _ => core::v_latest::commits::latest_commit(repo),
     }
 }
 
@@ -62,7 +62,7 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit(repo),
+        _ => core::v_latest::commits::head_commit(repo),
     }
 }
 
@@ -71,7 +71,7 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit_maybe(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit_maybe(repo),
+        _ => core::v_latest::commits::head_commit_maybe(repo),
     }
 }
 
@@ -82,7 +82,7 @@ pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
             let root_commit = core::v0_10_0::commits::root_commit(repo)?;
             Ok(Some(root_commit))
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::root_commit_maybe(repo),
+        _ => core::v_latest::commits::root_commit_maybe(repo),
     }
 }
 
@@ -90,7 +90,7 @@ pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, &hash.to_string()),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_hash(repo, hash),
+        _ => core::v_latest::commits::get_by_hash(repo, hash),
     }
 }
 
@@ -102,7 +102,7 @@ pub fn get_by_id(
     let commit_id = commit_id.as_ref();
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, commit_id),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_id(repo, commit_id),
+        _ => core::v_latest::commits::get_by_id(repo, commit_id),
     }
 }
 
@@ -123,9 +123,7 @@ pub fn create_empty_commit(
     let branch_name = branch_name.as_ref();
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("create_empty_commit not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::create_empty_commit(repo, branch_name, commit)
-        }
+        _ => core::v_latest::commits::create_empty_commit(repo, branch_name, commit),
     }
 }
 
@@ -133,7 +131,7 @@ pub fn create_empty_commit(
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list(repo),
+        _ => core::v_latest::commits::list(repo),
     }
 }
 
@@ -141,7 +139,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_all(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_all(repo),
+        _ => core::v_latest::commits::list_all(repo),
     }
 }
 
@@ -149,7 +147,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
 pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("list_unsynced not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced(repo),
+        _ => core::v_latest::commits::list_unsynced(repo),
     }
 }
 
@@ -160,7 +158,7 @@ pub fn list_unsynced_from(
 ) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("list_unsynced_from not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced_from(repo, revision),
+        _ => core::v_latest::commits::list_unsynced_from(repo, revision),
     }
 }
 // Source
@@ -170,9 +168,7 @@ pub fn get_commit_or_head<S: AsRef<str> + Clone>(
 ) -> Result<Commit, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => resource::get_commit_or_head(repo, commit_id_or_branch_name),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::get_commit_or_head(repo, commit_id_or_branch_name)
-        }
+        _ => core::v_latest::commits::get_commit_or_head(repo, commit_id_or_branch_name),
     }
 }
 
@@ -195,7 +191,7 @@ pub fn list_all_paginated(
 pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_from(repo, revision),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from(repo, revision),
+        _ => core::v_latest::commits::list_from(repo, revision),
     }
 }
 pub fn list_from_with_depth(
@@ -206,7 +202,7 @@ pub fn list_from_with_depth(
         MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
             "list_from_with_depth not supported in v0.10.0",
         )),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from_with_depth(repo, revision),
+        _ => core::v_latest::commits::list_from_with_depth(repo, revision),
     }
 }
 
@@ -218,7 +214,7 @@ pub fn list_between(
 ) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_between(repo, start, end),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_between(repo, start, end),
+        _ => core::v_latest::commits::list_between(repo, start, end),
     }
 }
 
@@ -246,22 +242,6 @@ pub fn first_by_message(
         .find(|commit| commit.message == msg.as_ref()))
 }
 
-/// List all the commits that have missing entries
-/// Useful for knowing which commits to resend
-pub fn list_with_missing_entries(
-    repo: &LocalRepository,
-    commit_id: impl AsRef<str>,
-) -> Result<Vec<Commit>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::commits::list_with_missing_entries(repo, commit_id)
-        }
-        MinOxenVersion::V0_19_0 => {
-            panic!("list_with_missing_entries not needed in v0.19.0");
-        }
-    }
-}
-
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
     repo: &LocalRepository,
@@ -270,7 +250,7 @@ pub fn search_entries(
 ) -> Result<HashSet<PathBuf>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::search_entries(repo, commit, pattern),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::search_entries(repo, commit, pattern),
+        _ => core::v_latest::commits::search_entries(repo, commit, pattern),
     }
 }
 
@@ -306,9 +286,7 @@ pub fn list_by_path_from_paginated(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
-        }
+        _ => core::v_latest::commits::list_by_path_from_paginated(repo, commit, path, pagination),
     }
 }
 
@@ -320,18 +298,7 @@ pub fn get_commit_status_tmp(
 ) -> Result<Option<core::v0_10_0::cache::cacher_status::CacherStatusType>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::cache::commit_cacher::get_status(repo, commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_commit_status_tmp(repo, commit),
-    }
-}
-
-// TODO: Temporary function until after v0.19.0, we shouldn't need this check
-// once everything is working off the Merkle tree
-pub fn is_commit_valid_tmp(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::cache::cachers::content_validator::is_valid(repo, commit)
-        }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::is_commit_valid_tmp(repo, commit),
+        _ => core::v_latest::commits::get_commit_status_tmp(repo, commit),
     }
 }
 

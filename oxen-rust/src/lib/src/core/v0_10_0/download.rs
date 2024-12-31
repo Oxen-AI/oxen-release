@@ -3,7 +3,7 @@ use crate::constants::OBJECTS_DIR;
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
-use crate::core::v0_19_0::structs::PullProgress;
+use crate::core::v_latest::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::MetadataEntry;
@@ -15,8 +15,9 @@ use std::sync::Arc;
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &MetadataEntry,
-    local_path: &Path,
+    local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
+    let local_path = local_path.as_ref();
     // Download the commit db for the given commit id or branch
     let commit_id = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
     let home_dir = util::fs::oxen_tmp_dir()?;
