@@ -242,12 +242,10 @@ pub fn commit(
     branch_name: impl AsRef<str>,
 ) -> Result<Commit, OxenError> {
     match workspace.workspace_repo.min_version() {
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::commit::commit(workspace, new_commit, branch_name)
-        }
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::index::workspaces::commit(workspace, new_commit, branch_name)
         }
+        _ => core::v_latest::workspaces::commit::commit(workspace, new_commit, branch_name),
     }
 }
 
@@ -257,11 +255,9 @@ fn init_workspace_repo(
 ) -> Result<LocalRepository, OxenError> {
     let workspace_dir = workspace_dir.as_ref();
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::init_workspace_repo(repo, workspace_dir)
-        }
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::index::workspaces::init_workspace_repo(repo, workspace_dir)
         }
+        _ => core::v_latest::workspaces::init_workspace_repo(repo, workspace_dir),
     }
 }

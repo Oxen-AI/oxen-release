@@ -21,7 +21,7 @@ pub fn list(
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list(repo, commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list(repo, commit),
+        _ => core::v_latest::data_frames::schemas::list(repo, commit),
     }
 }
 
@@ -34,9 +34,7 @@ pub fn get_by_path(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::data_frames::schemas::get_by_path(repo, commit, path)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::data_frames::schemas::get_by_path(repo, commit, path)
-        }
+        _ => core::v_latest::data_frames::schemas::get_by_path(repo, commit, path),
     }
 }
 
@@ -47,7 +45,7 @@ pub fn get_staged(
 ) -> Result<Option<Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::get_staged(repo, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::get_staged(repo, path),
+        _ => core::v_latest::data_frames::schemas::get_staged(repo, path),
     }
 }
 
@@ -60,7 +58,7 @@ pub fn restore_schema(
 ) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("Not implemented for v0.10.0")),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::restore_schema(
+        _ => core::v_latest::data_frames::schemas::restore_schema(
             repo,
             path,
             og_schema,
@@ -74,7 +72,7 @@ pub fn restore_schema(
 pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list_staged(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list_staged(repo),
+        _ => core::v_latest::data_frames::schemas::list_staged(repo),
     }
 }
 
@@ -124,7 +122,7 @@ pub fn show(
 pub fn rm(repo: &LocalRepository, path: impl AsRef<Path>, staged: bool) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::rm(repo, path, staged),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::rm(repo, path, staged),
+        _ => core::v_latest::data_frames::schemas::rm(repo, path, staged),
     }
 }
 
@@ -138,9 +136,7 @@ pub fn add_schema_metadata(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::data_frames::schemas::add_schema_metadata(repo, path, metadata)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::data_frames::schemas::add_schema_metadata(repo, path, metadata)
-        }
+        _ => core::v_latest::data_frames::schemas::add_schema_metadata(repo, path, metadata),
     }
 }
 
@@ -156,7 +152,10 @@ pub fn add_column_metadata(
             core::v0_10_0::data_frames::schemas::add_column_metadata(repo, path, column, metadata)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::data_frames::schemas::add_column_metadata(repo, path, column, metadata)
+            core::v_latest::data_frames::schemas::add_column_metadata(repo, path, column, metadata)
+        }
+        _ => {
+            core::v_latest::data_frames::schemas::add_column_metadata(repo, path, column, metadata)
         }
     }
 }

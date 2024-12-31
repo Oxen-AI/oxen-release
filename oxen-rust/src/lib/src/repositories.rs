@@ -7,8 +7,7 @@ use crate::constants;
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::core;
 use crate::core::refs::RefWriter;
-use crate::core::v0_10_0::index::CommitEntryReader;
-use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::error::NO_REPO_FOUND;
@@ -20,7 +19,7 @@ use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::MetadataEntry;
 use crate::model::RepoStats;
-use crate::model::{CommitStats, LocalRepository, RepoNew};
+use crate::model::{LocalRepository, RepoNew};
 use crate::repositories;
 use crate::repositories::fork::FORK_STATUS_FILE;
 use crate::util;
@@ -115,31 +114,11 @@ pub fn is_empty(repo: &LocalRepository) -> Result<bool, OxenError> {
     }
 }
 
-pub fn get_commit_stats_from_id(
-    repo: &LocalRepository,
-    commit_id: &str,
-) -> Result<Option<CommitStats>, OxenError> {
-    match commits::get_by_id(repo, commit_id) {
-        Ok(Some(commit)) => {
-            let reader = CommitEntryReader::new(repo, &commit)?;
-            Ok(Some(CommitStats {
-                commit,
-                num_entries: reader.num_entries()?,
-                num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
-            }))
-        }
-        Ok(None) => Ok(None),
-        Err(err) => {
-            log::error!("unable to get commit by id: {}", commit_id);
-            Err(err)
-        }
-    }
-}
-
 pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
     match repo.min_version() {
-        MinOxenVersion::V0_19_0 => get_repo_stats_v0_19_0(repo),
         MinOxenVersion::V0_10_0 => get_repo_stats_v0_10_0(repo),
+        MinOxenVersion::V0_19_0 => get_repo_stats_v0_19_0(repo),
+        MinOxenVersion::LATEST => get_repo_stats_v0_19_0(repo),
     }
 }
 
@@ -392,7 +371,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
             add(&local_repo, &full_path)?;
         }
 
-        commit = Some(core::v0_19_0::commits::commit_with_user(
+        commit = Some(core::v_latest::commits::commit_with_user(
             &local_repo,
             "Initial commit",
             user,

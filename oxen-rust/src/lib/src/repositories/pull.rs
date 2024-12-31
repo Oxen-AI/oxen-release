@@ -15,14 +15,14 @@ use crate::opts::fetch_opts::FetchOpts;
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull(repo).await,
+        _ => core::v_latest::pull::pull(repo).await,
     }
 }
 
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull_all(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_all(repo).await,
+        _ => core::v_latest::pull::pull_all(repo).await,
     }
 }
 
@@ -41,7 +41,7 @@ pub async fn pull_remote_branch(
             )
             .await
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_remote_branch(repo, fetch_opts).await,
+        _ => core::v_latest::pull::pull_remote_branch(repo, fetch_opts).await,
     }
 }
 

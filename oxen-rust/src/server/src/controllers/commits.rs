@@ -31,12 +31,8 @@ use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
 use liboxen::view::commit::CommitTreeValidationResponse;
-use liboxen::view::http::MSG_CONTENT_IS_INVALID;
-use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
-use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::{
@@ -240,22 +236,6 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
     }))
 }
 
-/// TODO: Depreciate this after v0.19.0
-pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let commit_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-
-    let commits_to_sync = repositories::commits::list_with_missing_entries(&repo, &commit_id)?;
-
-    Ok(HttpResponse::Ok().json(ListCommitResponse {
-        status: StatusMessage::resource_found(),
-        commits: commits_to_sync,
-    }))
-}
-
 pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -354,99 +334,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
         latest_synced,
         num_unsynced: commits_to_sync.len(),
     }))
-}
-
-// TODO: Deprecate this after v0.19.0
-pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let commit_or_branch = path_param(&req, "commit_or_branch")?;
-    let repository = get_repo(&app_data.path, namespace, &repo_name)?;
-
-    let commit = repositories::revisions::get(&repository, &commit_or_branch)?.ok_or(
-        OxenError::revision_not_found(commit_or_branch.clone().into()),
-    )?;
-
-    let response = match repositories::commits::get_commit_status_tmp(&repository, &commit) {
-        Ok(Some(CacherStatusType::Success)) => {
-            match repositories::commits::is_commit_valid_tmp(&repository, &commit) {
-                Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    status_description: String::from(""),
-                    is_processing: false,
-                    is_valid: true,
-                }),
-                Ok(false) => {
-                    log::error!("content_validator::is_valid false");
-
-                    HttpResponse::Ok().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_CONTENT_IS_INVALID),
-                        status_description: "Content is not valid".to_string(),
-                        is_processing: false,
-                        is_valid: false,
-                    })
-                }
-                err => {
-                    log::error!("content_validator::is_valid error {err:?}");
-
-                    HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                        status_description: format!("Err: {err:?}"),
-                        is_processing: false,
-                        is_valid: false,
-                    })
-                }
-            }
-        }
-        Ok(Some(CacherStatusType::Pending)) => HttpResponse::Ok().json(IsValidStatusMessage {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_IS_PROCESSING),
-            status_description: String::from("Commit is still processing"),
-            is_processing: true,
-            is_valid: false,
-        }),
-        Ok(Some(CacherStatusType::Failed)) => {
-            let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
-            let error_str = errors
-                .into_iter()
-                .map(|e| e.status_message)
-                .collect::<Vec<String>>()
-                .join(", ");
-            log::error!("CacherStatusType::Failed for commit {error_str}");
-            HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                status: String::from(STATUS_ERROR),
-                status_message: String::from(MSG_FAILED_PROCESS),
-                status_description: format!("Err: {error_str}"),
-                is_processing: false,
-                is_valid: false,
-            })
-        }
-        Ok(None) => {
-            // This means background status was never kicked off...
-            log::debug!(
-                "get_status commit {} no status kicked off for repo: {}",
-                commit_or_branch,
-                repo_name
-            );
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        err => {
-            log::error!("Error getting status... {:?}", err);
-            HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                status: String::from(STATUS_ERROR),
-                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                status_description: format!("Err: {err:?}"),
-                is_processing: false,
-                is_valid: false,
-            })
-        }
-    };
-
-    Ok(response)
 }
 
 pub async fn parents(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

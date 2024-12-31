@@ -49,7 +49,7 @@ use crate::opts::RestoreOpts;
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::restore::restore(repo, opts),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::restore::restore(repo, opts),
+        _ => core::v_latest::restore::restore(repo, opts),
     }
 }
 

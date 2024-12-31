@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::core::v0_19_0::index::CommitMerkleTree;
+use liboxen::core::v_latest::index::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, MerkleHash};
 use liboxen::repositories;

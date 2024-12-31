@@ -10,6 +10,7 @@ use crate::{error::OxenError, util::oxen_version::OxenVersion};
 pub enum MinOxenVersion {
     V0_10_0,
     V0_19_0,
+    LATEST,
 }
 
 impl MinOxenVersion {
@@ -18,7 +19,7 @@ impl MinOxenVersion {
         if let Some(version) = s {
             MinOxenVersion::from_string(version)
         } else {
-            Ok(MinOxenVersion::V0_19_0)
+            Ok(MinOxenVersion::LATEST)
         }
     }
 
@@ -35,6 +36,7 @@ impl MinOxenVersion {
         match s.as_ref() {
             "0.10.0" => Ok(MinOxenVersion::V0_10_0),
             "0.19.0" => Ok(MinOxenVersion::V0_19_0),
+            "0.25.0" => Ok(MinOxenVersion::LATEST),
             _ => Err(OxenError::invalid_version(s.as_ref())),
         }
     }
@@ -43,6 +45,7 @@ impl MinOxenVersion {
         match self {
             MinOxenVersion::V0_10_0 => "0.10.0",
             MinOxenVersion::V0_19_0 => "0.19.0",
+            MinOxenVersion::LATEST => "0.25.0",
         }
     }
 

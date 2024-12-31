@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_19_0::structs::PullProgress;
+use crate::core::v_latest::structs::PullProgress;
 use crate::core::{self, db};
 
 use crate::core::refs::RefWriter;

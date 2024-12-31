@@ -9,4 +9,5 @@ pub mod oxenignore;
 pub mod refs;
 pub mod v0_10_0;
 pub mod v0_19_0;
+pub mod v_latest;
 pub mod versions;

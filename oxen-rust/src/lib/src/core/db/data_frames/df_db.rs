@@ -6,7 +6,7 @@ use crate::constants::{
 };
 
 use crate::core::df::tabular;
-use crate::core::v0_19_0::workspaces::data_frames::{
+use crate::core::v_latest::workspaces::data_frames::{
     is_valid_export_extension, wrap_sql_for_export,
 };
 use crate::error::OxenError;

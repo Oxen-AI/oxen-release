@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::core::v_latest::workspaces;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
 use crate::repositories;
@@ -24,7 +25,7 @@ pub fn query_df_from_repo(
     }
 
     let workspace =
-        crate::core::v0_19_0::workspaces::data_frames::get_queryable_data_frame_workspace(
+        workspaces::data_frames::get_queryable_data_frame_workspace(
             repo, path, &commit,
         )?;
 

@@ -15,6 +15,7 @@ pub mod init;
 pub mod metadata;
 pub mod pull;
 pub mod push;
+pub mod resource;
 pub mod restore;
 pub mod revisions;
 pub mod status;

@@ -206,7 +206,7 @@ pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
 /// Minimum allowable oxen version to push or pull data
-pub const MIN_OXEN_VERSION: MinOxenVersion = MinOxenVersion::V0_19_0;
+pub const MIN_OXEN_VERSION: MinOxenVersion = MinOxenVersion::LATEST;
 
 /// Filepath used to track repo and server-level migration status
 pub const LAST_MIGRATION_FILE: &str = "last_migration.txt";

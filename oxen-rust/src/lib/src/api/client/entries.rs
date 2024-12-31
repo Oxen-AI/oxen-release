@@ -3,7 +3,7 @@ use crate::config::UserConfig;
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, OBJECTS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
-use crate::core::v0_19_0::structs::PullProgress;
+use crate::core::v_latest::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::{EntryDataType, MetadataEntry, NewCommitBody, RemoteRepository};

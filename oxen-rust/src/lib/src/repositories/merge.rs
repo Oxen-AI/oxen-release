@@ -30,8 +30,8 @@ pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<MergeConflict>, Oxen
                 .map(|conflict| conflict.to_merge_conflict())
                 .collect())
         }
-        MinOxenVersion::V0_19_0 => {
-            let conflicts = core::v0_19_0::merge::list_conflicts(repo)?;
+        _ => {
+            let conflicts = core::v_latest::merge::list_conflicts(repo)?;
             Ok(conflicts
                 .iter()
                 .map(|conflict| conflict.to_merge_conflict())
@@ -50,16 +50,14 @@ pub fn has_conflicts(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.has_conflicts(base_branch, merge_branch)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::has_conflicts(repo, base_branch, merge_branch)
-        }
+        _ => core::v_latest::merge::has_conflicts(repo, base_branch, merge_branch),
     }
 }
 
 pub fn mark_conflict_as_resolved(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("mark_conflict_as_resolved not supported for oxen v0.10"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::mark_conflict_as_resolved(repo, path),
+        _ => core::v_latest::merge::mark_conflict_as_resolved(repo, path),
     }
 }
 
@@ -74,9 +72,7 @@ pub fn can_merge_commits(
             let reader = &CommitReader::new(repo)?;
             merger.can_merge_commits(reader, base_commit, merge_commit)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::can_merge_commits(repo, base_commit, merge_commit)
-        }
+        _ => core::v_latest::merge::can_merge_commits(repo, base_commit, merge_commit),
     }
 }
 
@@ -92,8 +88,8 @@ pub fn list_conflicts_between_branches(
 
             merger.list_conflicts_between_branches(reader, base_branch, merge_branch)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::list_conflicts_between_branches(repo, base_branch, merge_branch)
+        _ => {
+            core::v_latest::merge::list_conflicts_between_branches(repo, base_branch, merge_branch)
         }
     }
 }
@@ -109,9 +105,7 @@ pub fn list_commits_between_branches(
             let reader = &CommitReader::new(repo)?;
             merger.list_commits_between_branches(reader, base_branch, head_branch)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::list_commits_between_branches(repo, base_branch, head_branch)
-        }
+        _ => core::v_latest::merge::list_commits_between_branches(repo, base_branch, head_branch),
     }
 }
 
@@ -126,9 +120,7 @@ pub fn list_commits_between_commits(
             let reader = &CommitReader::new(repo)?;
             merger.list_commits_between_commits(reader, base_commit, head_commit)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::list_commits_between_commits(repo, base_commit, head_commit)
-        }
+        _ => core::v_latest::merge::list_commits_between_commits(repo, base_commit, head_commit),
     }
 }
 
@@ -143,9 +135,7 @@ pub fn list_conflicts_between_commits(
             let reader = &CommitReader::new(repo)?;
             merger.list_conflicts_between_commits(reader, base_commit, merge_commit)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::list_conflicts_between_commits(repo, base_commit, merge_commit)
-        }
+        _ => core::v_latest::merge::list_conflicts_between_commits(repo, base_commit, merge_commit),
     }
 }
 
@@ -159,9 +149,7 @@ pub fn merge_into_base(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.merge_into_base(merge_branch, base_branch)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::merge_into_base(repo, merge_branch, base_branch)
-        }
+        _ => core::v_latest::merge::merge_into_base(repo, merge_branch, base_branch),
     }
 }
 
@@ -174,7 +162,7 @@ pub fn merge(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.merge(branch_name)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::merge(repo, branch_name),
+        _ => core::v_latest::merge::merge(repo, branch_name),
     }
 }
 
@@ -188,9 +176,7 @@ pub fn merge_commit_into_base(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.merge_commit_into_base(merge_commit, base_commit)
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::merge::merge_commit_into_base(repo, merge_commit, base_commit)
-        }
+        _ => core::v_latest::merge::merge_commit_into_base(repo, merge_commit, base_commit),
     }
 }
 
@@ -205,7 +191,7 @@ pub fn merge_commit_into_base_on_branch(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.merge_commit_into_base_on_branch(merge_commit, base_commit, branch)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::merge_commit_into_base_on_branch(
+        _ => core::v_latest::merge::merge_commit_into_base_on_branch(
             repo,
             merge_commit,
             base_commit,
@@ -220,7 +206,7 @@ pub fn has_file(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> 
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.has_file(path)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::has_file(repo, path),
+        _ => core::v_latest::merge::has_file(repo, path),
     }
 }
 
@@ -230,7 +216,7 @@ pub fn remove_conflict_path(repo: &LocalRepository, path: &Path) -> Result<(), O
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.remove_conflict_path(path)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::remove_conflict_path(repo, path),
+        _ => core::v_latest::merge::remove_conflict_path(repo, path),
     }
 }
 
@@ -243,7 +229,7 @@ pub fn find_merge_commits<S: AsRef<str>>(
             let merger = core::v0_10_0::index::merger::Merger::new(repo)?;
             merger.find_merge_commits(branch_name)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::find_merge_commits(repo, branch_name),
+        _ => core::v_latest::merge::find_merge_commits(repo, branch_name),
     }
 }
 
@@ -258,7 +244,7 @@ pub fn lowest_common_ancestor_from_commits(
             let reader = &CommitReader::new(repo)?;
             merger.lowest_common_ancestor_from_commits(reader, base_commit, merge_commit)
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::merge::lowest_common_ancestor_from_commits(
+        _ => core::v_latest::merge::lowest_common_ancestor_from_commits(
             repo,
             base_commit,
             merge_commit,

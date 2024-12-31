@@ -18,10 +18,6 @@ pub fn commits() -> Scope {
             "/{commit_id}/db_status",
             web::get().to(controllers::commits::commits_db_status),
         )
-        .route(
-            "/{commit_id}/entries_status",
-            web::get().to(controllers::commits::entries_status),
-        )
         .route("/all", web::get().to(controllers::commits::list_all))
         .route("/upload", web::post().to(controllers::commits::upload))
         .route(
@@ -52,10 +48,6 @@ pub fn commits() -> Scope {
         .route(
             "/{commit_or_branch:.*}/parents",
             web::get().to(controllers::commits::parents),
-        )
-        .route(
-            "/{commit_or_branch:.*}/is_synced",
-            web::get().to(controllers::commits::is_synced),
         )
         .route(
             "/{commit_or_branch:.*}/commit_db",
