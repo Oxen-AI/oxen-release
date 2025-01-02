@@ -132,7 +132,7 @@ pub async fn add_stream(
         std::fs::create_dir_all(&full_dir)?;
     }
 
-    let filepath = full_dir.join(&filename);
+    let filepath = full_dir.join(filename);
 
     log::debug!("workspace::files::add_stream Got filepath: {:?}", filepath);
 
