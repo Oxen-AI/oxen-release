@@ -75,7 +75,6 @@ pub fn diff(
         targets,
     );
 
-
     // If the user specifies two files without revisions, we will compare the files on disk
     if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
         // If we do not have revisions set, just compare the files on disk
@@ -139,11 +138,12 @@ pub fn diff(
             })?,
         );
 
-        let hash = file_node.unwrap().hash.to_string(); 
+        let hash = file_node.hash.to_string();
 
         let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
-        // log::debug!("committed file: {:?}", committed_file); 
-        let result = repositories::diffs::diff_files(path_1, committed_file, keys, targets, vec![])?;
+        // log::debug!("committed file: {:?}", committed_file);
+        let result =
+            repositories::diffs::diff_files(path_1, committed_file, keys, targets, vec![])?;
 
         return Ok(result);
     };
@@ -184,15 +184,12 @@ pub fn diff_commits(
     if let Some(mut commit_2) = cpath_2.commit {
         // if there are merge conflicts, compare against the conflict commit instead
 
-  
-        
         let merger = EntryMergeConflictReader::new(repo)?;
 
         if merger.has_conflicts()? {
             commit_2 = merger.get_conflict_commit()?.unwrap();
         }
 
-      
         node_2 = Some(
             repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(|| {
                 OxenError::ResourceNotFound(
@@ -1343,7 +1340,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             println!("ROUNT #");
             println!("entries: {entries:?}");
 
-            let bounding_box_path = Path::new("annotations").join(Path::new("train")).join(Path::new("bounding_box.csv"));
+            let bounding_box_path = Path::new("annotations")
+                .join(Path::new("train"))
+                .join(Path::new("bounding_box.csv"));
             let bounding_box_filename = bounding_box_path.to_str().unwrap();
 
             let bounding_box_entry = entries
