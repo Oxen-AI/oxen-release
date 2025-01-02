@@ -133,7 +133,6 @@ pub async fn add_stream(
     }
 
     let filepath = full_dir.join(&filename);
-    let filepath_cpy = filepath.clone();
 
     log::debug!("workspace::files::add_stream Got filepath: {:?}", filepath);
 
@@ -158,9 +157,9 @@ pub async fn add_stream(
         if chunk.len() == 1 && chunk[0] == 0 {
             // validate file size match
             if bytes_written == total_size {
-                files.push(filepath);
+                files.push(filepath.clone());
 
-                let path = repositories::workspaces::files::add(&workspace, filepath_cpy)?;
+                let path = repositories::workspaces::files::add(&workspace, filepath)?;
                 log::debug!("add_stream ✅ success! staged file {:?}", path);
 
                 return Ok(HttpResponse::Ok().json(FilePathsResponse {
@@ -301,20 +300,19 @@ async fn save_parts(
     Ok(files)
 }
 
-async fn save_stream(filepath: &PathBuf, chunk: Vec<u8>) -> Result<PathBuf, Error> {
+async fn save_stream(filepath: &PathBuf, chunk: Vec<u8>) -> Result<&PathBuf, Error> {
     log::debug!(
         "workspace::files::save_stream writing {} bytes to file",
         chunk.len()
     );
 
-    let path = filepath.clone();
     let filepath_cpy = filepath.clone();
 
     let mut file = web::block(move || {
         std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(path)
+            .open(filepath_cpy)
     })
     .await??;
 
@@ -322,5 +320,5 @@ async fn save_stream(filepath: &PathBuf, chunk: Vec<u8>) -> Result<PathBuf, Erro
 
     web::block(move || file.write_all(&chunk).map(|_| file)).await??;
 
-    Ok(filepath_cpy)
+    Ok(filepath)
 }
