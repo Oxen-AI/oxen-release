@@ -144,10 +144,16 @@ pub async fn add_stream(
         0
     };
 
-    log::debug!(
-        "workspace::files::add_stream file has written bytes: {:?}",
-        bytes_written
-    );
+    // Log progress every 5MB
+    if bytes_written % (10 * 1024 * 1024) == 0 {
+        log::debug!(
+            "workspace::files::add_stream file upload progress: {:.1}% ({}/{} bytes)",
+            (bytes_written as f64 / total_size as f64) * 100.0,
+            bytes_written,
+            total_size
+        );
+    }
+
     let mut buffer = web::BytesMut::new();
 
     while let Some(chunk) = payload.next().await {
@@ -157,6 +163,8 @@ pub async fn add_stream(
         if chunk.len() == 1 && chunk[0] == 0 {
             // validate file size match
             if bytes_written == total_size {
+                log::info!("add_stream upload completed: {} bytes", total_size);
+
                 files.push(filepath.clone());
 
                 let path = repositories::workspaces::files::add(&workspace, filepath)?;
