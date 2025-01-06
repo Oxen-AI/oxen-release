@@ -61,11 +61,11 @@ async fn r_download_entries(
 ) -> Result<(), OxenError> {
     log::debug!("downloading entries for {:?}", directory);
 
-    let mut entries: Vec<Entry> = vec![];
+    if let EMerkleTreeNode::VNode(_) = &node.node {
+        let mut entries: Vec<Entry> = vec![];
 
-    for child in &node.children {
-        match &child.node {
-            EMerkleTreeNode::File(file_node) => {
+        for child in &node.children {
+            if let EMerkleTreeNode::File(file_node) = &child.node {
                 entries.push(Entry::CommitEntry(CommitEntry {
                     commit_id: file_node.last_commit_id.to_string(),
                     path: directory.join(&file_node.name),
@@ -75,26 +75,8 @@ async fn r_download_entries(
                     last_modified_nanoseconds: file_node.last_modified_nanoseconds,
                 }));
             }
-            EMerkleTreeNode::Directory(dir_node) => {
-                let mut new_directory = directory.to_path_buf();
-                new_directory.push(&dir_node.name);
-
-                if child.has_children() {
-                    Box::pin(r_download_entries(
-                        remote_repo,
-                        local_repo_path,
-                        child,
-                        &new_directory,
-                        pull_progress,
-                    ))
-                    .await?;
-                }
-            }
-            _ => {}
         }
-    }
 
-    if !entries.is_empty() {
         log::debug!("downloading {} entries to working dir", entries.len());
         core::v0_10_0::index::puller::pull_entries_to_working_dir(
             remote_repo,
@@ -103,6 +85,26 @@ async fn r_download_entries(
             pull_progress,
         )
         .await?;
+    }
+
+    for child in &node.children {
+        log::debug!("downloading entry {:?}", child.hash);
+
+        let mut new_directory = directory.to_path_buf();
+        if let EMerkleTreeNode::Directory(dir_node) = &child.node {
+            new_directory.push(&dir_node.name);
+        }
+
+        if child.has_children() {
+            Box::pin(r_download_entries(
+                remote_repo,
+                local_repo_path,
+                child,
+                &new_directory,
+                pull_progress,
+            ))
+            .await?;
+        }
     }
 
     Ok(())
