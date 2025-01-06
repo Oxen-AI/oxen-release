@@ -138,7 +138,7 @@ pub fn diff(
             })?,
         );
 
-        let hash = file_node.hash.to_string();
+        let hash = file_node.unwrap().hash.to_string();
 
         let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
         // log::debug!("committed file: {:?}", committed_file);
