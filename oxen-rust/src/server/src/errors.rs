@@ -26,6 +26,7 @@ pub enum OxenHttpError {
     DatasetNotIndexed(PathBufError),
     DatasetAlreadyIndexed(PathBufError),
     UpdateRequired(StringError),
+    MigrationRequired(StringError),
     WorkspaceBehind(Branch),
     BasicError(StringError),
 
@@ -35,7 +36,6 @@ pub enum OxenHttpError {
     // External
     ActixError(actix_web::Error),
     SerdeError(serde_json::Error),
-    RedisError(redis::RedisError),
 }
 
 impl From<OxenError> for OxenHttpError {
@@ -47,12 +47,6 @@ impl From<OxenError> for OxenHttpError {
 impl From<io::Error> for OxenHttpError {
     fn from(error: io::Error) -> Self {
         OxenHttpError::InternalOxenError(OxenError::IO(error))
-    }
-}
-
-impl From<redis::RedisError> for OxenHttpError {
-    fn from(error: redis::RedisError) -> Self {
-        OxenHttpError::RedisError(error)
     }
 }
 
@@ -174,15 +168,26 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SerdeError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
-            OxenHttpError::RedisError(_) => {
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
             OxenHttpError::UpdateRequired(version) => {
                 let version_str = version.to_string();
                 let error_json = json!({
                     "error": {
                         "type": "update_required",
-                        "title": format!("Oxen CLI out of date. Pushing to OxenHub requires version >= {version_str}.")
+                        "detail": format!("Oxen CLI out of date. Pushing to OxenHub requires version >= {version_str}."),
+                        "title": "Update Required",
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_UPDATE_REQUIRED,
+                });
+                HttpResponse::UpgradeRequired().json(error_json)
+            }
+            OxenHttpError::MigrationRequired(version) => {
+                let version_str = version.to_string();
+                let error_json = json!({
+                    "error": {
+                        "type": "migration_required",
+                        "detail": format!("Oxen Server is running a newer minimum required version: {version_str}. A migration may be in progress, hang tight."),
+                        "title": "Migration Required",
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_UPDATE_REQUIRED,
@@ -467,9 +472,9 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::BasicError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::DatasetAlreadyIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
+            OxenHttpError::MigrationRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
-            OxenHttpError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,
