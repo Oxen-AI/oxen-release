@@ -125,18 +125,27 @@ pub fn diff(
         (cpath_1, cpath_2)
     } else {
         // If no file2, compare with file1 at head.
-        let commit = Some(repositories::commits::head_commit(&repository)?);
+        let Some(commit) = repositories::commits::head_commit_maybe(&repository)? else {
+            let error = "Error: head commit not found".to_string();
+            return Err(OxenError::basic_str(error));
+        };
 
-        (
-            CommitPath {
-                commit,
-                path: path_1.as_ref().to_path_buf(),
-            },
-            CommitPath {
-                commit: None,
-                path: path_1.as_ref().to_path_buf(),
-            },
-        )
+        let (file_node,) = (
+            repositories::entries::get_file(&repository, &commit, &path_1)?.ok_or_else(|| {
+                OxenError::ResourceNotFound(
+                    format!("Error: file {} not committed", path_1.as_ref().display()).into(),
+                )
+            })?,
+        );
+
+        let hash = file_node.hash.to_string();
+
+        let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
+        // log::debug!("committed file: {:?}", committed_file);
+        let result =
+            repositories::diffs::diff_files(path_1, committed_file, keys, targets, vec![])?;
+
+        return Ok(result);
     };
 
     let result = diff_commits(&repository, cpath_1, cpath_2, keys, targets, vec![])?;
@@ -174,6 +183,7 @@ pub fn diff_commits(
 
     if let Some(mut commit_2) = cpath_2.commit {
         // if there are merge conflicts, compare against the conflict commit instead
+
         let merger = EntryMergeConflictReader::new(repo)?;
 
         if merger.has_conflicts()? {
@@ -966,7 +976,6 @@ fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<TabularDiffDup
 
     Ok(dupes)
 }
-
 // Abbreviated version for when summary is known (e.g. computing top-level self node of an already-calculated dir diff)
 pub fn get_dir_diff_entry_with_summary(
     repo: &LocalRepository,
@@ -975,21 +984,65 @@ pub fn get_dir_diff_entry_with_summary(
     head_commit: &Commit,
     summary: GenericDiffSummary,
 ) -> Result<Option<DiffEntry>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::get_dir_diff_entry_with_summary(
+    // Dir hashes db is cheaper to open than objects reader
+    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::key_val::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::key_val::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
+    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
+
+    match (maybe_base_dir_hash, maybe_head_dir_hash) {
+        (Some(base_dir_hash), Some(head_dir_hash)) => {
+            let base_dir_hash = base_dir_hash.to_string();
+            let head_dir_hash = head_dir_hash.to_string();
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir_with_summary(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    summary,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir_with_summary(
             repo,
-            dir,
+            None,
             base_commit,
+            Some(&dir),
             head_commit,
             summary,
-        ),
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::get_dir_diff_entry_with_summary(
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir_with_summary(
             repo,
-            dir,
+            Some(&dir),
             base_commit,
+            None,
             head_commit,
             summary,
-        ),
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
     }
 }
 
