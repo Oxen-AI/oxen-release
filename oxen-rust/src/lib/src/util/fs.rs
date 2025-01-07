@@ -1351,7 +1351,38 @@ pub fn path_relative_to_dir(
     let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        if let Some(filename) = mut_path.file_name() {
+            if mut_path != dir {
+                components.push(PathBuf::from(filename));
+            } else {
+                break;
+            }
+        }
+
+        mut_path.pop();
+    }
+    components.reverse();
+
+    let mut result = PathBuf::new();
+    for component in components.iter() {
+        result = result.join(component);
+    }
+
+    Ok(result)
+}
+
+pub fn path_relative_to_canon_dir(
+    path: impl AsRef<Path>,
+    dir: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+    let dir = dunce::canonicalize(dir.as_ref())?;
+
+    let mut mut_path = path.to_path_buf();
+    let mut components: Vec<PathBuf> = vec![];
+    while mut_path.parent().is_some() {
+        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));
