@@ -190,7 +190,7 @@ pub fn process_add_dir(
     let path = path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
-    let repo_path = repo.path.clone();
+    let repo_path = &repo.path.clone();
 
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -314,7 +314,7 @@ fn add_file_inner(
     path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let repo_path = repo.path.clone();
+    let repo_path = &repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -360,17 +360,31 @@ pub fn process_add_file(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     log::debug!("process_add_file {:?}", path);
-    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
+    let mut relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    let mut full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-        // If it's not a file - no need to add it
-        // We handle directories by traversing the parents of files below
-        log::debug!("file is not a file - skipping add on {:?}", full_path);
-        return Ok(Some(StagedMerkleTreeNode {
-            status: StagedEntryStatus::Added,
-            node: MerkleTreeNode::default_dir(),
-        }));
+
+        // Fix for Windows CLI
+        // util::fs::path_relative_to_dir can fail if the capitalization of the input path differs from what it is in the working directory
+        // TODO: is there ever a situation where process_add_file will be called on a path that doesn't exist? That will be propogated as an error here
+        log::debug!("file {:?} was not found. Checking for Windows CLI path", full_path);
+        let canon_repo_path = dunce::canonicalize(repo_path)?;
+        let cli_path = util::fs::path_relative_to_dir(path, &canon_repo_path)?;
+        
+        if cli_path.is_file() {
+            relative_path = cli_path;
+            full_path = canon_repo_path.join(&relative_path);
+        } else {
+
+            // If it's not a file - no need to add it
+            // We handle directories by traversing the parents of files below
+            log::debug!("file is not a file - skipping add on {:?}", full_path);
+            return Ok(Some(StagedMerkleTreeNode {
+                status: StagedEntryStatus::Added,
+                node: MerkleTreeNode::default_dir(),
+            }));
+        }
     }
 
     // Check if the file is already in the head commit
