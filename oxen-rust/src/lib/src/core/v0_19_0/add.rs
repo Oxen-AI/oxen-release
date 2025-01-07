@@ -219,7 +219,7 @@ pub fn process_add_dir(
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
+            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
             let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -246,7 +246,7 @@ pub fn process_add_dir(
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo,
-                    &repo_path,
+                    repo_path,
                     versions_path,
                     staged_db,
                     &dir_node,
@@ -320,7 +320,7 @@ fn add_file_inner(
         .join(FILES_DIR);
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
-        let path = util::fs::path_relative_to_dir(path, &repo_path)?;
+        let path = util::fs::path_relative_to_dir(path, repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
         maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
     }
@@ -328,7 +328,7 @@ fn add_file_inner(
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         repo,
-        &repo_path,
+        repo_path,
         &versions_path,
         staged_db,
         &maybe_dir_node,
@@ -364,19 +364,20 @@ pub fn process_add_file(
     let mut full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-
         // Fix for Windows CLI
         // util::fs::path_relative_to_dir can fail if the capitalization of the input path differs from what it is in the working directory
         // TODO: is there ever a situation where process_add_file will be called on a path that doesn't exist? That will be propogated as an error here
-        log::debug!("file {:?} was not found. Checking for Windows CLI path", full_path);
+        log::debug!(
+            "file {:?} was not found. Checking for Windows CLI path",
+            full_path
+        );
         let canon_repo_path = dunce::canonicalize(repo_path)?;
         let cli_path = util::fs::path_relative_to_dir(path, &canon_repo_path)?;
-        
+
         if cli_path.is_file() {
             relative_path = cli_path;
             full_path = canon_repo_path.join(&relative_path);
         } else {
-
             // If it's not a file - no need to add it
             // We handle directories by traversing the parents of files below
             log::debug!("file is not a file - skipping add on {:?}", full_path);

@@ -1351,7 +1351,12 @@ pub fn path_relative_to_dir(
     let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        log::debug!(
+            "Comparing {:?} => {:?} => {:?}",
+            path,
+            mut_path.parent(),
+            dir
+        );
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));
@@ -1382,7 +1387,12 @@ pub fn path_relative_to_canon_dir(
     let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        log::debug!(
+            "Comparing {:?} => {:?} => {:?}",
+            path,
+            mut_path.parent(),
+            dir
+        );
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));
