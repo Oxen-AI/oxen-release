@@ -23,7 +23,6 @@ use liboxen::core::versions::MinOxenVersion;
 use liboxen::core::refs::RefWriter;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
-use liboxen::model::RepoNew;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::PaginateOpts;
 use liboxen::repositories;
@@ -47,8 +46,6 @@ use crate::helpers::get_repo;
 use crate::params::parse_resource;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
-use crate::tasks;
-use crate::tasks::post_push_complete::PostPushComplete;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
@@ -1101,71 +1098,6 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     }
 }
 
-// Bulk complete
-pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let mut queue = app_data.queue.clone();
-
-    // name to the repo, should be in url path so okay to unwrap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let _repo = get_repo(&app_data.path, namespace, repo_name)?;
-    // Deserialize the "commits" param into Vec<Commit> with serde
-    let commits: Vec<Commit> = match serde_json::from_str(&body) {
-        Ok(commits) => commits,
-        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
-    };
-
-    // Get repo by name
-    let repo = repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
-        .ok_or(OxenError::repo_not_found(RepoNew::from_namespace_name(
-            namespace, repo_name,
-        )))?;
-
-    // List commits for this repo
-    let all_commits = repositories::commits::list(&repo)?;
-
-    // Read through existing commits and find any with pending status stuck from previous pushes.
-    // This shouldn't be a super common case, but can freeze the repo on commits from old versions
-
-    for commit in all_commits {
-        log::debug!("Checking commit {:?}", commit.id);
-        if commit_cacher::get_status(&repo, &commit)? == Some(CacherStatusType::Pending) {
-            // Need to force remove errantly left locks
-            commit_cacher::force_remove_lock(&repo, &commit)?;
-            let task = PostPushComplete {
-                commit: commit.clone(),
-                repo: repo.clone(),
-            };
-            // Append a task to the queue
-            log::debug!(
-                "complete_bulk found stuck pending commit {:?}, adding to queue",
-                commit.clone()
-            );
-
-            queue.push(tasks::Task::PostPushComplete(task))
-        }
-    }
-
-    let commit_reader = CommitReader::new(&repo)?;
-
-    for req_commit in commits {
-        let commit_id = req_commit.id;
-        let commit = commit_reader
-            .get_commit_by_id(&commit_id)?
-            .ok_or(OxenError::revision_not_found(commit_id.clone().into()))?;
-
-        // Append a task to the queue
-        let task = PostPushComplete {
-            commit: commit.clone(),
-            repo: repo.clone(),
-        };
-
-        queue.push(tasks::Task::PostPushComplete(task))
-    }
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
-}
-
 fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     match archive.entries() {
         Ok(entries) => {
@@ -1312,13 +1244,12 @@ mod tests {
     async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
         init_test_env();
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await.unwrap();
 
@@ -1336,7 +1267,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -1349,7 +1279,7 @@ mod tests {
         repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -1366,7 +1296,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1385,7 +1314,6 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
@@ -1413,7 +1341,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_some_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1441,7 +1368,6 @@ mod tests {
         );
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
@@ -1469,7 +1395,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_upload() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1501,7 +1426,7 @@ mod tests {
         let uri = format!("/oxen/{}/{}/commits/upload", namespace, repo_name);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(OxenAppData::new(sync_dir.clone(), queue))
+                .app_data(OxenAppData::new(sync_dir.clone()))
                 .route(
                     "/oxen/{namespace}/{repo_name}/commits/upload",
                     web::post().to(controllers::commits::upload),

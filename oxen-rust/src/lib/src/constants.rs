@@ -193,8 +193,8 @@ pub const DEFAULT_PAGE_SIZE: usize = 100;
 pub const DEFAULT_PAGE_NUM: usize = 1;
 
 /// Redis queue name for post commit actions
-pub const COMMIT_QUEUE_NAME: &str = "commit_queue";
-pub const DEFAULT_REDIS_URL: &str = "redis://localhost:6379";
+// pub const COMMIT_QUEUE_NAME: &str = "commit_queue";
+// pub const DEFAULT_REDIS_URL: &str = "redis://localhost:6379";
 
 /// Data Types
 pub const TEXT: &str = "text";

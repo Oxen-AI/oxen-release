@@ -4072,7 +4072,6 @@ dependencies = [
  "polars",
  "r2d2",
  "rand",
- "redis",
  "rocksdb",
  "sanitize-filename",
  "serde",

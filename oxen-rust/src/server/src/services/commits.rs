@@ -11,10 +11,6 @@ pub fn commits() -> Scope {
         .route("/bulk", web::post().to(controllers::commits::create_bulk))
         .route("/root", web::get().to(controllers::commits::root_commit))
         .route(
-            "/complete",
-            web::post().to(controllers::commits::complete_bulk),
-        )
-        .route(
             "/{commit_id}/db_status",
             web::get().to(controllers::commits::commits_db_status),
         )
