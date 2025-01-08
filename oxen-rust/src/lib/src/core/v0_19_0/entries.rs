@@ -519,7 +519,7 @@ fn traverse_and_update(
                 .or_insert(0) += 1;
             *local_sizes
                 .entry(file_node.data_type.to_string())
-                .or_insert(0) += file_node.num_bytes as u64;
+                .or_insert(0) += file_node.num_bytes;
         }
         _ => {
             return Err(OxenError::basic_str(format!(
