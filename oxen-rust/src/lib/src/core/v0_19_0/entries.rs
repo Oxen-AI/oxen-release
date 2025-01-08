@@ -458,6 +458,7 @@ pub fn update_metadata(repo: &LocalRepository, revision: impl AsRef<str>) -> Res
     Ok(())
 }
 
+#[allow(clippy::type_complexity)]
 fn traverse_and_update(
     repo: &LocalRepository,
     node: &mut MerkleTreeNode,
@@ -534,7 +535,7 @@ fn traverse_and_update(
 
 fn process_children(
     repo: &LocalRepository,
-    children: &mut Vec<MerkleTreeNode>,
+    children: &mut [MerkleTreeNode],
     local_counts: &mut HashMap<String, u64>,
     local_sizes: &mut HashMap<String, u64>,
     num_bytes: &mut u64,
