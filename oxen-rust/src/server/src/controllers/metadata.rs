@@ -224,3 +224,15 @@ pub async fn agg_dir(
         Ok(HttpResponse::BadRequest().json(StatusMessage::resource_not_found()))
     }
 }
+
+pub async fn update_metadata(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    repositories::entries::update_metadata(&repo, resource.version.to_str().unwrap_or_default())?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
+}
