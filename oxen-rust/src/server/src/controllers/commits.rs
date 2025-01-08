@@ -83,7 +83,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
-pub async fn commit_history(
+pub async fn history(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -1323,9 +1323,7 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query)
-            .await
-            .unwrap();
+        let resp = controllers::commits::history(req, query).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1377,9 +1375,7 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query)
-            .await
-            .unwrap();
+        let resp = controllers::commits::history(req, query).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;

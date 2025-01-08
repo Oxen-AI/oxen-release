@@ -39,7 +39,7 @@ pub fn commits() -> Scope {
         )
         .route(
             "/history/{resource:.*}",
-            web::get().to(controllers::commits::commit_history),
+            web::get().to(controllers::commits::history),
         )
         .route(
             "/{commit_or_branch:.*}/parents",
