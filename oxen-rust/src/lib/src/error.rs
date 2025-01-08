@@ -129,6 +129,7 @@ pub enum OxenError {
     GlobError(glob::GlobError),
     PolarsError(polars::prelude::PolarsError),
     ParseIntError(ParseIntError),
+    RmpDecodeError(rmp_serde::decode::Error),
 
     // Fallback
     Basic(StringError),
@@ -654,5 +655,11 @@ impl From<std::string::FromUtf8Error> for OxenError {
 impl From<image::ImageError> for OxenError {
     fn from(error: image::ImageError) -> Self {
         OxenError::ImageError(error)
+    }
+}
+
+impl From<rmp_serde::decode::Error> for OxenError {
+    fn from(error: rmp_serde::decode::Error) -> Self {
+        OxenError::RmpDecodeError(error)
     }
 }

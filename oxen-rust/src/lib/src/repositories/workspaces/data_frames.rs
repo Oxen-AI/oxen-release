@@ -96,12 +96,10 @@ pub fn rename(
     new_path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
     match workspace.base_repo.min_version() {
-        MinOxenVersion::V0_19_0 => {
-            core::v_latest::workspaces::data_frames::rename(workspace, path, new_path)
-        }
-        _ => Err(OxenError::basic_str(
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
             "rename is not supported for this version of oxen",
         )),
+        _ => core::v_latest::workspaces::data_frames::rename(workspace, path, new_path),
     }
 }
 

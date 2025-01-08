@@ -141,94 +141,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_command_push_check_is_synced_one_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async {
-            let mut repo = repo;
-
-            // Track the train and annotations dir
-            let train_dir = repo.path.join("train");
-            let annotations_dir = repo.path.join("annotations");
-
-            repositories::add(&repo, &train_dir)?;
-            repositories::add(&repo, &annotations_dir)?;
-            // Commit the train dir
-            let commit = repositories::commit(&repo, "Adding training data")?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&repo.dirname());
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            future::ok::<(), OxenError>(()).await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async {
-            let mut repo = repo;
-
-            // Track the train and annotations dir
-            let train_dir = repo.path.join("train");
-            let train_bounding_box = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            repositories::add(&repo, &train_dir)?;
-            repositories::add(&repo, &train_bounding_box)?;
-            // Commit the train dir
-            repositories::commit(&repo, "Adding training data")?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&repo.dirname());
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            // Sleep so it can unpack...
-            std::thread::sleep(std::time::Duration::from_secs(2));
-
-            // Add and commit the rest of the annotations
-            // The nlp annotations have duplicates which broke the system at a time
-            let annotations_dir = repo.path.join("nlp");
-            repositories::add(&repo, &annotations_dir)?;
-            let commit = repositories::commit(&repo, "adding the rest of the annotations")?;
-
-            // Push again
-            repositories::push(&repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            future::ok::<(), OxenError>(()).await
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits_async(|repo| async {
             let mut repo = repo;
@@ -657,11 +569,6 @@ mod tests {
     #[tokio::test]
     async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
-            // Current local head
-            let local_head = repositories::commits::head_commit(&local_repo)?;
-
-            // Branch name
-
             // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
@@ -677,11 +584,6 @@ mod tests {
                     .await?;
             assert_eq!(history.len(), 25);
 
-            // Latest commit synced should be == local head, with no unsynced commits
-            let sync_response =
-                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-            assert_eq!(sync_response.num_unsynced, 0);
-
             Ok(remote_repo)
         })
         .await
@@ -690,16 +592,11 @@ mod tests {
     #[tokio::test]
     async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
-            // Current local head
-            let local_head = repositories::commits::head_commit(&local_repo)?;
-
             // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history.len(), 0);
-            // TODO: v0_10_0 logic should have 1 commit on main
-            // assert_eq!(history.len(), 0);
 
             // Create new local branch
             let new_branch_name = "my-branch";
@@ -744,11 +641,6 @@ mod tests {
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history_main.len(), 25);
-
-            // 0 unsynced on main
-            let sync_response =
-                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-            assert_eq!(sync_response.num_unsynced, 0);
 
             Ok(remote_repo)
         })

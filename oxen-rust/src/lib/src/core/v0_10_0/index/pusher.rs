@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use tokio::time::Duration;
 
-use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
+use crate::constants::{self, AVG_CHUNK_SIZE};
 
 use crate::core::v0_10_0::index::{CommitReader, Merger};
 use crate::error::OxenError;
@@ -260,7 +260,6 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, &head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");
@@ -509,53 +508,6 @@ fn commits_to_push_are_synced(
         }
     }
     Ok(true)
-}
-
-async fn poll_until_synced(
-    remote_repo: &RemoteRepository,
-    commit: &Commit,
-    bar: &Arc<ProgressBar>,
-) -> Result<(), OxenError> {
-    let commits_to_sync = bar.length().unwrap();
-
-    let head_commit_id = &commit.id;
-
-    let mut retries = 0;
-
-    loop {
-        match api::client::commits::latest_commit_synced(remote_repo, head_commit_id).await {
-            Ok(sync_status) => {
-                retries = 0;
-                log::debug!("Got latest synced commit {:?}", sync_status.latest_synced);
-                log::debug!("Got n unsynced commits {:?}", sync_status.num_unsynced);
-                if commits_to_sync > sync_status.num_unsynced as u64 {
-                    bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
-                }
-                if sync_status.num_unsynced == 0 {
-                    bar.finish_and_clear();
-                    println!("🎉 Push successful");
-                    return Ok(());
-                }
-            }
-            Err(err) => {
-                retries += 1;
-                // Back off, but don't want to go all the way to 100s
-                let sleep_time = 2 * retries;
-                if retries >= NUM_HTTP_RETRIES {
-                    bar.finish_and_clear();
-                    return Err(err);
-                }
-                log::warn!(
-                    "Server error encountered, retrying... ({}/{})",
-                    retries,
-                    NUM_HTTP_RETRIES
-                );
-                // Extra sleep time in error cases
-                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-    }
 }
 
 async fn push_missing_commit_dbs(
@@ -1218,68 +1170,4 @@ async fn bundle_and_send_small_entries(
     sleep(Duration::from_millis(100)).await;
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::api;
-    use crate::command;
-    use crate::constants;
-    use crate::core::v0_10_0::index::pusher;
-
-    use crate::core::versions::MinOxenVersion;
-    use crate::error::OxenError;
-
-    use crate::repositories;
-    use crate::test;
-
-    #[tokio::test]
-    async fn test_push_missing_commit_dbs() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async_min_version(
-            MinOxenVersion::V0_10_0,
-            |mut repo| async move {
-                // Set the proper remote
-                let name = repo.dirname();
-                let remote = test::repo_remote_url_from(&name);
-                command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-                // Create remote repo
-                let remote_repo = test::create_remote_repo(&repo).await?;
-
-                // Get commits to sync...
-                let head_commit = repositories::commits::head_commit(&repo)?;
-                let branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-                // Create all commit objects
-                let unsynced_commits =
-                    pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
-                        .await?;
-                pusher::push_missing_commit_objects(
-                    &repo,
-                    &remote_repo,
-                    &unsynced_commits,
-                    &branch,
-                )
-                .await?;
-
-                // Should have one missing commit db - root created on repo creation
-                let unsynced_db_commits =
-                    api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch)
-                        .await?;
-                assert_eq!(unsynced_db_commits.len(), 0);
-
-                // Push to the remote
-                pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
-
-                // All commits should now have dbs
-                let unsynced_db_commits =
-                    api::client::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch)
-                        .await?;
-                assert_eq!(unsynced_db_commits.len(), 0);
-
-                Ok(())
-            },
-        )
-        .await
-    }
 }
