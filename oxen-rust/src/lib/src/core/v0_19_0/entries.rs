@@ -1,9 +1,6 @@
-
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-use crate::model::{
-    Commit, LocalRepository
-};
+use crate::model::{Commit, LocalRepository};
 use std::path::Path;
 
 use crate::core::v_latest::index::CommitMerkleTree;

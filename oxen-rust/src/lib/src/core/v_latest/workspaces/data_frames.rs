@@ -5,9 +5,9 @@ use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, STAGED
 use crate::core::db;
 use crate::core::db::data_frames::df_db;
 use crate::core::v_latest::add::add_dir_to_staged_db;
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::core::v_latest::workspaces::files::track_modified_data_frame;
-use crate::core::v_latest::index::CommitMerkleTree;
 use rmp_serde::Serializer;
 use serde::Serialize;
 use sql_query_builder::Delete;

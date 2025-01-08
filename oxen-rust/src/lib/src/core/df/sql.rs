@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::v_latest::workspaces;
 use crate::core::df::tabular;
+use crate::core::v_latest::workspaces;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
 use crate::repositories;
@@ -26,9 +26,7 @@ pub fn query_df_from_repo(
     }
 
     let workspace =
-        workspaces::data_frames::get_queryable_data_frame_workspace(
-            repo, path, &commit,
-        )?;
+        workspaces::data_frames::get_queryable_data_frame_workspace(repo, path, &commit)?;
 
     let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, path);
     let mut conn = df_db::get_connection(db_path)?;

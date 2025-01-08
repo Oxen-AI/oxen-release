@@ -453,10 +453,7 @@ fn migrate_dir(
     let mut vnode_nodes: Vec<VNode> = Vec::new();
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         log::debug!("Bucket [{}] for {:x}", i, bhash);
-        let node = VNode {
-            hash: MerkleHash::new(*bhash),
-            ..Default::default()
-        };
+        let node = VNode::new(repo, MerkleHash::new(*bhash), bucket_hashes.len() as u64)?;
         dir_db.add_child(&node)?;
         vnode_nodes.push(node);
     }
@@ -547,7 +544,7 @@ fn migrate_dir(
 
                     // Recurse if it's a directory
                     let mut dir_db =
-                        MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.hash))?;
+                        MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.hash()))?;
                     migrate_dir(
                         repo,
                         commits,

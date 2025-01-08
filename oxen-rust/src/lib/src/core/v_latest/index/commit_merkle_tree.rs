@@ -569,7 +569,7 @@ impl CommitMerkleTree {
         // And use this to skip to the correct vnode
         let total_children = vnodes
             .iter()
-            .map(|vnode| vnode.vnode().unwrap().num_entries)
+            .map(|vnode| vnode.vnode().unwrap().num_entries())
             .sum::<u64>();
         let vnode_size = repo.vnode_size();
         let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;

@@ -10,8 +10,8 @@ use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MerkleHash, RemoteRepository};
 use crate::{api, repositories};
 
-use crate::core::v_latest::structs::push_progress::PushProgress;
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_latest::structs::push_progress::PushProgress;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {

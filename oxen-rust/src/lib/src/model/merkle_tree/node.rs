@@ -50,7 +50,7 @@ impl EMerkleTreeNode {
         match self {
             EMerkleTreeNode::File(file) => file.hash,
             EMerkleTreeNode::Directory(dir) => dir.hash,
-            EMerkleTreeNode::VNode(vnode) => vnode.hash,
+            EMerkleTreeNode::VNode(vnode) => vnode.hash(),
             EMerkleTreeNode::FileChunk(file_chunk) => file_chunk.hash,
             EMerkleTreeNode::Commit(commit) => commit.hash,
         }

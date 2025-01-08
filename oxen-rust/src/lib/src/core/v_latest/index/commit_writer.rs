@@ -18,10 +18,10 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::refs::RefWriter;
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::index::MerkleNodeDB;
 use crate::core::v_latest::status;
 use crate::core::v_latest::structs::StagedMerkleTreeNode;
-use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::VNode;
@@ -816,11 +816,7 @@ fn r_create_dir_node(
 
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
-        let vnode_obj = VNode {
-            hash: vnode.id,
-            num_entries: vnode.entries.len() as u64,
-            ..Default::default()
-        };
+        let vnode_obj = VNode::new(repo, vnode.id, vnode.entries.len() as u64)?;
         if let Some(dir_db) = maybe_dir_db {
             dir_db.add_child(&vnode_obj)?;
             *total_written += 1;
