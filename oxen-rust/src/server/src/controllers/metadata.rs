@@ -232,7 +232,11 @@ pub async fn update_metadata(req: HttpRequest) -> actix_web::Result<HttpResponse
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
-    repositories::entries::update_metadata(&repo, resource.version.to_str().unwrap_or_default())?;
+    let version_str = resource
+        .version
+        .to_str()
+        .ok_or(OxenHttpError::BadRequest("Missing resource version".into()))?;
 
+    repositories::entries::update_metadata(&repo, version_str)?;
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
