@@ -17,4 +17,3 @@ impl Clone for OxenAppData {
         }
     }
 }
-

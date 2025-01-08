@@ -196,6 +196,7 @@ pub struct MerkleNodeDB {
     pub node_id: MerkleHash,
     pub parent_id: Option<MerkleHash>,
     read_only: bool,
+    repo: LocalRepository,
     path: PathBuf,
     node_file: Option<File>,
     children_file: Option<File>,
@@ -223,17 +224,23 @@ impl MerkleNodeDB {
     }
 
     pub fn node(&self) -> Result<EMerkleTreeNode, OxenError> {
-        Self::to_node(self.dtype, &self.data())
+        Self::to_node(&self.repo, self.dtype, &self.data())
     }
 
-    pub fn to_node(dtype: MerkleTreeNodeType, data: &[u8]) -> Result<EMerkleTreeNode, OxenError> {
+    pub fn to_node(
+        repo: &LocalRepository,
+        dtype: MerkleTreeNodeType,
+        data: &[u8],
+    ) -> Result<EMerkleTreeNode, OxenError> {
         match dtype {
             MerkleTreeNodeType::Commit => {
                 Ok(EMerkleTreeNode::Commit(CommitNode::deserialize(data)?))
             }
             MerkleTreeNodeType::Dir => Ok(EMerkleTreeNode::Directory(DirNode::deserialize(data)?)),
             MerkleTreeNodeType::File => Ok(EMerkleTreeNode::File(FileNode::deserialize(data)?)),
-            MerkleTreeNodeType::VNode => Ok(EMerkleTreeNode::VNode(VNode::deserialize(data)?)),
+            MerkleTreeNodeType::VNode => {
+                Ok(EMerkleTreeNode::VNode(VNode::deserialize(repo, data)?))
+            }
             MerkleTreeNodeType::FileChunk => Ok(EMerkleTreeNode::FileChunk(
                 FileChunkNode::deserialize(data)?,
             )),
@@ -251,7 +258,7 @@ impl MerkleNodeDB {
 
     pub fn open_read_only(repo: &LocalRepository, hash: &MerkleHash) -> Result<Self, OxenError> {
         let path = node_db_path(repo, hash);
-        Self::open(path, true)
+        Self::open(repo, path, true)
     }
 
     pub fn open_read_write_if_not_exists(
@@ -281,12 +288,16 @@ impl MerkleNodeDB {
             util::fs::create_dir_all(&path)?;
         }
         log::debug!("open_read_write merkle node db at {}", path.display());
-        let mut db = Self::open(path, false)?;
+        let mut db = Self::open(repo, path, false)?;
         db.write_node(node, parent_id)?;
         Ok(db)
     }
 
-    pub fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
+    pub fn open(
+        repo: &LocalRepository,
+        path: impl AsRef<Path>,
+        read_only: bool,
+    ) -> Result<Self, OxenError> {
         let path = path.as_ref();
 
         // mkdir if not exists
@@ -329,6 +340,7 @@ impl MerkleNodeDB {
         let parent_id = lookup.as_ref().map(|l| l.parent_id);
         Ok(Self {
             read_only,
+            repo: repo.clone(),
             path: path.to_path_buf(),
             node_file,
             children_file,
@@ -499,7 +511,7 @@ impl MerkleNodeDB {
 
         // Parse the node parent id
         let data_type = MerkleTreeNodeType::from_u8(lookup.data_type);
-        let parent_id = MerkleTreeNode::deserialize_id(&lookup.data, data_type)?;
+        let parent_id = MerkleTreeNode::deserialize_id(&self.repo, &lookup.data, data_type)?;
 
         let mut file_data = Vec::new();
         children_file.read_to_end(&mut file_data)?;
@@ -521,7 +533,7 @@ impl MerkleNodeDB {
             let node = MerkleTreeNode {
                 parent_id: Some(parent_id),
                 hash: MerkleHash::new(*hash),
-                node: Self::to_node(dtype, &data)?,
+                node: Self::to_node(&self.repo, dtype, &data)?,
                 children: Vec::new(),
             };
             // log::debug!("Loaded node {:?}", node);

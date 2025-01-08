@@ -16,8 +16,8 @@ use std::str;
 use crate::constants;
 use crate::core::db;
 
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;

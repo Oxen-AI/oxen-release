@@ -49,8 +49,6 @@ pub fn get_version_file_from_commit_id(
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::revisions::get_version_file_from_commit_id(repo, commit_id, path)
         }
-        _ => {
-            core::v_latest::revisions::get_version_file_from_commit_id(repo, commit_id, path)
-        }
+        _ => core::v_latest::revisions::get_version_file_from_commit_id(repo, commit_id, path),
     }
 }

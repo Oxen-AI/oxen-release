@@ -403,10 +403,14 @@ impl MerkleTreeNode {
         self.node.clone()
     }
 
-    pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
+    pub fn deserialize_id(
+        repo: &LocalRepository,
+        data: &[u8],
+        dtype: MerkleTreeNodeType,
+    ) -> Result<MerkleHash, OxenError> {
         match dtype {
             MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash),
-            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash),
+            MerkleTreeNodeType::VNode => VNode::deserialize(repo, data).map(|vnode| vnode.hash()),
             MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash),
             MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),
             MerkleTreeNodeType::FileChunk => {

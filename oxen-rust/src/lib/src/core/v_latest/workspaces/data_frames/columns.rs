@@ -3,9 +3,9 @@ use rocksdb::DB;
 
 use crate::constants::TABLE_NAME;
 use crate::core::db;
-use crate::core::v_latest::data_frames;
 use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::db::data_frames::{column_changes_db, columns, df_db};
+use crate::core::v_latest::data_frames;
 use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
