@@ -495,6 +495,7 @@ where
         path: PathBuf::from("test"),
         recursive: true,
         staged: false,
+        is_cli: false,
     };
 
     repositories::rm(&local_repo, &rm_opts)?;
