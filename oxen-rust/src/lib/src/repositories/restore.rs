@@ -519,6 +519,7 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: false,
+                is_cli: false,
             };
 
             repositories::rm(&repo, &rm_opts)?;

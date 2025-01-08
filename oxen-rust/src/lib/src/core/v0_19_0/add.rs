@@ -219,16 +219,17 @@ pub fn process_add_dir(
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-            let relative_dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap(); 
-            
+            let relative_dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
+
             // Fix for Windows CLI
             // TODO: does dir_path ever not exist? this will propogate an error if so
             let dir_path = if relative_dir_path.exists() {
                 relative_dir_path
             } else {
-                log::debug!("dir path {relative_dir_path:?} was not found. Checking for Windows CLI");
-                util::fs::path_relative_to_canon_dir(dir, &repo.path.clone())?
-
+                log::debug!(
+                    "dir path {relative_dir_path:?} was not found. Checking for Windows CLI"
+                );
+                util::fs::path_relative_to_canon_dir(dir, repo.path.clone())?
             };
             log::debug!("path now: {dir_path:?}");
 

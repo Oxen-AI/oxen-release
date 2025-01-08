@@ -105,6 +105,7 @@ mod tests {
                 path: rm_dir.to_owned(),
                 recursive: true,
                 staged: false,
+                is_cli: false,
             };
             println!("Before rm");
             repositories::rm(&repo, &opts)?;
@@ -545,6 +546,7 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: false,
+                is_cli: false,
             };
 
             repositories::rm(&repo, &rm_opts)?;
@@ -562,6 +564,7 @@ mod tests {
                 path: PathBuf::from("images/*"),
                 recursive: false,
                 staged: true,
+                is_cli: false,
             };
 
             repositories::rm(&repo, &rm_opts)?;
@@ -618,6 +621,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: false, // This should be an error
+                is_cli: false,
             };
             let result = repositories::rm(&repo, &opts);
             assert!(result.is_err());
@@ -643,6 +647,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                is_cli: false,
             };
             repositories::rm(&repo, &opts)?;
 
@@ -673,6 +678,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                is_cli: false,
             };
             repositories::rm(&repo, &opts)?;
 
@@ -702,6 +708,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                is_cli: false,
             };
             let result = repositories::rm(&repo, &opts);
             assert!(result.is_ok());
@@ -750,6 +757,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: false, // This should be an error
+                is_cli: false,
             };
 
             let result = repositories::rm(&repo, &opts);
@@ -770,6 +778,7 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
+                is_cli: false,
             };
 
             let result = repositories::rm(&repo, &opts);
@@ -795,6 +804,7 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
+                is_cli: false,
             };
 
             // copy a cat into the dog image
@@ -836,6 +846,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                is_cli: false,
             };
             repositories::rm(&repo, &opts)?;
 
@@ -875,6 +886,7 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                is_cli: false,
             };
             repositories::rm(&repo, &opts)?;
 
@@ -902,6 +914,7 @@ mod tests {
                 path,
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                is_cli: false,
             };
             repositories::rm(&repo, &opts)?;
 
