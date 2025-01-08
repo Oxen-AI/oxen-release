@@ -43,6 +43,7 @@ pub fn get_file(
 ) -> Result<Option<FileNode>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_file(repo, commit, path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
         _ => core::v_latest::entries::get_file(repo, commit, path),
     }
 }
@@ -106,19 +107,20 @@ pub fn get_meta_entry(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<MetadataEntry, OxenError> {
+    let path = path.as_ref();
+    let parsed_resource = ParsedResource {
+        path: path.to_path_buf(),
+        commit: Some(commit.clone()),
+        branch: None,
+        version: PathBuf::from(&commit.id),
+        resource: PathBuf::from(&commit.id).join(path),
+    };
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, &path),
-        _ => {
-            let path = path.as_ref();
-            let parsed_resource = ParsedResource {
-                path: path.to_path_buf(),
-                commit: Some(commit.clone()),
-                branch: None,
-                version: PathBuf::from(&commit.id),
-                resource: PathBuf::from(&commit.id).join(path),
-            };
-            core::v_latest::entries::get_meta_entry(repo, &parsed_resource, path)
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, path),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
         }
+        _ => core::v_latest::entries::get_meta_entry(repo, &parsed_resource, path),
     }
 }
 

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::core::v_latest::index::merkle_node_db::node_db_path;
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{
     DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
@@ -39,8 +40,20 @@ pub fn get_node_by_path(
     path: impl AsRef<Path>,
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
     let load_recursive = false;
-    let node = CommitMerkleTree::from_path(repo, commit, path, load_recursive)?;
-    Ok(Some(node.root))
+    let node = match repo.min_version() {
+        MinOxenVersion::V0_19_0 => {
+            let tree =
+                crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree::from_path(
+                    repo,
+                    commit,
+                    path,
+                    load_recursive,
+                )?;
+            tree.root
+        }
+        _ => CommitMerkleTree::from_path(repo, commit, path, load_recursive)?.root,
+    };
+    Ok(Some(node))
 }
 
 pub fn get_file_by_path(
@@ -48,9 +61,9 @@ pub fn get_file_by_path(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<FileNode>, OxenError> {
-    let load_recursive = false;
-    let tree = CommitMerkleTree::from_path(repo, commit, path, load_recursive)?;
-    match tree.root.node {
+    let root = get_node_by_path(repo, commit, &path)?
+        .ok_or(OxenError::path_does_not_exist(path.as_ref()))?;
+    match root.node {
         EMerkleTreeNode::File(file_node) => Ok(Some(file_node.clone())),
         _ => Ok(None),
     }
