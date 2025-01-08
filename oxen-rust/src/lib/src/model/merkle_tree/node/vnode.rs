@@ -5,6 +5,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::core::v0_19_0::model::merkle_tree::node::vnode::VNodeImplV0_19_0;
+use crate::core::v_latest::model::merkle_tree::node::vnode::VNodeImplV0_25_0;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{
@@ -15,19 +17,6 @@ use crate::model::{
 pub enum VNode {
     V0_19_0(VNodeImplV0_19_0),
     VLATEST(VNodeImplV0_25_0),
-}
-
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub struct VNodeImplV0_19_0 {
-    pub hash: MerkleHash,
-    pub node_type: MerkleTreeNodeType,
-}
-
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub struct VNodeImplV0_25_0 {
-    pub hash: MerkleHash,
-    pub node_type: MerkleTreeNodeType,
-    pub num_entries: u64,
 }
 
 impl VNode {
@@ -51,21 +40,13 @@ impl VNode {
     }
 
     pub fn deserialize(repo: &LocalRepository, data: &[u8]) -> Result<VNode, OxenError> {
-        match repo.min_version() {
-            MinOxenVersion::V0_19_0 => {
-                let vnode: VNodeImplV0_19_0 = rmp_serde::from_slice(data).map_err(|e| {
-                    OxenError::basic_str(format!("Error deserializing vnode v0.19.0: {e}"))
-                })?;
-                Ok(VNode::V0_19_0(vnode))
-            }
-            MinOxenVersion::LATEST => {
-                let vnode: VNodeImplV0_25_0 = rmp_serde::from_slice(data).map_err(|e| {
-                    OxenError::basic_str(format!("Error deserializing vnode v0.25.0: {e}"))
-                })?;
-                Ok(VNode::VLATEST(vnode))
-            }
-            _ => Err(OxenError::basic_str("Unsupported version")),
-        }
+        log::debug!(
+            "Deserializing vnode from repo: {:?} data: {:?}",
+            repo.min_version().to_string(),
+            data
+        );
+        let vnode: VNode = rmp_serde::from_slice(data)?;
+        Ok(vnode)
     }
 
     pub fn hash(&self) -> MerkleHash {
@@ -77,7 +58,7 @@ impl VNode {
 
     pub fn num_entries(&self) -> u64 {
         match self {
-            VNode::V0_19_0(_) => 0,
+            VNode::V0_19_0(_) => panic!("VNode::V0_19_0 does not have num_entries"),
             VNode::VLATEST(vnode) => vnode.num_entries,
         }
     }

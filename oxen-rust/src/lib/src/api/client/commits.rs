@@ -16,14 +16,14 @@ use crate::opts::PaginateOpts;
 use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
-use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
+use crate::view::commit::CommitTreeValidationResponse;
 use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::{api, constants, repositories};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
-    CommitResponse, IsValidStatusMessage, ListCommitResponse, MerkleHashesResponse,
-    PaginatedCommits, RootCommitResponse, StatusMessage,
+    CommitResponse, ListCommitResponse, MerkleHashesResponse, PaginatedCommits, RootCommitResponse,
+    StatusMessage,
 };
 
 use std::collections::HashSet;
@@ -258,74 +258,6 @@ async fn list_all_commits_paginated(
         Err(err) => Err(OxenError::basic_str(format!(
             "list_commit_history() Request failed: {err}"
         ))),
-    }
-}
-
-pub async fn commit_is_synced(
-    remote_repo: &RemoteRepository,
-    commit_id: &str,
-) -> Result<Option<IsValidStatusMessage>, OxenError> {
-    let uri = format!("/commits/{commit_id}/is_synced");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("commit_is_synced checking URL: {}", url);
-
-    let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("commit_is_synced Got response [{}]", res.status());
-        if res.status() == 404 {
-            return Ok(None);
-        }
-
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("commit_is_synced got response body: {}", body);
-        let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res)),
-            Err(err) => {
-                log::debug!("Error getting remote commit {}", err);
-                Err(OxenError::basic_str(
-                    "commit_is_synced() unable to parse body",
-                ))
-            }
-        }
-    } else {
-        Err(OxenError::basic_str("commit_is_synced() Request failed"))
-    }
-}
-
-pub async fn latest_commit_synced(
-    remote_repo: &RemoteRepository,
-    commit_id: &str,
-) -> Result<CommitSyncStatusResponse, OxenError> {
-    let uri = format!("/commits/{commit_id}/latest_synced");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("latest_commit_synced checking URL: {}", url);
-
-    let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("latest_commit_synced Got response [{}]", res.status());
-        if res.status() == 404 {
-            return Err(OxenError::basic_str("No synced commits found"));
-        }
-
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("latest_commit_synced got response body: {}", body);
-        // Sync status response
-        let response: Result<CommitSyncStatusResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(result) => Ok(result),
-            Err(err) => {
-                log::debug!("Error getting remote commit {}", err);
-                Err(OxenError::basic_str(
-                    "latest_commit_synced() unable to parse body",
-                ))
-            }
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "latest_commit_synced() Request failed",
-        ))
     }
 }
 
@@ -1337,139 +1269,11 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
 
-    use crate::model::entry::commit_entry::Entry;
-    use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
     use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
 
     use std::str::FromStr;
-
-    #[tokio::test]
-    async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let train_dir = local_repo.path.join("annotations").join("train");
-            repositories::add(&local_repo, &train_dir)?;
-            // Commit the directory
-            let commit1 = repositories::commit(&local_repo, "Adding 1")?;
-
-            let test_dir = local_repo.path.join("annotations").join("test");
-            repositories::add(&local_repo, &test_dir)?;
-            // Commit the directory
-            let commit2 = repositories::commit(&local_repo, "Adding 2")?;
-
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Post commit
-
-            let unsynced_commits = vec![
-                UnsyncedCommitEntries {
-                    commit: commit1,
-                    entries: Vec::<Entry>::new(),
-                },
-                UnsyncedCommitEntries {
-                    commit: commit2,
-                    entries: Vec::<Entry>::new(),
-                },
-            ];
-
-            api::client::commits::post_commits_to_server(
-                &local_repo,
-                &remote_repo,
-                &unsynced_commits,
-                branch.name.clone(),
-            )
-            .await?;
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-            let commit_history = repositories::commits::list(&local_repo)?;
-            let commit = commit_history.first().unwrap();
-
-            // Set the proper remote
-            let name = local_repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create Remote
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            // Push it
-            repositories::push(&local_repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_remote_commits_is_not_valid() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let annotations_dir = local_repo.path.join("annotations");
-            repositories::add(&local_repo, &annotations_dir)?;
-            // Commit the directory
-            let commit = repositories::commit(
-                &local_repo,
-                "Adding annotations data dir, which has two levels",
-            )?;
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Dummy entries, not checking this
-            let entries = Vec::<Entry>::new();
-
-            let unsynced_commits = vec![UnsyncedCommitEntries {
-                commit: commit.clone(),
-                entries,
-            }];
-
-            api::client::commits::post_commits_to_server(
-                &local_repo,
-                &remote_repo,
-                &unsynced_commits,
-                branch.name.clone(),
-            )
-            .await?;
-
-            // Should not be synced because we didn't actually post the files
-            let is_synced =
-                api::client::commits::commit_is_synced(&remote_repo, &commit.id).await?;
-            // We never kicked off the background processes
-            assert!(is_synced.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
 
     #[tokio::test]
     async fn test_list_remote_commits_all() -> Result<(), OxenError> {
