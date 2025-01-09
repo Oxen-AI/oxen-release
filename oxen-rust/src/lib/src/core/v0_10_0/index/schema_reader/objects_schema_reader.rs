@@ -18,7 +18,6 @@ pub struct ObjectsSchemaReader {
     object_reader: Arc<ObjectDBReader>,
     dir_hashes_db: DBWithThreadMode<MultiThreaded>,
     repository: LocalRepository,
-    commit_id: String,
 }
 
 impl ObjectsSchemaReader {
@@ -61,7 +60,6 @@ impl ObjectsSchemaReader {
             dir_hashes_db: DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?,
             object_reader,
             repository: repository.clone(),
-            commit_id: commit_id.to_owned(),
         })
     }
 
@@ -177,64 +175,7 @@ impl ObjectsSchemaReader {
     }
 
     pub fn list_schema_entries(&self) -> Result<Vec<SchemaEntry>, OxenError> {
-        let commit_reader = CommitReader::new(&self.repository)?;
-        let commit =
-            commit_reader
-                .get_commit_by_id(&self.commit_id)?
-                .ok_or(OxenError::basic_str(format!(
-                    "Could not find commit {}",
-                    self.commit_id
-                )))?;
-
-        let root_hash = commit
-            .root_hash
-            .ok_or(format!("Root hash not found for commit {}", self.commit_id))?;
-
-        let root_node: TreeObject =
-            self.object_reader
-                .get_dir(&root_hash)?
-                .ok_or(OxenError::basic_str(
-                    "Could not find root node in object db",
-                ))?;
-
-        let mut entries: Vec<SchemaEntry> = Vec::new();
-
-        self.r_list_schema_entries(root_node, &mut entries)?;
-
-        Ok(entries)
-    }
-
-    fn r_list_schema_entries(
-        &self,
-        dir_node: TreeObject,
-        entries: &mut Vec<SchemaEntry>,
-    ) -> Result<(), OxenError> {
-        for vnode in dir_node.children() {
-            let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
-            for child in vnode.children() {
-                match child {
-                    TreeObjectChild::Dir { hash, .. } => {
-                        let dir_node = self.object_reader.get_dir(hash)?.unwrap();
-                        self.r_list_schema_entries(dir_node, entries)?;
-                    }
-                    TreeObjectChild::Schema { path, hash, .. } => {
-                        let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
-                        log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
-                        let found_schema = self.object_reader.get_schema(hash)?.unwrap();
-                        log::debug!("got found schema {:?}", found_schema);
-                        let found_entry = SchemaEntry {
-                            commit_id: self.commit_id.clone(),
-                            path: stripped_path.to_path_buf(),
-                            hash: found_schema.hash().clone(),
-                            num_bytes: found_schema.num_bytes(),
-                        };
-                        entries.push(found_entry);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        Ok(())
+        panic!("v0.10.0 no longer supported");
     }
 
     pub fn list_schemas_for_ref(

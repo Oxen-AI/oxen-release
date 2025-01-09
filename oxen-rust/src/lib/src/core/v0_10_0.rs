@@ -19,8 +19,8 @@ pub mod push;
 pub mod resource;
 pub mod restore;
 pub mod revisions;
-pub mod status;
 pub mod stats;
+pub mod status;
 
 pub use add::add;
 pub use clone::clone_repo;

@@ -46,8 +46,8 @@ impl VNode {
     }
 
     pub fn deserialize(data: &[u8]) -> Result<VNode, OxenError> {
-        // In order to support versions that didn't have the enum VNode, if it fails we will fall back to
-        // VNodeImplV0_19_0 and fill in the enum VNode
+        // In order to support versions that didn't have the enum,
+        // if it fails we will fall back to the old struct, then populate the enum
         let vnode: VNode = match rmp_serde::from_slice(data) {
             Ok(vnode) => vnode,
             Err(e) => {

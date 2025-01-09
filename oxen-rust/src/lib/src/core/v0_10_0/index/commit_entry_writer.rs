@@ -1,9 +1,7 @@
 //! Responsible for writing all the entries to the commit entry database
 //!
 
-use crate::constants::{
-    self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
-};
+use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db;
@@ -977,40 +975,7 @@ impl CommitEntryWriter {
 
     // Traverse the tree, saving it locally to a tmp path that will be deleted after transmission to the server
     pub fn save_temp_commit_tree(&self) -> Result<PathBuf, OxenError> {
-        // Get hash of this commit
-
-        let temp_db_path = util::fs::oxen_hidden_dir(&self.repository.path)
-            .join(TMP_DIR)
-            .join("trees")
-            .join(&self.commit.id);
-
-        if !temp_db_path.exists() {
-            std::fs::create_dir_all(&temp_db_path)?;
-        }
-
-        // Print whether or not that exists
-        log::debug!(
-            "Does the temp db path exist? {:?}",
-            std::fs::metadata(&temp_db_path).is_ok()
-        );
-
-        let opts = db::key_val::opts::default();
-        let temp_tree_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
-        let commit_hash: &String = &self.commit.root_hash.clone().unwrap();
-
-        let root_dir_node: TreeObject =
-            tree_db::get_tree_object(&self.dirs_db, commit_hash)?.unwrap();
-
-        for child in root_dir_node.children() {
-            self.r_save_temp_commit_tree(child, &temp_tree_db)?;
-        }
-
-        // Plug the root hash in here at "" to give the server a starting point for traversal.
-        // Safe because an empty hash will not collide w/ any in xxhash
-        tree_db::put_tree_object(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
-
-        Ok(temp_db_path)
+        panic!("v0.10.0 no longer supported");
     }
 
     pub fn r_save_temp_commit_tree(

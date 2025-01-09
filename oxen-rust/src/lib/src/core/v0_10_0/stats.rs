@@ -1,8 +1,7 @@
-
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
-use crate::model::RepoStats;
 use crate::model::LocalRepository;
+use crate::model::RepoStats;
 use crate::repositories;
 use crate::util;
 use std::collections::HashMap;

@@ -468,7 +468,7 @@ async fn r_download_entries(
 
     if let EMerkleTreeNode::Commit(commit_node) = &node.node {
         // Mark the commit as synced
-        let commit_id = commit_node.hash.to_string();
+        let commit_id = commit_node.hash().to_string();
         let commit = repositories::commits::get_by_id(repo, &commit_id)?.unwrap();
         core::commit_sync_status::mark_commit_as_synced(repo, &commit)?;
     }

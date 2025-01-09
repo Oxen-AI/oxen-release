@@ -234,15 +234,14 @@ pub fn commit_dir_entries_with_parents(
         }
     }
 
-    let node = CommitNode {
-        hash: commit_id,
-        parent_ids: parent_hashes,
-        message: message.to_string(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
+    let node = CommitNode::new(
+        commit_id,
+        parent_hashes,
+        new_commit.email.clone(),
+        new_commit.author.clone(),
+        message.to_string(),
         timestamp,
-        ..Default::default()
-    };
+    );
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
@@ -327,19 +326,18 @@ pub fn commit_dir_entries_new(
 
     let commit_id = compute_commit_id(&new_commit)?;
 
-    let node = CommitNode {
-        hash: commit_id,
-        parent_ids: new_commit
+    let node = CommitNode::new(
+        commit_id,
+        new_commit
             .parent_ids
             .iter()
             .map(|id: &String| MerkleHash::from_str(id).unwrap())
             .collect(),
-        message: message.to_string(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
+        new_commit.email.clone(),
+        new_commit.author.clone(),
+        message.to_string(),
         timestamp,
-        ..Default::default()
-    };
+    );
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
@@ -447,15 +445,14 @@ pub fn commit_dir_entries(
     };
     let commit_id = compute_commit_id(&new_commit)?;
 
-    let node = CommitNode {
-        hash: commit_id,
+    let node = CommitNode::new(
+        commit_id,
         parent_ids,
-        message: message.to_string(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
+        new_commit.email.clone(),
+        new_commit.author.clone(),
+        message.to_string(),
         timestamp,
-        ..Default::default()
-    };
+    );
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);

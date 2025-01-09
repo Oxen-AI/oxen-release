@@ -1,19 +1,16 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::core::db::key_val::path_db;
 
 use crate::core;
 use crate::core::db;
-use crate::core::refs::{RefReader, RefWriter};
+use crate::core::refs::RefReader;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     self, workspaces, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter,
     CommitReader, EntryIndexer, ObjectDBReader,
 };
 use crate::error::OxenError;
-use crate::model::{
-    Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus, Workspace,
-};
+use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, Workspace};
 
 use crate::repositories;
 use crate::util;
@@ -341,144 +338,32 @@ impl CommitWriter {
 
     fn add_commit_from_status_on_local_branch(
         &self,
-        working_dir: impl AsRef<Path>,
-        commit: &Commit,
-        status: &StagedData,
-        branch: Branch,
+        _working_dir: impl AsRef<Path>,
+        _commit: &Commit,
+        _status: &StagedData,
+        _branch: Branch,
     ) -> Result<Commit, OxenError> {
-        // Write entries
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-
-        // Commit all staged files from db
-        entry_writer.commit_staged_entries(working_dir, commit, status)?;
-
-        // Add to commits db id -> commit_json
-        log::debug!(
-            "add_commit_from_status_on_local_branch add commit [{}] to db",
-            commit.id
-        );
-
-        let mut commit = commit.clone();
-
-        let dir_hashes_db =
-            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::key_val::opts::default();
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
-
-        // Get the hash for this commit id
-        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
-
-        commit.update_root_hash(hash.clone());
-
-        self.add_commit_to_db(&commit)?;
-
-        let ref_writer = RefWriter::new(&self.repository)?;
-        log::debug!("setting branch commit id {} -> {}", branch.name, commit.id);
-        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
-
-        Ok(commit)
+        panic!("v0.10.0 no longer supported");
     }
 
     pub fn add_commit_from_status(
         &self,
-        commit: &Commit,
-        status: &StagedData,
-        working_dir: &Path,
+        _commit: &Commit,
+        _status: &StagedData,
+        _working_dir: &Path,
     ) -> Result<Commit, OxenError> {
-        // Make sure all the added and modified files exist
-        log::debug!("Removing non-existent files from status");
-        let mut status = status.clone();
-        let status_clone = status.clone();
-        for (path, entry) in status_clone.staged_files.iter() {
-            match entry.status {
-                StagedEntryStatus::Added => {
-                    let full_path = self.repository.path.join(path);
-                    if !full_path.exists() {
-                        status.staged_files.remove(&path.clone());
-                    }
-                }
-                StagedEntryStatus::Modified => {
-                    let full_path = self.repository.path.join(path);
-                    if !full_path.exists() {
-                        status.staged_files.remove(&path.clone());
-                    }
-                }
-                _ => continue,
-            }
-        }
-
-        // Write entries
-        log::debug!("init'ing CommitEntryWriter");
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        // Commit all staged files from db
-        entry_writer.commit_staged_entries(working_dir, commit, &status)?;
-
-        // Add to commits db id -> commit_json
-        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-
-        let mut commit = commit.clone();
-
-        let dir_hashes_db =
-            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::key_val::opts::default();
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
-
-        // Get the hash for this commit id
-        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
-
-        commit.update_root_hash(hash.clone());
-
-        self.add_commit_to_db(&commit)?;
-
-        let ref_writer = RefWriter::new(&self.repository)?;
-        ref_writer.set_head_commit_id(&commit.id)?;
-
-        Ok(commit)
+        panic!("v0.10.0 no longer supported");
     }
 
     // add_commit_from_status_on_remote_branch
     fn write_commit_to_branch(
         &self,
-        workspace: &Workspace,
-        branch: &Branch,
-        commit: &Commit,
-        status: &StagedData,
+        _workspace: &Workspace,
+        _branch: &Branch,
+        _commit: &Commit,
+        _status: &StagedData,
     ) -> Result<(), OxenError> {
-        log::debug!(
-            "add from status on remote branch has repository path {:?}",
-            self.repository.path
-        );
-        // Write entries
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-
-        // Commit all staged files from db
-        entry_writer.commit_staged_entries(&workspace.workspace_repo.path, commit, status)?;
-
-        let mut commit = commit.clone();
-
-        let opts = db::key_val::opts::default();
-        let dir_hashes_db_dir =
-            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
-
-        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
-        commit.update_root_hash(hash.clone());
-
-        // Add to commits db id -> commit_json
-        self.add_commit_to_db(&commit)?;
-
-        let ref_writer = RefWriter::new(&self.repository)?;
-        log::debug!(
-            "add_commit_from_status got branch {} updating branch commit id {}",
-            branch.name,
-            commit.id
-        );
-        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
-
-        Ok(())
+        panic!("v0.10.0 no longer supported");
     }
 
     pub fn add_commit_to_db(&self, commit: &Commit) -> Result<(), OxenError> {
