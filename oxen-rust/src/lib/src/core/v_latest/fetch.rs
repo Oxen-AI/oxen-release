@@ -14,8 +14,7 @@ use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
 use crate::repositories;
 use crate::{api, util};
 
-use crate::core::v_latest::index::commit_merkle_tree::CommitMerkleTree;
-use crate::core::v_latest::structs::pull_progress::PullProgress;
+use crate::core::progress::pull_progress::PullProgress;
 use crate::opts::fetch_opts::FetchOpts;
 
 pub async fn fetch_remote_branch(
@@ -89,8 +88,7 @@ pub async fn fetch_remote_branch(
         repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?
     } else {
         let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
-        let recurse = false;
-        let commit_node = CommitMerkleTree::read_node(repo, &hash, recurse)?.unwrap();
+        let commit_node = repositories::tree::get_node_by_id(repo, &hash)?.unwrap();
         HashSet::from([commit_node.commit()?.to_commit()])
     };
     log::debug!("Fetch got {} commits", commits.len());
@@ -226,16 +224,30 @@ fn collect_missing_entries(
                 depth
             );
             for subtree_path in subtree_paths {
-                let tree = repositories::tree::get_subtree_by_depth(
+                let Some(tree) = repositories::tree::get_subtree_by_depth(
                     repo,
                     commit,
                     &Some(subtree_path.clone()),
                     depth,
-                )?;
+                )?
+                else {
+                    log::warn!(
+                        "get_subtree_by_depth returned None for path: {:?}",
+                        subtree_path
+                    );
+                    continue;
+                };
                 collect_missing_entries_for_subtree(&tree, &mut missing_entries)?;
             }
         } else {
-            let tree = repositories::tree::get_subtree_by_depth(repo, commit, &None, depth)?;
+            let Some(tree) = repositories::tree::get_subtree_by_depth(repo, commit, &None, depth)?
+            else {
+                log::warn!(
+                    "get_subtree_by_depth returned None for commit: {:?}",
+                    commit
+                );
+                continue;
+            };
             collect_missing_entries_for_subtree(&tree, &mut missing_entries)?;
         }
     }
@@ -243,7 +255,7 @@ fn collect_missing_entries(
 }
 
 fn collect_missing_entries_for_subtree(
-    tree: &CommitMerkleTree,
+    tree: &MerkleTreeNode,
     missing_entries: &mut HashSet<Entry>,
 ) -> Result<(), OxenError> {
     let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(tree)?;
@@ -351,7 +363,13 @@ pub async fn maybe_fetch_missing_entries(
         return Ok(());
     };
 
-    let commit_merkle_tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let Some(commit_merkle_tree) = repositories::tree::get_root_with_children(repo, commit)? else {
+        log::warn!(
+            "get_root_with_children returned None for commit: {:?}",
+            commit
+        );
+        return Ok(());
+    };
 
     let remote_repo = match api::client::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
@@ -377,7 +395,7 @@ pub async fn maybe_fetch_missing_entries(
     r_download_entries(
         repo,
         &remote_repo,
-        &commit_merkle_tree.root,
+        &commit_merkle_tree,
         &directory,
         &pull_progress,
     )

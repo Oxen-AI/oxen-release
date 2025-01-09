@@ -1436,12 +1436,7 @@ where
     status.print();
 
     // Commit the data
-    let commit = repositories::commit(&repo, "adding all data baby")?;
-
-    // Read the tree for debug
-    let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-    println!("setup tree after commit:");
-    tree.print();
+    repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_repo_test_fully_committed running test");

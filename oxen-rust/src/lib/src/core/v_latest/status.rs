@@ -2,9 +2,9 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::STAGED_DIR;
 use crate::core::db;
 use crate::core::oxenignore;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::staged_data::StagedDataOpts;
 use crate::model::{

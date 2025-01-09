@@ -1,9 +1,9 @@
 use crate::api;
 use crate::constants::OBJECTS_DIR;
 use crate::constants::OXEN_HIDDEN_DIR;
+use crate::core::progress::pull_progress::PullProgress;
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
-use crate::core::v_latest::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::MetadataEntry;

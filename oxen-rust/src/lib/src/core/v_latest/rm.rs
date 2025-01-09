@@ -14,9 +14,9 @@ use rocksdb::IteratorMode;
 use tokio::time::Duration;
 
 use crate::core::v_latest::add::CumulativeStats;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 
 use crate::constants::STAGED_DIR;
 use crate::model::Commit;

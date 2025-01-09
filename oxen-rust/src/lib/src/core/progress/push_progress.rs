@@ -1,4 +1,4 @@
-use crate::core::v_latest::structs::sync_progress::{SyncProgress, SyncType};
+use crate::core::progress::sync_progress::{SyncProgress, SyncType};
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 

@@ -10,9 +10,9 @@ use std::time;
 
 use crate::api::client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
-use crate::core::v_latest::index::merkle_node_db::node_db_path;
+use crate::core::db::merkle_node::merkle_node_db::node_db_path;
+use crate::core::progress::push_progress::PushProgress;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::structs::PushProgress;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
@@ -68,11 +68,11 @@ pub async fn create_nodes(
             .join(TREE_DIR)
             .join(NODES_DIR);
         let sub_dir = util::fs::path_relative_to_dir(&node_dir, &tree_dir)?;
-        log::debug!(
-            "create_nodes appending objects dir {:?} to tar at path {:?}",
-            sub_dir,
-            node_dir
-        );
+        // log::debug!(
+        //     "create_nodes appending objects dir {:?} to tar at path {:?}",
+        //     sub_dir,
+        //     node_dir
+        // );
         progress.set_message(format!(
             "Packing {}/{} nodes with {} children",
             i + 1,
@@ -83,6 +83,7 @@ pub async fn create_nodes(
         tar.append_dir_all(sub_dir, node_dir)?;
         children_count += node.children.len();
     }
+    log::debug!("create_nodes packed {} nodes", children_count);
 
     tar.finish()?;
 
@@ -638,6 +639,7 @@ mod tests {
                 })
                 .count();
 
+            println!("dir_count: {}", dir_count);
             assert!(dir_count > 33);
 
             let download_repo_path_2 = local_repo.path.join("download_repo_test_2");

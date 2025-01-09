@@ -6,7 +6,6 @@ use time::OffsetDateTime;
 
 use crate::core;
 use crate::core::refs::{RefReader, RefWriter};
-use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{CommitNode, EMerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash, User};
@@ -18,12 +17,10 @@ use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
 
-use crate::core::v_latest::index::CommitMerkleTree;
-
-use super::index::MerkleNodeDB;
+use crate::core::db::merkle_node::MerkleNodeDB;
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
-    super::index::commit_writer::commit(repo, message)
+    repositories::commits::commit_writer::commit(repo, message)
 }
 
 pub fn commit_with_user(
@@ -31,7 +28,7 @@ pub fn commit_with_user(
     message: impl AsRef<str>,
     user: &User,
 ) -> Result<Commit, OxenError> {
-    super::index::commit_writer::commit_with_user(repo, message, user)
+    repositories::commits::commit_writer::commit_with_user(repo, message, user)
 }
 
 pub fn get_commit_or_head<S: AsRef<str> + Clone>(
@@ -107,13 +104,14 @@ pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let head_commit_id = head_commit_id(repo)?;
     log::debug!("head_commit: head_commit_id: {:?}", head_commit_id);
-    let commit_data = CommitMerkleTree::read_node(repo, &head_commit_id, false)?.ok_or(
+
+    let node = repositories::tree::get_node_by_id(repo, &head_commit_id)?.ok_or(
         OxenError::basic_str(format!(
             "Merkle tree node not found for head commit: '{}'",
             head_commit_id
         )),
     )?;
-    let commit = commit_data.commit()?;
+    let commit = node.commit()?;
     Ok(commit.to_commit())
 }
 
@@ -166,10 +164,10 @@ pub fn get_by_id(
 }
 
 pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
-    let Some(commit_data) = CommitMerkleTree::read_node(repo, hash, false)? else {
+    let Some(node) = repositories::tree::get_node_by_id(repo, hash)? else {
         return Ok(None);
     };
-    let commit = commit_data.commit()?;
+    let commit = node.commit()?;
     Ok(Some(commit.to_commit()))
 }
 
@@ -183,7 +181,7 @@ pub fn create_empty_commit(
         return Err(OxenError::revision_not_found(branch_name.into()));
     };
     let existing_commit_id = MerkleHash::from_str(&existing_commit.id)?;
-    let existing_node = CommitMerkleTree::read_depth(repo, &existing_commit_id, 1)?.ok_or(
+    let existing_node = repositories::tree::get_node_by_id(repo, &existing_commit_id)?.ok_or(
         OxenError::basic_str(format!(
             "Merkle tree node not found for commit: '{}'",
             existing_commit.id
@@ -206,11 +204,7 @@ pub fn create_empty_commit(
     commit_db.add_child(&dir_node)?;
 
     // Copy the dir hashes db to the new commit
-    let old_dir_hashes_path =
-        CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, existing_commit_id.to_owned());
-    let new_dir_hashes_path =
-        CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_node.hash.to_owned());
-    util::fs::copy_dir_all(old_dir_hashes_path, new_dir_hashes_path)?;
+    repositories::tree::cp_dir_hashes_to(repo, existing_commit_id, commit_node.hash)?;
 
     // Update the ref
     let ref_writer = RefWriter::new(repo)?;
@@ -393,7 +387,8 @@ pub fn search_entries(
     let pattern = Pattern::new(pattern)?;
 
     let mut results = HashSet::new();
-    let tree = repositories::tree::get_by_commit(repo, commit)?;
+    let tree = repositories::tree::get_root_with_children(repo, commit)?
+        .ok_or(OxenError::basic_str("Root not found"))?;
     let (files, _) = repositories::tree::list_files_and_dirs(&tree)?;
     for file in files {
         let path = file.dir.join(file.file_node.name);
@@ -438,20 +433,4 @@ pub fn list_by_path_from_paginated(
         commits,
         pagination,
     })
-}
-
-// TODO: Temporary function until after v0.19.0, see repositories::commits::get_commit_status_tmp
-pub fn get_commit_status_tmp(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<Option<CacherStatusType>, OxenError> {
-    match get_by_id(repo, &commit.id)? {
-        Some(_commit) => Ok(Some(CacherStatusType::Success)),
-        None => Ok(None),
-    }
-}
-
-// TODO: Temporary function until after v0.19.0, see repositories::commits::is_commit_valid_tmp
-pub fn is_commit_valid_tmp(_repo: &LocalRepository, _commit: &Commit) -> Result<bool, OxenError> {
-    Ok(true)
 }

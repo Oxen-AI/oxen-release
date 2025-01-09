@@ -186,7 +186,7 @@ mod tests {
                 assert!(!repo_filepath.exists())
             }
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
             assert_eq!(files.len(), 0);
             for dir in dirs.iter() {
@@ -339,7 +339,7 @@ mod tests {
                 }
             }
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
             assert_eq!(files.len(), 0);
             assert_eq!(dirs.len(), 0);
@@ -405,11 +405,7 @@ mod tests {
 
             let rm_opts = RmOpts::from_path(repo_filepath);
             repositories::rm(&repo, &rm_opts)?;
-            let commit = repositories::commit(&repo, "Removing dog")?;
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after rm dog");
-            tree.print();
+            let _commit = repositories::commit(&repo, "Removing dog")?;
 
             // Add dwight howard and vince carter
             let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
@@ -419,10 +415,7 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after add dwight/vince");
-            tree.print();
-
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
 
             for dir in dirs.iter() {
@@ -822,11 +815,6 @@ mod tests {
     #[tokio::test]
     async fn test_rm_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("train", |repo| async move {
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let og_tree = repositories::tree::get_by_commit(&repo, &head_commit)?;
-            println!("og tree");
-            og_tree.print();
-
             // Remove the train dir
             let path = Path::new("train");
 
@@ -851,11 +839,7 @@ mod tests {
             let commit = repositories::commit(&repo, "removed train dir")?;
 
             // make sure the train dir is deleted from the commits db
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after rm train dir");
-            tree.print();
-            let has_dir = tree.has_dir(path);
-            println!("has_dir: {:?}", has_dir);
+            let has_dir = repositories::tree::has_dir(&repo, &commit, path)?;
             assert!(!has_dir);
 
             Ok(())

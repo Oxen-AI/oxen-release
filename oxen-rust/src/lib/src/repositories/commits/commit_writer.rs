@@ -17,13 +17,13 @@ use crate::constants::ORIG_HEAD_FILE;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
+use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::index::MerkleNodeDB;
 use crate::core::v_latest::status;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::merkle_tree::node::VNode;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
@@ -207,7 +207,7 @@ pub fn commit_dir_entries_with_parents(
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
-        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
+        existing_nodes = repositories::tree::list_nodes_from_paths(repo, commit, &directories)?;
     }
 
     log::debug!(
@@ -245,7 +245,7 @@ pub fn commit_dir_entries_with_parents(
     };
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
@@ -309,7 +309,7 @@ pub fn commit_dir_entries_new(
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
-        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
+        existing_nodes = repositories::tree::list_nodes_from_paths(repo, commit, &directories)?;
     }
 
     // Sort children and split into VNodes
@@ -342,7 +342,7 @@ pub fn commit_dir_entries_new(
     };
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
@@ -430,7 +430,7 @@ pub fn commit_dir_entries(
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
-        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
+        existing_nodes = repositories::tree::list_nodes_from_paths(repo, commit, &directories)?;
     }
 
     // Sort children and split into VNodes
@@ -458,7 +458,7 @@ pub fn commit_dir_entries(
     };
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 

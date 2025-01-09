@@ -17,10 +17,10 @@ use crate::constants;
 use crate::core::db;
 
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataTabular;
 use crate::model::MerkleHash;

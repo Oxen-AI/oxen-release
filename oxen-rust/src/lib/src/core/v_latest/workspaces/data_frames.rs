@@ -6,7 +6,6 @@ use crate::core::db;
 use crate::core::db::data_frames::df_db;
 use crate::core::v_latest::add::add_dir_to_staged_db;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::core::v_latest::workspaces::files::track_modified_data_frame;
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -14,7 +13,7 @@ use sql_query_builder::Delete;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, StagedMerkleTreeNode};
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash, Workspace};
 use crate::repositories;

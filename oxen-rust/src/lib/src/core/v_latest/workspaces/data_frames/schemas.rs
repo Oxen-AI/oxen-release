@@ -4,10 +4,10 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 
 use crate::core::v_latest;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataTabular;
 use crate::model::Schema;

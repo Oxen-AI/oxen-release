@@ -574,10 +574,6 @@ mod tests {
             // Commit the schema
             let commit = repositories::commit(&repo, "Adding metadata to file column")?;
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("TREE");
-            tree.print();
-
             // List the committed schemas
             let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             for (path, schema) in schemas.iter() {

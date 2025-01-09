@@ -514,18 +514,6 @@ mod tests {
             assert_eq!(file_versions[0].0.id, commit_3.id);
             assert_eq!(file_versions[1].0.id, commit_1.id);
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("AFTER commit_1: {}", commit_1);
-            tree.print();
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit_2)?;
-            println!("AFTER commit_2: {}", commit_2);
-            tree.print();
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit_3)?;
-            println!("AFTER commit_3: {}", commit_3);
-            tree.print();
-
             println!("commit_1: {}", commit_1);
             println!("commit_2: {}", commit_2);
             println!("commit_3: {}", commit_3);

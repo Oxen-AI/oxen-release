@@ -3,8 +3,8 @@
 //! Print out values from an oxen database
 //!
 
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::util::progress_bar::spinner_with_msg;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
