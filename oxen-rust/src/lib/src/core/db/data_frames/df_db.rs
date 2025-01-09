@@ -2,7 +2,7 @@
 //!
 
 use crate::constants::{
-    DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
+    DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
 };
 
 use crate::core::df::tabular;
@@ -20,6 +20,9 @@ use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
+use sqlparser::ast::{self, Expr as SqlExpr, SelectItem, Statement, Value as SqlValue};
+use sqlparser::dialect::PostgreSqlDialect;
+use sqlparser::parser::Parser;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::Path;
@@ -225,10 +228,16 @@ pub fn export(
     Ok(())
 }
 
-pub fn prepare_sql(stmt: impl AsRef<str>, opts: Option<&DFOpts>) -> Result<String, OxenError> {
+pub fn prepare_sql(
+    conn: &duckdb::Connection,
+    stmt: impl AsRef<str>,
+    opts: Option<&DFOpts>,
+) -> Result<String, OxenError> {
     let mut sql = stmt.as_ref().to_string();
     let empty_opts = DFOpts::empty();
     let opts = opts.unwrap_or(&empty_opts);
+
+    sql = add_special_columns(conn, &sql)?;
 
     if opts.sort_by.is_some() {
         let sort_by: String = opts.sort_by.clone().unwrap_or_default();
@@ -247,6 +256,90 @@ pub fn prepare_sql(stmt: impl AsRef<str>, opts: Option<&DFOpts>) -> Result<Strin
     Ok(sql)
 }
 
+fn add_special_columns(conn: &duckdb::Connection, sql: &str) -> Result<String, OxenError> {
+    let original_schema = get_schema(conn, TABLE_NAME)?;
+    let dialect = PostgreSqlDialect {}; // Use this for DuckDB
+    let mut ast = Parser::parse_sql(&dialect, sql).expect("Failed to parse SQL");
+
+    if let Some(Statement::Query(query)) = ast.get_mut(0) {
+        // Remove the existing LIMIT clause
+        query.limit = None;
+
+        // Add a new LIMIT clause
+        query.limit = Some(SqlExpr::Value(SqlValue::Number("1".into(), false)));
+    }
+
+    // Convert the AST back to a SQL string
+    let query_with_limit = ast
+        .iter()
+        .map(|stmt| stmt.to_string())
+        .collect::<Vec<_>>()
+        .join(";");
+
+    let stmt = conn.prepare(&query_with_limit);
+    let mut stmt = stmt.map_err(|error| OxenError::basic_str(error.to_string()))?;
+    let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+
+    let mut result_fields = vec![];
+
+    // Retrieve and print the schema (column names)
+    if let Some(first_batch) = records.first() {
+        let schema = first_batch.schema();
+        for field in schema.fields() {
+            result_fields.push(Field::new(
+                field.name(),
+                field.data_type().to_string().as_str(),
+            ));
+        }
+    }
+
+    let original_field_names: Vec<&str> = original_schema
+        .fields
+        .iter()
+        .map(|f| f.name.as_str())
+        .collect();
+    let result_field_names: Vec<&str> = result_fields.iter().map(|f| f.name.as_str()).collect();
+
+    let is_subset = result_field_names
+        .iter()
+        .all(|name| original_field_names.contains(name));
+
+    let mut modified_sql = sql.to_string();
+
+    if is_subset {
+        let special_columns: Vec<&str> = OXEN_COLS
+            .iter()
+            .filter(|col| !result_field_names.contains(col))
+            .map(|col| *col)
+            .collect();
+
+        if !special_columns.is_empty() {
+            let mut ast = Parser::parse_sql(&dialect, sql).expect("Failed to parse SQL");
+
+            if let Some(Statement::Query(query)) = ast.get_mut(0) {
+                if let ast::SetExpr::Select(select) = &mut *query.body {
+                    // Add new columns to the SELECT clause
+                    for special_column in special_columns {
+                        select
+                            .projection
+                            .push(SelectItem::UnnamedExpr(SqlExpr::Identifier(
+                                special_column.into(),
+                            )));
+                    }
+                }
+            }
+
+            // Convert the AST back to a SQL string
+            modified_sql = ast
+                .iter()
+                .map(|stmt| stmt.to_string())
+                .collect::<Vec<_>>()
+                .join(";");
+        }
+    }
+    Ok(modified_sql)
+}
+
 pub fn select_str(
     conn: &duckdb::Connection,
     sql: impl AsRef<str>,
@@ -255,7 +348,7 @@ pub fn select_str(
     opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
     let sql = sql.as_ref();
-    let sql = prepare_sql(sql, opts)?;
+    let sql = prepare_sql(conn, sql, opts)?;
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)
