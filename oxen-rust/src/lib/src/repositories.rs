@@ -4,31 +4,23 @@
 //!
 
 use crate::constants;
-use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::core;
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::error::NO_REPO_FOUND;
 use crate::model::file::FileContents;
-use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::repository::local_repository::LocalRepositoryWithEntries;
 use crate::model::Commit;
-use crate::model::DataTypeStat;
-use crate::model::EntryDataType;
 use crate::model::MetadataEntry;
-use crate::model::RepoStats;
 use crate::model::{LocalRepository, RepoNew};
 use crate::repositories;
 use crate::repositories::fork::FORK_STATUS_FILE;
 use crate::util;
 use fd_lock::RwLock;
 use jwalk::WalkDir;
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use std::str::FromStr;
 
 pub mod add;
 pub mod branches;
@@ -51,6 +43,7 @@ pub mod restore;
 pub mod revisions;
 pub mod rm;
 pub mod save;
+pub mod stats;
 pub mod status;
 pub mod tree;
 pub mod workspaces;
@@ -111,94 +104,6 @@ pub fn is_empty(repo: &LocalRepository) -> Result<bool, OxenError> {
         Ok(None) => Ok(true),
         Ok(Some(_)) => Ok(false),
         Err(err) => Err(err),
-    }
-}
-
-pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => get_repo_stats_v0_10_0(repo),
-        MinOxenVersion::V0_19_0 => get_repo_stats_v0_19_0(repo),
-        MinOxenVersion::LATEST => get_repo_stats_v0_19_0(repo),
-    }
-}
-
-fn get_repo_stats_v0_19_0(repo: &LocalRepository) -> RepoStats {
-    let mut data_size: u64 = 0;
-    let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
-
-    match revisions::get(repo, DEFAULT_BRANCH_NAME) {
-        Ok(Some(commit)) => {
-            let Ok(Some(dir)) =
-                CommitMerkleTree::dir_without_children(repo, &commit, Path::new(""))
-            else {
-                log::error!("Error getting root dir for main branch commit");
-                return RepoStats {
-                    data_size: 0,
-                    data_types: HashMap::new(),
-                };
-            };
-            if let EMerkleTreeNode::Directory(dir_node) = dir.node {
-                data_size = dir_node.num_bytes;
-                for data_type_count in dir_node.data_types() {
-                    let data_type = EntryDataType::from_str(&data_type_count.data_type).unwrap();
-                    let count = data_type_count.count;
-                    let size = dir_node
-                        .data_type_sizes
-                        .get(&data_type_count.data_type)
-                        .unwrap();
-                    let data_type_stat = DataTypeStat {
-                        data_size: *size,
-                        data_type: data_type.to_owned(),
-                        file_count: count,
-                    };
-                    data_types.insert(data_type, data_type_stat);
-                }
-            }
-        }
-        _ => {
-            log::debug!("Error getting main branch commit");
-        }
-    }
-
-    RepoStats {
-        data_size,
-        data_types,
-    }
-}
-
-fn get_repo_stats_v0_10_0(repo: &LocalRepository) -> RepoStats {
-    let mut data_size: u64 = 0;
-    let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
-
-    match commits::head_commit(repo) {
-        Ok(commit) => match entries::list_for_commit(repo, &commit) {
-            Ok(entries) => {
-                for entry in entries {
-                    data_size += entry.num_bytes;
-                    let full_path = repo.path.join(&entry.path);
-                    let data_type = util::fs::file_data_type(&full_path);
-                    let data_type_stat = DataTypeStat {
-                        data_size: entry.num_bytes,
-                        data_type: data_type.to_owned(),
-                        file_count: 1,
-                    };
-                    let stat = data_types.entry(data_type).or_insert(data_type_stat);
-                    stat.file_count += 1;
-                    stat.data_size += entry.num_bytes;
-                }
-            }
-            Err(err) => {
-                log::error!("Err: could not list entries for repo stats {err}");
-            }
-        },
-        Err(err) => {
-            log::error!("Err: could not get repo stats {err}");
-        }
-    }
-
-    RepoStats {
-        data_size,
-        data_types,
     }
 }
 

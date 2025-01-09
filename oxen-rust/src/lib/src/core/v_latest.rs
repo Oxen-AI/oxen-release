@@ -21,6 +21,7 @@ pub mod resource;
 pub mod restore;
 pub mod revisions;
 pub mod rm;
+pub mod stats;
 pub mod status;
 pub mod workspaces;
 
