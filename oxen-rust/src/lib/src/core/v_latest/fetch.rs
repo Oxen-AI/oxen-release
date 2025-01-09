@@ -420,7 +420,7 @@ async fn r_download_entries(
     for child in &node.children {
         let mut new_directory = directory.to_path_buf();
         if let EMerkleTreeNode::Directory(dir_node) = &child.node {
-            new_directory.push(&dir_node.name);
+            new_directory.push(dir_node.name());
         }
 
         if child.has_children() {

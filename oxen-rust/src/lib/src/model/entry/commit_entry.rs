@@ -178,12 +178,12 @@ impl CommitEntry {
 
     pub fn from_dir_node(dir_node: &DirNode) -> CommitEntry {
         CommitEntry {
-            commit_id: dir_node.last_commit_id.to_string(),
-            path: PathBuf::from(dir_node.name.clone()),
-            hash: dir_node.hash.to_string(),
-            num_bytes: dir_node.num_bytes,
-            last_modified_seconds: dir_node.last_modified_seconds,
-            last_modified_nanoseconds: dir_node.last_modified_nanoseconds,
+            commit_id: dir_node.last_commit_id().to_string(),
+            path: PathBuf::from(dir_node.name()),
+            hash: dir_node.hash().to_string(),
+            num_bytes: dir_node.num_bytes(),
+            last_modified_seconds: dir_node.last_modified_seconds(),
+            last_modified_nanoseconds: dir_node.last_modified_nanoseconds(),
         }
     }
 

@@ -18,6 +18,7 @@ use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
+use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::*;
@@ -535,7 +536,7 @@ fn migrate_dir(
                         &child_hash,
                     )?;
 
-                    if dir_node.last_commit_id == MerkleHash::new(0) {
+                    if dir_node.last_commit_id() == MerkleHash::new(0) {
                         log::warn!("No last commit id found for path {:?}", path);
                         return Ok(());
                     }
@@ -718,7 +719,7 @@ fn write_dir_child(
         }
     }
 
-    let mut node = DirNode {
+    let mut node = DirNode::V0_25_0(DirNodeData {
         node_type: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
         hash: *hash,
@@ -728,10 +729,10 @@ fn write_dir_child(
         last_modified_nanoseconds,
         data_type_counts,
         data_type_sizes,
-    };
+    });
     if last_commit_id == 0 {
         log::warn!("No last commit id found for path {:?}", path);
-        node.last_commit_id = MerkleHash::from_str(&commit.id)?;
+        node.set_last_commit_id(MerkleHash::from_str(&commit.id)?);
     }
     println!("Writing dir node {} to {:?}", node, node_db.path());
     node_db.add_child(&node)?;

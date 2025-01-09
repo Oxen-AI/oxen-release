@@ -209,7 +209,7 @@ impl DiffEntry {
             data_type: EntryDataType::Dir,
             filename: dir_path.as_os_str().to_str().unwrap().to_string(),
             is_dir: true,
-            size: current_dir.num_bytes,
+            size: current_dir.num_bytes(),
             head_resource,
             base_resource,
             head_entry: head_meta_entry,
@@ -442,9 +442,9 @@ impl DiffEntry {
         node.map(|node| ParsedResource {
             commit: None,
             branch: None,
-            version: PathBuf::from(node.last_commit_id.to_string()),
+            version: PathBuf::from(node.last_commit_id().to_string()),
             path: path.clone(),
-            resource: PathBuf::from(node.last_commit_id.to_string()).join(path),
+            resource: PathBuf::from(node.last_commit_id().to_string()).join(path),
         })
     }
 

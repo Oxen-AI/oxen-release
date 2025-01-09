@@ -94,7 +94,7 @@ impl MerkleTreeNode {
     pub fn default_dir_from_path(path: impl AsRef<Path>) -> MerkleTreeNode {
         let mut dir_node = DirNode::default();
         let dir_str = path.as_ref().to_str().unwrap().to_string();
-        dir_node.name = dir_str;
+        dir_node.set_name(dir_str);
         MerkleTreeNode {
             hash: MerkleHash::new(0),
             node: EMerkleTreeNode::Directory(dir_node),
@@ -136,7 +136,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a DirNode
     pub fn from_dir(dir_node: DirNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: dir_node.hash,
+            hash: dir_node.hash(),
             node: EMerkleTreeNode::Directory(dir_node),
             parent_id: None,
             children: Vec::new(),
@@ -145,7 +145,7 @@ impl MerkleTreeNode {
 
     pub fn maybe_path(&self) -> Result<PathBuf, OxenError> {
         if let EMerkleTreeNode::Directory(dir_node) = &self.node {
-            return Ok(PathBuf::from(dir_node.name.clone()));
+            return Ok(PathBuf::from(dir_node.name()));
         }
         // From DEF of file_node, file_name.name == file_path to this file
         // e.g., the file 'happy' in the folder 'sad' is called 'sad//happy'
@@ -176,7 +176,7 @@ impl MerkleTreeNode {
         }
         for child in &self.children {
             if let EMerkleTreeNode::Directory(dir) = &child.node {
-                let new_path = current_path.join(&dir.name);
+                let new_path = current_path.join(dir.name());
                 child.list_dir_paths_helper(&new_path, dirs)?;
             } else {
                 child.list_dir_paths_helper(current_path, dirs)?;
@@ -318,8 +318,8 @@ impl MerkleTreeNode {
                 //     child
                 // );
                 let child_name = match &child.node {
-                    EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
-                    EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
+                    EMerkleTreeNode::Directory(dir) => Some(dir.name()),
+                    EMerkleTreeNode::File(file) => Some(file.name.as_str()),
                     _ => None,
                 };
                 // log::debug!(
@@ -328,7 +328,7 @@ impl MerkleTreeNode {
                 //     child_name,
                 //     target_name
                 // );
-                child_name.unwrap_or("".to_string()).cmp(&target_name)
+                child_name.unwrap_or("").cmp(&target_name)
             }) {
                 Ok(index) => {
                     let child = &self.children[index];
@@ -344,8 +344,8 @@ impl MerkleTreeNode {
                         //     self,
                         //     dir_node
                         // );
-                        if let Some(node) =
-                            child.get_by_path_helper(&traversed_path.join(&dir_node.name), path)?
+                        if let Some(node) = child
+                            .get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
                         {
                             return Ok(Some(node));
                         }
@@ -382,7 +382,7 @@ impl MerkleTreeNode {
             // log::debug!("get_by_path_helper {} traversing child: {}", self, child);
             if let EMerkleTreeNode::Directory(dir_node) = &child.node {
                 if let Some(node) =
-                    child.get_by_path_helper(&traversed_path.join(&dir_node.name), path)?
+                    child.get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
                 {
                     return Ok(Some(node));
                 }
@@ -406,7 +406,7 @@ impl MerkleTreeNode {
         match dtype {
             MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash()),
             MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash()),
-            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash),
+            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash()),
             MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
@@ -535,7 +535,7 @@ impl MerkleTreeNode {
                 .to_string();
             if let Ok(index) = self.children.binary_search_by(|child| {
                 let child_name = match &child.node {
-                    EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
+                    EMerkleTreeNode::Directory(dir) => Some(dir.name().to_owned()),
                     EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
                     _ => None,
                 };
@@ -544,11 +544,11 @@ impl MerkleTreeNode {
                 let child = &self.children[index];
                 if let EMerkleTreeNode::Directory(dir_node) = &child.node {
                     // Check if the directory name matches the next component of the path
-                    if dir_node.name == target_name {
+                    if dir_node.name() == target_name {
                         path_components.remove(0); // Remove the matched component
                         if let (Some(node), mut child_traversed_nodes) = child
                             .get_nodes_along_paths_helper(
-                                &traversed_path.join(&dir_node.name),
+                                &traversed_path.join(dir_node.name()),
                                 path_components.clone(),
                             )?
                         {
@@ -572,7 +572,7 @@ impl MerkleTreeNode {
             if let EMerkleTreeNode::Directory(dir_node) = &child.node {
                 if let (Some(node), mut child_traversed_nodes) = child
                     .get_nodes_along_paths_helper(
-                        &traversed_path.join(&dir_node.name),
+                        &traversed_path.join(dir_node.name()),
                         path_components.clone(),
                     )?
                 {

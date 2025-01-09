@@ -5,7 +5,6 @@ use crate::core;
 use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::DirNode;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
@@ -32,40 +31,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use std::str::FromStr;
-
-/// Legacy function to get a directory node for a commit
-/// DEPRECIATED: Use `repositories::entries::get_directory` instead.
-pub fn get_directory(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<Option<DirNode>, OxenError> {
-    let path = path.as_ref();
-    let object_reader = get_object_reader(repo, &commit.id)?;
-    let reader = CommitDirEntryReader::new(repo, &commit.id, path, object_reader.clone())?;
-    let Some(entry) = reader.get_entry(path)? else {
-        return Ok(None);
-    };
-
-    let node = DirNode {
-        node_type: MerkleTreeNodeType::Dir,
-        name: entry
-            .path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string(),
-        hash: MerkleHash::from_str(&entry.hash)?,
-        num_bytes: entry.num_bytes,
-        last_commit_id: MerkleHash::from_str(&entry.commit_id)?,
-        last_modified_seconds: entry.last_modified_seconds,
-        last_modified_nanoseconds: entry.last_modified_nanoseconds,
-        data_type_counts: HashMap::new(),
-        data_type_sizes: HashMap::new(),
-    };
-    Ok(Some(node))
-}
 
 /// Legacy function to get a file node for a commit
 /// DEPRECIATED: Use `repositories::entries::get_file` instead.

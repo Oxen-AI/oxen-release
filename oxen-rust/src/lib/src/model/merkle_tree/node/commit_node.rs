@@ -65,11 +65,8 @@ impl CommitNode {
         // if it fails we will fall back to the old struct, then populate the enum
         let commit: CommitNode = match rmp_serde::from_slice(data) {
             Ok(commit) => commit,
-            Err(e) => {
-                log::debug!(
-                    "Failed to deserialize CommitNode, falling back to CommitNodeV0_25_0: {}",
-                    e
-                );
+            Err(_) => {
+                // This is a fallback for old versions of the commit node
                 let commit: CommitNodeDataV0_25_0 = rmp_serde::from_slice(data)?;
                 CommitNode::V0_25_0(commit)
             }

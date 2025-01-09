@@ -474,9 +474,9 @@ fn find_changes(
                         removed.insert(relative_path.join(&file.name));
                     }
                 } else if let EMerkleTreeNode::Directory(dir) = &child.node {
-                    let dir_path = full_path.join(&dir.name);
+                    let dir_path = full_path.join(dir.name());
                     if !dir_path.exists() {
-                        removed.insert(relative_path.join(&dir.name));
+                        removed.insert(relative_path.join(dir.name()));
                     }
                 }
             }
@@ -633,8 +633,8 @@ fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<boo
             (node_modified_seconds, node_modified_nanoseconds)
         }
         EMerkleTreeNode::Directory(dir) => {
-            let node_modified_seconds = dir.last_modified_seconds;
-            let node_modified_nanoseconds = dir.last_modified_nanoseconds;
+            let node_modified_seconds = dir.last_modified_seconds();
+            let node_modified_nanoseconds = dir.last_modified_nanoseconds();
             (node_modified_seconds, node_modified_nanoseconds)
         }
         _ => {

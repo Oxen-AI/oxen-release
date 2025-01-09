@@ -25,12 +25,12 @@ pub fn get_stats(repo: &LocalRepository) -> Result<RepoStats, OxenError> {
             let dir_node = repositories::tree::get_root_dir(&commit_node)?;
 
             if let EMerkleTreeNode::Directory(dir_node) = &dir_node.node {
-                data_size = dir_node.num_bytes;
+                data_size = dir_node.num_bytes();
                 for data_type_count in dir_node.data_types() {
                     let data_type = EntryDataType::from_str(&data_type_count.data_type).unwrap();
                     let count = data_type_count.count;
                     let size = dir_node
-                        .data_type_sizes
+                        .data_type_sizes()
                         .get(&data_type_count.data_type)
                         .unwrap();
                     let data_type_stat = DataTypeStat {

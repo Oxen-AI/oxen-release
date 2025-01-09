@@ -300,7 +300,7 @@ fn r_remove_if_not_in_target(
         EMerkleTreeNode::Directory(dir_node) => {
             // TODO: can we also check if the directory is in the target tree,
             // and potentially remove the whole directory?
-            let dir_path = current_path.join(&dir_node.name);
+            let dir_path = current_path.join(dir_node.name());
 
             // Check if the directory is the same in the from and target trees
             // If it is, we don't need to do anything
@@ -311,7 +311,7 @@ fn r_remove_if_not_in_target(
                     target_node,
                     dir_node
                 );
-                if target_node.node.hash() == dir_node.hash {
+                if target_node.node.hash() == dir_node.hash() {
                     log::debug!(
                         "r_remove_if_not_in_target dir_path {:?} is the same as target_tree",
                         dir_path
@@ -392,7 +392,7 @@ fn r_restore_missing_or_modified_files(
             // Early exit if the directory is the same in the from and target trees
             if let Some(from_tree) = from_tree {
                 if let Some(from_node) = from_tree.get_by_path(path)? {
-                    if from_node.node.hash() == dir_node.hash {
+                    if from_node.node.hash() == dir_node.hash() {
                         log::debug!("r_restore_missing_or_modified_files path {:?} is the same as from_tree", path);
                         return Ok(());
                     }
@@ -401,7 +401,7 @@ fn r_restore_missing_or_modified_files(
 
             // Recursively call for each file and directory
             let children = repositories::tree::list_files_and_folders(node)?;
-            let dir_path = path.join(&dir_node.name);
+            let dir_path = path.join(dir_node.name());
             for child_node in children {
                 r_restore_missing_or_modified_files(
                     repo,

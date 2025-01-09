@@ -589,7 +589,7 @@ fn r_process_remove_dir(
             EMerkleTreeNode::Directory(dir_node) => {
                 log::debug!("Recursive process_remove_dir found dir: {dir_node}");
                 // Update path, and move to the next level of recurstion
-                let new_path = path.join(&dir_node.name);
+                let new_path = path.join(dir_node.name());
                 total += r_process_remove_dir(_repo, &new_path, child, staged_db)?;
             }
             EMerkleTreeNode::VNode(_) => {

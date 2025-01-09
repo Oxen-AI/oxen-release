@@ -440,11 +440,11 @@ fn r_ff_merge_commit(
             }
         }
         EMerkleTreeNode::Directory(dir_node) => {
-            let dir_path = path.join(&dir_node.name);
+            let dir_path = path.join(dir_node.name());
             let merge_children = repositories::tree::list_files_and_folders(merge_node)?;
 
             if let Some(base_node) = base_tree.get_by_path(&dir_path)? {
-                if base_node.node.hash() == dir_node.hash {
+                if base_node.node.hash() == dir_node.hash() {
                     log::debug!(
                         "r_ff_merge_commit dir_path {:?} is the same as base_tree",
                         dir_path
@@ -489,11 +489,11 @@ fn r_ff_base_dir(
             }
         }
         EMerkleTreeNode::Directory(dir_node) => {
-            let dir_path = path.join(&dir_node.name);
+            let dir_path = path.join(dir_node.name());
             let base_children = repositories::tree::list_files_and_folders(base_node)?;
 
             if let Some(merge_node) = merge_tree.get_by_path(&dir_path)? {
-                if merge_node.node.hash() == dir_node.hash {
+                if merge_node.node.hash() == dir_node.hash() {
                     log::debug!(
                         "r_ff_base_dir dir_path {:?} is the same as merge_tree",
                         dir_path
