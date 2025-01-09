@@ -46,7 +46,19 @@ impl VNode {
     }
 
     pub fn deserialize(data: &[u8]) -> Result<VNode, OxenError> {
-        let vnode: VNode = rmp_serde::from_slice(data)?;
+        // In order to support versions that didn't have the enum VNode, if it fails we will fall back to
+        // VNodeImplV0_19_0 and fill in the enum VNode
+        let vnode: VNode = match rmp_serde::from_slice(data) {
+            Ok(vnode) => vnode,
+            Err(e) => {
+                log::debug!(
+                    "Failed to deserialize VNode, falling back to VNodeImplV0_19_0: {}",
+                    e
+                );
+                let vnode: VNodeImplV0_19_0 = rmp_serde::from_slice(data)?;
+                VNode::V0_19_0(vnode)
+            }
+        };
         Ok(vnode)
     }
 
