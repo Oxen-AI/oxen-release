@@ -22,7 +22,7 @@ use crate::model::{
 pub enum VNode {
     V0_10_0(VNodeImplV0_10_0),
     V0_19_0(VNodeImplV0_19_0),
-    VLATEST(VNodeImplV0_25_0),
+    V0_25_0(VNodeImplV0_25_0),
 }
 
 impl VNode {
@@ -37,7 +37,7 @@ impl VNode {
                 hash,
                 node_type: MerkleTreeNodeType::VNode,
             })),
-            MinOxenVersion::LATEST => Ok(VNode::VLATEST(VNodeImplV0_25_0 {
+            MinOxenVersion::LATEST => Ok(VNode::V0_25_0(VNodeImplV0_25_0 {
                 hash,
                 node_type: MerkleTreeNodeType::VNode,
                 num_entries,
@@ -66,22 +66,21 @@ impl VNode {
         match self {
             VNode::V0_10_0(vnode) => vnode.hash,
             VNode::V0_19_0(vnode) => vnode.hash,
-            VNode::VLATEST(vnode) => vnode.hash,
+            VNode::V0_25_0(vnode) => vnode.hash,
         }
     }
 
     pub fn num_entries(&self) -> u64 {
         match self {
-            VNode::V0_10_0(_) => panic!("VNode::V0_10_0 does not have num_entries"),
-            VNode::V0_19_0(_) => panic!("VNode::V0_19_0 does not have num_entries"),
-            VNode::VLATEST(vnode) => vnode.num_entries,
+            VNode::V0_25_0(vnode) => vnode.num_entries,
+            _ => panic!("{self:?} does not have num_entries"),
         }
     }
 }
 
 impl Default for VNode {
     fn default() -> Self {
-        VNode::VLATEST(VNodeImplV0_25_0 {
+        VNode::V0_25_0(VNodeImplV0_25_0 {
             node_type: MerkleTreeNodeType::VNode,
             hash: MerkleHash::new(0),
             num_entries: 0,
@@ -94,7 +93,7 @@ impl MerkleTreeNodeIdType for VNode {
         match self {
             VNode::V0_10_0(vnode) => vnode.node_type,
             VNode::V0_19_0(vnode) => vnode.node_type,
-            VNode::VLATEST(vnode) => vnode.node_type,
+            VNode::V0_25_0(vnode) => vnode.node_type,
         }
     }
 

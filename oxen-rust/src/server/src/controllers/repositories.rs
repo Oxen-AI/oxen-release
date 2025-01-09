@@ -100,7 +100,7 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repo)) => {
-                let stats = repositories::get_repo_stats(&repo);
+                let stats = repositories::stats::get_stats(&repo)?;
                 let data_types: Vec<DataTypeView> = stats
                     .data_types
                     .values()
