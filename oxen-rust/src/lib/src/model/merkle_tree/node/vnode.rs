@@ -50,11 +50,8 @@ impl VNode {
         // if it fails we will fall back to the old struct, then populate the enum
         let vnode: VNode = match rmp_serde::from_slice(data) {
             Ok(vnode) => vnode,
-            Err(e) => {
-                log::debug!(
-                    "Failed to deserialize VNode, falling back to VNodeImplV0_19_0: {}",
-                    e
-                );
+            Err(_) => {
+                // This is a fallback for old versions of the vnode
                 let vnode: VNodeImplV0_19_0 = rmp_serde::from_slice(data)?;
                 VNode::V0_19_0(vnode)
             }

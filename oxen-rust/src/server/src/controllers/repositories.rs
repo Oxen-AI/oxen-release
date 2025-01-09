@@ -64,13 +64,13 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         if let Some(dir_node) =
             repositories::entries::get_directory(&repository, &commit, PathBuf::from(""))?
         {
-            size = dir_node.num_bytes;
+            size = dir_node.num_bytes();
             data_types = dir_node
-                .data_type_counts
-                .into_iter()
+                .data_type_counts()
+                .iter()
                 .map(|(data_type, count)| DataTypeCount {
-                    data_type,
-                    count: count as usize,
+                    data_type: data_type.to_string(),
+                    count: *count as usize,
                 })
                 .collect();
         }

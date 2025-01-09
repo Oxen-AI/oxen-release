@@ -412,7 +412,7 @@ pub fn list_by_path_from_paginated(
     )?;
     let last_commit_id = match &node.node {
         EMerkleTreeNode::File(file_node) => file_node.last_commit_id,
-        EMerkleTreeNode::Directory(dir_node) => dir_node.last_commit_id,
+        EMerkleTreeNode::Directory(dir_node) => dir_node.last_commit_id(),
         _ => {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node not found for path: {:?}",

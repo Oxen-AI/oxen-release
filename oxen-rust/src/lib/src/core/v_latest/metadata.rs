@@ -40,7 +40,7 @@ pub fn get_cli(
                 last_updated = Some(commit);
             }
             if let EMerkleTreeNode::Directory(dir_node) = &node.node {
-                let last_commit_id = dir_node.last_commit_id.to_string();
+                let last_commit_id = dir_node.last_commit_id().to_string();
                 let commit = repositories::commits::get_by_id(repo, &last_commit_id)?.unwrap();
                 last_updated = Some(commit);
             }

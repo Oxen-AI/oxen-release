@@ -369,7 +369,7 @@ pub fn add_column_metadata(
                 continue;
             };
             dir_path = dir_path.parent().unwrap().to_path_buf();
-            dir_node.name = dir_path.to_string_lossy().to_string();
+            dir_node.set_name(dir_path.to_string_lossy());
             parent_node.node = EMerkleTreeNode::Directory(dir_node);
             let staged_parent_node = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Modified,

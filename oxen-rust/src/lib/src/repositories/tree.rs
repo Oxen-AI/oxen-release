@@ -456,7 +456,7 @@ pub fn dir_entries_with_paths(
                         entries.insert((file_node.clone(), file_path));
                     }
                     EMerkleTreeNode::Directory(dir_node) => {
-                        let new_base_path = base_path.join(&dir_node.name);
+                        let new_base_path = base_path.join(dir_node.name());
                         entries.extend(dir_entries_with_paths(child, &new_base_path)?);
                     }
                     EMerkleTreeNode::VNode(_vnode) => {
@@ -532,7 +532,7 @@ fn r_list_all_files(
                 });
             }
             EMerkleTreeNode::Directory(dir_node) => {
-                let new_path = traversed_path.join(&dir_node.name);
+                let new_path = traversed_path.join(dir_node.name());
                 r_list_all_files(child, new_path, file_nodes)?;
             }
             EMerkleTreeNode::VNode(_) => {
@@ -561,7 +561,7 @@ fn r_list_all_dirs(
         // log::debug!("Found child: {child}");
         match &child.node {
             EMerkleTreeNode::Directory(dir_node) => {
-                let new_path = traversed_path.join(&dir_node.name);
+                let new_path = traversed_path.join(dir_node.name());
                 dir_nodes.insert(DirNodeWithPath {
                     dir_node: dir_node.to_owned(),
                     path: new_path.to_owned(),
@@ -604,7 +604,7 @@ fn r_list_files_and_dirs(
                 });
             }
             EMerkleTreeNode::Directory(dir_node) => {
-                let new_path = traversed_path.join(&dir_node.name);
+                let new_path = traversed_path.join(dir_node.name());
                 if new_path != PathBuf::from("") {
                     dir_nodes.insert(DirNodeWithPath {
                         dir_node: dir_node.to_owned(),
@@ -665,7 +665,7 @@ fn r_list_files_by_type(
                 }
             }
             EMerkleTreeNode::Directory(dir_node) => {
-                let full_path = traversed_path.join(&dir_node.name);
+                let full_path = traversed_path.join(dir_node.name());
                 r_list_files_by_type(child, data_type, file_nodes, full_path)?;
             }
             EMerkleTreeNode::VNode(_) => {

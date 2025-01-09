@@ -20,6 +20,7 @@ use crate::core::db::key_val::str_val_db;
 use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData;
 use crate::core::v_latest::status;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
@@ -503,7 +504,7 @@ fn cleanup_rm_dirs(
         for entry in entries.iter() {
             if let EMerkleTreeNode::Directory(dir_node) = &entry.node.node {
                 if entry.status == StagedEntryStatus::Removed {
-                    let dir_path = path.join(&dir_node.name);
+                    let dir_path = path.join(dir_node.name());
                     log::debug!("dir path for cleanup: {dir_path:?}");
                     let key = dir_path.to_str().unwrap();
                     dir_hash_db.delete(key)?;
@@ -522,8 +523,8 @@ fn node_data_to_staged_node(
     match node.node.node_type() {
         MerkleTreeNodeType::Dir => {
             let mut dir_node = node.dir()?;
-            let path = base_dir.join(dir_node.name);
-            dir_node.name = path.to_str().unwrap().to_string();
+            let path = base_dir.join(dir_node.name());
+            dir_node.set_name(path.to_str().unwrap());
             Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
                 node: MerkleTreeNode::from_dir(dir_node),
@@ -770,7 +771,7 @@ fn write_commit_entries(
     str_val_db::put(
         dir_hash_db,
         root_path.to_str().unwrap(),
-        &dir_node.hash.to_string(),
+        &dir_node.hash().to_string(),
     )?;
     let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
     r_create_dir_node(
@@ -889,7 +890,7 @@ fn r_create_dir_node(
                         // log::debug!("r_create_dir_node skipping {:?}", dir_path);
                         // Look up the old dir node and reference it
                         let Some(old_dir_node) =
-                            CommitMerkleTree::read_node(repo, &node.hash, false)?
+                            CommitMerkleTree::read_node(repo, &node.hash(), false)?
                         else {
                             // log::debug!(
                             //     "r_create_dir_node could not read old dir node {:?}",
@@ -918,7 +919,7 @@ fn r_create_dir_node(
                     str_val_db::put(
                         dir_hash_db,
                         dir_path.to_str().unwrap(),
-                        &dir_node.hash.to_string(),
+                        &dir_node.hash().to_string(),
                     )?;
                     // }
                 }
@@ -1012,9 +1013,9 @@ fn compute_dir_node(
             CommitMerkleTree::dir_without_children(repo, head_commit, &path)
         {
             let old_dir_node = old_dir_node.dir().unwrap();
-            num_bytes = old_dir_node.num_bytes;
-            data_type_counts = old_dir_node.data_type_counts;
-            data_type_sizes = old_dir_node.data_type_sizes;
+            num_bytes = old_dir_node.num_bytes();
+            data_type_counts = old_dir_node.data_type_counts().clone();
+            data_type_sizes = old_dir_node.data_type_sizes().clone();
         };
     }
 
@@ -1038,7 +1039,7 @@ fn compute_dir_node(
                 log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
                     EMerkleTreeNode::Directory(node) => {
-                        log::debug!("No need to aggregate dir {}", node.name);
+                        log::debug!("No need to aggregate dir {}", node.name());
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
@@ -1094,7 +1095,7 @@ fn compute_dir_node(
         data_type_counts
     );
 
-    let node = DirNode {
+    let node = DirNode::V0_25_0(DirNodeData {
         node_type: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
         hash,
@@ -1104,7 +1105,7 @@ fn compute_dir_node(
         last_modified_nanoseconds: 0,
         data_type_counts,
         data_type_sizes,
-    };
+    });
     Ok(node)
 }
 
@@ -1233,7 +1234,7 @@ mod tests {
             let dir_node_data = root_commit_children.iter().next().unwrap();
             let dir_node = dir_node_data.dir();
             assert!(dir_node.is_ok());
-            assert_eq!(dir_node.unwrap().name, "");
+            assert_eq!(dir_node.unwrap().name(), "");
 
             // Make sure dir node has one child, the VNode
             let vnode_data = dir_node_data.children.first().unwrap();
@@ -1438,7 +1439,7 @@ mod tests {
             let dir_node = second_tree.get_by_path(Path::new("files/dir_1"))?;
             assert!(dir_node.is_some());
             let dir_node = dir_node.unwrap().dir()?;
-            let dir_commit_id = dir_node.last_commit_id.to_string();
+            let dir_commit_id = dir_node.last_commit_id().to_string();
             assert_eq!(dir_commit_id, second_commit.id);
 
             // Make sure the hashes of the directories are valid

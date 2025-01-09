@@ -54,7 +54,7 @@ fn r_list_schemas(
                 r_list_schemas(_repo, child, child_path, schemas)?;
             }
             EMerkleTreeNode::Directory(dir_node) => {
-                let child_path = current_path.as_ref().join(&dir_node.name);
+                let child_path = current_path.as_ref().join(dir_node.name());
                 r_list_schemas(_repo, child, child_path, schemas)?;
             }
             EMerkleTreeNode::File(file_node) => {
@@ -282,7 +282,7 @@ pub fn add_schema_metadata(
                 continue;
             };
             dir_path = dir_path.parent().unwrap().to_path_buf();
-            dir_node.name = dir_path.to_string_lossy().to_string();
+            dir_node.set_name(dir_path.to_string_lossy());
             parent_node.node = EMerkleTreeNode::Directory(dir_node);
             let staged_parent_node = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Modified,
@@ -381,7 +381,7 @@ pub fn add_column_metadata(
                 continue;
             };
             dir_path = dir_path.parent().unwrap().to_path_buf();
-            dir_node.name = dir_path.to_string_lossy().to_string();
+            dir_node.set_name(dir_path.to_string_lossy());
             parent_node.node = EMerkleTreeNode::Directory(dir_node);
             let staged_parent_node = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Modified,

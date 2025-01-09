@@ -107,28 +107,28 @@ fn dir_node_to_metadata_entry(
     };
 
     if let std::collections::hash_map::Entry::Vacant(e) =
-        found_commits.entry(dir_node.last_commit_id)
+        found_commits.entry(dir_node.last_commit_id())
     {
-        let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id)?.ok_or(
-            OxenError::commit_id_does_not_exist(dir_node.last_commit_id.to_string()),
+        let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id())?.ok_or(
+            OxenError::commit_id_does_not_exist(dir_node.last_commit_id().to_string()),
         )?;
         e.insert(commit);
     }
 
-    let commit = found_commits.get(&dir_node.last_commit_id).unwrap();
+    let commit = found_commits.get(&dir_node.last_commit_id()).unwrap();
     let mut parsed_resource = parsed_resource.clone();
     if should_append_resource {
-        parsed_resource.resource = parsed_resource.resource.join(&dir_node.name);
-        parsed_resource.path = parsed_resource.path.join(&dir_node.name);
+        parsed_resource.resource = parsed_resource.resource.join(dir_node.name());
+        parsed_resource.path = parsed_resource.path.join(dir_node.name());
     }
 
     Ok(Some(MetadataEntry {
-        filename: dir_node.name.clone(),
-        hash: dir_node.hash.to_string(),
+        filename: dir_node.name().to_string(),
+        hash: dir_node.hash().to_string(),
         is_dir: true,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
-        size: dir_node.num_bytes,
+        size: dir_node.num_bytes(),
         data_type: EntryDataType::Dir,
         mime_type: "inode/directory".to_string(),
         extension: "".to_string(),

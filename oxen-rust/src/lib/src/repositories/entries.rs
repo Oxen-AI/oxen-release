@@ -30,7 +30,7 @@ pub fn get_directory(
     path: impl AsRef<Path>,
 ) -> Result<Option<DirNode>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_directory(repo, commit, path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 is no longer supported"),
         _ => core::v_latest::entries::get_directory(repo, commit, path),
     }
 }

@@ -135,12 +135,12 @@ pub fn from_dir_node(
     commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
     Ok(MetadataEntry {
-        filename: node.name.clone(),
-        hash: node.hash.to_string(),
+        filename: node.name().to_string(),
+        hash: node.hash().to_string(),
         is_dir: true,
         latest_commit: Some(commit.to_owned()),
         resource: None,
-        size: node.num_bytes,
+        size: node.num_bytes(),
         data_type: EntryDataType::Dir,
         mime_type: "inode/directory".to_string(),
         extension: "".to_string(),
