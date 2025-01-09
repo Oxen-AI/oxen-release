@@ -188,15 +188,15 @@ pub fn create_empty_commit(
         )),
     )?;
     let timestamp = OffsetDateTime::now_utc();
-    let commit_node = CommitNode {
-        hash: MerkleHash::from_str(&new_commit.id)?,
-        node_type: existing_node.node.node_type(),
-        parent_ids: vec![existing_commit_id],
-        message: new_commit.message.clone(),
-        author: new_commit.author.clone(),
-        email: new_commit.email.clone(),
+    let commit_node = CommitNode::new(
+        MerkleHash::from_str(&new_commit.id)?,
+        vec![existing_commit_id],
+        new_commit.email.clone(),
+        new_commit.author.clone(),
+        new_commit.message.clone(),
         timestamp,
-    };
+    );
+
     let parent_id = Some(existing_node.hash);
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &commit_node, parent_id)?;
     // There should always be one child, the root directory
@@ -204,11 +204,11 @@ pub fn create_empty_commit(
     commit_db.add_child(&dir_node)?;
 
     // Copy the dir hashes db to the new commit
-    repositories::tree::cp_dir_hashes_to(repo, existing_commit_id, commit_node.hash)?;
+    repositories::tree::cp_dir_hashes_to(repo, existing_commit_id, commit_node.hash())?;
 
     // Update the ref
     let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(branch_name, commit_node.hash.to_string())?;
+    ref_writer.set_branch_commit_id(branch_name, commit_node.hash().to_string())?;
 
     Ok(commit_node.to_commit())
 }

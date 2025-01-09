@@ -60,7 +60,8 @@ impl CommitMerkleTree {
         commit: &Commit,
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
         let node_hash = MerkleHash::from_str(&commit.id)?;
-        CommitMerkleTree::read_node(repo, &node_hash, false)
+        // Read the root node at depth 1 to get the directory node as well
+        CommitMerkleTree::read_depth(repo, &node_hash, 1)
     }
 
     pub fn from_commit(repo: &LocalRepository, commit: &Commit) -> Result<Self, OxenError> {

@@ -213,15 +213,14 @@ fn migrate_merkle_tree(
     log::debug!("Parent ids for commit {} are {:?}", commit, parent_ids);
 
     // Create the root commit
-    let node = CommitNode {
-        hash: commit_id,
+    let node = CommitNode::new(
+        commit_id,
         parent_ids,
-        message: commit.message.clone(),
-        author: commit.author.clone(),
-        email: commit.email.clone(),
-        timestamp: commit.timestamp,
-        ..Default::default()
-    };
+        commit.email.clone(),
+        commit.author.clone(),
+        commit.message.clone(),
+        commit.timestamp,
+    );
 
     println!(
         "Writing commit [{}/{}] node {}",

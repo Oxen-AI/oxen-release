@@ -1,17 +1,12 @@
-use rocksdb::{DBWithThreadMode, MultiThreaded};
-
 use super::Migrate;
 
-use std::path::{Path, PathBuf};
-
-use crate::core::db;
-use crate::core::db::key_val::path_db;
-use crate::core::v0_10_0::index::{CommitEntryWriter, CommitReader, CommitWriter};
+use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{constants, repositories};
+use std::path::Path;
 
 pub struct CreateMerkleTreesMigration;
 impl Migrate for CreateMerkleTreesMigration {
@@ -93,83 +88,8 @@ pub fn create_merkle_trees_for_all_repos_down(_path: &Path) -> Result<(), OxenEr
     Ok(())
 }
 
-pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
-    // Get all commits in repo, then construct merkle tree for each commit
-    let reader = CommitReader::new(repo)?;
-    let all_commits = reader.list_all_sorted_by_timestamp()?;
-
-    let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
-    let commit_writer = CommitWriter::new(repo)?;
-    for commit in all_commits {
-        // Create the merkle tree for each commit
-        match construct_commit_merkle_tree_from_legacy(repo, &commit) {
-            Ok(_) => {}
-            Err(err) => {
-                log::error!(
-                    "Could not construct merkle tree for commit {:?}\nErr: {}",
-                    commit.id,
-                    err
-                )
-            }
-        }
-        // Then we need to associate the root hash of the merkle tree with the commit
-        let mut commit_to_update = commit.clone();
-        let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-            &db::key_val::opts::default(),
-            &dir_hashes_db_dir,
-            false,
-        )?;
-
-        let root_hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
-
-        commit_to_update.update_root_hash(root_hash);
-
-        commit_writer.add_commit_to_db(&commit_to_update)?;
-
-        bar.inc(1);
-    }
-
-    // runtime check: commit root hash is properly updated for all commits
-    let updated_commits = reader.list_all()?;
-
-    for commit in updated_commits {
-        let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-            &db::key_val::opts::default(),
-            &dir_hashes_db_dir,
-            false,
-        )?;
-        let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, "")?;
-        let Some(root_hash) = maybe_root_hash else {
-            return Err(OxenError::basic_str(format!(
-                "Could not find root hash for dir hashes db {:?} in repo {:?}",
-                commit, repo.path
-            )));
-        };
-
-        let Some(db_root_hash) = commit.root_hash.clone() else {
-            return Err(OxenError::basic_str(format!(
-                "Could not find root hash in commit db from commit {:?} in repo {:?}",
-                commit, repo.path
-            )));
-        };
-
-        if root_hash != db_root_hash {
-            return Err(OxenError::basic_str(format!(
-                "Root hash in commit db {:?} does not match root hash in dir hashes db {:?} in repo {:?}",
-                db_root_hash, root_hash, repo.path
-            )));
-        }
-
-        log::debug!(
-            "Root hash for commit {:?} is correct in repo {:?}",
-            commit,
-            repo
-        );
-    }
-
-    Ok(())
+pub fn create_merkle_trees_up(_repo: &LocalRepository) -> Result<(), OxenError> {
+    panic!("migrating to v0.10.0 is no longer supported");
 }
 
 pub fn create_merkle_trees_down(_repo: &LocalRepository) -> Result<(), OxenError> {

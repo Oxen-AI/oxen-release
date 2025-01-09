@@ -404,7 +404,7 @@ impl MerkleTreeNode {
 
     pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
-            MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash),
+            MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash()),
             MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash()),
             MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash),
             MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),

@@ -36,7 +36,6 @@ impl From<WorkspaceCommit> for Commit {
             email: val.email,
             timestamp: val.timestamp,
             parent_ids: vec![],
-            root_hash: None,
         }
     }
 }
