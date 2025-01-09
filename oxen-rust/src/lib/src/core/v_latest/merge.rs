@@ -403,20 +403,8 @@ fn fast_forward_merge(
     let merge_dir_node = repositories::tree::get_root_dir(&merge_tree)?;
 
     // Same logic here as restore, where we don't need to traverse if the hashes match
-    r_ff_merge_commit(
-        repo,
-        &merge_tree,
-        &base_tree,
-        merge_dir_node,
-        PathBuf::from(""),
-    )?;
-    r_ff_base_dir(
-        repo,
-        &merge_tree,
-        &base_tree,
-        base_dir_node,
-        PathBuf::from(""),
-    )?;
+    r_ff_merge_commit(repo, &base_tree, merge_dir_node, PathBuf::from(""))?;
+    r_ff_base_dir(repo, &merge_tree, base_dir_node, PathBuf::from(""))?;
 
     // Move the HEAD forward to this commit
     let ref_writer = RefWriter::new(repo)?;
@@ -427,7 +415,6 @@ fn fast_forward_merge(
 
 fn r_ff_merge_commit(
     repo: &LocalRepository,
-    merge_tree: &MerkleTreeNode,
     base_tree: &MerkleTreeNode,
     merge_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
@@ -468,7 +455,7 @@ fn r_ff_merge_commit(
 
             for child in merge_children.iter() {
                 log::debug!("r_ff_merge_commit child_path {}", child);
-                r_ff_merge_commit(repo, merge_tree, base_tree, child, &dir_path)?;
+                r_ff_merge_commit(repo, base_tree, child, &dir_path)?;
             }
         }
         _ => {
@@ -481,7 +468,6 @@ fn r_ff_merge_commit(
 fn r_ff_base_dir(
     repo: &LocalRepository,
     merge_tree: &MerkleTreeNode,
-    base_tree: &MerkleTreeNode,
     base_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
@@ -518,7 +504,7 @@ fn r_ff_base_dir(
 
             for child in base_children.iter() {
                 log::debug!("r_ff_base_dir child_path {}", child);
-                r_ff_base_dir(repo, merge_tree, base_tree, child, &dir_path)?;
+                r_ff_base_dir(repo, merge_tree, child, &dir_path)?;
             }
         }
         _ => {
