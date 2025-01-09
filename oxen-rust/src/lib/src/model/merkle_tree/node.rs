@@ -8,6 +8,7 @@ pub mod file_node;
 pub mod file_node_types;
 pub mod file_node_with_dir;
 pub mod merkle_tree_node;
+pub mod staged_merkle_tree_node;
 pub mod vnode;
 
 pub use commit_node::CommitNode;
@@ -18,6 +19,7 @@ pub use file_node::FileNode;
 pub use file_node_types::{FileChunkType, FileStorageType};
 pub use file_node_with_dir::FileNodeWithDir;
 pub use merkle_tree_node::MerkleTreeNode;
+pub use staged_merkle_tree_node::StagedMerkleTreeNode;
 pub use vnode::VNode;
 
 use crate::model::metadata::generic_metadata::GenericMetadata;

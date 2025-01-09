@@ -1,4 +1,3 @@
-use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
@@ -34,9 +33,22 @@ pub fn list_diff_entries_in_dir_top_level(
     );
 
     // Load the trees into memory starting at the given dir
-    let load_recursive = true;
-    let base_tree = CommitMerkleTree::from_path(repo, base_commit, &dir, load_recursive)?;
-    let head_tree = CommitMerkleTree::from_path(repo, head_commit, &dir, load_recursive)?;
+    let Some(base_tree) =
+        repositories::tree::get_node_by_path_with_children(repo, base_commit, &dir)?
+    else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get base tree for commit: {}",
+            base_commit
+        )));
+    };
+    let Some(head_tree) =
+        repositories::tree::get_node_by_path_with_children(repo, head_commit, &dir)?
+    else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get head tree for commit: {}",
+            head_commit
+        )));
+    };
 
     let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
     let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
@@ -159,9 +171,22 @@ pub fn list_diff_entries(
         head_commit
     );
     // Load the trees into memory starting at the given dir
-    let load_recursive = true;
-    let base_tree = CommitMerkleTree::from_path(repo, base_commit, &dir, load_recursive)?;
-    let head_tree = CommitMerkleTree::from_path(repo, head_commit, &dir, load_recursive)?;
+    let Some(base_tree) =
+        repositories::tree::get_node_by_path_with_children(repo, base_commit, &dir)?
+    else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get base tree for commit: {}",
+            base_commit
+        )));
+    };
+    let Some(head_tree) =
+        repositories::tree::get_node_by_path_with_children(repo, head_commit, &dir)?
+    else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get head tree for commit: {}",
+            head_commit
+        )));
+    };
 
     let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
     let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
@@ -333,8 +358,18 @@ pub fn list_changed_dirs(
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     let mut changed_dirs: Vec<(PathBuf, DiffEntryStatus)> = vec![];
 
-    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
-    let head_tree = CommitMerkleTree::from_commit(repo, head_commit)?;
+    let Some(base_tree) = repositories::tree::get_root_with_children(repo, base_commit)? else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get base tree for commit: {}",
+            base_commit
+        )));
+    };
+    let Some(head_tree) = repositories::tree::get_root_with_children(repo, head_commit)? else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get head tree for commit: {}",
+            head_commit
+        )));
+    };
 
     let base_dirs = repositories::tree::list_all_dirs(&base_tree)?;
     let head_dirs = repositories::tree::list_all_dirs(&head_tree)?;
@@ -393,8 +428,18 @@ pub fn get_dir_diff_entry_with_summary(
     head_commit: &Commit,
     summary: GenericDiffSummary,
 ) -> Result<Option<DiffEntry>, OxenError> {
-    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
-    let head_tree = CommitMerkleTree::from_commit(repo, head_commit)?;
+    let Some(base_tree) = repositories::tree::get_root_with_children(repo, base_commit)? else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get base tree for commit: {}",
+            base_commit
+        )));
+    };
+    let Some(head_tree) = repositories::tree::get_root_with_children(repo, head_commit)? else {
+        return Err(OxenError::basic_str(format!(
+            "Failed to get head tree for commit: {}",
+            head_commit
+        )));
+    };
 
     let maybe_base_dir = base_tree.get_by_path(&dir)?;
     let maybe_head_dir = head_tree.get_by_path(&dir)?;

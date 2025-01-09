@@ -5,10 +5,11 @@ use crate::constants::STAGED_DIR;
 use crate::core;
 use crate::core::db;
 use crate::core::refs::RefWriter;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{
+    EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
+};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{
     Branch, Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
@@ -73,7 +74,7 @@ pub fn commit(
 
         let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
 
-        core::v_latest::index::commit_writer::commit_dir_entries(
+        repositories::commits::commit_writer::commit_dir_entries(
             &workspace.base_repo,
             dir_entries,
             new_commit,

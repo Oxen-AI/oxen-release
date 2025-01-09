@@ -16,7 +16,6 @@ use serde::Serialize;
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core;
 use crate::core::db;
-use crate::core::v_latest::structs::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
@@ -25,7 +24,9 @@ use crate::{repositories, util};
 use std::ops::AddAssign;
 
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{
+    EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
+};
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {

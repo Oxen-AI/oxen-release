@@ -13,13 +13,12 @@ use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
-use crate::core::v_latest::index::MerkleNodeDB;
 use crate::core::versions::MinOxenVersion;
-// use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::*;
 use crate::model::metadata::generic_metadata::GenericMetadata;

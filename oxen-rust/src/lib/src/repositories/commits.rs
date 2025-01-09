@@ -14,6 +14,8 @@ use crate::{core, resource};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+pub mod commit_writer;
+
 /// # Commit the staged files in the repo
 ///
 /// ```
@@ -287,18 +289,6 @@ pub fn list_by_path_from_paginated(
             core::v0_10_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
         }
         _ => core::v_latest::commits::list_by_path_from_paginated(repo, commit, path, pagination),
-    }
-}
-
-// TODO: Temporary function until after v0.19.0, we shouldn't need this check
-// once everything is working off the Merkle tree
-pub fn get_commit_status_tmp(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<Option<core::v0_10_0::cache::cacher_status::CacherStatusType>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::cache::commit_cacher::get_status(repo, commit),
-        _ => core::v_latest::commits::get_commit_status_tmp(repo, commit),
     }
 }
 
@@ -600,7 +590,7 @@ mod tests {
 
             // Make sure the entry is still there
             let head = repositories::commits::head_commit(&repo)?;
-            let tree = repositories::tree::get_by_commit(&repo, &head)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &head)?.unwrap();
             let text_entry = tree.get_by_path(Path::new("text.txt"))?;
             assert!(text_entry.is_some());
 
@@ -641,9 +631,7 @@ mod tests {
             let head = repositories::commits::head_commit(&repo)?;
 
             // get the merkle tree for the commit
-            let tree = repositories::tree::get_by_commit(&repo, &head)?;
-            println!("tree after second commit");
-            tree.print();
+            let tree = repositories::tree::get_root_with_children(&repo, &head)?.unwrap();
 
             // Get the commit entry for the text file
             let text_entry = tree.get_by_path(Path::new("text.txt"))?.unwrap();
@@ -822,10 +810,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit_1 = repositories::commit(&repo, "adding test dir")?;
 
-            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("INITIAL commit_1: {}", commit_1);
-            tree_1.print();
-
             // New file in root
             let file_path_2 = Path::new("test_file_2.txt");
             let file_repo_path_2 = repo.path.join(file_path_2);
@@ -835,13 +819,8 @@ mod tests {
             repositories::add(&repo, &file_repo_path_2)?;
             let commit_2 = repositories::commit(&repo, "adding test file")?;
 
-            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("AFTER commit_1: {}", commit_1);
-            tree_1.print();
-
-            let tree_2 = repositories::tree::get_by_commit(&repo, &commit_2)?;
-            println!("AFTER commit_2: {}", commit_2);
-            tree_2.print();
+            let tree_1 = repositories::tree::get_root_with_children(&repo, &commit_1)?.unwrap();
+            let tree_2 = repositories::tree::get_root_with_children(&repo, &commit_2)?.unwrap();
 
             // Make sure the file is not in the first commit
             // This was biting us in an initial implementation
@@ -881,9 +860,7 @@ mod tests {
 
             let commit = repositories::commit(&repo, "adding empty dir")?;
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after commit: {}", commit);
-            tree.print();
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
 
             assert!(tree.get_by_path(PathBuf::from("empty_dir"))?.is_some());
 
@@ -901,9 +878,7 @@ mod tests {
             repositories::add(&repo, &full_path)?;
             let commit = repositories::commit(&repo, "Adding invalid parquet file")?;
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            tree.print();
-
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let file_node = tree.get_by_path(PathBuf::from("invalid.parquet"))?;
             assert!(file_node.is_some());
 
@@ -938,10 +913,8 @@ A: Oxen.ai
 ",
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
-                let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
-
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let _commit =
+                    repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
                 Ok(dir)
             })
@@ -969,8 +942,8 @@ A: Oxen.ai
                 repositories::add(&local_repo, &empty_file)?;
                 let commit = repositories::commit(&local_repo, "adding empty file")?;
 
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let tree =
+                    repositories::tree::get_root_with_children(&local_repo, &commit)?.unwrap();
 
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());
@@ -987,8 +960,8 @@ A: Oxen.ai
                 repositories::add(&local_repo, &empty_file)?;
                 let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let tree =
+                    repositories::tree::get_root_with_children(&local_repo, &commit)?.unwrap();
 
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());

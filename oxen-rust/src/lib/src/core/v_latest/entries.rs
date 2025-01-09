@@ -14,14 +14,12 @@ use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::core::v_latest::index::CommitMerkleTree;
-
 pub fn get_directory(
     repo: &LocalRepository,
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<DirNode>, OxenError> {
-    let node = CommitMerkleTree::dir_without_children(repo, commit, path)?;
+    let node = repositories::tree::get_node_by_path(repo, commit, path)?;
     let Some(node) = node else {
         return Ok(None);
     };
@@ -33,31 +31,7 @@ pub fn get_file(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<FileNode>, OxenError> {
-    let Some(file_node) = get_file_merkle_tree_node(repo, commit, path)? else {
-        return Ok(None);
-    };
-
-    if let EMerkleTreeNode::File(file_node) = file_node.node {
-        Ok(Some(file_node))
-    } else {
-        Ok(None)
-    }
-}
-
-pub fn get_file_merkle_tree_node(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<Option<MerkleTreeNode>, OxenError> {
-    let path = path.as_ref();
-    let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-    if dir_hashes.contains_key(path) {
-        // This is a directory, not a file
-        log::debug!("get_file_merkle_tree_node path is a directory: {:?}", path);
-        return Ok(None);
-    }
-
-    let file_node = CommitMerkleTree::read_file(repo, &dir_hashes, path)?;
+    let file_node = repositories::tree::get_file_by_path(repo, commit, path)?;
     Ok(file_node)
 }
 
@@ -151,7 +125,7 @@ pub fn get_meta_entry(
         Ok(metadata.unwrap())
     } else {
         log::debug!("get_meta_entry file path: {:?}", path.to_str().unwrap());
-        let file_node = get_file_merkle_tree_node(repo, &commit, path)?;
+        let file_node = get_file(repo, &commit, path)?;
         if let Some(file_node) = file_node {
             // log::debug!("get_meta_entry file node found: {:?}", file_node);
             let metadata = file_node_to_metadata_entry(
@@ -255,14 +229,10 @@ fn dir_node_to_metadata_entry(
 
 fn file_node_to_metadata_entry(
     repo: &LocalRepository,
-    node: &MerkleTreeNode,
+    file_node: &FileNode,
     parsed_resource: &ParsedResource,
     found_commits: &mut HashMap<MerkleHash, Commit>,
 ) -> Result<Option<MetadataEntry>, OxenError> {
-    let EMerkleTreeNode::File(file_node) = &node.node else {
-        return Ok(None);
-    };
-
     if let std::collections::hash_map::Entry::Vacant(e) =
         found_commits.entry(file_node.last_commit_id)
     {
@@ -378,7 +348,7 @@ fn p_dir_entries(
                     entries,
                 )?;
             }
-            EMerkleTreeNode::File(_child_file) => {
+            EMerkleTreeNode::File(child_file) => {
                 // log::debug!(
                 //     "p_dir_entries current_directory {:?} search_directory {:?} child_file {:?}",
                 //     current_directory,
@@ -392,8 +362,12 @@ fn p_dir_entries(
                     //     current_directory,
                     //     child_file.name
                     // );
-                    let metadata =
-                        file_node_to_metadata_entry(repo, child, parsed_resource, found_commits)?;
+                    let metadata = file_node_to_metadata_entry(
+                        repo,
+                        child_file,
+                        parsed_resource,
+                        found_commits,
+                    )?;
                     // log::debug!(
                     //     "p_dir_entries added file entry {:?} file_name {:?}",
                     //     metadata,
@@ -422,7 +396,7 @@ pub fn list_tabular_files_in_repo(
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let tree = repositories::tree::get_root_with_children(repo, commit)?.unwrap();
     let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
     Ok(entries.len())
 }
@@ -431,7 +405,7 @@ pub fn list_for_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let tree = repositories::tree::get_root_with_children(repo, commit)?.unwrap();
     let (entries, _) = repositories::tree::list_files_and_dirs(&tree)?;
     Ok(entries
         .into_iter()

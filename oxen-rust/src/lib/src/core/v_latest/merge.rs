@@ -5,7 +5,6 @@ use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::commits::{get_commit_or_head, list_between};
-use crate::core::v_latest::index::commit_writer;
 use crate::core::v_latest::{add, rm};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
@@ -13,6 +12,7 @@ use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode}
 use crate::model::{Branch, Commit, LocalRepository};
 use crate::opts::RmOpts;
 use crate::repositories;
+use crate::repositories::commits::commit_writer;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
 
@@ -21,7 +21,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use super::index::{self, CommitMerkleTree};
+use super::index;
 
 pub fn has_conflicts(
     repo: &LocalRepository,
@@ -391,16 +391,16 @@ fn fast_forward_merge(
     merge_commit: &Commit,
 ) -> Result<Commit, OxenError> {
     log::debug!("FF merge!");
-    let base_tree = CommitMerkleTree::from_commit(repo, base_commit)?;
-    let merge_tree = CommitMerkleTree::from_commit(repo, merge_commit)?;
+    let base_tree = repositories::tree::get_root_with_children(repo, base_commit)?.unwrap();
+    let merge_tree = repositories::tree::get_root_with_children(repo, merge_commit)?.unwrap();
 
     // println!("base_tree");
     // base_tree.print();
     // println!("merge_tree");
     // merge_tree.print();
 
-    let base_dir_node = CommitMerkleTree::get_root_dir_from_commit(&base_tree.root)?;
-    let merge_dir_node = CommitMerkleTree::get_root_dir_from_commit(&merge_tree.root)?;
+    let base_dir_node = repositories::tree::get_root_dir(&base_tree)?;
+    let merge_dir_node = repositories::tree::get_root_dir(&merge_tree)?;
 
     // Same logic here as restore, where we don't need to traverse if the hashes match
     r_ff_merge_commit(
@@ -427,8 +427,8 @@ fn fast_forward_merge(
 
 fn r_ff_merge_commit(
     repo: &LocalRepository,
-    merge_tree: &CommitMerkleTree,
-    base_tree: &CommitMerkleTree,
+    merge_tree: &MerkleTreeNode,
+    base_tree: &MerkleTreeNode,
     merge_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
@@ -454,7 +454,7 @@ fn r_ff_merge_commit(
         }
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = path.join(&dir_node.name);
-            let merge_children = merge_tree.files_and_folders(&dir_path)?;
+            let merge_children = repositories::tree::list_files_and_folders(merge_node)?;
 
             if let Some(base_node) = base_tree.get_by_path(&dir_path)? {
                 if base_node.node.hash() == dir_node.hash {
@@ -480,8 +480,8 @@ fn r_ff_merge_commit(
 
 fn r_ff_base_dir(
     repo: &LocalRepository,
-    merge_tree: &CommitMerkleTree,
-    base_tree: &CommitMerkleTree,
+    merge_tree: &MerkleTreeNode,
+    base_tree: &MerkleTreeNode,
     base_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
@@ -493,7 +493,8 @@ fn r_ff_base_dir(
             log::debug!("r_ff_base_dir file_path {:?}", file_path);
 
             // Remove all entries that are in HEAD but not in merge entries
-            if !merge_tree.has_path(&file_path)? {
+            let has_path = merge_tree.get_by_path(&file_path)?.is_some();
+            if !has_path {
                 log::debug!("Removing Base Entry: {:?}", file_path);
                 let path = repo.path.join(file_path);
                 if path.exists() {
@@ -503,7 +504,7 @@ fn r_ff_base_dir(
         }
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = path.join(&dir_node.name);
-            let base_children = base_tree.files_and_folders(&dir_path)?;
+            let base_children = repositories::tree::list_files_and_folders(base_node)?;
 
             if let Some(merge_node) = merge_tree.get_by_path(&dir_path)? {
                 if merge_node.node.hash() == dir_node.hash {
@@ -728,9 +729,12 @@ pub fn find_merge_conflicts(
     let mut conflicts: Vec<NodeMergeConflict> = vec![];
 
     // Read all the entries from each commit into sets we can compare to one another
-    let lca_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.lca)?;
-    let base_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.base)?;
-    let merge_commit_tree = CommitMerkleTree::from_commit_or_subtree(repo, &merge_commits.merge)?;
+    let lca_commit_tree =
+        repositories::tree::from_commit_or_subtree(repo, &merge_commits.lca)?.unwrap();
+    let base_commit_tree =
+        repositories::tree::from_commit_or_subtree(repo, &merge_commits.base)?.unwrap();
+    let merge_commit_tree =
+        repositories::tree::from_commit_or_subtree(repo, &merge_commits.merge)?.unwrap();
 
     // TODO: Remove this unless debugging
     // println!("lca_commit_tree");
@@ -743,12 +747,11 @@ pub fn find_merge_conflicts(
     let default_starting_path = PathBuf::from("");
     let subtree_paths = repo.subtree_paths().unwrap_or_default();
     let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
-    let lca_entries =
-        CommitMerkleTree::dir_entries_with_paths(&lca_commit_tree.root, starting_path)?;
+    let lca_entries = repositories::tree::dir_entries_with_paths(&lca_commit_tree, starting_path)?;
     let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_tree.root, starting_path)?;
+        repositories::tree::dir_entries_with_paths(&base_commit_tree, starting_path)?;
     let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_tree.root, starting_path)?;
+        repositories::tree::dir_entries_with_paths(&merge_commit_tree, starting_path)?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());

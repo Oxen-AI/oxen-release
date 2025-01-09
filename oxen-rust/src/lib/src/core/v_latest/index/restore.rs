@@ -166,7 +166,7 @@ fn restore_dir(
 ) -> Result<(), OxenError> {
     log::debug!("restore::restore_dir: start");
     // Change the return type to include both FileNode and PathBuf
-    let file_nodes_with_paths = CommitMerkleTree::dir_entries_with_paths(&dir, path)?;
+    let file_nodes_with_paths = repositories::tree::dir_entries_with_paths(&dir, path)?;
     log::debug!(
         "restore::restore_dir: got {} entries",
         file_nodes_with_paths.len()

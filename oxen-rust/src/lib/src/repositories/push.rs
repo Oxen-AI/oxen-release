@@ -1484,7 +1484,8 @@ mod tests {
 
                     // Before this commit, init a reader at b's head
                     let head = repositories::commits::head_commit(&user_b_repo)?;
-                    let pre_b = repositories::tree::get_by_commit(&user_b_repo, &head)?;
+                    let pre_b =
+                        repositories::tree::get_root_with_children(&user_b_repo, &head)?.unwrap();
                     log::debug!("b head before is {:?}", head);
 
                     let maybe_b_entry = pre_b.get_by_path(
@@ -1499,7 +1500,8 @@ mod tests {
                         repositories::commit(&user_b_repo, "user B deleting file path.")?;
 
                     let head = repositories::commits::head_commit(&user_b_repo)?;
-                    let post_b = repositories::tree::get_by_commit(&user_b_repo, &head)?;
+                    let post_b =
+                        repositories::tree::get_root_with_children(&user_b_repo, &head)?.unwrap();
                     let maybe_b_entry = post_b.get_by_path(
                         PathBuf::from("annotations")
                             .join("train")
@@ -1813,10 +1815,6 @@ A: Oxen.ai is a great tool for this! It can handle any size dataset, and is opti
                 repositories::add(&local_repo, &readme_file)?;
                 let commit = repositories::commit(&local_repo, "Added another file")?;
 
-                println!("Tree for commit: {}", commit);
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
-
                 let result = repositories::push(&local_repo).await;
                 println!("push result: {:?}", result);
 
@@ -1863,9 +1861,6 @@ A: Checkout Oxen.ai
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
                 let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
-
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
 
                 let result = repositories::push(&local_repo).await;
                 println!("push result: {:?}", result);

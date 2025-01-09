@@ -1,5 +1,5 @@
 use crate::api;
-use crate::core::v_latest::structs::PullProgress;
+use crate::core::progress::pull_progress::PullProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::EMerkleTreeNode;

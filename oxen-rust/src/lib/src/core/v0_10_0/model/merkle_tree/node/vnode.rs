@@ -9,5 +9,7 @@ use serde::{Deserialize, Serialize};
 pub struct VNodeData {
     pub hash: MerkleHash,
     pub node_type: MerkleTreeNodeType,
-    pub num_entries: u64,
+    pub random_field: String,
+    pub random_field_2: u8,
+    pub random_field_3: i128,
 }

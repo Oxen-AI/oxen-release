@@ -22,7 +22,6 @@ pub mod restore;
 pub mod revisions;
 pub mod rm;
 pub mod status;
-pub mod structs;
 pub mod workspaces;
 
 pub use add::add;

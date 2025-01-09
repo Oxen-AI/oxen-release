@@ -1,4 +1,3 @@
-use crate::constants;
 use crate::constants::STAGED_DIR;
 use crate::core;
 use crate::core::db;
@@ -6,6 +5,7 @@ use crate::core::refs::RefWriter;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, NewCommitBody, Workspace};
 use crate::util;
+use crate::{constants, repositories};
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, SingleThreaded};
@@ -80,7 +80,7 @@ pub fn commit(
             return Err(OxenError::basic_str("No changes to commit"));
         }
 
-        core::v_latest::index::commit_writer::commit_dir_entries(
+        repositories::commits::commit_writer::commit_dir_entries(
             &workspace.base_repo,
             dir_entries,
             new_commit,

@@ -10,8 +10,7 @@ use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MerkleHash, RemoteRepository};
 use crate::{api, repositories};
 
-use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::structs::push_progress::PushProgress;
+use crate::core::progress::push_progress::PushProgress;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
@@ -113,6 +112,11 @@ fn collect_missing_files(
     hashes: &HashSet<MerkleHash>,
     entries: &mut HashSet<Entry>,
 ) -> Result<(), OxenError> {
+    log::debug!(
+        "collect_missing_files node: {} children: {}",
+        node,
+        node.children.len()
+    );
     for child in &node.children {
         if let EMerkleTreeNode::File(file_node) = &child.node {
             if !hashes.contains(&child.hash) {
@@ -182,6 +186,11 @@ async fn push_commits(
     // Given the missing commits on the server, filter the history
     let missing_commit_hashes =
         api::client::commits::list_missing_hashes(remote_repo, node_hashes).await?;
+    log::debug!(
+        "push_commits missing_commit_hashes count: {}",
+        missing_commit_hashes.len()
+    );
+
     let commits: Vec<Commit> = history
         .iter()
         .filter(|c| missing_commit_hashes.contains(&c.hash().unwrap()))
@@ -194,11 +203,12 @@ async fn push_commits(
     let mut candidate_nodes: HashSet<MerkleTreeNode> = HashSet::new();
     for commit in &commits {
         log::debug!("push_commits adding candidate nodes for commit: {}", commit);
-        let commit_hash = commit.hash()?;
-        let commit_node = CommitMerkleTree::read_depth(repo, &commit_hash, 0)?.unwrap();
-        candidate_nodes.insert(commit_node);
-        let sub_tree = CommitMerkleTree::from_commit(repo, commit)?;
-        sub_tree.walk_tree_without_leaves(|node| {
+        let Some(commit_node) = repositories::tree::get_root_with_children(repo, commit)? else {
+            log::error!("push_commits commit node not found for commit: {}", commit);
+            continue;
+        };
+        candidate_nodes.insert(commit_node.clone());
+        commit_node.walk_tree_without_leaves(|node| {
             candidate_nodes.insert(node.clone());
             progress.set_message(format!(
                 "Collecting missing nodes... {}",

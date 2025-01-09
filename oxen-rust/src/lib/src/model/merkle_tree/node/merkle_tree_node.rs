@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use super::*;
-use crate::core::v_latest::index::MerkleNodeDB;
+use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::util;
@@ -94,7 +94,6 @@ impl MerkleTreeNode {
     pub fn default_dir_from_path(path: impl AsRef<Path>) -> MerkleTreeNode {
         let mut dir_node = DirNode::default();
         let dir_str = path.as_ref().to_str().unwrap().to_string();
-        // let dir_hash = util::hasher::hash_buffer_128bit(&dir_str.as_bytes());
         dir_node.name = dir_str;
         MerkleTreeNode {
             hash: MerkleHash::new(0),
@@ -236,7 +235,7 @@ impl MerkleTreeNode {
 
         if MerkleTreeNodeType::Dir != node.node.node_type() {
             return Err(OxenError::basic_str(format!(
-                "Merkle tree node is not a directory: '{:?}'",
+                "get_vnodes_for_dir Merkle tree node is not a directory: '{:?}'",
                 path
             )));
         }
@@ -403,14 +402,10 @@ impl MerkleTreeNode {
         self.node.clone()
     }
 
-    pub fn deserialize_id(
-        repo: &LocalRepository,
-        data: &[u8],
-        dtype: MerkleTreeNodeType,
-    ) -> Result<MerkleHash, OxenError> {
+    pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
             MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash),
-            MerkleTreeNodeType::VNode => VNode::deserialize(repo, data).map(|vnode| vnode.hash()),
+            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash()),
             MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash),
             MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),
             MerkleTreeNodeType::FileChunk => {
@@ -491,15 +486,15 @@ impl MerkleTreeNode {
         }
     }
 
-    pub fn get_nodes_along_path(
+    pub fn get_nodes_along_paths(
         &self,
-        path: Vec<PathBuf>,
+        paths: Vec<PathBuf>,
     ) -> Result<(Option<MerkleTreeNode>, Vec<MerkleTreeNode>), OxenError> {
         let traversed_path = Path::new("");
-        self.get_nodes_along_path_helper(traversed_path, path)
+        self.get_nodes_along_paths_helper(traversed_path, paths)
     }
 
-    fn get_nodes_along_path_helper(
+    fn get_nodes_along_paths_helper(
         &self,
         traversed_path: &Path,
         path: Vec<PathBuf>,
@@ -552,7 +547,7 @@ impl MerkleTreeNode {
                     if dir_node.name == target_name {
                         path_components.remove(0); // Remove the matched component
                         if let (Some(node), mut child_traversed_nodes) = child
-                            .get_nodes_along_path_helper(
+                            .get_nodes_along_paths_helper(
                                 &traversed_path.join(&dir_node.name),
                                 path_components.clone(),
                             )?
@@ -563,7 +558,7 @@ impl MerkleTreeNode {
                         }
                     }
                 } else if let (Some(node), mut child_traversed_nodes) = child
-                    .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                    .get_nodes_along_paths_helper(traversed_path, path_components.clone())
                     .unwrap_or((None, Vec::new()))
                 {
                     traversed_nodes.push(self.clone());
@@ -575,16 +570,18 @@ impl MerkleTreeNode {
 
         for child in &self.children {
             if let EMerkleTreeNode::Directory(dir_node) = &child.node {
-                if let (Some(node), mut child_traversed_nodes) = child.get_nodes_along_path_helper(
-                    &traversed_path.join(&dir_node.name),
-                    path_components.clone(),
-                )? {
+                if let (Some(node), mut child_traversed_nodes) = child
+                    .get_nodes_along_paths_helper(
+                        &traversed_path.join(&dir_node.name),
+                        path_components.clone(),
+                    )?
+                {
                     traversed_nodes.push(self.clone());
                     traversed_nodes.append(&mut child_traversed_nodes);
                     return Ok((Some(node), traversed_nodes));
                 }
             } else if let (Some(node), mut child_traversed_nodes) = child
-                .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                .get_nodes_along_paths_helper(traversed_path, path_components.clone())
                 .unwrap_or((None, Vec::new()))
             {
                 traversed_nodes.push(self.clone());

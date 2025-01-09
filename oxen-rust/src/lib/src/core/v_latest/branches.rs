@@ -1,7 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::core::v_latest::fetch;
-use crate::core::v_latest::index::commit_merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository};
@@ -59,7 +58,7 @@ impl CheckoutProgressBar {
 }
 
 pub fn list_entry_versions_for_commit(
-    local_repo: &LocalRepository,
+    repo: &LocalRepository,
     commit_id: &str,
     path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
@@ -68,7 +67,7 @@ pub fn list_entry_versions_for_commit(
         commit_id,
         path
     );
-    let mut branch_commits = repositories::commits::list_from(local_repo, commit_id)?;
+    let mut branch_commits = repositories::commits::list_from(repo, commit_id)?;
 
     // Sort on timestamp oldest to newest
     branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
@@ -78,9 +77,7 @@ pub fn list_entry_versions_for_commit(
 
     for commit in branch_commits {
         log::debug!("list_entry_versions_for_commit {}", commit);
-        let tree = repositories::tree::get_by_commit(local_repo, &commit)?;
-        let node = tree.get_by_path(path)?;
-        // tree.print();
+        let node = repositories::tree::get_node_by_path(repo, &commit, path)?;
 
         if let Some(node) = node {
             if !seen_hashes.contains(&node.node.hash().to_string()) {
@@ -137,19 +134,23 @@ pub async fn checkout_subtrees(
     depth: i32,
 ) -> Result<(), OxenError> {
     for subtree_path in subtree_paths {
-        let target_tree = repositories::tree::get_subtree_by_depth(
+        let Some(target_root) = repositories::tree::get_subtree_by_depth(
             repo,
             from_commit,
             &Some(subtree_path.to_path_buf()),
             &Some(depth),
-        )?;
+        )?
+        else {
+            log::error!("Cannot get subtree for commit: {}", from_commit);
+            continue;
+        };
 
         let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
         let from_tree = None;
         let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
         r_restore_missing_or_modified_files(
             repo,
-            &target_tree.root,
+            &target_root,
             &from_tree,
             parent_path,
             &mut progress,
@@ -193,8 +194,12 @@ pub async fn set_working_repo_to_commit(
         to_commit,
         maybe_from_commit
     );
-    let target_tree = CommitMerkleTree::from_commit(repo, to_commit)?;
-    let from_tree = if let Some(from_commit) = maybe_from_commit {
+    let Some(target_node) = repositories::tree::get_root_with_children(repo, to_commit)? else {
+        return Err(OxenError::basic_str(
+            "Cannot get root node for target commit",
+        ));
+    };
+    let from_node = if let Some(from_commit) = maybe_from_commit {
         if from_commit.id == to_commit.id {
             log::debug!(
                 "set_working_repo_to_commit, do nothing... to_commit == from_commit {}",
@@ -204,9 +209,11 @@ pub async fn set_working_repo_to_commit(
         }
 
         // Only cleanup removed files if we are checking out from an existing tree
-        let from_tree = CommitMerkleTree::from_commit(repo, from_commit)?;
-        cleanup_removed_files(repo, &target_tree, &from_tree, &mut progress)?;
-        Some(from_tree)
+        let Some(from_node) = repositories::tree::get_root_with_children(repo, from_commit)? else {
+            return Err(OxenError::basic_str("Cannot get root node for base commit"));
+        };
+        cleanup_removed_files(repo, &target_node, &from_node, &mut progress)?;
+        Some(from_node)
     } else {
         None
     };
@@ -219,8 +226,8 @@ pub async fn set_working_repo_to_commit(
     // or restore it.
     r_restore_missing_or_modified_files(
         repo,
-        &target_tree.root,
-        &from_tree,
+        &target_node,
+        &from_node,
         Path::new(""),
         &mut progress,
     )?;
@@ -230,20 +237,20 @@ pub async fn set_working_repo_to_commit(
 
 fn cleanup_removed_files(
     repo: &LocalRepository,
-    target_tree: &CommitMerkleTree,
-    from_tree: &CommitMerkleTree,
+    target_node: &MerkleTreeNode,
+    from_node: &MerkleTreeNode,
     progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
     // Compare the nodes in the from tree to the nodes in the target tree
     // If the file node is in the from tree, but not in the target tree, remove it
-    let from_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&from_tree.root)?;
+    let from_root_dir_node = repositories::tree::get_root_dir(from_node)?;
     log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
 
     r_remove_if_not_in_target(
         repo,
         from_root_dir_node,
-        from_tree,
-        target_tree,
+        from_node,
+        target_node,
         Path::new(""),
         progress,
     )?;
@@ -254,8 +261,8 @@ fn cleanup_removed_files(
 fn r_remove_if_not_in_target(
     repo: &LocalRepository,
     head_node: &MerkleTreeNode,
-    from_tree: &CommitMerkleTree,
-    target_tree: &CommitMerkleTree,
+    from_tree_root: &MerkleTreeNode,
+    target_tree_root: &MerkleTreeNode,
     current_path: &Path,
     progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
@@ -272,8 +279,8 @@ fn r_remove_if_not_in_target(
                 file_path,
                 current_path
             );
-            let target_node = target_tree.get_by_path(&file_path)?;
-            let from_node = from_tree.get_by_path(&file_path)?;
+            let target_node = target_tree_root.get_by_path(&file_path)?;
+            let from_node = from_tree_root.get_by_path(&file_path)?;
             log::debug!(
                 "r_remove_if_not_in_target target_node.is_none() {} from_node.is_some() {}",
                 target_node.is_none(),
@@ -297,7 +304,7 @@ fn r_remove_if_not_in_target(
 
             // Check if the directory is the same in the from and target trees
             // If it is, we don't need to do anything
-            if let Some(target_node) = target_tree.get_by_path(&dir_path)? {
+            if let Some(target_node) = target_tree_root.get_by_path(&dir_path)? {
                 log::debug!(
                     "r_remove_if_not_in_target dir_path {:?} from_node {} === target_node {}",
                     dir_path,
@@ -313,7 +320,13 @@ fn r_remove_if_not_in_target(
                 }
             }
 
-            let from_children = from_tree.files_and_folders(&dir_path)?;
+            let from_dir = from_tree_root
+                .get_by_path(&dir_path)?
+                .ok_or(OxenError::basic_str(format!(
+                    "Could not find directory in from tree: {:?}",
+                    dir_path
+                )))?;
+            let from_children = repositories::tree::list_files_and_folders(&from_dir)?;
             for child in from_children {
                 // If the hashes match, we don't need to check if we need to remove any children
                 // because the subdirectory will be the same content-wise
@@ -326,8 +339,8 @@ fn r_remove_if_not_in_target(
                 r_remove_if_not_in_target(
                     repo,
                     &child,
-                    from_tree,
-                    target_tree,
+                    from_tree_root,
+                    target_tree_root,
                     &dir_path,
                     progress,
                 )?;
@@ -347,7 +360,7 @@ fn r_remove_if_not_in_target(
 fn r_restore_missing_or_modified_files(
     repo: &LocalRepository,
     node: &MerkleTreeNode,
-    from_tree: &Option<CommitMerkleTree>,
+    from_tree: &Option<MerkleTreeNode>,
     path: &Path, // relative path
     progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
@@ -387,7 +400,7 @@ fn r_restore_missing_or_modified_files(
             }
 
             // Recursively call for each file and directory
-            let children = CommitMerkleTree::node_files_and_folders(node)?;
+            let children = repositories::tree::list_files_and_folders(node)?;
             let dir_path = path.join(&dir_node.name);
             for child_node in children {
                 r_restore_missing_or_modified_files(
@@ -401,7 +414,7 @@ fn r_restore_missing_or_modified_files(
         }
         EMerkleTreeNode::Commit(_) => {
             // If we get a commit node, we need to skip to the root directory
-            let root_dir = CommitMerkleTree::get_root_dir_from_commit(node)?;
+            let root_dir = repositories::tree::get_root_dir(node)?;
             r_restore_missing_or_modified_files(repo, root_dir, from_tree, path, progress)?;
         }
         _ => {
