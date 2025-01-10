@@ -1341,14 +1341,29 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     false
 }
 
+// Return canonicalized path if possible, otherwise return original
+pub fn canonicalize_or_return(path: impl AsRef<Path>) -> PathBuf {
+    let path = path.as_ref();
+    match dunce::canonicalize(path) {
+        Ok(canon_path) => canon_path,
+        Err(err) => {
+            log::debug!("path {:?} cannot be canonicalized due to err {err:?}. Returning unchanged", path);
+            path.to_path_buf()
+        }
+    }
+}
+
 pub fn path_relative_to_dir(
-    path: impl AsRef<Path>,
-    dir: impl AsRef<Path>,
+    path: impl AsRef<Path>, // C://rpsch/docs/etc/file
+    dir: impl AsRef<Path>, // C://rpsch/docs --> etc/file
 ) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
-    let dir = dir.as_ref();
 
-    let mut mut_path = path.to_path_buf();
+
+    let path = canonicalize_or_return(path);
+    let dir = canonicalize_or_return(dir);
+    
+
+    let mut mut_path = path.clone();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
         log::debug!(
@@ -1377,41 +1392,6 @@ pub fn path_relative_to_dir(
     Ok(result)
 }
 
-pub fn path_relative_to_canon_dir(
-    path: impl AsRef<Path>,
-    dir: impl AsRef<Path>,
-) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
-    let dir = dunce::canonicalize(dir.as_ref())?;
-
-    let mut mut_path = path.to_path_buf();
-    let mut components: Vec<PathBuf> = vec![];
-    while mut_path.parent().is_some() {
-        log::debug!(
-            "Comparing {:?} => {:?} => {:?}",
-            path,
-            mut_path.parent(),
-            dir
-        );
-        if let Some(filename) = mut_path.file_name() {
-            if mut_path != dir {
-                components.push(PathBuf::from(filename));
-            } else {
-                break;
-            }
-        }
-
-        mut_path.pop();
-    }
-    components.reverse();
-
-    let mut result = PathBuf::new();
-    for component in components.iter() {
-        result = result.join(component);
-    }
-
-    Ok(result)
-}
 
 pub fn linux_path_str(string: &str) -> String {
     // Convert string to bytes, replacing '\\' with '/' if necessary
