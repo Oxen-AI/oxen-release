@@ -3,6 +3,7 @@ use clap::{Arg, ArgMatches, Command};
 
 use crate::helpers::check_repo_migration_needed;
 
+use crate::util;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RmOpts;
