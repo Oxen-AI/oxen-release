@@ -1347,7 +1347,10 @@ pub fn canonicalize_or_return(path: impl AsRef<Path>) -> PathBuf {
     match dunce::canonicalize(path) {
         Ok(canon_path) => canon_path,
         Err(err) => {
-            log::debug!("path {:?} cannot be canonicalized due to err {err:?}. Returning unchanged", path);
+            log::debug!(
+                "path {:?} cannot be canonicalized due to err {err:?}. Returning unchanged",
+                path
+            );
             path.to_path_buf()
         }
     }
@@ -1355,13 +1358,10 @@ pub fn canonicalize_or_return(path: impl AsRef<Path>) -> PathBuf {
 
 pub fn path_relative_to_dir(
     path: impl AsRef<Path>, // C://rpsch/docs/etc/file
-    dir: impl AsRef<Path>, // C://rpsch/docs --> etc/file
+    dir: impl AsRef<Path>,  // C://rpsch/docs --> etc/file
 ) -> Result<PathBuf, OxenError> {
-
-
     let path = canonicalize_or_return(path);
     let dir = canonicalize_or_return(dir);
-    
 
     let mut mut_path = path.clone();
     let mut components: Vec<PathBuf> = vec![];
@@ -1391,7 +1391,6 @@ pub fn path_relative_to_dir(
 
     Ok(result)
 }
-
 
 pub fn linux_path_str(string: &str) -> String {
     // Convert string to bytes, replacing '\\' with '/' if necessary

@@ -366,14 +366,13 @@ pub fn process_add_file(
     let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-        
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
         log::debug!("file is not a file - skipping add on {:?}", full_path);
         return Ok(Some(StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir(),
-        }));        
+        }));
     }
 
     // Check if the file is already in the head commit
