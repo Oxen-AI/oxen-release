@@ -52,7 +52,7 @@ impl RunCmd for RmCmd {
                     OxenError::basic_str(format!("Failed to get current directory: {}", e))
                 })?;
                 let joined_path = current_dir.join(p);
-                dunce::canonicalize(&joined_path).or_else(|_| Ok(joined_path))
+                util::fs::canonicalize(&joined_path).or_else(|_| Ok(joined_path))
             })
             .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
@@ -61,7 +61,6 @@ impl RunCmd for RmCmd {
             path: paths.first().unwrap().to_path_buf(),
             staged: args.get_flag("staged"),
             recursive: args.get_flag("recursive"),
-            is_cli: true,
         };
 
         let repository = LocalRepository::from_current_dir()?;
