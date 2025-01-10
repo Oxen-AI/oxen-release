@@ -219,18 +219,7 @@ pub fn process_add_dir(
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-            let relative_dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
-
-            // Fix for Windows CLI
-            // TODO: does dir_path ever not exist? this will propogate an error if so
-            let dir_path = if relative_dir_path.exists() {
-                relative_dir_path
-            } else {
-                log::debug!(
-                    "dir path {relative_dir_path:?} was not found. Checking for Windows CLI"
-                );
-                util::fs::path_relative_to_canon_dir(dir, repo.path.clone())?
-            };
+            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
             log::debug!("path now: {dir_path:?}");
 
             let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
@@ -373,32 +362,18 @@ pub fn process_add_file(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     log::debug!("process_add_file {:?}", path);
-    let mut relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let mut full_path = repo_path.join(&relative_path);
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-        // Fix for Windows CLI
-        // util::fs::path_relative_to_dir can fail if the capitalization of the input path differs from what it is in the working directory
-        // TODO: is there ever a situation where process_add_file will be called on a path that doesn't exist? That will be propogated as an error here
-        log::debug!(
-            "file {:?} was not found. Checking for Windows CLI path",
-            full_path
-        );
-        let canon_repo_path = dunce::canonicalize(repo_path)?;
-        let cli_path = util::fs::path_relative_to_dir(path, &canon_repo_path)?;
-
-        if cli_path.is_file() {
-            relative_path = cli_path;
-            full_path = canon_repo_path.join(&relative_path);
-        } else {
-            // If it's not a file - no need to add it
-            // We handle directories by traversing the parents of files below
-            log::debug!("file is not a file - skipping add on {:?}", full_path);
-            return Ok(Some(StagedMerkleTreeNode {
-                status: StagedEntryStatus::Added,
-                node: MerkleTreeNode::default_dir(),
-            }));
-        }
+        
+        // If it's not a file - no need to add it
+        // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
+        return Ok(Some(StagedMerkleTreeNode {
+            status: StagedEntryStatus::Added,
+            node: MerkleTreeNode::default_dir(),
+        }));        
     }
 
     // Check if the file is already in the head commit
