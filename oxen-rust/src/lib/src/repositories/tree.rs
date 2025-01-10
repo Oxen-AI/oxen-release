@@ -452,7 +452,7 @@ pub fn dir_entries_with_paths(
             for child in &node.children {
                 match &child.node {
                     EMerkleTreeNode::File(file_node) => {
-                        let file_path = base_path.join(&file_node.name);
+                        let file_path = base_path.join(file_node.name());
                         entries.insert((file_node.clone(), file_path));
                     }
                     EMerkleTreeNode::Directory(dir_node) => {
@@ -467,7 +467,7 @@ pub fn dir_entries_with_paths(
             }
         }
         EMerkleTreeNode::File(file_node) => {
-            let file_path = base_path.join(&file_node.name);
+            let file_path = base_path.join(file_node.name());
             entries.insert((file_node.clone(), file_path));
         }
         _ => {
@@ -657,10 +657,10 @@ fn r_list_files_by_type(
     for child in &node.children {
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
-                if file_node.data_type == *data_type {
+                if file_node.data_type() == *data_type {
                     let mut file_node = file_node.to_owned();
-                    let full_path = traversed_path.join(&file_node.name);
-                    file_node.name = full_path.to_string_lossy().to_string();
+                    let full_path = traversed_path.join(file_node.name());
+                    file_node.set_name(full_path.to_string_lossy());
                     file_nodes.insert(file_node);
                 }
             }

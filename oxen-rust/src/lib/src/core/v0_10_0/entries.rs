@@ -5,11 +5,8 @@ use crate::core;
 use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::MerkleHash;
-use crate::model::MerkleTreeNodeType;
 use crate::opts::DFOpts;
 use crate::opts::PaginateOpts;
 use crate::view::entries::ResourceVersion;
@@ -29,45 +26,6 @@ use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
-use std::str::FromStr;
-
-/// Legacy function to get a file node for a commit
-/// DEPRECIATED: Use `repositories::entries::get_file` instead.
-pub fn get_file(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<Option<FileNode>, OxenError> {
-    let path = path.as_ref();
-    let mut entry: Option<CommitEntry> = None;
-    // Try to get the parent of the file path, if it exists to get the proper CommitDirEntryReader
-    if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-        let object_reader = get_object_reader(repo, &commit.id)?;
-        let cder = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
-        entry = cder.get_entry(file_name)?;
-    }
-
-    let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
-
-    let node = FileNode {
-        node_type: MerkleTreeNodeType::File,
-        name: entry
-            .path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string(),
-        hash: MerkleHash::from_str(&entry.hash)?,
-        num_bytes: entry.num_bytes,
-        last_commit_id: MerkleHash::from_str(&entry.commit_id)?,
-        last_modified_seconds: entry.last_modified_seconds,
-        last_modified_nanoseconds: entry.last_modified_nanoseconds,
-        ..FileNode::default()
-    };
-    Ok(Some(node))
-}
 
 /// List all files and directories in a directory given a specific commit
 // This is wayyyy more complicated that it needs to be because we have these two separate dbs....

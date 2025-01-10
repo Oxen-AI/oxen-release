@@ -34,7 +34,7 @@ pub fn get_cli(
         let tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
         if let Some(node) = tree.get_by_path(entry_path)? {
             if let EMerkleTreeNode::File(file_node) = &node.node {
-                let last_commit_id = file_node.last_commit_id.to_string();
+                let last_commit_id = file_node.last_commit_id().to_string();
                 // this commit is guaranteed to exist because we are iterating through the tree
                 let commit = repositories::commits::get_by_id(repo, &last_commit_id)?.unwrap();
                 last_updated = Some(commit);

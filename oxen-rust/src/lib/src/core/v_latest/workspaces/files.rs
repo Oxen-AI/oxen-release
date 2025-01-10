@@ -134,7 +134,7 @@ fn p_modify_file(
     }
 
     if let Some(mut file_node) = maybe_file_node {
-        file_node.name = path.to_str().unwrap().to_string();
+        file_node.set_name(path.to_str().unwrap());
         log::debug!("p_modify_file file_node: {}", file_node);
         add_file_node_to_staged_db(&staged_db, path, StagedEntryStatus::Modified, &file_node)
     } else {

@@ -17,6 +17,6 @@ pub fn get_version_file_from_commit_id(
     let file_node = repositories::tree::get_file_by_path(repo, &commit, path)?
         .ok_or(OxenError::entry_does_not_exist_in_commit(path, commit_id))?;
 
-    let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
     Ok(version_path)
 }

@@ -1,3 +1,5 @@
+//! Wrapper around the CommitNodeData struct to support old versions of the commit node
+
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

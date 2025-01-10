@@ -26,7 +26,7 @@ pub fn get_slice(
 
     log::debug!("get_slice file_node {:?}", file_node);
 
-    let metadata: Result<MetadataTabularImpl, OxenError> = match file_node.metadata {
+    let metadata: Result<MetadataTabularImpl, OxenError> = match file_node.metadata() {
         Some(metadata) => match metadata {
             GenericMetadata::MetadataTabular(metadata) => Ok(metadata.tabular),
             _ => {
@@ -51,8 +51,8 @@ pub fn get_slice(
         return Ok(response);
     }
     // Read the data frame from the version path
-    let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
-    let df = tabular::read_df_with_extension(version_path, file_node.extension, opts)?;
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
+    let df = tabular::read_df_with_extension(version_path, file_node.extension(), opts)?;
     log::debug!("get_slice df {:?}", df.height());
 
     // Check what the view height is

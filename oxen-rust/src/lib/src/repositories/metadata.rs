@@ -109,22 +109,22 @@ pub fn from_file_node(
     commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
     Ok(MetadataEntry {
-        filename: node.name.clone(),
-        hash: node.hash.to_string(),
+        filename: node.name().to_string(),
+        hash: node.hash().to_string(),
         is_dir: false,
         latest_commit: Some(commit.to_owned()),
         resource: Some(ParsedResource {
             commit: Some(commit.to_owned()),
             branch: None,
-            path: PathBuf::from(node.name.clone()),
+            path: PathBuf::from(node.name()),
             version: PathBuf::from(commit.id.to_string()),
-            resource: PathBuf::from(commit.id.to_string()).join(node.name.clone()),
+            resource: PathBuf::from(commit.id.to_string()).join(node.name()),
         }),
-        size: node.num_bytes,
-        data_type: node.data_type.clone(),
-        mime_type: node.mime_type.clone(),
-        extension: node.extension.clone(),
-        metadata: node.metadata.clone(),
+        size: node.num_bytes(),
+        data_type: node.data_type(),
+        mime_type: node.mime_type().to_string(),
+        extension: node.extension().to_string(),
+        metadata: node.metadata().clone(),
         is_queryable: None,
     })
 }

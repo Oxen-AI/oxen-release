@@ -19,6 +19,7 @@ use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
 use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData;
+use crate::core::v_latest::model::merkle_tree::node::file_node::FileNodeData;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::*;
@@ -864,7 +865,7 @@ fn write_file_node(
     let new_version_path = version_path.with_extension("");
     util::fs::rename(&version_path, &new_version_path)?;
 
-    let val = FileNode {
+    let val = FileNode::V0_25_0(FileNodeData {
         name: file_name.to_owned(),
         hash: *hash,
         combined_hash,
@@ -881,7 +882,7 @@ fn write_file_node(
         extension,
         metadata,
         node_type: MerkleTreeNodeType::File,
-    };
+    });
     node_db.add_child(&val)?;
 
     // TODO

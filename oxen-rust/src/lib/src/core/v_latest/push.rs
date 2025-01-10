@@ -123,12 +123,12 @@ fn collect_missing_files(
                 continue;
             }
             entries.insert(Entry::CommitEntry(CommitEntry {
-                commit_id: file_node.last_commit_id.to_string(),
-                path: PathBuf::from(&file_node.name),
+                commit_id: file_node.last_commit_id().to_string(),
+                path: PathBuf::from(file_node.name()),
                 hash: child.hash.to_string(),
-                num_bytes: file_node.num_bytes,
-                last_modified_seconds: file_node.last_modified_seconds,
-                last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+                num_bytes: file_node.num_bytes(),
+                last_modified_seconds: file_node.last_modified_seconds(),
+                last_modified_nanoseconds: file_node.last_modified_nanoseconds(),
             }));
         }
     }

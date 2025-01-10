@@ -16,6 +16,7 @@ use serde::Serialize;
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core;
 use crate::core::db;
+use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
@@ -126,9 +127,9 @@ fn add_files(
             let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
-                    let data_type = file_node.data_type.clone();
+                    let data_type = file_node.data_type();
                     total.total_files += 1;
-                    total.total_bytes += file_node.num_bytes;
+                    total.total_bytes += file_node.num_bytes();
                     total
                         .data_type_counts
                         .entry(data_type)
@@ -256,7 +257,7 @@ pub fn process_add_dir(
                 ) {
                     Ok(Some(node)) => {
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                            byte_counter_clone.fetch_add(file_node.num_bytes(), Ordering::Relaxed);
                             added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                         }
                     }
@@ -384,11 +385,11 @@ pub fn process_add_file(
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        previous_oxen_metadata = file_node.metadata.clone();
+        previous_oxen_metadata = file_node.metadata().clone();
         if has_different_modification_time(file_node, &mtime) {
             log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
-            if file_node.hash.to_u128() != hash {
+            if file_node.hash().to_u128() != hash {
                 log::debug!(
                     "has_different_modification_time hash is different true {}",
                     file_node
@@ -404,26 +405,26 @@ pub fn process_add_file(
                 (
                     StagedEntryStatus::Unmodified,
                     MerkleHash::new(hash),
-                    file_node.num_bytes,
+                    file_node.num_bytes(),
                     mtime,
                 )
             }
         } else {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
 
-            if file_node.hash.to_u128() != hash {
+            if file_node.hash().to_u128() != hash {
                 log::debug!("hash is different true {}", file_node);
                 (
                     StagedEntryStatus::Modified,
                     MerkleHash::new(hash),
-                    file_node.num_bytes,
+                    file_node.num_bytes(),
                     mtime,
                 )
             } else {
                 (
                     StagedEntryStatus::Unmodified,
                     MerkleHash::new(hash),
-                    file_node.num_bytes,
+                    file_node.num_bytes(),
                     mtime,
                 )
             }
@@ -511,20 +512,20 @@ pub fn process_add_file(
     } else {
         (hash, None, hash)
     };
-    let file_node = FileNode {
-        hash,
-        metadata_hash,
-        combined_hash,
+    let file_node = FileNode::new(FileNodeOpts {
         name: relative_path_str.to_string(),
-        data_type,
+        hash,
+        combined_hash,
+        metadata_hash,
         num_bytes,
         last_modified_seconds: mtime.unix_seconds(),
         last_modified_nanoseconds: mtime.nanoseconds(),
+        data_type,
         metadata,
-        extension: file_extension.to_string(),
         mime_type: mime_type.clone(),
-        ..Default::default()
-    };
+        extension: file_extension.to_string(),
+    });
+
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
 }
 
@@ -640,6 +641,6 @@ pub fn add_dir_to_staged_db(
 }
 
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {
-    node.last_modified_nanoseconds != time.nanoseconds()
-        || node.last_modified_seconds != time.unix_seconds()
+    node.last_modified_nanoseconds() != time.nanoseconds()
+        || node.last_modified_seconds() != time.unix_seconds()
 }

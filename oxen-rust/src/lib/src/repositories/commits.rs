@@ -884,7 +884,7 @@ mod tests {
 
             let file_entry = file_node.unwrap();
             let file_node = file_entry.file()?;
-            assert_eq!(file_node.data_type, EntryDataType::Binary);
+            assert_eq!(file_node.data_type(), EntryDataType::Binary);
 
             Ok(())
         })
@@ -948,7 +948,7 @@ A: Oxen.ai
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());
                 let file_node = file_node.unwrap().file()?;
-                assert_eq!(file_node.num_bytes, 0);
+                assert_eq!(file_node.num_bytes(), 0);
 
                 // Edit the file
                 let raw_str = r"
@@ -966,7 +966,7 @@ A: Oxen.ai
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());
                 let file_node = file_node.unwrap().file()?;
-                assert_eq!(file_node.num_bytes, raw_str.len() as u64);
+                assert_eq!(file_node.num_bytes(), raw_str.len() as u64);
 
                 Ok(dir)
             })

@@ -47,7 +47,7 @@ impl TabularDiffWrapper {
     ) -> Result<TabularDiffWrapper, OxenError> {
         match (base_entry, head_entry) {
             (Some(base_entry), Some(head_entry)) => {
-                let base_size = match &base_entry.metadata {
+                let base_size = match &base_entry.metadata() {
                     Some(GenericMetadata::MetadataTabular(df_meta)) => DataFrameSize {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
@@ -55,7 +55,7 @@ impl TabularDiffWrapper {
                     _ => return Err(OxenError::basic_str("Invalid metadata type")),
                 };
 
-                let head_size = match &head_entry.metadata {
+                let head_size = match &head_entry.metadata() {
                     Some(GenericMetadata::MetadataTabular(df_meta)) => DataFrameSize {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
@@ -101,7 +101,7 @@ impl TabularDiffWrapper {
                 })
             }
             (Some(base_entry), None) => {
-                let base_size = match &base_entry.metadata {
+                let base_size = match &base_entry.metadata() {
                     Some(GenericMetadata::MetadataTabular(df_meta)) => DataFrameSize {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
@@ -121,7 +121,7 @@ impl TabularDiffWrapper {
             }
 
             (None, Some(head_entry)) => {
-                let head_size = match &head_entry.metadata {
+                let head_size = match &head_entry.metadata() {
                     Some(GenericMetadata::MetadataTabular(df_meta)) => DataFrameSize {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
@@ -303,10 +303,10 @@ impl TabularDiffWrapper {
     ) -> Option<DataFrame> {
         match node {
             Some(node) => {
-                let version_path = util::fs::version_path_from_hash(repo, node.hash.to_string());
+                let version_path = util::fs::version_path_from_hash(repo, node.hash().to_string());
                 match tabular::read_df_with_extension(
                     version_path,
-                    node.extension.clone(),
+                    node.extension(),
                     &DFOpts::empty(),
                 ) {
                     Ok(df) => Some(df),

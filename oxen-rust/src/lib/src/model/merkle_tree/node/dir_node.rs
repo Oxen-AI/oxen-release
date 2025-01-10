@@ -1,6 +1,4 @@
-//! This is a compact representation of a directory merkle tree node
-//! that is stored in on disk
-//!
+//! Wrapper around the DirNodeData struct to support old versions of the dir node
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

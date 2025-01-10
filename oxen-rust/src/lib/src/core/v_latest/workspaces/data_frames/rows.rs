@@ -273,8 +273,11 @@ pub fn prepare_modified_or_removed_row(
     );
 
     // TODONOW should not be using all rows - just need to parse delim
-    let lazy_df =
-        tabular::read_df_with_extension(committed_df_path, file_node.extension, &DFOpts::empty())?;
+    let lazy_df = tabular::read_df_with_extension(
+        committed_df_path,
+        file_node.extension(),
+        &DFOpts::empty(),
+    )?;
 
     // Get the row by index
     let mut row = lazy_df.slice(row_idx_og, 1_usize);

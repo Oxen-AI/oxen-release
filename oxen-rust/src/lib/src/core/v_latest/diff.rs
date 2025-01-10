@@ -664,7 +664,7 @@ fn collect_added_entries(
     for head_entry in diff {
         // HEAD entry is *not* in BASE
         diff_entries.push(DiffFileNode {
-            path: base_path.join(head_entry.dir.join(&head_entry.file_node.name)),
+            path: base_path.join(head_entry.dir.join(head_entry.file_node.name())),
             base_entry: None,
             head_entry: Some(head_entry.file_node.to_owned()),
             status: DiffEntryStatus::Added,
@@ -685,7 +685,7 @@ fn collect_removed_entries(
         // BASE entry is *not* in HEAD
         if !head_entries.contains(base_entry) {
             diff_entries.push(DiffFileNode {
-                path: base_path.join(base_entry.dir.join(&base_entry.file_node.name)),
+                path: base_path.join(base_entry.dir.join(base_entry.file_node.name())),
                 base_entry: Some(base_entry.file_node.to_owned()),
                 head_entry: None,
                 status: DiffEntryStatus::Removed,
@@ -717,9 +717,9 @@ fn collect_modified_entries(
             //     base_entry.file_node
             // );
             // HEAD entry has a different hash than BASE entry
-            if head_entry.file_node.hash != base_entry.file_node.hash {
+            if head_entry.file_node.hash() != base_entry.file_node.hash() {
                 diff_entries.push(DiffFileNode {
-                    path: base_path.join(base_entry.dir.join(&base_entry.file_node.name)),
+                    path: base_path.join(base_entry.dir.join(base_entry.file_node.name())),
                     base_entry: Some(base_entry.file_node.to_owned()),
                     head_entry: Some(head_entry.file_node.to_owned()),
                     status: DiffEntryStatus::Modified,

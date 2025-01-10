@@ -57,13 +57,13 @@ impl Read for ChunkReader {
             "--START-- read {} from chunked file at offset {} / {}",
             buf.len(),
             self.offset,
-            self.node.num_bytes
+            self.node.num_bytes()
         );
-        if self.offset >= self.node.num_bytes {
+        if self.offset >= self.node.num_bytes() {
             log::debug!(
                 "Reached end of file at offset: {} >= {}",
                 self.offset,
-                self.node.num_bytes
+                self.node.num_bytes()
             );
             self.offset = 0;
             return Ok(0);
@@ -79,21 +79,21 @@ impl Read for ChunkReader {
         let mut chunk_offset = self.offset % CHUNK_SIZE as u64;
 
         log::debug!("Chunk index: {:?} offset {:?}", chunk_index, chunk_offset);
-        log::debug!("Chunk hashes len {:?}", self.node.chunk_hashes.len());
+        log::debug!("Chunk hashes len {:?}", self.node.chunk_hashes().len());
 
         // read chunks until we fill the buffer
         let mut total_read = 0;
-        while total_read < buf.len() as u64 && chunk_index < self.node.chunk_hashes.len() as u64 {
+        while total_read < buf.len() as u64 && chunk_index < self.node.chunk_hashes().len() as u64 {
             log::debug!("-start- read {:?}/{}", total_read, buf.len());
             log::debug!(
                 "chunk_index {}/{} chunk_offset {:?}",
                 chunk_index,
-                self.node.chunk_hashes.len(),
+                self.node.chunk_hashes().len(),
                 chunk_offset
             );
 
             // Find the hashed chunk file
-            let chunk_hash = self.node.chunk_hashes[chunk_index as usize];
+            let chunk_hash = self.node.chunk_hashes()[chunk_index as usize];
             let chunk_data = self.csm.read_chunk(chunk_hash).unwrap();
             let chunk_data_len = chunk_data.len() as u64;
 
@@ -122,7 +122,7 @@ impl Read for ChunkReader {
 
             self.offset += bytes_to_copy;
             log::debug!("Total read {:?}/{}", total_read, buf.len());
-            log::debug!("-end- Offset {:?} / {}", self.offset, self.node.num_bytes);
+            log::debug!("-end- Offset {:?} / {}", self.offset, self.node.num_bytes());
         }
 
         log::debug!("--END-- Total read {:?}", total_read);
@@ -133,11 +133,11 @@ impl Read for ChunkReader {
 
 impl Seek for ChunkReader {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        log::debug!("Seek in chunked file {:?} / {}", pos, self.node.num_bytes);
+        log::debug!("Seek in chunked file {:?} / {}", pos, self.node.num_bytes());
         self.offset = match pos {
             std::io::SeekFrom::Start(offset) => offset,
             std::io::SeekFrom::Current(offset) => self.offset + offset as u64,
-            std::io::SeekFrom::End(offset) => (self.node.num_bytes as i64 + offset) as u64,
+            std::io::SeekFrom::End(offset) => (self.node.num_bytes() as i64 + offset) as u64,
         };
         log::debug!("New offset {:?}", self.offset);
         Ok(self.offset)

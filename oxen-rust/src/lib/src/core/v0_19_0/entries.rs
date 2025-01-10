@@ -150,25 +150,25 @@ fn file_node_to_metadata_entry(
     };
 
     if let std::collections::hash_map::Entry::Vacant(e) =
-        found_commits.entry(file_node.last_commit_id)
+        found_commits.entry(file_node.last_commit_id())
     {
-        let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id)?.ok_or(
-            OxenError::commit_id_does_not_exist(file_node.last_commit_id.to_string()),
+        let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id())?.ok_or(
+            OxenError::commit_id_does_not_exist(file_node.last_commit_id().to_string()),
         )?;
         e.insert(commit);
     }
 
-    let commit = found_commits.get(&file_node.last_commit_id).unwrap();
-    let data_type = &file_node.data_type;
+    let commit = found_commits.get(&file_node.last_commit_id()).unwrap();
+    let data_type = &file_node.data_type();
 
     let mut parsed_resource = parsed_resource.clone();
     // HACK for not knowing if we have the full path or just the dir path
     // so we just add the file name to the end of the path if it's not already there
     let mut file_path = parsed_resource.path.clone();
-    if !file_path.ends_with(&file_node.name) {
-        file_path = file_path.join(&file_node.name);
-        parsed_resource.resource = parsed_resource.resource.join(&file_node.name);
-        parsed_resource.path = parsed_resource.path.join(&file_node.name);
+    if !file_path.ends_with(file_node.name()) {
+        file_path = file_path.join(file_node.name());
+        parsed_resource.resource = parsed_resource.resource.join(file_node.name());
+        parsed_resource.path = parsed_resource.path.join(file_node.name());
     }
 
     let is_indexed = if *data_type == EntryDataType::Tabular {
@@ -182,16 +182,16 @@ fn file_node_to_metadata_entry(
     };
 
     Ok(Some(MetadataEntry {
-        filename: file_node.name.clone(),
-        hash: file_node.hash.to_string(),
+        filename: file_node.name().to_string(),
+        hash: file_node.hash().to_string(),
         is_dir: false,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
-        size: file_node.num_bytes,
-        data_type: file_node.data_type.clone(),
-        mime_type: file_node.mime_type.clone(),
-        extension: file_node.extension.clone(),
-        metadata: file_node.metadata.clone(),
+        size: file_node.num_bytes(),
+        data_type: file_node.data_type(),
+        mime_type: file_node.mime_type().to_string(),
+        extension: file_node.extension().to_string(),
+        metadata: file_node.metadata().clone(),
         is_queryable: is_indexed,
     }))
 }

@@ -52,9 +52,8 @@ pub fn update_schema(
     let mut file_node: FileNode;
 
     if let Some(data) = data {
-        let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
-            rmp_serde::from_slice(data.as_slice());
-        file_node = val.unwrap().node.file()?;
+        let val: StagedMerkleTreeNode = rmp_serde::from_slice(data.as_slice())?;
+        file_node = val.node.file()?;
     } else {
         file_node = repositories::tree::get_file_by_path(
             &workspace.base_repo,
@@ -64,11 +63,13 @@ pub fn update_schema(
         .ok_or(OxenError::basic_str("File not found"))?;
     }
 
-    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata {
-        file_node.metadata = Some(GenericMetadata::MetadataTabular(MetadataTabular::new(
-            tabular_metadata.tabular.width,
-            tabular_metadata.tabular.height,
-            schema,
+    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata() {
+        file_node.set_metadata(Some(GenericMetadata::MetadataTabular(
+            MetadataTabular::new(
+                tabular_metadata.tabular.width,
+                tabular_metadata.tabular.height,
+                schema,
+            ),
         )));
     } else {
         return Err(OxenError::basic_str("Expected tabular metadata"));

@@ -348,8 +348,7 @@ pub fn add_column_metadata(
 
     let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
         let staged_merkle_tree_node: StagedMerkleTreeNode =
-            rmp_serde::from_slice(&staged_merkle_tree_node)
-                .map_err(|_| OxenError::basic_str("Could not read staged merkle tree node"))?;
+            rmp_serde::from_slice(&staged_merkle_tree_node)?;
         staged_merkle_tree_node.node.file()?
     } else {
         // Get the FileNode from the CommitMerkleTree
@@ -385,11 +384,11 @@ pub fn add_column_metadata(
     };
     let column_diff = get_column_diff(workspace, &file_path)?;
 
-    update_column_names_in_metadata(&column_diff, &mut file_node.metadata);
+    update_column_names_in_metadata(&column_diff, file_node.get_mut_metadata());
 
     // Update the column metadata
     let mut results = HashMap::new();
-    match &mut file_node.metadata {
+    match file_node.get_mut_metadata() {
         Some(GenericMetadata::MetadataTabular(m)) => {
             log::debug!("add_column_metadata: {m:?}");
             let mut column_found = false;
@@ -426,16 +425,16 @@ pub fn add_column_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    let oxen_metadata = &file_node.metadata;
+    let oxen_metadata = &file_node.metadata();
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
-        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
+        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash().to_u128())?;
 
     let mut file_node = staged_entry.node.file()?;
 
-    file_node.name = path.to_str().unwrap().to_string();
-    file_node.combined_hash = MerkleHash::new(combined_hash);
-    file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
+    file_node.set_name(path.to_str().unwrap());
+    file_node.set_combined_hash(MerkleHash::new(combined_hash));
+    file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 
