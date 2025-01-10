@@ -1342,26 +1342,42 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
 }
 
 // Return canonicalized path if possible, otherwise return original
-pub fn canonicalize_or_return(path: impl AsRef<Path>) -> PathBuf {
+pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
+    log::debug!("Path to canonicalize: {path:?}");
     match dunce::canonicalize(path) {
-        Ok(canon_path) => canon_path,
-        Err(err) => {
-            log::debug!(
-                "path {:?} cannot be canonicalized due to err {err:?}. Returning unchanged",
-                path
-            );
-            path.to_path_buf()
-        }
+        Ok(canon_path) => Ok(canon_path),
+        Err(err) => Err(OxenError::basic_str(format!("path {path:?} cannot be canonicalized due to err {err:?}"))),
     }
 }
 
 pub fn path_relative_to_dir(
-    path: impl AsRef<Path>, // C://rpsch/docs/etc/file
-    dir: impl AsRef<Path>,  // C://rpsch/docs --> etc/file
+    path: impl AsRef<Path>, 
+    dir: impl AsRef<Path>,  
 ) -> Result<PathBuf, OxenError> {
-    let path = canonicalize_or_return(path);
-    let dir = canonicalize_or_return(dir);
+
+    // Embedded canonicalize calls to catch every case:
+    // -- if both paths can be canonicalized, they both will be
+    // -- if only the dir can be canonicalized, only the dir will be
+    // -- if the dir cannot be canonicalized, neither will be
+    let (path, dir) = match canonicalize(&dir) { 
+        Ok(canon_dir) => {
+            log::debug!("dir {:?} canonicalized. Checking path {:?}", dir.as_ref(), path.as_ref());
+            match canonicalize(&path) {
+                Ok(canon_path) => (canon_path, canon_dir),
+                Err(err) => {
+                    log::debug!("Err with canonicalization: {err:?}. Returning path {:?} immediately", path.as_ref());
+                    return Ok(path.as_ref().to_path_buf());
+                }
+            }
+        }
+        Err(err) => {
+            log::debug!("Err with canonicalization: {err:?}. Skipping canonicalization of path {:?}", path.as_ref());
+            (path.as_ref().to_path_buf(), dir.as_ref().to_path_buf())
+        }
+    };
+
+
 
     let mut mut_path = path.clone();
     let mut components: Vec<PathBuf> = vec![];
@@ -1388,6 +1404,8 @@ pub fn path_relative_to_dir(
     for component in components.iter() {
         result = result.join(component);
     }
+
+    log::debug!("Result: {result:?}");
 
     Ok(result)
 }
