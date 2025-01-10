@@ -1363,7 +1363,7 @@ pub fn path_relative_to_dir(
     // -- if the dir cannot be canonicalized, neither will be
     let (path, dir) = match canonicalize(&dir) {
         Ok(canon_dir) => {
-            log::debug!(
+            //log::debug!(
                 "dir {:?} canonicalized. Checking path {:?}",
                 dir.as_ref(),
                 path.as_ref()
