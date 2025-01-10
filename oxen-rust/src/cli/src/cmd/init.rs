@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
 use crate::helpers::{check_remote_version, get_host_or_default};
+use crate::util;
 use liboxen::repositories;
 
 pub const INIT: &str = "init";
