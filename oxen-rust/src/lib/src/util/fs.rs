@@ -1344,7 +1344,7 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
 // Return canonicalized path if possible, otherwise return original
 pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
-    log::debug!("Path to canonicalize: {path:?}");
+    //log::debug!("Path to canonicalize: {path:?}");
     match dunce::canonicalize(path) {
         Ok(canon_path) => Ok(canon_path),
         Err(err) => Err(OxenError::basic_str(format!(
@@ -1363,27 +1363,29 @@ pub fn path_relative_to_dir(
     // -- if the dir cannot be canonicalized, neither will be
     let (path, dir) = match canonicalize(&dir) {
         Ok(canon_dir) => {
-            log::debug!(
+            /*log::debug!(
               "dir {:?} canonicalized. Checking path {:?}",
                 dir.as_ref(),
                 path.as_ref()
-            ); 
+            );*/ 
             match canonicalize(&path) {
                 Ok(canon_path) => (canon_path, canon_dir),
-                Err(err) => {
-                    log::debug!(
+                // '_' because the debug statement is commented out
+                Err(_err) => {
+                    /*log::debug!(
                         "Err with canonicalization: {err:?}. Returning path {:?} immediately",
                         path.as_ref()
-                    );
+                    );*/
                     return Ok(path.as_ref().to_path_buf());
                 }
             }
         }
-        Err(err) => {
-            log::debug!(
+        // '_' because the debug statement is commented out
+        Err(_err) => {
+            /*log::debug!(
                 "Err with canonicalization: {err:?}. Skipping canonicalization of path {:?}",
                 path.as_ref()
-            );
+            );*/
             (path.as_ref().to_path_buf(), dir.as_ref().to_path_buf())
         }
     };
