@@ -50,7 +50,7 @@ impl EMerkleTreeNode {
 
     pub fn hash(&self) -> MerkleHash {
         match self {
-            EMerkleTreeNode::File(file) => file.hash,
+            EMerkleTreeNode::File(file) => file.hash(),
             EMerkleTreeNode::Directory(dir) => dir.hash(),
             EMerkleTreeNode::VNode(vnode) => vnode.hash(),
             EMerkleTreeNode::FileChunk(file_chunk) => file_chunk.hash,
@@ -58,10 +58,10 @@ impl EMerkleTreeNode {
         }
     }
 
-    pub fn metadata(&self) -> &Option<GenericMetadata> {
+    pub fn metadata(&self) -> Option<GenericMetadata> {
         match self {
-            EMerkleTreeNode::File(file) => &file.metadata,
-            _ => &None,
+            EMerkleTreeNode::File(file) => file.metadata(),
+            _ => None,
         }
     }
 

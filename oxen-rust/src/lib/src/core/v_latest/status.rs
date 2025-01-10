@@ -149,12 +149,12 @@ pub fn status_from_dir_entries(
                 EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
                     log::debug!("dir_entries file_node: {}", entry);
-                    let file_path = PathBuf::from(&node.name);
+                    let file_path = PathBuf::from(node.name());
                     if entry.status == StagedEntryStatus::Modified {
                         staged_data.modified_files.insert(file_path.clone());
                     }
                     let staged_entry = StagedEntry {
-                        hash: node.hash.to_string(),
+                        hash: node.hash().to_string(),
                         status: entry.status.clone(),
                     };
                     staged_data
@@ -240,9 +240,9 @@ fn find_moved_files(staged_data: &mut StagedData) -> Result<(), OxenError> {
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
-    if let Some(GenericMetadata::MetadataTabular(m)) = &node.metadata {
+    if let Some(GenericMetadata::MetadataTabular(m)) = &node.metadata() {
         let schema = m.tabular.schema.clone();
-        let path = PathBuf::from(&node.name);
+        let path = PathBuf::from(node.name());
         let staged_schema = StagedSchema {
             schema,
             status: StagedEntryStatus::Added,
@@ -281,7 +281,7 @@ pub fn read_staged_entries_below_path(
                 if !path.starts_with(&start_path) {
                     continue;
                 }
-                let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
+                let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value)?;
                 log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
                 let full_path = repo.path.join(path);
 
@@ -454,9 +454,9 @@ fn find_changes(
                 if let Some(node) = dir_node {
                     for child in CommitMerkleTree::node_files_and_folders(&node)? {
                         if let EMerkleTreeNode::File(file) = &child.node {
-                            let file_path = full_path.join(&file.name);
+                            let file_path = full_path.join(file.name());
                             if !file_path.exists() {
-                                removed.insert(relative_path.join(&file.name));
+                                removed.insert(relative_path.join(file.name()));
                             }
                         }
                     }
@@ -469,9 +469,9 @@ fn find_changes(
         if let Some(node) = dir_node {
             for child in CommitMerkleTree::node_files_and_folders(&node)? {
                 if let EMerkleTreeNode::File(file) = &child.node {
-                    let file_path = full_path.join(&file.name);
+                    let file_path = full_path.join(file.name());
                     if !file_path.exists() {
-                        removed.insert(relative_path.join(&file.name));
+                        removed.insert(relative_path.join(file.name()));
                     }
                 } else if let EMerkleTreeNode::Directory(dir) = &child.node {
                     let dir_path = full_path.join(dir.name());
@@ -628,8 +628,8 @@ fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<boo
 
     let (node_modified_seconds, node_modified_nanoseconds) = match &node.node {
         EMerkleTreeNode::File(file) => {
-            let node_modified_seconds = file.last_modified_seconds;
-            let node_modified_nanoseconds = file.last_modified_nanoseconds;
+            let node_modified_seconds = file.last_modified_seconds();
+            let node_modified_nanoseconds = file.last_modified_nanoseconds();
             (node_modified_seconds, node_modified_nanoseconds)
         }
         EMerkleTreeNode::Directory(dir) => {

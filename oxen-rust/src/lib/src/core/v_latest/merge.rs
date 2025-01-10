@@ -423,7 +423,7 @@ fn r_ff_merge_commit(
     let path = path.as_ref();
     match &merge_node.node {
         EMerkleTreeNode::File(merge_file_node) => {
-            let file_path = path.join(&merge_file_node.name);
+            let file_path = path.join(merge_file_node.name());
             log::debug!("r_ff_merge_commit file_path {:?}", file_path);
             log::debug!("merge_node {}", merge_node);
             log::debug!("merge_file_node {}", merge_file_node);
@@ -475,7 +475,7 @@ fn r_ff_base_dir(
     let path = path.as_ref();
     match &base_node.node {
         EMerkleTreeNode::File(base_file_node) => {
-            let file_path = path.join(&base_file_node.name);
+            let file_path = path.join(base_file_node.name());
             log::debug!("r_ff_base_dir file_path {:?}", file_path);
 
             // Remove all entries that are in HEAD but not in merge entries
@@ -761,8 +761,8 @@ pub fn find_merge_conflicts(
                 //     lca_entry.hash,
                 //     merge_entry.hash
                 // );
-                if base_file_node.hash == lca_file_node.hash
-                    && base_file_node.hash != merge_entry.0.hash
+                if base_file_node.hash() == lca_file_node.hash()
+                    && base_file_node.hash() != merge_entry.0.hash()
                     && write_to_disk
                 {
                     log::debug!("top update entry");
@@ -770,9 +770,9 @@ pub fn find_merge_conflicts(
                 }
 
                 // If all three are different, mark as conflict
-                if base_file_node.hash != lca_file_node.hash
-                    && lca_file_node.hash != merge_entry.0.hash
-                    && base_file_node.hash != merge_entry.0.hash
+                if base_file_node.hash() != lca_file_node.hash()
+                    && lca_file_node.hash() != merge_entry.0.hash()
+                    && base_file_node.hash() != merge_entry.0.hash()
                 {
                     conflicts.push(NodeMergeConflict {
                         lca_entry: lca_entry.to_owned(),
@@ -782,7 +782,7 @@ pub fn find_merge_conflicts(
                 }
             } else {
                 // merge entry doesn't exist in LCA, so just check if it's different from base
-                if base_file_node.hash != merge_entry.0.hash {
+                if base_file_node.hash() != merge_entry.0.hash() {
                     conflicts.push(NodeMergeConflict {
                         lca_entry: base_entry.to_owned(),
                         base_entry: base_entry.to_owned(),

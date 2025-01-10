@@ -234,10 +234,10 @@ impl DiffEntry {
         let file_path = file_path.as_ref().to_path_buf();
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, data_type) = if let Some(entry) = &head_entry {
-            (entry.clone(), entry.data_type.clone())
+            (entry.clone(), entry.data_type())
         } else {
             let base_entry = base_entry.clone().unwrap();
-            (base_entry.clone(), base_entry.data_type.clone())
+            (base_entry.clone(), base_entry.data_type())
         };
         let base_version = base_commit.id.to_string();
         let head_version = head_commit.id.to_string();
@@ -277,7 +277,7 @@ impl DiffEntry {
                     data_type: data_type.clone(),
                     filename: file_path.as_os_str().to_str().unwrap().to_string(),
                     is_dir: false,
-                    size: current_entry.num_bytes,
+                    size: current_entry.num_bytes(),
                     head_resource,
                     base_resource,
                     head_entry: head_meta_entry,
@@ -296,7 +296,7 @@ impl DiffEntry {
             data_type: data_type.clone(),
             filename: file_path.as_os_str().to_str().unwrap().to_string(),
             is_dir: false,
-            size: current_entry.num_bytes,
+            size: current_entry.num_bytes(),
             head_resource,
             base_resource,
             head_entry: head_meta_entry,

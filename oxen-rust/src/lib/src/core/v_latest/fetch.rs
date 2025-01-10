@@ -261,12 +261,12 @@ fn collect_missing_entries_for_subtree(
     let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(tree)?;
     for file in files {
         missing_entries.insert(Entry::CommitEntry(CommitEntry {
-            commit_id: file.file_node.last_commit_id.to_string(),
-            path: file.dir.join(&file.file_node.name),
-            hash: file.file_node.hash.to_string(),
-            num_bytes: file.file_node.num_bytes,
-            last_modified_seconds: file.file_node.last_modified_seconds,
-            last_modified_nanoseconds: file.file_node.last_modified_nanoseconds,
+            commit_id: file.file_node.last_commit_id().to_string(),
+            path: file.dir.join(file.file_node.name()),
+            hash: file.file_node.hash().to_string(),
+            num_bytes: file.file_node.num_bytes(),
+            last_modified_seconds: file.file_node.last_modified_seconds(),
+            last_modified_nanoseconds: file.file_node.last_modified_nanoseconds(),
         }));
     }
     Ok(())
@@ -447,12 +447,12 @@ async fn r_download_entries(
                 }
 
                 missing_entries.push(Entry::CommitEntry(CommitEntry {
-                    commit_id: file_node.last_commit_id.to_string(),
-                    path: directory.join(&file_node.name),
+                    commit_id: file_node.last_commit_id().to_string(),
+                    path: directory.join(file_node.name()),
                     hash: child.hash.to_string(),
-                    num_bytes: file_node.num_bytes,
-                    last_modified_seconds: file_node.last_modified_seconds,
-                    last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+                    num_bytes: file_node.num_bytes(),
+                    last_modified_seconds: file_node.last_modified_seconds(),
+                    last_modified_nanoseconds: file_node.last_modified_nanoseconds(),
                 }));
             }
         }

@@ -58,8 +58,8 @@ fn r_list_schemas(
                 r_list_schemas(_repo, child, child_path, schemas)?;
             }
             EMerkleTreeNode::File(file_node) => {
-                if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata {
-                    let child_path = current_path.as_ref().join(&file_node.name);
+                if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata() {
+                    let child_path = current_path.as_ref().join(file_node.name());
                     schemas.insert(child_path, metadata.tabular.schema.clone());
                 }
             }
@@ -80,7 +80,7 @@ pub fn get_by_path(
         return Err(OxenError::path_does_not_exist(path));
     };
 
-    let Some(GenericMetadata::MetadataTabular(metadata)) = &node.metadata else {
+    let Some(GenericMetadata::MetadataTabular(metadata)) = &node.metadata() else {
         return Err(OxenError::path_does_not_exist(path));
     };
 
@@ -149,15 +149,15 @@ pub fn restore_schema(
 
     let data = db.get(key.as_bytes())?;
 
-    let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
-        rmp_serde::from_slice(data.unwrap().as_slice());
-
-    let mut file_node = val.unwrap().node.file()?;
-    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata {
-        file_node.metadata = Some(GenericMetadata::MetadataTabular(MetadataTabular::new(
-            tabular_metadata.tabular.width,
-            tabular_metadata.tabular.height,
-            staged_schema,
+    let val: StagedMerkleTreeNode = rmp_serde::from_slice(data.unwrap().as_slice())?;
+    let mut file_node = val.node.file()?;
+    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata() {
+        file_node.set_metadata(Some(GenericMetadata::MetadataTabular(
+            MetadataTabular::new(
+                tabular_metadata.tabular.width,
+                tabular_metadata.tabular.height,
+                staged_schema,
+            ),
         )));
     } else {
         return Err(OxenError::basic_str("Expected tabular metadata"));
@@ -204,26 +204,20 @@ pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, O
 }
 
 fn db_val_to_schema(data: &[u8]) -> Result<Schema, OxenError> {
-    let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> = rmp_serde::from_slice(data);
-    match val {
-        Ok(val) => match &val.node.node {
-            EMerkleTreeNode::File(file_node) => match &file_node.metadata {
-                Some(GenericMetadata::MetadataTabular(m)) => {
-                    return Ok(m.tabular.schema.to_owned());
-                }
-                _ => {
-                    log::error!("File node metadata must be tabular.");
-                }
-            },
+    let val: StagedMerkleTreeNode = rmp_serde::from_slice(data)?;
+    match &val.node.node {
+        EMerkleTreeNode::File(file_node) => match &file_node.metadata() {
+            Some(GenericMetadata::MetadataTabular(m)) => Ok(m.tabular.schema.to_owned()),
             _ => {
-                log::error!("Merkle tree node type must be file.");
+                log::error!("File node metadata must be tabular.");
+                Err(OxenError::basic_str("File node metadata must be tabular."))
             }
         },
-        Err(err) => {
-            log::error!("Error deserializing tabular metadata: {:?}", err);
+        _ => {
+            log::error!("Merkle tree node type must be file.");
+            Err(OxenError::basic_str("Merkle tree node type must be file."))
         }
     }
-    Err(OxenError::basic_str("Cannot get schema"))
 }
 
 /// Remove a schema override from the staging area, TODO: Currently undefined behavior for non-staged schemas
@@ -256,8 +250,7 @@ pub fn add_schema_metadata(
 
     let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
         let staged_merkle_tree_node: StagedMerkleTreeNode =
-            rmp_serde::from_slice(&staged_merkle_tree_node)
-                .map_err(|_| OxenError::basic_str("Could not read staged merkle tree node"))?;
+            rmp_serde::from_slice(&staged_merkle_tree_node)?;
         staged_merkle_tree_node.node.file()?
     } else {
         // Get the FileNode from the CommitMerkleTree
@@ -294,7 +287,7 @@ pub fn add_schema_metadata(
     };
 
     // Update the metadata
-    match &mut file_node.metadata {
+    match file_node.get_mut_metadata() {
         Some(GenericMetadata::MetadataTabular(m)) => {
             m.tabular.schema.metadata = Some(metadata.to_owned());
         }
@@ -318,16 +311,16 @@ pub fn add_schema_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    let oxen_metadata = &file_node.metadata;
+    let oxen_metadata = &file_node.metadata();
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
-        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
+        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash().to_u128())?;
 
     let mut file_node = staged_entry.node.file()?;
 
-    file_node.name = path.to_str().unwrap().to_string();
-    file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
-    file_node.combined_hash = MerkleHash::new(combined_hash);
+    file_node.set_name(path.to_str().unwrap());
+    file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
+    file_node.set_combined_hash(MerkleHash::new(combined_hash));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 
@@ -358,8 +351,7 @@ pub fn add_column_metadata(
 
     let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
         let staged_merkle_tree_node: StagedMerkleTreeNode =
-            rmp_serde::from_slice(&staged_merkle_tree_node)
-                .map_err(|_| OxenError::basic_str("Could not read staged merkle tree node"))?;
+            rmp_serde::from_slice(&staged_merkle_tree_node)?;
         staged_merkle_tree_node.node.file()?
     } else {
         // Get the FileNode from the CommitMerkleTree
@@ -398,7 +390,7 @@ pub fn add_column_metadata(
 
     // Update the column metadata
     let mut results = HashMap::new();
-    match &mut file_node.metadata {
+    match file_node.get_mut_metadata() {
         Some(GenericMetadata::MetadataTabular(m)) => {
             log::debug!("add_column_metadata: {m:?}");
             for f in m.tabular.schema.fields.iter_mut() {
@@ -430,16 +422,16 @@ pub fn add_column_metadata(
         db.put(key.as_bytes(), &buf)?;
     }
 
-    let oxen_metadata = &file_node.metadata;
+    let oxen_metadata = &file_node.metadata();
     let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
     let combined_hash =
-        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash.to_u128())?;
+        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash().to_u128())?;
 
     let mut file_node = staged_entry.node.file()?;
 
-    file_node.name = path.to_str().unwrap().to_string();
-    file_node.combined_hash = MerkleHash::new(combined_hash);
-    file_node.metadata_hash = Some(MerkleHash::new(oxen_metadata_hash));
+    file_node.set_name(path.to_str().unwrap());
+    file_node.set_combined_hash(MerkleHash::new(combined_hash));
+    file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 

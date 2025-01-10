@@ -45,7 +45,8 @@ pub fn is_queryable_data_frame_indexed_from_file_node(
     file_node: &FileNode,
     path: &Path,
 ) -> Result<bool, OxenError> {
-    match get_queryable_data_frame_workspace_from_file_node(repo, &file_node.last_commit_id, path) {
+    match get_queryable_data_frame_workspace_from_file_node(repo, &file_node.last_commit_id(), path)
+    {
         Ok(_workspace) => Ok(true),
         Err(e) => match e {
             OxenError::QueryableWorkspaceNotFound() => Ok(false),
@@ -91,7 +92,7 @@ pub fn get_queryable_data_frame_workspace(
     log::debug!("get_queryable_data_frame_workspace path: {:?}", path);
     let file_node = repositories::tree::get_file_by_path(repo, commit, path)?
         .ok_or(OxenError::path_does_not_exist(path))?;
-    if file_node.data_type != EntryDataType::Tabular {
+    if file_node.data_type() != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
@@ -108,7 +109,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     let file_node =
         repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, path)?
             .ok_or(OxenError::path_does_not_exist(path))?;
-    if file_node.data_type != EntryDataType::Tabular {
+    if file_node.data_type() != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
@@ -160,13 +161,13 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     );
 
     let extension = match &commit_merkle_tree.root.node {
-        EMerkleTreeNode::File(file_node) => file_node.extension.clone(),
+        EMerkleTreeNode::File(file_node) => file_node.extension(),
         _ => {
             return Err(OxenError::basic_str("File node is not a file node"));
         }
     };
 
-    df_db::index_file_with_id(&version_path, &conn, &extension)?;
+    df_db::index_file_with_id(&version_path, &conn, extension)?;
     log::debug!(
         "core::v_latest::index::workspaces::data_frames::index({:?}) finished!",
         path
@@ -222,10 +223,9 @@ pub fn rename(
         )?;
     }
     let mut new_staged_entry: StagedMerkleTreeNode =
-        rmp_serde::from_slice(&staged_entry.ok_or(OxenError::basic_str("path not found"))?)
-            .unwrap();
+        rmp_serde::from_slice(&staged_entry.ok_or(OxenError::basic_str("path not found"))?)?;
     if let EMerkleTreeNode::File(file) = &mut new_staged_entry.node.node {
-        file.name = new_path.to_str().unwrap().to_string();
+        file.set_name(new_path.to_str().unwrap());
     }
 
     let mut buf = Vec::new();
@@ -278,7 +278,7 @@ pub fn extract_file_node_to_working_dir(
         file_node
     );
     let workspace_repo = &workspace.workspace_repo;
-    let path = PathBuf::from(file_node.name.clone());
+    let path = PathBuf::from(file_node.name());
 
     let working_path = workspace_repo.path.join(&path);
     log::debug!("extracting file node to working dir: {:?}", working_path);

@@ -219,12 +219,12 @@ pub fn restore_file(
     file_node: &FileNode,
     path: &PathBuf,
 ) -> Result<(), OxenError> {
-    log::debug!("restore::restore_regular: start for {:?}", file_node.name);
+    log::debug!("restore::restore_regular: start for {:?}", file_node.name());
     log::debug!("restore::restore_regular: got entry resource");
 
-    let file_hash = file_node.hash;
-    let last_modified_seconds = file_node.last_modified_seconds;
-    let last_modified_nanoseconds = file_node.last_modified_nanoseconds;
+    let file_hash = file_node.hash();
+    let last_modified_seconds = file_node.last_modified_seconds();
+    let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
     log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);

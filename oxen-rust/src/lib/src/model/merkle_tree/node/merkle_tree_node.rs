@@ -116,7 +116,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode
     pub fn from_file(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash,
+            hash: file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -126,7 +126,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode with the path relative to the repo
     pub fn from_file_relative_to_repo(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash,
+            hash: file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -150,7 +150,7 @@ impl MerkleTreeNode {
         // From DEF of file_node, file_name.name == file_path to this file
         // e.g., the file 'happy' in the folder 'sad' is called 'sad//happy'
         if let EMerkleTreeNode::File(file_node) = &self.node {
-            return Ok(PathBuf::from(file_node.name.clone()));
+            return Ok(PathBuf::from(file_node.name()));
         }
         Err(OxenError::basic_str(format!(
             "MerkleTreeNode::maybe_path called on non-file or non-dir node: {:?}",
@@ -279,7 +279,7 @@ impl MerkleTreeNode {
 
         if let EMerkleTreeNode::File(_) = &self.node {
             let file_node = self.file()?;
-            let file_path = traversed_path.join(file_node.name);
+            let file_path = traversed_path.join(file_node.name());
             // log::debug!(
             //     "get_by_path_helper {} is file! [{:?}] {:?} {:?}",
             //     self,
@@ -319,7 +319,7 @@ impl MerkleTreeNode {
                 // );
                 let child_name = match &child.node {
                     EMerkleTreeNode::Directory(dir) => Some(dir.name()),
-                    EMerkleTreeNode::File(file) => Some(file.name.as_str()),
+                    EMerkleTreeNode::File(file) => Some(file.name()),
                     _ => None,
                 };
                 // log::debug!(
@@ -344,8 +344,8 @@ impl MerkleTreeNode {
                         //     self,
                         //     dir_node
                         // );
-                        if let Some(node) = child
-                            .get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
+                        if let Some(node) =
+                            child.get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
                         {
                             return Ok(Some(node));
                         }
@@ -407,7 +407,7 @@ impl MerkleTreeNode {
             MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash()),
             MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash()),
             MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash()),
-            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),
+            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash()),
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
             }
@@ -513,7 +513,7 @@ impl MerkleTreeNode {
 
         if let EMerkleTreeNode::File(_) = &self.node {
             let file_node = self.file()?;
-            let file_path = traversed_path.join(file_node.clone().name);
+            let file_path = traversed_path.join(file_node.name());
             if &file_path == path_components.last().unwrap() {
                 traversed_nodes.push(self.clone()); // Add the current node to the traversed nodes
                 return Ok((Some(self.clone()), traversed_nodes));
@@ -536,7 +536,7 @@ impl MerkleTreeNode {
             if let Ok(index) = self.children.binary_search_by(|child| {
                 let child_name = match &child.node {
                     EMerkleTreeNode::Directory(dir) => Some(dir.name().to_owned()),
-                    EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
+                    EMerkleTreeNode::File(file) => Some(file.name().to_owned()),
                     _ => None,
                 };
                 child_name.unwrap_or("".to_string()).cmp(&target_name)

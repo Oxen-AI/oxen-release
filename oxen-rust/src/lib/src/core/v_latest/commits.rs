@@ -391,7 +391,7 @@ pub fn search_entries(
         .ok_or(OxenError::basic_str("Root not found"))?;
     let (files, _) = repositories::tree::list_files_and_dirs(&tree)?;
     for file in files {
-        let path = file.dir.join(file.file_node.name);
+        let path = file.dir.join(file.file_node.name());
         if pattern.matches_path(&path) {
             results.insert(path);
         }
@@ -411,7 +411,7 @@ pub fn list_by_path_from_paginated(
         OxenError::basic_str(format!("Merkle tree node not found for path: {:?}", path)),
     )?;
     let last_commit_id = match &node.node {
-        EMerkleTreeNode::File(file_node) => file_node.last_commit_id,
+        EMerkleTreeNode::File(file_node) => file_node.last_commit_id(),
         EMerkleTreeNode::Directory(dir_node) => dir_node.last_commit_id(),
         _ => {
             return Err(OxenError::basic_str(format!(

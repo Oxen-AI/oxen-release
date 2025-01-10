@@ -42,7 +42,7 @@ pub fn get_file(
     path: impl AsRef<Path>,
 ) -> Result<Option<FileNode>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_file(repo, commit, path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 is no longer supported"),
         MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
         _ => core::v_latest::entries::get_file(repo, commit, path),
     }
@@ -155,10 +155,10 @@ pub fn get_commit_entry(
                 let entry = CommitEntry {
                     commit_id: commit.id.clone(),
                     path: path.to_path_buf(),
-                    hash: file.hash.to_string(),
-                    num_bytes: file.num_bytes,
-                    last_modified_seconds: file.last_modified_seconds,
-                    last_modified_nanoseconds: file.last_modified_nanoseconds,
+                    hash: file.hash().to_string(),
+                    num_bytes: file.num_bytes(),
+                    last_modified_seconds: file.last_modified_seconds(),
+                    last_modified_nanoseconds: file.last_modified_nanoseconds(),
                 };
                 Ok(Some(entry))
             }

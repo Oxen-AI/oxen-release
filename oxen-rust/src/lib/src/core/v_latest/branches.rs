@@ -273,7 +273,7 @@ fn r_remove_if_not_in_target(
     );
     match &head_node.node {
         EMerkleTreeNode::File(file_node) => {
-            let file_path = current_path.join(&file_node.name);
+            let file_path = current_path.join(file_node.name());
             log::debug!(
                 "r_remove_if_not_in_target looking up file_path {:?} from current_path {:?}",
                 file_path,
@@ -371,7 +371,7 @@ fn r_restore_missing_or_modified_files(
 
     match &node.node {
         EMerkleTreeNode::File(file_node) => {
-            let rel_path = path.join(&file_node.name);
+            let rel_path = path.join(file_node.name());
             let full_path = repo.path.join(&rel_path);
             if !full_path.exists() {
                 // File doesn't exist, restore it
@@ -381,7 +381,7 @@ fn r_restore_missing_or_modified_files(
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
-                if current_hash != file_node.hash.to_string() {
+                if current_hash != file_node.hash().to_string() {
                     log::debug!("Updating modified file: {:?}", rel_path);
                     restore_file(repo, file_node, &full_path)?;
                     progress.increment_modified();
@@ -431,11 +431,11 @@ pub fn restore_file(
     file_node: &FileNode,
     dst_path: &Path, // absolute path
 ) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, file_node.hash.to_string());
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
     if !version_path.exists() {
         return Err(OxenError::basic_str(format!(
             "Restoring file, source file {} not found in versions directory: {:?} when restoring to {:?}",
-            file_node.name,
+            file_node.name(),
             version_path,
             dst_path
         )));
@@ -449,8 +449,8 @@ pub fn restore_file(
 
     util::fs::copy(version_path, dst_path)?;
 
-    let last_modified_seconds = file_node.last_modified_seconds;
-    let last_modified_nanoseconds = file_node.last_modified_nanoseconds;
+    let last_modified_seconds = file_node.last_modified_seconds();
+    let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
     let last_modified = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
         + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);

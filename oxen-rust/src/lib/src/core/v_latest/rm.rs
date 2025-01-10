@@ -230,10 +230,7 @@ fn get_staged_entry(
     let Some(value) = staged_db.get(path_str)? else {
         return Ok(None);
     };
-
-    let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
-
-    Ok(Some(entry))
+    Ok(Some(rmp_serde::from_slice(&value)?))
 }
 
 fn remove_staged_entry(
@@ -267,11 +264,11 @@ fn remove_file_inner(
     match process_remove_file_and_parents(repo, &path, staged_db, file_node) {
         Ok(Some(node)) => {
             if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                total.total_bytes += file_node.num_bytes;
+                total.total_bytes += file_node.num_bytes();
                 total.total_files += 1;
                 total
                     .data_type_counts
-                    .entry(file_node.data_type.clone())
+                    .entry(file_node.data_type())
                     .and_modify(|count| *count += 1)
                     .or_insert(1);
             }
@@ -310,7 +307,7 @@ fn process_remove_file_and_parents(
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let repo_path = repo.path.clone();
     let mut update_node = file_node.clone();
-    update_node.name = path.to_string_lossy().to_string();
+    update_node.set_name(path.to_string_lossy().to_string().as_str());
     log::debug!("Update node is: {update_node:?}");
     let node = MerkleTreeNode::from_file(update_node);
 
@@ -456,7 +453,7 @@ pub fn process_remove_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let mut update_node = file_node.clone();
-    update_node.name = path.to_string_lossy().to_string();
+    update_node.set_name(path.to_string_lossy());
 
     let node = MerkleTreeNode::from_file(update_node);
 
@@ -600,17 +597,17 @@ fn r_process_remove_dir(
             EMerkleTreeNode::File(file_node) => {
                 log::debug!("Recursive process_remove_dir found file: {file_node}");
                 // Add the relative path of the dir to the path
-                let new_path = path.join(&file_node.name);
+                let new_path = path.join(file_node.name());
 
                 // Remove the file node and add its stats to the totals
                 match process_remove_file(&new_path, file_node, staged_db) {
                     Ok(Some(node)) => {
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            total.total_bytes += file_node.num_bytes;
+                            total.total_bytes += file_node.num_bytes();
                             total.total_files += 1;
                             total
                                 .data_type_counts
-                                .entry(file_node.data_type.clone())
+                                .entry(file_node.data_type())
                                 .and_modify(|count| *count += 1)
                                 .or_insert(1);
                         }

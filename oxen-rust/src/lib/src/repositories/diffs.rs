@@ -138,7 +138,7 @@ pub fn diff(
             })?,
         );
 
-        let hash = file_node.hash.to_string();
+        let hash = file_node.hash().to_string();
 
         let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
         // log::debug!("committed file: {:?}", committed_file);
@@ -247,12 +247,12 @@ pub fn diff_tabular_file_nodes(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<DiffResult, OxenError> {
-    let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash.to_string());
-    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash.to_string());
+    let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
+    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
     let df_1 =
-        tabular::read_df_with_extension(version_path_1, &file_1.extension, &DFOpts::empty())?;
+        tabular::read_df_with_extension(version_path_1, file_1.extension(), &DFOpts::empty())?;
     let df_2 =
-        tabular::read_df_with_extension(version_path_2, &file_2.extension, &DFOpts::empty())?;
+        tabular::read_df_with_extension(version_path_2, file_2.extension(), &DFOpts::empty())?;
 
     let schema_1 = Schema::from_polars(&df_1.schema());
     let schema_2 = Schema::from_polars(&df_2.schema());

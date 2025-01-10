@@ -7,6 +7,7 @@ use crate::core::db;
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::merkle_tree::node::{
     EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
 };
@@ -121,17 +122,17 @@ fn export_tabular_data_frames(
                 EMerkleTreeNode::File(file_node) => {
                     // TODO: This is hacky - because we don't know if a file node is the full path or relative to the dir_path
                     // need a better way to distinguish
-                    let mut node_path = PathBuf::from(file_node.name.clone());
+                    let mut node_path = PathBuf::from(file_node.name());
                     if !node_path.starts_with(&dir_path)
                         || (dir_path == PathBuf::from("") && node_path.components().count() == 1)
                     {
                         node_path = dir_path.join(node_path);
                     }
-                    if file_node.data_type == EntryDataType::Tabular {
+                    if file_node.data_type() == EntryDataType::Tabular {
                         log::debug!(
                             "Exporting tabular data frame: {:?} -> {:?}",
                             node_path,
-                            file_node.name
+                            file_node.name()
                         );
                         let exported_path = if repositories::workspaces::data_frames::is_indexed(
                             workspace, &node_path,
@@ -229,20 +230,19 @@ fn compute_staged_merkle_tree_node(
     util::fs::copy(path, &dst).unwrap();
     let file_extension = path.extension().unwrap_or_default().to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
-    let file_node = FileNode {
-        hash,
-        metadata_hash: Some(MerkleHash::new(metadata_hash)),
-        combined_hash,
+    let file_node = FileNode::new(FileNodeOpts {
         name: relative_path_str.to_string(),
-        data_type,
+        hash,
+        combined_hash,
+        metadata_hash: Some(MerkleHash::new(metadata_hash)),
         num_bytes,
         last_modified_seconds: mtime.unix_seconds(),
         last_modified_nanoseconds: mtime.nanoseconds(),
+        data_type,
         metadata,
-        extension: file_extension.to_string(),
         mime_type: mime_type.clone(),
-        ..Default::default()
-    };
+        extension: file_extension.to_string(),
+    });
 
     Ok(StagedMerkleTreeNode {
         status,

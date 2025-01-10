@@ -532,8 +532,8 @@ fn node_data_to_staged_node(
         }
         MerkleTreeNodeType::File => {
             let mut file_node = node.file()?;
-            let path = base_dir.join(file_node.name);
-            file_node.name = path.to_str().unwrap().to_string();
+            let path = base_dir.join(file_node.name());
+            file_node.set_name(path.to_str().unwrap());
             Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
                 node: MerkleTreeNode::from_file(file_node),
@@ -693,7 +693,7 @@ fn split_into_vnodes(
             let mut has_new_entries = false;
             for entry in vnode.entries.iter() {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
-                    vnode_hasher.update(&file_node.combined_hash.to_le_bytes());
+                    vnode_hasher.update(&file_node.combined_hash().to_le_bytes());
                 } else {
                     vnode_hasher.update(&entry.node.hash.to_le_bytes());
                 }
@@ -925,7 +925,7 @@ fn r_create_dir_node(
                 }
                 EMerkleTreeNode::File(file_node) => {
                     let mut file_node = file_node.clone();
-                    let file_path = PathBuf::from(&file_node.name);
+                    let file_path = PathBuf::from(&file_node.name());
                     let file_name = file_path.file_name().unwrap().to_str().unwrap();
 
                     // log::debug!(
@@ -936,14 +936,15 @@ fn r_create_dir_node(
                     // );
 
                     // Just single file chunk for now
-                    let chunks = vec![file_node.hash.to_u128()];
-                    file_node.chunk_hashes = chunks;
-                    file_node.last_commit_id = if entry.status == StagedEntryStatus::Unmodified {
-                        file_node.last_commit_id
+                    let chunks = vec![file_node.hash().to_u128()];
+                    file_node.set_chunk_hashes(chunks);
+                    let last_commit_id = if entry.status == StagedEntryStatus::Unmodified {
+                        file_node.last_commit_id()
                     } else {
                         commit_id
                     };
-                    file_node.name = file_name.to_string();
+                    file_node.set_last_commit_id(last_commit_id);
+                    file_node.set_name(file_name);
 
                     // if let Some(vnode_db) = &mut maybe_vnode_db {
                     // log::debug!(
@@ -1044,30 +1045,30 @@ fn compute_dir_node(
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
                             "Updating hash for file {} -> hash {}",
-                            file_node.name,
-                            file_node.hash
+                            file_node.name(),
+                            file_node.hash()
                         );
-                        hasher.update(file_node.name.as_bytes());
-                        hasher.update(&file_node.combined_hash.to_le_bytes());
+                        hasher.update(file_node.name().as_bytes());
+                        hasher.update(&file_node.combined_hash().to_le_bytes());
 
                         match entry.status {
                             StagedEntryStatus::Added => {
-                                num_bytes += file_node.num_bytes;
+                                num_bytes += file_node.num_bytes();
                                 *data_type_counts
-                                    .entry(file_node.data_type.to_string())
+                                    .entry(file_node.data_type().to_string())
                                     .or_insert(0) += 1;
                                 *data_type_sizes
-                                    .entry(file_node.data_type.to_string())
-                                    .or_insert(0) += file_node.num_bytes;
+                                    .entry(file_node.data_type().to_string())
+                                    .or_insert(0) += file_node.num_bytes();
                             }
                             StagedEntryStatus::Removed => {
-                                num_bytes -= file_node.num_bytes;
+                                num_bytes -= file_node.num_bytes();
                                 *data_type_counts
-                                    .entry(file_node.data_type.to_string())
+                                    .entry(file_node.data_type().to_string())
                                     .or_insert(1) -= 1;
                                 *data_type_sizes
-                                    .entry(file_node.data_type.to_string())
-                                    .or_insert(0) -= file_node.num_bytes;
+                                    .entry(file_node.data_type().to_string())
+                                    .or_insert(0) -= file_node.num_bytes();
                             }
                             _ => {
                                 // Do nothing
@@ -1425,14 +1426,14 @@ mod tests {
             let updated_node = second_tree.get_by_path(Path::new("files/dir_1/new_file.txt"))?;
             assert!(updated_node.is_some());
             let updated_file_node = updated_node.unwrap().file()?;
-            let updated_commit_id = updated_file_node.last_commit_id.to_string();
+            let updated_commit_id = updated_file_node.last_commit_id().to_string();
             assert_eq!(updated_commit_id, second_commit.id);
 
             // Make sure that last commit id is not updated on other files in the dir
             let other_file_node = second_tree.get_by_path(Path::new("files/dir_1/file7.txt"))?;
             assert!(other_file_node.is_some());
             let other_file_node = other_file_node.unwrap().file()?;
-            let other_commit_id = other_file_node.last_commit_id.to_string();
+            let other_commit_id = other_file_node.last_commit_id().to_string();
             assert_eq!(other_commit_id, first_commit.id);
 
             // Make sure last commit is updated on the dir
