@@ -1363,11 +1363,11 @@ pub fn path_relative_to_dir(
     // -- if the dir cannot be canonicalized, neither will be
     let (path, dir) = match canonicalize(&dir) {
         Ok(canon_dir) => {
-            /* log::debug!(
+            log::debug!(
               "dir {:?} canonicalized. Checking path {:?}",
                 dir.as_ref(),
                 path.as_ref()
-            );*/ 
+            ); 
             match canonicalize(&path) {
                 Ok(canon_path) => (canon_path, canon_dir),
                 Err(err) => {
@@ -1391,12 +1391,12 @@ pub fn path_relative_to_dir(
     let mut mut_path = path.clone();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        log::debug!(
+        /*log::debug!(
             "Comparing {:?} => {:?} => {:?}",
             path,
             mut_path.parent(),
             dir
-        );
+        );*/
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));
