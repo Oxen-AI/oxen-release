@@ -607,7 +607,7 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use crate::core::v0_19_0::index::CommitMerkleTree;
+    use crate::core::v_old::v0_19_0::index::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::MerkleTreeNodeType;

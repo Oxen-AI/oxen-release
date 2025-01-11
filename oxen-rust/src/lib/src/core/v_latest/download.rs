@@ -98,7 +98,7 @@ async fn r_download_entries(
             }
 
             log::debug!("downloading {} entries to working dir", entries.len());
-            core::v0_10_0::index::puller::pull_entries_to_working_dir(
+            core::v_latest::fetch::pull_entries_to_working_dir(
                 remote_repo,
                 &entries,
                 local_repo_path,

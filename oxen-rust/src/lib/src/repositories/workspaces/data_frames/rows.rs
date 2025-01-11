@@ -30,11 +30,7 @@ pub fn add(
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::add(
-            workspace,
-            file_path.as_ref(),
-            data,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             core::v_latest::workspaces::data_frames::rows::add(workspace, file_path.as_ref(), data)
         }
@@ -60,12 +56,7 @@ pub fn update(
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::update(
-            workspace,
-            path.as_ref(),
-            row_id,
-            data,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::workspaces::data_frames::rows::update(
             workspace,
             path.as_ref(),
@@ -82,13 +73,7 @@ pub fn batch_update(
     data: &serde_json::Value,
 ) -> Result<Vec<UpdateResult>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::data_frames::rows::batch_update(
-                workspace,
-                path.as_ref(),
-                data,
-            )
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::workspaces::data_frames::rows::batch_update(
             workspace,
             path.as_ref(),
@@ -104,11 +89,7 @@ pub fn delete(
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::delete(
-            workspace,
-            path.as_ref(),
-            row_id,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             core::v_latest::workspaces::data_frames::rows::delete(workspace, path.as_ref(), row_id)
         }
@@ -122,12 +103,7 @@ pub fn restore(
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::restore(
-            repo,
-            workspace,
-            path.as_ref(),
-            row_id,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             core::v_latest::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id)
         }

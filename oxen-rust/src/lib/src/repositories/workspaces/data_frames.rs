@@ -51,11 +51,7 @@ pub fn is_queryable_data_frame_indexed(
     commit: &Commit,
 ) -> Result<bool, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, commit, path,
-            )
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::workspaces::data_frames::is_queryable_data_frame_indexed(
             repo, commit, path,
         ),
@@ -83,9 +79,7 @@ pub fn index(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::data_frames::index(workspace, path.as_ref())
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::workspaces::data_frames::index(workspace, path.as_ref()),
     }
 }

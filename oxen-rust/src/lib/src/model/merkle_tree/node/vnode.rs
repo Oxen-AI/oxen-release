@@ -5,9 +5,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::core::v0_10_0::model::merkle_tree::node::vnode::VNodeData as VNodeImplV0_10_0;
-use crate::core::v0_19_0::model::merkle_tree::node::vnode::VNodeData as VNodeImplV0_19_0;
 use crate::core::v_latest::model::merkle_tree::node::vnode::VNodeData as VNodeImplV0_25_0;
+use crate::core::v_old::v0_19_0::model::merkle_tree::node::vnode::VNodeData as VNodeImplV0_19_0;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{
@@ -20,7 +19,6 @@ use crate::model::{
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum VNode {
-    V0_10_0(VNodeImplV0_10_0),
     V0_19_0(VNodeImplV0_19_0),
     V0_25_0(VNodeImplV0_25_0),
 }
@@ -32,7 +30,6 @@ impl VNode {
         num_entries: u64,
     ) -> Result<VNode, OxenError> {
         match repo.min_version() {
-            MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("VNode not supported in v0.10.0")),
             MinOxenVersion::V0_19_0 => Ok(VNode::V0_19_0(VNodeImplV0_19_0 {
                 hash,
                 node_type: MerkleTreeNodeType::VNode,
@@ -42,6 +39,7 @@ impl VNode {
                 node_type: MerkleTreeNodeType::VNode,
                 num_entries,
             })),
+            _ => Err(OxenError::basic_str("VNode not supported in this version")),
         }
     }
 
@@ -61,7 +59,6 @@ impl VNode {
 
     pub fn hash(&self) -> MerkleHash {
         match self {
-            VNode::V0_10_0(vnode) => vnode.hash,
             VNode::V0_19_0(vnode) => vnode.hash,
             VNode::V0_25_0(vnode) => vnode.hash,
         }
@@ -88,7 +85,6 @@ impl Default for VNode {
 impl MerkleTreeNodeIdType for VNode {
     fn node_type(&self) -> MerkleTreeNodeType {
         match self {
-            VNode::V0_10_0(vnode) => vnode.node_type,
             VNode::V0_19_0(vnode) => vnode.node_type,
             VNode::V0_25_0(vnode) => vnode.node_type,
         }

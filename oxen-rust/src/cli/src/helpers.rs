@@ -1,7 +1,5 @@
 use liboxen::api;
-use liboxen::command::migrate::CreateMerkleTreesMigration;
 use liboxen::command::migrate::Migrate;
-use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::AuthConfig;
 use liboxen::constants;
 use liboxen::error::OxenError;
@@ -76,8 +74,8 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
 
 pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
     let migrations: Vec<Box<dyn Migrate>> = vec![
-        Box::new(UpdateVersionFilesMigration),
-        Box::new(CreateMerkleTreesMigration),
+        // Box::new(UpdateVersionFilesMigration),
+        // Box::new(CreateMerkleTreesMigration),
     ];
 
     let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();

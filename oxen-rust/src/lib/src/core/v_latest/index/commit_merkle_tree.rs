@@ -454,14 +454,14 @@ impl CommitMerkleTree {
         log::debug!("read_file parent node_hash: {:?}", node_hash);
 
         // Read the directory node at depth 0 to get all the vnodes
-        let merkle_node = CommitMerkleTree::read_depth(repo, &node_hash, 0)?;
-        let Some(merkle_node) = merkle_node else {
+        let dir_merkle_node = CommitMerkleTree::read_depth(repo, &node_hash, 0)?;
+        let Some(dir_merkle_node) = dir_merkle_node else {
             return Ok(None);
         };
 
         // log::debug!("read_file merkle_node: {:?}", merkle_node);
 
-        let vnodes = merkle_node.children;
+        let vnodes = dir_merkle_node.children;
 
         // log::debug!("read_file vnodes: {}", vnodes.len());
 

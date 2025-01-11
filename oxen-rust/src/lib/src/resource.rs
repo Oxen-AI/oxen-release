@@ -13,7 +13,7 @@ pub fn parse_resource_from_path(
     path: &Path,
 ) -> Result<Option<ParsedResource>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::resource::parse_resource_from_path(repo, path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::resource::parse_resource_from_path(repo, path),
     }
 }

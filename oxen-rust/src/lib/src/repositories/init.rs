@@ -36,7 +36,7 @@ pub fn init_with_version(
 ) -> Result<LocalRepository, OxenError> {
     let path = path.as_ref();
     match version {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::init(path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::init(path),
     }
 }
