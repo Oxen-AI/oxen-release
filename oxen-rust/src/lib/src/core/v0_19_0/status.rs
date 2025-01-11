@@ -409,7 +409,7 @@ fn find_changes(
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
-            let is_modified = is_modified(&node, &path)?;
+            let is_modified = is_modified(&repo, &node, &path)?;
             log::debug!("is_modified {} {:?}", is_modified, relative_path);
             if is_modified {
                 modified.insert(relative_path.clone());
@@ -418,7 +418,7 @@ fn find_changes(
             // If it's none of the above conditions
             // then check if it's untracked or modified
             if let Some(node) = CommitMerkleTree::read_file(repo, dir_hashes, &relative_path)? {
-                if is_modified(&node, &path)? {
+                if is_modified(&repo, &node, &path)? {
                     modified.insert(relative_path.clone());
                 }
             } else {
@@ -617,7 +617,7 @@ fn maybe_get_child_node(
     node.get_by_path(path)
 }
 
-fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<bool, OxenError> {
+fn is_modified(repo: &LocalRepository, node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<bool, OxenError> {
     if !full_path.as_ref().exists() {
         return Ok(false);
     }
