@@ -1603,8 +1603,6 @@ pub fn compare_file_contents(
     let path_1 = path_1.as_ref();
     let path_2 = path_2.as_ref();
 
-    println!("Path 1 is {path_1:?}, Path 2 is {path_2:?}");
-
     let file_1 = File::open(path_1).map_err(|err| {
         eprintln!("Could not open file {:?} due to {:?}", path_1, err);
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_1, err))
@@ -1622,7 +1620,6 @@ pub fn compare_file_contents(
     let mut buffer_2 = [0; 4096];
 
     loop {
-        println!("Liop");
         let count_1 = reader_1.read(&mut buffer_1).map_err(|_| {
             eprintln!("Could not read file_1 for comparison {:?}", path_1);
             OxenError::basic_str("Could not read file for hashing")
@@ -1634,17 +1631,14 @@ pub fn compare_file_contents(
         })?;
 
         if buffer_1 != buffer_2 {
-            println!("Ending 1");
             return Ok(true);
         }
 
         if count_1 == 0 {
-            println!("Ending 2");
             return Ok(!count_2 == 0);
         }
 
         if count_2 == 0 {
-            println!("Ending 3");
             return Ok(true);
         }
     }
