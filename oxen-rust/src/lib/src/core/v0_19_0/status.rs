@@ -653,7 +653,11 @@ fn is_modified(node: &MerkleTreeNode, full_path: impl AsRef<Path>) -> Result<boo
             node_modified_nanoseconds,
             mtime.nanoseconds()
         );
-        return Ok(true);
+
+        // if the times are different, check the file contents
+        let version_path = util::fs::version_path_from_node(repo, node.hash.to_string(), &full_path);
+        let is_modified = util::fs::compare_file_contents(version_path, full_path)?;
+        return Ok(is_modified);
     }
 
     Ok(false)
