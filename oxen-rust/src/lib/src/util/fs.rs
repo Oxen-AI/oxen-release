@@ -1367,7 +1367,7 @@ pub fn path_relative_to_dir(
               "dir {:?} canonicalized. Checking path {:?}",
                 dir.as_ref(),
                 path.as_ref()
-            );*/ 
+            );*/
             match canonicalize(&path) {
                 Ok(canon_path) => (canon_path, canon_dir),
                 // '_' because the debug statement is commented out
@@ -1415,8 +1415,6 @@ pub fn path_relative_to_dir(
     for component in components.iter() {
         result = result.join(component);
     }
-
-    log::debug!("Result: {result:?}");
 
     Ok(result)
 }
