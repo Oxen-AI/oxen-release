@@ -1337,17 +1337,64 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     false
 }
 
+// Return canonicalized path if possible, otherwise return original
+pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+    //log::debug!("Path to canonicalize: {path:?}");
+    match dunce::canonicalize(path) {
+        Ok(canon_path) => Ok(canon_path),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "path {path:?} cannot be canonicalized due to err {err:?}"
+        ))),
+    }
+}
+
 pub fn path_relative_to_dir(
     path: impl AsRef<Path>,
     dir: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
-    let dir = dir.as_ref();
+    // Embedded canonicalize calls to catch every case:
+    // -- if both paths can be canonicalized, they both will be
+    // -- if only the dir can be canonicalized, only the dir will be
+    // -- if the dir cannot be canonicalized, neither will be
+    let (path, dir) = match canonicalize(&dir) {
+        Ok(canon_dir) => {
+            /*log::debug!(
+              "dir {:?} canonicalized. Checking path {:?}",
+                dir.as_ref(),
+                path.as_ref()
+            );*/
+            match canonicalize(&path) {
+                Ok(canon_path) => (canon_path, canon_dir),
+                // '_' because the debug statement is commented out
+                Err(_err) => {
+                    /*log::debug!(
+                        "Err with canonicalization: {err:?}. Returning path {:?} immediately",
+                        path.as_ref()
+                    );*/
+                    return Ok(path.as_ref().to_path_buf());
+                }
+            }
+        }
+        // '_' because the debug statement is commented out
+        Err(_err) => {
+            /*log::debug!(
+                "Err with canonicalization: {err:?}. Skipping canonicalization of path {:?}",
+                path.as_ref()
+            );*/
+            (path.as_ref().to_path_buf(), dir.as_ref().to_path_buf())
+        }
+    };
 
-    let mut mut_path = path.to_path_buf();
+    let mut mut_path = path.clone();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        /*log::debug!(
+            "Comparing {:?} => {:?} => {:?}",
+            path,
+            mut_path.parent(),
+            dir
+        );*/
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));

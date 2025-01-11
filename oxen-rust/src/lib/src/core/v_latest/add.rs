@@ -192,7 +192,7 @@ pub fn process_add_dir(
     let path = path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
-    let repo_path = repo.path.clone();
+    let repo_path = &repo.path.clone();
 
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -221,7 +221,9 @@ pub fn process_add_dir(
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
+            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
+            log::debug!("path now: {dir_path:?}");
+
             let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -248,7 +250,7 @@ pub fn process_add_dir(
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo,
-                    &repo_path,
+                    repo_path,
                     versions_path,
                     staged_db,
                     &dir_node,
@@ -316,13 +318,13 @@ fn add_file_inner(
     path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let repo_path = repo.path.clone();
+    let repo_path = &repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
-        let path = util::fs::path_relative_to_dir(path, &repo_path)?;
+        let path = util::fs::path_relative_to_dir(path, repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
         maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
     }
@@ -330,7 +332,7 @@ fn add_file_inner(
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         repo,
-        &repo_path,
+        repo_path,
         &versions_path,
         staged_db,
         &maybe_dir_node,
