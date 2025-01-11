@@ -646,7 +646,7 @@ fn is_modified(repo: &LocalRepository, node: &MerkleTreeNode, full_path: impl As
         || node_modified_seconds != mtime.unix_seconds()
     {
         log::debug!(
-            "is_modified path {:?} modified time mismatch {:?} vs {:?} || {:?} vs {:?}",
+            "is_modified path {:?} modified time mismatch {:?} vs {:?} || {:?} vs {:?}. Comparing file content",
             full_path.as_ref(),
             node_modified_seconds,
             mtime.unix_seconds(),
@@ -659,6 +659,7 @@ fn is_modified(repo: &LocalRepository, node: &MerkleTreeNode, full_path: impl As
         let is_modified = util::fs::compare_file_contents(version_path, full_path)?;
         return Ok(is_modified);
     }
+    log::debug!("Last modified time matches node. File is unmodified");
 
     Ok(false)
 }
