@@ -1373,10 +1373,10 @@ pub fn path_relative_to_dir(
                 // '_' because the debug statement is commented out
                 Err(_err) => {
                     /*log::debug!(
-                        "Err with canonicalization: {err:?}. Returning path {:?} immediately",
+                        "Err with canonicalization: {err:?}. Using non-canonical paths",
                         path.as_ref()
                     );*/
-                    return Ok(path.as_ref().to_path_buf());
+                    (path.as_ref().to_path_buf(), dir.as_ref().to_path_buf())
                 }
             }
         }
@@ -1593,7 +1593,6 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
         remove_file(src)
     }
 }
-
 
 // Determine if 2 files have the same contents as quickly as possible
 // true == the files are different
