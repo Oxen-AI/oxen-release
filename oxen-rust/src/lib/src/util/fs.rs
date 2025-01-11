@@ -1615,8 +1615,6 @@ pub fn compare_file_contents(
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_1, err))
     })?;
 
-
-
     let mut reader_1 = BufReader::new(file_1);
     let mut buffer_1 = [0; 4096];
 
@@ -1645,7 +1643,8 @@ pub fn compare_file_contents(
             return Ok(!count_2 == 0);
         }
 
-        if count_2 == 0 {  println!("Ending 3");
+        if count_2 == 0 {
+            println!("Ending 3");
             return Ok(true);
         }
     }
