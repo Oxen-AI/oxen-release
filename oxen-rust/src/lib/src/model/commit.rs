@@ -3,11 +3,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
-use super::{Branch, MerkleHash, User};
-use crate::core::v0_10_0::index::CommitReader;
+use super::{MerkleHash, User};
 use crate::error::OxenError;
 use crate::view::workspaces::WorkspaceCommit;
-use core::convert::Into;
 
 use std::str::FromStr;
 
@@ -136,32 +134,6 @@ impl Commit {
         }
     }
 
-    pub fn has_ancestor(
-        &self,
-        parent_id: &str,
-        commit_reader: &CommitReader,
-    ) -> Result<bool, OxenError> {
-        if self.id == parent_id {
-            return Ok(true);
-        }
-        for parent in &self.parent_ids {
-            if parent == parent_id {
-                return Ok(true);
-            }
-
-            // Recurse
-            let commit = commit_reader.get_commit_by_id(parent)?;
-            if let Some(commit) = commit {
-                if commit.has_ancestor(parent_id, commit_reader)? {
-                    return Ok(true);
-                }
-            } else {
-                return Err(OxenError::local_parent_link_broken(parent));
-            }
-        }
-        Ok(false)
-    }
-
     pub fn from_with_size(commit: &CommitWithSize) -> Commit {
         Commit {
             id: commit.id.to_owned(),
@@ -182,14 +154,6 @@ impl Commit {
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
         }
-    }
-
-    pub fn from_branch(commit_reader: &CommitReader, branch: &Branch) -> Result<Commit, OxenError> {
-        commit_reader
-            .get_commit_by_id(&branch.commit_id)?
-            .ok_or(OxenError::revision_not_found(
-                branch.commit_id.to_string().into(),
-            ))
     }
 
     pub fn hash(&self) -> Result<MerkleHash, OxenError> {

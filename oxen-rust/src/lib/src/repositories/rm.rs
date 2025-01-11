@@ -30,13 +30,7 @@ pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
 
 fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            log::debug!("Version found: V0_10_0");
-            for path in paths {
-                let opts = RmOpts::from_path_opts(path, opts);
-                core::v0_10_0::index::rm(repo, &opts)?;
-            }
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             log::debug!("Version found: V0_19_0");
             core::v_latest::rm::rm(paths, repo, opts)?;

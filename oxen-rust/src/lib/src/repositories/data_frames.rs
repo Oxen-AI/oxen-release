@@ -16,7 +16,7 @@ pub fn get_slice(
     opts: &DFOpts,
 ) -> Result<DataFrameSlice, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::get_slice(repo, commit, path, opts),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::data_frames::get_slice(repo, commit, path, opts),
     }
 }

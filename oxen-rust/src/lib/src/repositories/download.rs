@@ -39,9 +39,7 @@ pub async fn download_dir(
     local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     match remote_repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::download::download_dir(remote_repo, entry, local_path).await?;
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             core::v_latest::download::download_dir(remote_repo, entry, remote_path, local_path)
                 .await?;

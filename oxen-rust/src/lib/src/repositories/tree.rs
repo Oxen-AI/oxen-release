@@ -12,8 +12,8 @@ use tar::Archive;
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR, NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
 use crate::core::db;
 use crate::core::db::merkle_node::merkle_node_db::{node_db_path, node_db_prefix};
-use crate::core::v0_19_0::index::CommitMerkleTree as CommitMerkleTreeV0_19_0;
 use crate::core::v_latest::index::CommitMerkleTree as CommitMerkleTreeLatest;
+use crate::core::v_old::v0_19_0::index::CommitMerkleTree as CommitMerkleTreeV0_19_0;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{

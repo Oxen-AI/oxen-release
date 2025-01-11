@@ -156,7 +156,7 @@ pub fn get_cli(
     data_path: impl AsRef<Path>,
 ) -> Result<CLIMetadataEntry, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::metadata::get_cli(repo, entry_path, data_path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::metadata::get_cli(repo, entry_path, data_path),
     }
 }

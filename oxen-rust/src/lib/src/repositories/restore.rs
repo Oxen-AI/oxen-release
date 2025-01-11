@@ -48,7 +48,7 @@ use crate::opts::RestoreOpts;
 /// ```
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::restore::restore(repo, opts),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::restore::restore(repo, opts),
     }
 }

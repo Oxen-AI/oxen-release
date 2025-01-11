@@ -9,18 +9,13 @@
 //! ```
 
 use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
-use crate::core::db;
-use crate::core::db::key_val::path_db;
 use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
 use crate::core::versions::MinOxenVersion;
-use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use crate::model::entry::commit_entry::CommitPath;
 use crate::model::merkle_tree::node::FileNode;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core;
 use crate::core::df::tabular;
-use crate::core::v0_10_0::index::object_db_reader::ObjectDBReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
@@ -707,14 +702,7 @@ pub fn diff_entries(
     df_opts: DFOpts,
 ) -> Result<DiffEntry, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::diff_entries(
-            repo,
-            base_entry,
-            base_commit,
-            head_entry,
-            head_commit,
-            df_opts,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::diff::diff_entries(
             repo,
             file_path,
@@ -739,14 +727,7 @@ pub fn list_diff_entries_in_dir_top_level(
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries_in_dir_top_level(
-            repo,
-            dir,
-            base_commit,
-            head_commit,
-            page,
-            page_size,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::diff::list_diff_entries_in_dir_top_level(
             repo,
             dir,
@@ -764,9 +745,7 @@ pub fn list_changed_dirs(
     head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::diff::list_changed_dirs(repo, base_commit, head_commit)
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::diff::list_changed_dirs(repo, base_commit, head_commit),
     }
 }
@@ -819,72 +798,6 @@ fn write_diff_dupes(
     std::fs::write(dupes_path, serde_json::to_string(&dupes)?)?;
 
     Ok(())
-}
-
-// For a rollup summary presented alongside the diffs WITHIN a dir
-pub fn get_dir_diff_entry(
-    repo: &LocalRepository,
-    dir: PathBuf,
-    base_commit: &Commit,
-    head_commit: &Commit,
-) -> Result<Option<DiffEntry>, OxenError> {
-    // Dir hashes db is cheaper to open than objects reader
-    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
-    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
-
-    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&base_dir_hashes_db_path),
-        false,
-    )?;
-
-    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&head_dir_hashes_db_path),
-        false,
-    )?;
-
-    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
-    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
-
-    match (maybe_base_dir_hash, maybe_head_dir_hash) {
-        (Some(base_dir_hash), Some(head_dir_hash)) => {
-            let base_dir_hash = base_dir_hash.to_string();
-            let head_dir_hash = head_dir_hash.to_string();
-
-            if base_dir_hash == head_dir_hash {
-                Ok(None)
-            } else {
-                Ok(Some(DiffEntry::from_dir(
-                    repo,
-                    Some(&dir),
-                    base_commit,
-                    Some(&dir),
-                    head_commit,
-                    DiffEntryStatus::Modified,
-                )?))
-            }
-        }
-        (None, Some(_)) => Ok(Some(DiffEntry::from_dir(
-            repo,
-            None,
-            base_commit,
-            Some(&dir),
-            head_commit,
-            DiffEntryStatus::Added,
-        )?)),
-        (Some(_), None) => Ok(Some(DiffEntry::from_dir(
-            repo,
-            Some(&dir),
-            base_commit,
-            None,
-            head_commit,
-            DiffEntryStatus::Removed,
-        )?)),
-        (None, None) => Err(OxenError::basic_str(
-            "Could not calculate dir diff tree: dir does not exist in either commit.",
-        )),
-    }
 }
 
 pub fn get_cached_diff(
@@ -973,75 +886,6 @@ fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<TabularDiffDup
 
     Ok(dupes)
 }
-// Abbreviated version for when summary is known (e.g. computing top-level self node of an already-calculated dir diff)
-pub fn get_dir_diff_entry_with_summary(
-    repo: &LocalRepository,
-    dir: PathBuf,
-    base_commit: &Commit,
-    head_commit: &Commit,
-    summary: GenericDiffSummary,
-) -> Result<Option<DiffEntry>, OxenError> {
-    // Dir hashes db is cheaper to open than objects reader
-    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
-    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
-
-    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&base_dir_hashes_db_path),
-        false,
-    )?;
-
-    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&head_dir_hashes_db_path),
-        false,
-    )?;
-
-    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
-    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
-
-    match (maybe_base_dir_hash, maybe_head_dir_hash) {
-        (Some(base_dir_hash), Some(head_dir_hash)) => {
-            let base_dir_hash = base_dir_hash.to_string();
-            let head_dir_hash = head_dir_hash.to_string();
-
-            if base_dir_hash == head_dir_hash {
-                Ok(None)
-            } else {
-                Ok(Some(DiffEntry::from_dir_with_summary(
-                    repo,
-                    Some(&dir),
-                    base_commit,
-                    Some(&dir),
-                    head_commit,
-                    summary,
-                    DiffEntryStatus::Modified,
-                )?))
-            }
-        }
-        (None, Some(_)) => Ok(Some(DiffEntry::from_dir_with_summary(
-            repo,
-            None,
-            base_commit,
-            Some(&dir),
-            head_commit,
-            summary,
-            DiffEntryStatus::Added,
-        )?)),
-        (Some(_), None) => Ok(Some(DiffEntry::from_dir_with_summary(
-            repo,
-            Some(&dir),
-            base_commit,
-            None,
-            head_commit,
-            summary,
-            DiffEntryStatus::Removed,
-        )?)),
-        (None, None) => Err(OxenError::basic_str(
-            "Could not calculate dir diff tree: dir does not exist in either commit.",
-        )),
-    }
-}
 
 pub fn list_diff_entries(
     repo: &LocalRepository,
@@ -1052,14 +896,7 @@ pub fn list_diff_entries(
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::list_diff_entries(
-            repo,
-            base_commit,
-            head_commit,
-            dir,
-            page,
-            page_size,
-        ),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::diff::list_diff_entries(
             repo,
             base_commit,
