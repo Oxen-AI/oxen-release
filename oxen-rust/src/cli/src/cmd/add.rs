@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::error::OxenError;
 
+use crate::util;
 use liboxen::model::LocalRepository;
 use liboxen::opts::AddOpts;
 use liboxen::repositories;
@@ -48,7 +49,7 @@ impl RunCmd for AddCmd {
                     OxenError::basic_str(format!("Failed to get current directory: {}", e))
                 })?;
                 let joined_path = current_dir.join(p);
-                joined_path.canonicalize().or_else(|_| Ok(joined_path))
+                util::fs::canonicalize(&joined_path).or_else(|_| Ok(joined_path))
             })
             .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
