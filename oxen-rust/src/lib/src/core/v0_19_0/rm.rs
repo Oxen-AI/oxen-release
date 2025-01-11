@@ -383,6 +383,7 @@ fn remove_inner(
     for path in paths {
         // Get parent node
         let path = util::fs::path_relative_to_dir(path, &repo.path)?;
+
         let parent_path = path.parent().unwrap_or(Path::new(""));
         let parent_node: MerkleTreeNode = if let Some(dir_node) =
             CommitMerkleTree::dir_with_children(repo, &head_commit, parent_path)?

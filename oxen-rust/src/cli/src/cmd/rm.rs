@@ -3,6 +3,7 @@ use clap::{Arg, ArgMatches, Command};
 
 use crate::helpers::check_repo_migration_needed;
 
+use crate::util;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RmOpts;
@@ -52,7 +53,7 @@ impl RunCmd for RmCmd {
                     OxenError::basic_str(format!("Failed to get current directory: {}", e))
                 })?;
                 let joined_path = current_dir.join(p);
-                joined_path.canonicalize().or_else(|_| Ok(joined_path))
+                util::fs::canonicalize(&joined_path).or_else(|_| Ok(joined_path))
             })
             .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
