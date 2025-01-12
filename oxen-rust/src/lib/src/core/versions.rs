@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use crate::{error::OxenError, util::oxen_version::OxenVersion};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum MinOxenVersion {
     V0_10_0,
     V0_19_0,

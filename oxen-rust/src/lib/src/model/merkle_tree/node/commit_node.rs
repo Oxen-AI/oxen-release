@@ -6,49 +6,90 @@ use std::str::FromStr;
 use time::OffsetDateTime;
 
 use crate::core::v_latest::model::merkle_tree::node::commit_node::CommitNodeData as CommitNodeDataV0_25_0;
+use crate::core::v_old::v0_19_0::model::merkle_tree::node::commit_node::CommitNodeData as CommitNodeDataV0_19_0;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::Commit;
+use crate::model::{Commit, LocalRepository};
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
+pub trait TCommitNode {
+    fn node_type(&self) -> MerkleTreeNodeType;
+    fn version(&self) -> MinOxenVersion;
+    fn hash(&self) -> MerkleHash;
+    fn parent_ids(&self) -> Vec<MerkleHash>;
+    fn message(&self) -> &str;
+    fn author(&self) -> &str;
+    fn email(&self) -> &str;
+    fn timestamp(&self) -> OffsetDateTime;
+}
+
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub enum CommitNode {
+pub enum ECommitNode {
+    // This is for backwards compatibility to load older versions from disk
     V0_25_0(CommitNodeDataV0_25_0),
+    V0_19_0(CommitNodeDataV0_19_0),
+}
+
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct CommitNode {
+    node: ECommitNode,
 }
 
 impl CommitNode {
     pub fn new(
+        repo: &LocalRepository,
         hash: MerkleHash,
         parent_ids: Vec<MerkleHash>,
         email: String,
         author: String,
         message: String,
         timestamp: OffsetDateTime,
-    ) -> CommitNode {
-        CommitNode::V0_25_0(CommitNodeDataV0_25_0 {
-            hash,
-            parent_ids,
-            email,
-            author,
-            message,
-            timestamp,
-            node_type: MerkleTreeNodeType::Commit,
-        })
+    ) -> Result<CommitNode, OxenError> {
+        match repo.min_version() {
+            MinOxenVersion::V0_19_0 => Ok(CommitNode {
+                node: ECommitNode::V0_19_0(CommitNodeDataV0_19_0 {
+                    hash,
+                    parent_ids,
+                    email,
+                    author,
+                    message,
+                    timestamp,
+                    node_type: MerkleTreeNodeType::Commit,
+                }),
+            }),
+            MinOxenVersion::LATEST => Ok(CommitNode {
+                node: ECommitNode::V0_25_0(CommitNodeDataV0_25_0 {
+                    hash,
+                    parent_ids,
+                    email,
+                    author,
+                    message,
+                    timestamp,
+                    node_type: MerkleTreeNodeType::Commit,
+                }),
+            }),
+            _ => Err(OxenError::basic_str(
+                "CommitNode not supported in this version",
+            )),
+        }
     }
 
     pub fn from_commit(commit: Commit) -> CommitNode {
-        CommitNode::V0_25_0(CommitNodeDataV0_25_0 {
-            hash: MerkleHash::from_str(&commit.id).unwrap(),
-            parent_ids: commit
-                .parent_ids
-                .iter()
-                .map(|id| MerkleHash::from_str(id).unwrap())
-                .collect(),
-            email: commit.email.clone(),
-            author: commit.author.clone(),
-            message: commit.message.clone(),
-            timestamp: commit.timestamp,
-            node_type: MerkleTreeNodeType::Commit,
-        })
+        CommitNode {
+            node: ECommitNode::V0_25_0(CommitNodeDataV0_25_0 {
+                hash: MerkleHash::from_str(&commit.id).unwrap(),
+                parent_ids: commit
+                    .parent_ids
+                    .iter()
+                    .map(|id| MerkleHash::from_str(id).unwrap())
+                    .collect(),
+                email: commit.email.clone(),
+                author: commit.author.clone(),
+                message: commit.message.clone(),
+                timestamp: commit.timestamp,
+                node_type: MerkleTreeNodeType::Commit,
+            }),
+        }
     }
 
     pub fn to_commit(&self) -> Commit {
@@ -69,75 +110,74 @@ impl CommitNode {
             Ok(commit) => commit,
             Err(_) => {
                 // This is a fallback for old versions of the commit node
-                let commit: CommitNodeDataV0_25_0 = rmp_serde::from_slice(data)?;
-                CommitNode::V0_25_0(commit)
+                let commit: CommitNodeDataV0_19_0 = rmp_serde::from_slice(data)?;
+                Self {
+                    node: ECommitNode::V0_19_0(commit),
+                }
             }
         };
         Ok(commit)
     }
 
-    pub fn hash(&self) -> MerkleHash {
-        match self {
-            CommitNode::V0_25_0(commit) => commit.hash,
+    fn node(&self) -> &dyn TCommitNode {
+        match self.node {
+            ECommitNode::V0_25_0(ref commit) => commit,
+            ECommitNode::V0_19_0(ref commit) => commit,
         }
+    }
+
+    pub fn version(&self) -> MinOxenVersion {
+        self.node().version()
+    }
+
+    pub fn hash(&self) -> MerkleHash {
+        self.node().hash()
     }
 
     pub fn parent_ids(&self) -> Vec<MerkleHash> {
-        match self {
-            CommitNode::V0_25_0(commit) => commit.parent_ids.clone(),
-        }
+        self.node().parent_ids()
     }
 
     pub fn message(&self) -> &str {
-        match self {
-            CommitNode::V0_25_0(commit) => &commit.message,
-        }
+        self.node().message()
     }
 
     pub fn author(&self) -> &str {
-        match self {
-            CommitNode::V0_25_0(commit) => &commit.author,
-        }
+        self.node().author()
     }
 
     pub fn email(&self) -> &str {
-        match self {
-            CommitNode::V0_25_0(commit) => &commit.email,
-        }
+        self.node().email()
     }
 
     pub fn timestamp(&self) -> OffsetDateTime {
-        match self {
-            CommitNode::V0_25_0(commit) => commit.timestamp,
-        }
+        self.node().timestamp()
     }
 }
 
 impl Default for CommitNode {
     fn default() -> Self {
-        CommitNode::V0_25_0(CommitNodeDataV0_25_0 {
-            hash: MerkleHash::new(0),
-            node_type: MerkleTreeNodeType::Commit,
-            parent_ids: vec![],
-            message: "".to_string(),
-            author: "".to_string(),
-            email: "".to_string(),
-            timestamp: OffsetDateTime::now_utc(),
-        })
+        CommitNode {
+            node: ECommitNode::V0_25_0(CommitNodeDataV0_25_0 {
+                hash: MerkleHash::new(0),
+                node_type: MerkleTreeNodeType::Commit,
+                parent_ids: vec![],
+                message: "".to_string(),
+                author: "".to_string(),
+                email: "".to_string(),
+                timestamp: OffsetDateTime::now_utc(),
+            }),
+        }
     }
 }
 
 impl MerkleTreeNodeIdType for CommitNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        match self {
-            CommitNode::V0_25_0(commit) => commit.node_type,
-        }
+        self.node().node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        match self {
-            CommitNode::V0_25_0(commit) => commit.hash,
-        }
+        self.node().hash()
     }
 }
 
@@ -146,7 +186,7 @@ impl TMerkleTreeNode for CommitNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for CommitNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "CommitNode")?;
+        writeln!(f, "CommitNode({})", self.version())?;
         writeln!(f, "\tmessage: {}", self.message())?;
         writeln!(f, "\tparent_ids: {:?}", self.parent_ids())?;
         writeln!(f, "\tauthor: {}", self.author())?;

@@ -189,13 +189,14 @@ pub fn create_empty_commit(
     )?;
     let timestamp = OffsetDateTime::now_utc();
     let commit_node = CommitNode::new(
+        repo,
         MerkleHash::from_str(&new_commit.id)?,
         vec![existing_commit_id],
         new_commit.email.clone(),
         new_commit.author.clone(),
         new_commit.message.clone(),
         timestamp,
-    );
+    )?;
 
     let parent_id = Some(existing_node.hash);
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &commit_node, parent_id)?;

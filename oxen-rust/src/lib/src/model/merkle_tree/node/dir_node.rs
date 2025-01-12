@@ -5,16 +5,72 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData as DirNodeDataV0_25_0;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
+use crate::model::{
+    LocalRepository, MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
+};
 use crate::view::DataTypeCount;
 
+pub trait TDirNode {
+    fn version(&self) -> MinOxenVersion;
+    fn node_type(&self) -> MerkleTreeNodeType;
+    fn hash(&self) -> MerkleHash;
+    fn name(&self) -> &str;
+    fn set_name(&mut self, name: &str);
+    fn num_bytes(&self) -> u64;
+    fn last_commit_id(&self) -> MerkleHash;
+    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash);
+    fn last_modified_seconds(&self) -> i64;
+    fn last_modified_nanoseconds(&self) -> u32;
+    fn data_type_counts(&self) -> &HashMap<String, u64>;
+    fn data_type_sizes(&self) -> &HashMap<String, u64>;
+}
+
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
-pub enum DirNode {
+pub enum EDirNode {
     V0_25_0(DirNodeDataV0_25_0),
 }
 
+pub struct DirNodeOpts {
+    pub name: String,
+    pub hash: MerkleHash,
+    pub num_bytes: u64,
+    pub last_commit_id: MerkleHash,
+    pub last_modified_seconds: i64,
+    pub last_modified_nanoseconds: u32,
+    pub data_type_counts: HashMap<String, u64>,
+    pub data_type_sizes: HashMap<String, u64>,
+}
+
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct DirNode {
+    pub node: EDirNode,
+}
+
 impl DirNode {
+    pub fn new(repo: &LocalRepository, opts: DirNodeOpts) -> Result<Self, OxenError> {
+        match repo.min_version() {
+            MinOxenVersion::LATEST => Ok(Self {
+                node: EDirNode::V0_25_0(DirNodeDataV0_25_0 {
+                    node_type: MerkleTreeNodeType::Dir,
+                    name: opts.name,
+                    hash: opts.hash,
+                    num_bytes: opts.num_bytes,
+                    last_commit_id: opts.last_commit_id,
+                    last_modified_seconds: opts.last_modified_seconds,
+                    last_modified_nanoseconds: opts.last_modified_nanoseconds,
+                    data_type_counts: opts.data_type_counts,
+                    data_type_sizes: opts.data_type_sizes,
+                }),
+            }),
+            _ => Err(OxenError::basic_str(format!(
+                "Unsupported DirNode version: {}",
+                repo.min_version()
+            ))),
+        }
+    }
+
     pub fn num_files(&self) -> u64 {
         // sum up the data type counts
         self.data_type_counts().values().sum()
@@ -38,102 +94,100 @@ impl DirNode {
             Err(_) => {
                 // This is a fallback for old versions of the dir node
                 let dir_node: DirNodeDataV0_25_0 = rmp_serde::from_slice(data)?;
-                DirNode::V0_25_0(dir_node)
+                Self {
+                    node: EDirNode::V0_25_0(dir_node),
+                }
             }
         };
         Ok(dir_node)
     }
 
-    pub fn node_type(&self) -> MerkleTreeNodeType {
-        match self {
-            DirNode::V0_25_0(data) => data.node_type,
+    fn node(&self) -> &dyn TDirNode {
+        match &self.node {
+            EDirNode::V0_25_0(ref data) => data,
         }
+    }
+
+    fn mut_node(&mut self) -> &mut dyn TDirNode {
+        match &mut self.node {
+            EDirNode::V0_25_0(data) => data,
+        }
+    }
+
+    pub fn version(&self) -> MinOxenVersion {
+        self.node().version()
+    }
+
+    pub fn node_type(&self) -> MerkleTreeNodeType {
+        self.node().node_type()
     }
 
     pub fn hash(&self) -> MerkleHash {
-        match self {
-            DirNode::V0_25_0(data) => data.hash,
-        }
+        self.node().hash()
     }
 
     pub fn name(&self) -> &str {
-        match self {
-            DirNode::V0_25_0(data) => &data.name,
-        }
+        self.node().name()
     }
 
     pub fn set_name(&mut self, name: impl AsRef<str>) {
-        match self {
-            DirNode::V0_25_0(data) => data.name = name.as_ref().to_string(),
-        }
+        self.mut_node().set_name(name.as_ref());
     }
 
     pub fn num_bytes(&self) -> u64 {
-        match self {
-            DirNode::V0_25_0(data) => data.num_bytes,
-        }
+        self.node().num_bytes()
     }
 
     pub fn last_commit_id(&self) -> MerkleHash {
-        match self {
-            DirNode::V0_25_0(data) => data.last_commit_id,
-        }
+        self.node().last_commit_id()
     }
 
     pub fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
-        match self {
-            DirNode::V0_25_0(data) => data.last_commit_id = last_commit_id,
-        }
+        self.mut_node().set_last_commit_id(last_commit_id);
     }
 
     pub fn last_modified_seconds(&self) -> i64 {
-        match self {
-            DirNode::V0_25_0(data) => data.last_modified_seconds,
-        }
+        self.node().last_modified_seconds()
     }
 
     pub fn last_modified_nanoseconds(&self) -> u32 {
-        match self {
-            DirNode::V0_25_0(data) => data.last_modified_nanoseconds,
-        }
+        self.node().last_modified_nanoseconds()
     }
 
     pub fn data_type_counts(&self) -> &HashMap<String, u64> {
-        match self {
-            DirNode::V0_25_0(data) => &data.data_type_counts,
-        }
+        self.node().data_type_counts()
     }
 
     pub fn data_type_sizes(&self) -> &HashMap<String, u64> {
-        match self {
-            DirNode::V0_25_0(data) => &data.data_type_sizes,
-        }
+        self.node().data_type_sizes()
     }
 }
 
 impl Default for DirNode {
     fn default() -> Self {
-        DirNode::V0_25_0(DirNodeDataV0_25_0 {
-            node_type: MerkleTreeNodeType::Dir,
-            name: "".to_string(),
-            hash: MerkleHash::new(0),
-            num_bytes: 0,
-            last_commit_id: MerkleHash::new(0),
-            last_modified_seconds: 0,
-            last_modified_nanoseconds: 0,
-            data_type_counts: HashMap::new(),
-            data_type_sizes: HashMap::new(),
-        })
+        Self {
+            node: EDirNode::V0_25_0(DirNodeDataV0_25_0 {
+                node_type: MerkleTreeNodeType::Dir,
+                name: "".to_string(),
+                hash: MerkleHash::new(0),
+                num_bytes: 0,
+                last_commit_id: MerkleHash::new(0),
+                last_modified_seconds: 0,
+                last_modified_nanoseconds: 0,
+                data_type_counts: HashMap::new(),
+                data_type_sizes: HashMap::new(),
+            }),
+        }
     }
 }
 
 impl MerkleTreeNodeIdType for DirNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type()
+        self.node().node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        self.hash()
+        self.node().hash()
     }
 }
 
@@ -142,7 +196,7 @@ impl TMerkleTreeNode for DirNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for DirNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "DirNode")?;
+        writeln!(f, "DirNode({})", self.version())?;
         writeln!(f, "\thash: {}", self.hash())?;
         writeln!(f, "\tname: {}", self.name())?;
         writeln!(

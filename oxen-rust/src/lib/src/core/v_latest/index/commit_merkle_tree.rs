@@ -699,7 +699,7 @@ mod tests {
     fn test_load_dir_nodes() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::LATEST)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;

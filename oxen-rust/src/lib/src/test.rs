@@ -463,6 +463,37 @@ where
     Ok(())
 }
 
+pub fn make_many_commits(local_repo: &LocalRepository) -> Result<(), OxenError> {
+    // Make a few commits before we sync
+    repositories::add(local_repo, local_repo.path.join("train"))?;
+    repositories::commit(local_repo, "Adding train/")?;
+
+    repositories::add(local_repo, local_repo.path.join("test"))?;
+    repositories::commit(local_repo, "Adding test/")?;
+
+    repositories::add(local_repo, local_repo.path.join("annotations"))?;
+    repositories::commit(local_repo, "Adding annotations/")?;
+
+    repositories::add(local_repo, local_repo.path.join("nlp"))?;
+    repositories::commit(local_repo, "Adding nlp/")?;
+
+    // Remove the test dir to make a more complex history
+    let rm_opts = RmOpts {
+        path: PathBuf::from("test"),
+        recursive: true,
+        staged: false,
+    };
+
+    repositories::rm(local_repo, &rm_opts)?;
+    repositories::commit(local_repo, "Removing test/")?;
+
+    // Add all the files
+    repositories::add(local_repo, &local_repo.path)?;
+    // Commit all the data locally
+    repositories::commit(local_repo, "Adding rest of data")?;
+    Ok(())
+}
+
 /// Test where we synced training data to the remote
 pub async fn run_training_data_fully_sync_remote<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -477,33 +508,8 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    // Make a few commits before we sync
-    repositories::add(&local_repo, local_repo.path.join("train"))?;
-    repositories::commit(&local_repo, "Adding train/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("test"))?;
-    repositories::commit(&local_repo, "Adding test/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("annotations"))?;
-    repositories::commit(&local_repo, "Adding annotations/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("nlp"))?;
-    repositories::commit(&local_repo, "Adding nlp/")?;
-
-    // Remove the test dir to make a more complex history
-    let rm_opts = RmOpts {
-        path: PathBuf::from("test"),
-        recursive: true,
-        staged: false,
-    };
-
-    repositories::rm(&local_repo, &rm_opts)?;
-    repositories::commit(&local_repo, "Removing test/")?;
-
-    // Add all the files
-    repositories::add(&local_repo, &local_repo.path)?;
-    // Commit all the data locally
-    repositories::commit(&local_repo, "Adding rest of data")?;
+    // Make commits that add, rm, etc
+    make_many_commits(&local_repo)?;
 
     // Create remote
     let remote_repo = create_remote_repo(&local_repo).await?;
