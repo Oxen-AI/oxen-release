@@ -20,9 +20,9 @@ use crate::core::db::key_val::str_val_db;
 use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::refs::RefWriter;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData;
 use crate::core::v_latest::status;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::dir_node::DirNodeOpts;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::merkle_tree::node::VNode;
@@ -236,13 +236,14 @@ pub fn commit_dir_entries_with_parents(
     }
 
     let node = CommitNode::new(
+        repo,
         commit_id,
         parent_hashes,
         new_commit.email.clone(),
         new_commit.author.clone(),
         message.to_string(),
         timestamp,
-    );
+    )?;
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
@@ -328,6 +329,7 @@ pub fn commit_dir_entries_new(
     let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode::new(
+        repo,
         commit_id,
         new_commit
             .parent_ids
@@ -338,7 +340,7 @@ pub fn commit_dir_entries_new(
         new_commit.author.clone(),
         message.to_string(),
         timestamp,
-    );
+    )?;
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
@@ -447,13 +449,14 @@ pub fn commit_dir_entries(
     let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode::new(
+        repo,
         commit_id,
         parent_ids,
         new_commit.email.clone(),
         new_commit.author.clone(),
         message.to_string(),
         timestamp,
-    );
+    )?;
 
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
@@ -1096,17 +1099,19 @@ fn compute_dir_node(
         data_type_counts
     );
 
-    let node = DirNode::V0_25_0(DirNodeData {
-        node_type: MerkleTreeNodeType::Dir,
-        name: file_name.to_owned(),
-        hash,
-        num_bytes,
-        last_commit_id: commit_id,
-        last_modified_seconds: 0,
-        last_modified_nanoseconds: 0,
-        data_type_counts,
-        data_type_sizes,
-    });
+    let node = DirNode::new(
+        repo,
+        DirNodeOpts {
+            name: file_name.to_owned(),
+            hash,
+            num_bytes,
+            last_commit_id: commit_id,
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
+            data_type_counts,
+            data_type_sizes,
+        },
+    )?;
     Ok(node)
 }
 

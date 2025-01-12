@@ -1,6 +1,7 @@
 //! Wrapper around the FileNodeData struct to support old versions of the file node
 
 use crate::core::v_latest::model::merkle_tree::node::file_node::FileNodeData as FileNodeDataV0_25_0;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::file_node_types::{FileChunkType, FileStorageType};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -25,31 +26,65 @@ pub struct FileNodeOpts {
     pub extension: String,
 }
 
+pub trait TFileNode {
+    fn version(&self) -> MinOxenVersion;
+    fn node_type(&self) -> MerkleTreeNodeType;
+    fn hash(&self) -> MerkleHash;
+    fn name(&self) -> &str;
+    fn set_name(&mut self, name: &str);
+    fn combined_hash(&self) -> MerkleHash;
+    fn set_combined_hash(&mut self, combined_hash: MerkleHash);
+    fn metadata_hash(&self) -> Option<MerkleHash>;
+    fn set_metadata_hash(&mut self, metadata_hash: Option<MerkleHash>);
+    fn num_bytes(&self) -> u64;
+    fn last_commit_id(&self) -> MerkleHash;
+    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash);
+    fn last_modified_seconds(&self) -> i64;
+    fn last_modified_nanoseconds(&self) -> u32;
+    fn data_type(&self) -> EntryDataType;
+    fn metadata(&self) -> Option<GenericMetadata>;
+    fn get_mut_metadata(&mut self) -> &mut Option<GenericMetadata>;
+    fn set_metadata(&mut self, metadata: Option<GenericMetadata>);
+    fn mime_type(&self) -> &str;
+    fn extension(&self) -> &str;
+    fn chunk_hashes(&self) -> Vec<u128>;
+    fn set_chunk_hashes(&mut self, chunk_hashes: Vec<u128>);
+    fn chunk_type(&self) -> FileChunkType;
+    fn storage_backend(&self) -> FileStorageType;
+}
+
 #[derive(Deserialize, Serialize, Clone)]
-pub enum FileNode {
+pub enum EFileNode {
     V0_25_0(FileNodeDataV0_25_0),
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct FileNode {
+    pub node: EFileNode,
 }
 
 impl FileNode {
     pub fn new(opts: FileNodeOpts) -> Self {
-        FileNode::V0_25_0(FileNodeDataV0_25_0 {
-            node_type: MerkleTreeNodeType::File,
-            name: opts.name,
-            hash: opts.hash,
-            combined_hash: opts.combined_hash,
-            metadata_hash: opts.metadata_hash,
-            num_bytes: opts.num_bytes,
-            last_commit_id: MerkleHash::new(0),
-            last_modified_seconds: opts.last_modified_seconds,
-            last_modified_nanoseconds: opts.last_modified_nanoseconds,
-            data_type: opts.data_type,
-            metadata: opts.metadata,
-            mime_type: opts.mime_type,
-            extension: opts.extension,
-            chunk_hashes: vec![],
-            chunk_type: FileChunkType::SingleFile,
-            storage_backend: FileStorageType::Disk,
-        })
+        Self {
+            node: EFileNode::V0_25_0(FileNodeDataV0_25_0 {
+                node_type: MerkleTreeNodeType::File,
+                name: opts.name,
+                hash: opts.hash,
+                combined_hash: opts.combined_hash,
+                metadata_hash: opts.metadata_hash,
+                num_bytes: opts.num_bytes,
+                last_commit_id: MerkleHash::new(0),
+                last_modified_seconds: opts.last_modified_seconds,
+                last_modified_nanoseconds: opts.last_modified_nanoseconds,
+                data_type: opts.data_type,
+                metadata: opts.metadata,
+                mime_type: opts.mime_type,
+                extension: opts.extension,
+                chunk_hashes: vec![],
+                chunk_type: FileChunkType::SingleFile,
+                storage_backend: FileStorageType::Disk,
+            }),
+        }
     }
 
     pub fn deserialize(data: &[u8]) -> Result<FileNode, OxenError> {
@@ -58,171 +93,145 @@ impl FileNode {
             Err(_) => {
                 // This is a fallback for old versions of the file node
                 let file_node: FileNodeDataV0_25_0 = rmp_serde::from_slice(data)?;
-                FileNode::V0_25_0(file_node)
+                Self {
+                    node: EFileNode::V0_25_0(file_node),
+                }
             }
         };
         Ok(file_node)
     }
 
-    pub fn node_type(&self) -> MerkleTreeNodeType {
-        match self {
-            FileNode::V0_25_0(_) => MerkleTreeNodeType::File,
+    fn mut_node(&mut self) -> &mut dyn TFileNode {
+        match self.node {
+            EFileNode::V0_25_0(ref mut file_node) => file_node,
         }
+    }
+
+    fn node(&self) -> &dyn TFileNode {
+        match self.node {
+            EFileNode::V0_25_0(ref file_node) => file_node,
+        }
+    }
+
+    pub fn node_type(&self) -> MerkleTreeNodeType {
+        self.node().node_type()
+    }
+
+    pub fn version(&self) -> MinOxenVersion {
+        self.node().version()
     }
 
     pub fn hash(&self) -> MerkleHash {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.hash,
-        }
+        self.node().hash()
     }
 
     pub fn name(&self) -> &str {
-        match self {
-            FileNode::V0_25_0(file_node) => &file_node.name,
-        }
+        self.node().name()
     }
 
-    pub fn set_name(&mut self, name: impl AsRef<str>) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.name = name.as_ref().to_string(),
-        }
+    pub fn set_name(&mut self, name: &str) {
+        self.mut_node().set_name(name);
     }
 
     pub fn combined_hash(&self) -> MerkleHash {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.combined_hash,
-        }
+        self.node().combined_hash()
     }
 
     pub fn set_combined_hash(&mut self, combined_hash: MerkleHash) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.combined_hash = combined_hash,
-        }
+        self.mut_node().set_combined_hash(combined_hash);
     }
 
     pub fn metadata_hash(&self) -> Option<MerkleHash> {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.metadata_hash,
-        }
+        self.node().metadata_hash()
     }
 
     pub fn set_metadata_hash(&mut self, metadata_hash: Option<MerkleHash>) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.metadata_hash = metadata_hash,
-        }
+        self.mut_node().set_metadata_hash(metadata_hash);
     }
 
     pub fn num_bytes(&self) -> u64 {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.num_bytes,
-        }
+        self.node().num_bytes()
     }
 
     pub fn last_commit_id(&self) -> MerkleHash {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.last_commit_id,
-        }
+        self.node().last_commit_id()
     }
 
     pub fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.last_commit_id = last_commit_id,
-        }
+        self.mut_node().set_last_commit_id(last_commit_id);
     }
 
     pub fn last_modified_seconds(&self) -> i64 {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.last_modified_seconds,
-        }
+        self.node().last_modified_seconds()
     }
 
     pub fn last_modified_nanoseconds(&self) -> u32 {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.last_modified_nanoseconds,
-        }
+        self.node().last_modified_nanoseconds()
     }
 
     pub fn data_type(&self) -> EntryDataType {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.data_type.clone(),
-        }
+        self.node().data_type()
     }
 
     pub fn metadata(&self) -> Option<GenericMetadata> {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.metadata.clone(),
-        }
+        self.node().metadata()
     }
 
     pub fn get_mut_metadata(&mut self) -> &mut Option<GenericMetadata> {
-        match self {
-            FileNode::V0_25_0(file_node) => &mut file_node.metadata,
-        }
+        self.mut_node().get_mut_metadata()
     }
 
     pub fn set_metadata(&mut self, metadata: Option<GenericMetadata>) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.metadata = metadata,
-        }
+        self.mut_node().set_metadata(metadata);
     }
 
     pub fn mime_type(&self) -> &str {
-        match self {
-            FileNode::V0_25_0(file_node) => &file_node.mime_type,
-        }
+        self.node().mime_type()
     }
 
     pub fn extension(&self) -> &str {
-        match self {
-            FileNode::V0_25_0(file_node) => &file_node.extension,
-        }
+        self.node().extension()
     }
 
     pub fn chunk_hashes(&self) -> Vec<u128> {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.chunk_hashes.clone(),
-        }
+        self.node().chunk_hashes()
     }
 
     pub fn set_chunk_hashes(&mut self, chunk_hashes: Vec<u128>) {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.chunk_hashes = chunk_hashes,
-        }
+        self.mut_node().set_chunk_hashes(chunk_hashes);
     }
 
     pub fn chunk_type(&self) -> FileChunkType {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.chunk_type.clone(),
-        }
+        self.node().chunk_type()
     }
 
     pub fn storage_backend(&self) -> FileStorageType {
-        match self {
-            FileNode::V0_25_0(file_node) => file_node.storage_backend.clone(),
-        }
+        self.node().storage_backend()
     }
 }
 
 impl Default for FileNode {
     fn default() -> Self {
-        FileNode::V0_25_0(FileNodeDataV0_25_0 {
-            node_type: MerkleTreeNodeType::File,
-            name: "".to_string(),
-            hash: MerkleHash::new(0),
-            combined_hash: MerkleHash::new(0),
-            metadata_hash: None,
-            num_bytes: 0,
-            last_commit_id: MerkleHash::new(0),
-            last_modified_seconds: 0,
-            last_modified_nanoseconds: 0,
-            data_type: EntryDataType::Binary,
-            metadata: None,
-            mime_type: "".to_string(),
-            extension: "".to_string(),
-            chunk_hashes: vec![],
-            chunk_type: FileChunkType::SingleFile,
-            storage_backend: FileStorageType::Disk,
-        })
+        Self {
+            node: EFileNode::V0_25_0(FileNodeDataV0_25_0 {
+                node_type: MerkleTreeNodeType::File,
+                name: "".to_string(),
+                hash: MerkleHash::new(0),
+                combined_hash: MerkleHash::new(0),
+                metadata_hash: None,
+                num_bytes: 0,
+                last_commit_id: MerkleHash::new(0),
+                last_modified_seconds: 0,
+                last_modified_nanoseconds: 0,
+                data_type: EntryDataType::Binary,
+                metadata: None,
+                mime_type: "".to_string(),
+                extension: "".to_string(),
+                chunk_hashes: vec![],
+                chunk_type: FileChunkType::SingleFile,
+                storage_backend: FileStorageType::Disk,
+            }),
+        }
     }
 }
 
@@ -251,7 +260,7 @@ impl TMerkleTreeNode for FileNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "FileNode")?;
+        writeln!(f, "FileNode({})", self.version())?;
         writeln!(f, "\thash: {}", self.hash())?;
         writeln!(f, "\tname: {}", self.name())?;
         writeln!(

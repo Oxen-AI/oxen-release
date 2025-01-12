@@ -22,6 +22,10 @@ use crate::model::merkle_tree::node::{
 use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::{repositories, util};
 
+/// This will return the MerkleTreeNode with type CommitNode if the Commit exists
+/// Otherwise it will return None
+/// The node will not have any children, so is fast to look up
+/// if you want the root with children, use `get_root_with_children``
 pub fn get_root(
     repo: &LocalRepository,
     commit: &Commit,
@@ -32,6 +36,9 @@ pub fn get_root(
     }
 }
 
+/// This will return the MerkleTreeNode with type CommitNode if the Commit exists
+/// Otherwise it will return None
+/// The node will load all children from disk, so is slower than `get_root`
 pub fn get_root_with_children(
     repo: &LocalRepository,
     commit: &Commit,
@@ -42,7 +49,8 @@ pub fn get_root_with_children(
     }
 }
 
-/// Get the root directory node given a commit node
+/// If passed in a commit node, will return the root directory node
+/// Will error if the node is not a commit node, because only CommitNodes have a root directory
 pub fn get_root_dir(node: &MerkleTreeNode) -> Result<&MerkleTreeNode, OxenError> {
     if node.node.node_type() != MerkleTreeNodeType::Commit {
         return Err(OxenError::basic_str(format!(
@@ -91,6 +99,23 @@ pub fn get_node_by_id_with_children(
         MinOxenVersion::V0_19_0 => CommitMerkleTreeV0_19_0::read_node(repo, hash, load_recursive),
         _ => CommitMerkleTreeLatest::read_node(repo, hash, load_recursive),
     }
+}
+
+pub fn get_commit_node_version(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<MinOxenVersion, OxenError> {
+    let commit_id = MerkleHash::from_str(&commit.id)?;
+    let Some(commit_node) = repositories::tree::get_node_by_id(repo, &commit_id)? else {
+        return Err(OxenError::commit_id_does_not_exist(&commit.id));
+    };
+
+    let EMerkleTreeNode::Commit(commit_node) = &commit_node.node else {
+        // This should never happen
+        log::error!("Commit node is not a commit node");
+        return Err(OxenError::commit_id_does_not_exist(&commit.id));
+    };
+    Ok(commit_node.version())
 }
 
 pub fn has_dir(
@@ -660,7 +685,7 @@ fn r_list_files_by_type(
                 if file_node.data_type() == *data_type {
                     let mut file_node = file_node.to_owned();
                     let full_path = traversed_path.join(file_node.name());
-                    file_node.set_name(full_path.to_string_lossy());
+                    file_node.set_name(&full_path.to_string_lossy());
                     file_nodes.insert(file_node);
                 }
             }

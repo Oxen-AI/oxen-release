@@ -5,6 +5,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::core::versions::MinOxenVersion;
+use crate::model::merkle_tree::node::dir_node::TDirNode;
 use crate::model::{MerkleHash, MerkleTreeNodeType};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -27,4 +29,54 @@ pub struct DirNodeData {
     // Recursive file counts in the directory
     pub data_type_counts: HashMap<String, u64>,
     pub data_type_sizes: HashMap<String, u64>,
+}
+
+impl TDirNode for DirNodeData {
+    fn version(&self) -> MinOxenVersion {
+        MinOxenVersion::LATEST
+    }
+
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
+    }
+
+    fn hash(&self) -> MerkleHash {
+        self.hash
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
+    fn num_bytes(&self) -> u64 {
+        self.num_bytes
+    }
+
+    fn last_commit_id(&self) -> MerkleHash {
+        self.last_commit_id
+    }
+
+    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
+        self.last_commit_id = last_commit_id;
+    }
+
+    fn last_modified_seconds(&self) -> i64 {
+        self.last_modified_seconds
+    }
+
+    fn last_modified_nanoseconds(&self) -> u32 {
+        self.last_modified_nanoseconds
+    }
+
+    fn data_type_counts(&self) -> &HashMap<String, u64> {
+        &self.data_type_counts
+    }
+
+    fn data_type_sizes(&self) -> &HashMap<String, u64> {
+        &self.data_type_sizes
+    }
 }

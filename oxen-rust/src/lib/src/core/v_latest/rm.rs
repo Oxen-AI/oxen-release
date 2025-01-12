@@ -454,7 +454,7 @@ pub fn process_remove_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let mut update_node = file_node.clone();
-    update_node.set_name(path.to_string_lossy());
+    update_node.set_name(&path.to_string_lossy());
 
     let node = MerkleTreeNode::from_file(update_node);
 

@@ -2,6 +2,8 @@
 //! that is stored in on disk
 //!
 
+use crate::core::versions::MinOxenVersion;
+use crate::model::merkle_tree::node::file_node::TFileNode;
 use crate::model::merkle_tree::node::file_node_types::{FileChunkType, FileStorageType};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{EntryDataType, MerkleHash, MerkleTreeNodeType};
@@ -42,4 +44,102 @@ pub struct FileNodeData {
 
     pub chunk_type: FileChunkType, // How the data is stored on disk
     pub storage_backend: FileStorageType, // Where the file is stored in the backend
+}
+
+impl TFileNode for FileNodeData {
+    fn version(&self) -> MinOxenVersion {
+        MinOxenVersion::LATEST
+    }
+
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
+    }
+
+    fn hash(&self) -> MerkleHash {
+        self.hash
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
+    fn combined_hash(&self) -> MerkleHash {
+        self.combined_hash
+    }
+
+    fn set_combined_hash(&mut self, combined_hash: MerkleHash) {
+        self.combined_hash = combined_hash;
+    }
+
+    fn metadata_hash(&self) -> Option<MerkleHash> {
+        self.metadata_hash
+    }
+
+    fn set_metadata_hash(&mut self, metadata_hash: Option<MerkleHash>) {
+        self.metadata_hash = metadata_hash;
+    }
+
+    fn metadata(&self) -> Option<GenericMetadata> {
+        self.metadata.clone()
+    }
+
+    fn get_mut_metadata(&mut self) -> &mut Option<GenericMetadata> {
+        &mut self.metadata
+    }
+
+    fn set_metadata(&mut self, metadata: Option<GenericMetadata>) {
+        self.metadata = metadata;
+    }
+
+    fn num_bytes(&self) -> u64 {
+        self.num_bytes
+    }
+
+    fn last_commit_id(&self) -> MerkleHash {
+        self.last_commit_id
+    }
+
+    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
+        self.last_commit_id = last_commit_id;
+    }
+
+    fn last_modified_seconds(&self) -> i64 {
+        self.last_modified_seconds
+    }
+
+    fn last_modified_nanoseconds(&self) -> u32 {
+        self.last_modified_nanoseconds
+    }
+
+    fn data_type(&self) -> EntryDataType {
+        self.data_type.clone()
+    }
+
+    fn mime_type(&self) -> &str {
+        &self.mime_type
+    }
+
+    fn extension(&self) -> &str {
+        &self.extension
+    }
+
+    fn chunk_hashes(&self) -> Vec<u128> {
+        self.chunk_hashes.clone()
+    }
+
+    fn set_chunk_hashes(&mut self, chunk_hashes: Vec<u128>) {
+        self.chunk_hashes = chunk_hashes;
+    }
+
+    fn chunk_type(&self) -> FileChunkType {
+        self.chunk_type.clone()
+    }
+
+    fn storage_backend(&self) -> FileStorageType {
+        self.storage_backend.clone()
+    }
 }
