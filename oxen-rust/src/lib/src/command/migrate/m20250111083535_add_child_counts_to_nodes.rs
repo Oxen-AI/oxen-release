@@ -101,6 +101,8 @@ mod tests {
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
 
+            repositories::tree::print_tree(&repo, &latest_commit)?;
+
             // TODO: Since the writers always assume the latest version,
             // this doesn't work. Either the writers need to accept a version,
             // or we need to make a little v0.19.0 repository and check it in to test...

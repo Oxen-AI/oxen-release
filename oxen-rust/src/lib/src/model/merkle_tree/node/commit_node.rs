@@ -107,9 +107,10 @@ impl CommitNode {
         // In order to support versions that didn't have the enum,
         // if it fails we will fall back to the old struct, then populate the enum
         let commit: CommitNode = match rmp_serde::from_slice(data) {
-            Ok(commit) => commit,
+            Ok(node) => node,
             Err(_) => {
                 // This is a fallback for old versions of the commit node
+                log::debug!("Deserializing old commit node version");
                 let commit: CommitNodeDataV0_19_0 = rmp_serde::from_slice(data)?;
                 Self {
                     node: ECommitNode::V0_19_0(commit),
@@ -186,7 +187,7 @@ impl TMerkleTreeNode for CommitNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for CommitNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "CommitNode({})", self.version())?;
+        writeln!(f, "CommitNode")?;
         writeln!(f, "\tmessage: {}", self.message())?;
         writeln!(f, "\tparent_ids: {:?}", self.parent_ids())?;
         writeln!(f, "\tauthor: {}", self.author())?;
@@ -207,7 +208,8 @@ impl fmt::Display for CommitNode {
             .join(",");
         write!(
             f,
-            "\"{}\" -> {} {} parent_ids {:?}",
+            "({}) \"{}\" -> {} {} parent_ids {:?}",
+            self.version(),
             self.message(),
             self.author(),
             self.email(),

@@ -18,12 +18,12 @@ pub struct CommitNodeData {
 }
 
 impl TCommitNode for CommitNodeData {
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
-    }
-
     fn version(&self) -> MinOxenVersion {
         MinOxenVersion::LATEST
+    }
+
+    fn node_type(&self) -> MerkleTreeNodeType {
+        self.node_type
     }
 
     fn hash(&self) -> MerkleHash {

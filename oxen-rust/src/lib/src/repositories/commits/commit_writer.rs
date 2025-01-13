@@ -1008,6 +1008,7 @@ fn compute_dir_node(
     hasher.update(path.to_str().unwrap().as_bytes());
 
     let mut num_bytes = 0;
+    let mut num_entries = 0;
     let mut data_type_counts: HashMap<String, u64> = HashMap::new();
     let mut data_type_sizes: HashMap<String, u64> = HashMap::new();
 
@@ -1017,6 +1018,7 @@ fn compute_dir_node(
             CommitMerkleTree::dir_without_children(repo, head_commit, &path)
         {
             let old_dir_node = old_dir_node.dir().unwrap();
+            num_entries = old_dir_node.num_entries();
             num_bytes = old_dir_node.num_bytes();
             data_type_counts = old_dir_node.data_type_counts().clone();
             data_type_sizes = old_dir_node.data_type_sizes().clone();
@@ -1044,6 +1046,7 @@ fn compute_dir_node(
                 match &entry.node.node {
                     EMerkleTreeNode::Directory(node) => {
                         log::debug!("No need to aggregate dir {}", node.name());
+                        num_entries += 1;
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
@@ -1057,6 +1060,7 @@ fn compute_dir_node(
                         match entry.status {
                             StagedEntryStatus::Added => {
                                 num_bytes += file_node.num_bytes();
+                                num_entries += 1;
                                 *data_type_counts
                                     .entry(file_node.data_type().to_string())
                                     .or_insert(0) += 1;
@@ -1066,6 +1070,7 @@ fn compute_dir_node(
                             }
                             StagedEntryStatus::Removed => {
                                 num_bytes -= file_node.num_bytes();
+                                num_entries -= 1;
                                 *data_type_counts
                                     .entry(file_node.data_type().to_string())
                                     .or_insert(1) -= 1;
@@ -1077,6 +1082,10 @@ fn compute_dir_node(
                                 // Do nothing
                             }
                         }
+                    }
+                    EMerkleTreeNode::VNode(vnode_node) => {
+                        log::debug!("Aggregating vnode {:?}", vnode_node);
+                        num_entries += 1;
                     }
                     _ => {
                         return Err(OxenError::basic_str(format!(
@@ -1092,10 +1101,11 @@ fn compute_dir_node(
     let hash = MerkleHash::new(hasher.digest128());
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
     log::debug!(
-        "Aggregated dir {:?} [{}] num_bytes {:?} data_type_counts {:?}",
+        "Aggregated dir {:?} [{}] num_bytes {:?} num_entries {:?} data_type_counts {:?}",
         path,
         hash,
         num_bytes,
+        num_entries,
         data_type_counts
     );
 
@@ -1105,6 +1115,7 @@ fn compute_dir_node(
             name: file_name.to_owned(),
             hash,
             num_bytes,
+            num_entries,
             last_commit_id: commit_id,
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,

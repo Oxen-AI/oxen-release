@@ -22,7 +22,7 @@ impl TCommitNode for CommitNodeData {
     }
 
     fn version(&self) -> MinOxenVersion {
-        MinOxenVersion::LATEST
+        MinOxenVersion::V0_19_0
     }
 
     fn hash(&self) -> MerkleHash {

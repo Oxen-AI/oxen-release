@@ -37,7 +37,7 @@ pub fn init_with_version(
     let path = path.as_ref();
     match version {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::init(path),
+        _ => core::v_latest::init_with_version(path, version),
     }
 }
 
