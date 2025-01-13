@@ -629,13 +629,21 @@ impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.node {
             EMerkleTreeNode::Commit(commit) => {
-                write!(f, "[{:?}] {} {}", self.node.node_type(), self.hash, commit)
+                write!(
+                    f,
+                    "[{:?}] ({}) {} {}",
+                    self.node.node_type(),
+                    commit.version(),
+                    self.hash,
+                    commit
+                )
             }
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] ({}) {} {} ({} children)",
                     self.node.node_type(),
+                    vnode.version(),
                     self.hash.to_short_str(),
                     vnode,
                     self.children.len()
@@ -644,8 +652,9 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::Directory(dir) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] ({}) {} {} ({} children)",
                     self.node.node_type(),
+                    dir.version(),
                     self.hash.to_short_str(),
                     dir,
                     self.children.len()
@@ -654,8 +663,9 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::File(file) => {
                 write!(
                     f,
-                    "[{:?}] {} {}",
+                    "[{:?}] ({}) {} {}",
                     self.node.node_type(),
+                    file.version(),
                     self.hash.to_short_str(),
                     file
                 )

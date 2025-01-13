@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::core::v_latest::model::merkle_tree::node::dir_node::DirNodeData as DirNodeDataV0_25_0;
+use crate::core::v_old::v0_19_0::model::merkle_tree::node::dir_node::DirNodeData as DirNodeDataV0_19_0;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{
@@ -18,6 +19,8 @@ pub trait TDirNode {
     fn hash(&self) -> MerkleHash;
     fn name(&self) -> &str;
     fn set_name(&mut self, name: &str);
+    fn num_files(&self) -> u64; // This us just the number of files
+    fn num_entries(&self) -> u64; // This is the number of files and directories and vnodes
     fn num_bytes(&self) -> u64;
     fn last_commit_id(&self) -> MerkleHash;
     fn set_last_commit_id(&mut self, last_commit_id: MerkleHash);
@@ -30,11 +33,13 @@ pub trait TDirNode {
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum EDirNode {
     V0_25_0(DirNodeDataV0_25_0),
+    V0_19_0(DirNodeDataV0_19_0),
 }
 
 pub struct DirNodeOpts {
     pub name: String,
     pub hash: MerkleHash,
+    pub num_entries: u64,
     pub num_bytes: u64,
     pub last_commit_id: MerkleHash,
     pub last_modified_seconds: i64,
@@ -56,6 +61,20 @@ impl DirNode {
                     node_type: MerkleTreeNodeType::Dir,
                     name: opts.name,
                     hash: opts.hash,
+                    num_entries: opts.num_entries,
+                    num_bytes: opts.num_bytes,
+                    last_commit_id: opts.last_commit_id,
+                    last_modified_seconds: opts.last_modified_seconds,
+                    last_modified_nanoseconds: opts.last_modified_nanoseconds,
+                    data_type_counts: opts.data_type_counts,
+                    data_type_sizes: opts.data_type_sizes,
+                }),
+            }),
+            MinOxenVersion::V0_19_0 => Ok(Self {
+                node: EDirNode::V0_19_0(DirNodeDataV0_19_0 {
+                    node_type: MerkleTreeNodeType::Dir,
+                    name: opts.name,
+                    hash: opts.hash,
                     num_bytes: opts.num_bytes,
                     last_commit_id: opts.last_commit_id,
                     last_modified_seconds: opts.last_modified_seconds,
@@ -71,9 +90,16 @@ impl DirNode {
         }
     }
 
+    /// Number of files (not including directories)
     pub fn num_files(&self) -> u64 {
-        // sum up the data type counts
+        // The data type counts are the number of files per data type,
+        // so we can sum them to get the total number of files
         self.data_type_counts().values().sum()
+    }
+
+    /// Number of files and directories
+    pub fn num_entries(&self) -> u64 {
+        self.node().num_entries()
     }
 
     pub fn data_types(&self) -> Vec<DataTypeCount> {
@@ -105,12 +131,14 @@ impl DirNode {
     fn node(&self) -> &dyn TDirNode {
         match &self.node {
             EDirNode::V0_25_0(ref data) => data,
+            EDirNode::V0_19_0(ref data) => data,
         }
     }
 
     fn mut_node(&mut self) -> &mut dyn TDirNode {
         match &mut self.node {
             EDirNode::V0_25_0(data) => data,
+            EDirNode::V0_19_0(data) => data,
         }
     }
 
@@ -171,6 +199,7 @@ impl Default for DirNode {
                 name: "".to_string(),
                 hash: MerkleHash::new(0),
                 num_bytes: 0,
+                num_entries: 0,
                 last_commit_id: MerkleHash::new(0),
                 last_modified_seconds: 0,
                 last_modified_nanoseconds: 0,
@@ -204,6 +233,8 @@ impl fmt::Debug for DirNode {
             "\tnum_bytes: {}",
             bytesize::ByteSize::b(self.num_bytes())
         )?;
+        writeln!(f, "\tnum_entries: {}", self.num_entries())?;
+        writeln!(f, "\tnum_files: {}", self.num_files())?;
         writeln!(f, "\tdata_type_counts: {:?}", self.data_type_counts())?;
         writeln!(f, "\tdata_type_sizes: {:?}", self.data_type_sizes())?;
         Ok(())

@@ -1,3 +1,6 @@
+//! Old commit merkle tree implementation for v0.19.0
+//! This did not traverse the tree quickly to find an individual file node
+
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str;
@@ -199,7 +202,7 @@ impl CommitMerkleTree {
         hash: &MerkleHash,
         recurse: bool,
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
-        // log::debug!("Read node hash [{}]", hash);
+        // log::debug!("Read node v0.19.0 hash [{}]", hash);
         if !MerkleNodeDB::exists(repo, hash) {
             // log::debug!("read_node merkle node db does not exist for hash: {}", hash);
             return Ok(None);
@@ -208,7 +211,7 @@ impl CommitMerkleTree {
         let mut node = MerkleTreeNode::from_hash(repo, hash)?;
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
-        // log::debug!("read_node done: {:?} recurse: {}", node.hash, recurse);
+        // log::debug!("read_node v0.19.0 done: {:?} recurse: {}", node.hash, recurse);
         Ok(Some(node))
     }
 
@@ -616,7 +619,7 @@ mod tests {
     use crate::test::add_n_files_m_dirs;
 
     #[test]
-    fn test_load_dir_nodes() -> Result<(), OxenError> {
+    fn test_load_dir_nodes_v0_19_0() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
             let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;

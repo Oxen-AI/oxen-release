@@ -230,19 +230,22 @@ fn compute_staged_merkle_tree_node(
     util::fs::copy(path, &dst).unwrap();
     let file_extension = path.extension().unwrap_or_default().to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
-    let file_node = FileNode::new(FileNodeOpts {
-        name: relative_path_str.to_string(),
-        hash,
-        combined_hash,
-        metadata_hash: Some(MerkleHash::new(metadata_hash)),
-        num_bytes,
-        last_modified_seconds: mtime.unix_seconds(),
-        last_modified_nanoseconds: mtime.nanoseconds(),
-        data_type,
-        metadata,
-        mime_type: mime_type.clone(),
-        extension: file_extension.to_string(),
-    });
+    let file_node = FileNode::new(
+        &workspace.base_repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash: Some(MerkleHash::new(metadata_hash)),
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
 
     Ok(StagedMerkleTreeNode {
         status,

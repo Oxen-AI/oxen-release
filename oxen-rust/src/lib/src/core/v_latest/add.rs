@@ -514,19 +514,22 @@ pub fn process_add_file(
     } else {
         (hash, None, hash)
     };
-    let file_node = FileNode::new(FileNodeOpts {
-        name: relative_path_str.to_string(),
-        hash,
-        combined_hash,
-        metadata_hash,
-        num_bytes,
-        last_modified_seconds: mtime.unix_seconds(),
-        last_modified_nanoseconds: mtime.nanoseconds(),
-        data_type,
-        metadata,
-        mime_type: mime_type.clone(),
-        extension: file_extension.to_string(),
-    });
+    let file_node = FileNode::new(
+        repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
 
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
 }
