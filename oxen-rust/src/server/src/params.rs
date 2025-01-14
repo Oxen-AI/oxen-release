@@ -11,6 +11,7 @@ use liboxen::util::oxen_version::OxenVersion;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
+use percent_encoding::percent_decode;
 
 pub mod aggregate_query;
 pub use aggregate_query::AggregateQuery;
@@ -27,8 +28,6 @@ pub use df_opts_query::DFOptsQuery;
 
 pub mod tree_depth;
 pub use tree_depth::TreeDepthQuery;
-
-use url::form_urlencoded;
 
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     log::debug!(
@@ -85,6 +84,12 @@ pub fn path_param_to_vec(
     Ok(values)
 }
 
+fn decode_resource_path(resource_path_str: &str) -> String {
+    percent_decode(resource_path_str.as_bytes())
+        .decode_utf8_lossy()
+        .into_owned()
+}
+
 pub fn parse_resource(
     req: &HttpRequest,
     repo: &LocalRepository,
@@ -93,10 +98,7 @@ pub fn parse_resource(
     let resource_path_str = resource.to_string_lossy();
 
     // Decode the URL, handling both %20 and + as spaces
-    let decoded_path = form_urlencoded::parse(resource_path_str.as_bytes())
-        .map(|(key, _)| key.into_owned())
-        .next()
-        .unwrap_or_default();
+    let decoded_path = decode_resource_path(&resource_path_str);
 
     let decoded_resource = PathBuf::from(decoded_path);
     log::debug!(
