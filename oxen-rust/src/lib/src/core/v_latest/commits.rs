@@ -205,7 +205,7 @@ pub fn create_empty_commit(
     commit_db.add_child(&dir_node)?;
 
     // Copy the dir hashes db to the new commit
-    repositories::tree::cp_dir_hashes_to(repo, existing_commit_id, commit_node.hash())?;
+    repositories::tree::cp_dir_hashes_to(repo, &existing_commit_id, commit_node.hash())?;
 
     // Update the ref
     let ref_writer = RefWriter::new(repo)?;

@@ -1,6 +1,8 @@
 //! This is a compact representation of a directory merkle tree node
 //! that is stored in on disk
 //!
+//! This is v0.19.0 that did not contain a count for the number of children
+//!
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,9 +21,6 @@ pub struct DirNodeData {
 
     // Hash of all the children
     pub hash: MerkleHash,
-
-    // Number of files and sub directories in the directory
-    pub num_entries: u64,
     // Recursive size of the directory
     pub num_bytes: u64,
     // Last commit id that modified the file
@@ -56,11 +55,12 @@ impl TDirNode for DirNodeData {
     }
 
     fn num_files(&self) -> u64 {
+        // Old implementation did not have a count for the number of entries
         self.data_type_counts.values().sum()
     }
 
     fn num_entries(&self) -> u64 {
-        self.num_entries
+        panic!("num_entries is not supported for v0.19.0");
     }
 
     fn num_bytes(&self) -> u64 {

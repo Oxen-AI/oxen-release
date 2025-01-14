@@ -132,7 +132,7 @@ fn add_files(
                     total.total_bytes += file_node.num_bytes();
                     total
                         .data_type_counts
-                        .entry(data_type)
+                        .entry(data_type.clone())
                         .and_modify(|count| *count += 1)
                         .or_insert(1);
                 }
@@ -387,7 +387,7 @@ pub fn process_add_file(
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        previous_oxen_metadata = file_node.metadata().clone();
+        previous_oxen_metadata = file_node.metadata();
         if has_different_modification_time(file_node, &mtime) {
             log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
@@ -514,19 +514,22 @@ pub fn process_add_file(
     } else {
         (hash, None, hash)
     };
-    let file_node = FileNode::new(FileNodeOpts {
-        name: relative_path_str.to_string(),
-        hash,
-        combined_hash,
-        metadata_hash,
-        num_bytes,
-        last_modified_seconds: mtime.unix_seconds(),
-        last_modified_nanoseconds: mtime.nanoseconds(),
-        data_type,
-        metadata,
-        mime_type: mime_type.clone(),
-        extension: file_extension.to_string(),
-    });
+    let file_node = FileNode::new(
+        repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
 
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
 }

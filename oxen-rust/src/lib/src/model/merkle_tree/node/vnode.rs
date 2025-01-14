@@ -14,8 +14,9 @@ use crate::model::{
 };
 
 pub trait TVNode {
-    fn node_type(&self) -> MerkleTreeNodeType;
-    fn hash(&self) -> MerkleHash;
+    fn node_type(&self) -> &MerkleTreeNodeType;
+    fn hash(&self) -> &MerkleHash;
+    fn version(&self) -> MinOxenVersion;
     fn num_entries(&self) -> u64;
 }
 
@@ -77,7 +78,11 @@ impl VNode {
         }
     }
 
-    pub fn hash(&self) -> MerkleHash {
+    pub fn version(&self) -> MinOxenVersion {
+        self.node().version()
+    }
+
+    pub fn hash(&self) -> &MerkleHash {
         self.node().hash()
     }
 
@@ -100,11 +105,11 @@ impl Default for VNode {
 
 impl MerkleTreeNodeIdType for VNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        self.node().node_type()
+        *self.node().node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        self.node().hash()
+        *self.node().hash()
     }
 }
 

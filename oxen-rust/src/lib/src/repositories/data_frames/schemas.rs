@@ -655,12 +655,16 @@ mod tests {
                 "root": "images"
             });
             repositories::add(&repo, &bbox_path)?;
+            println!("after add initial metadata to: {:?}", bbox_file);
+
             repositories::data_frames::schemas::add_column_metadata(
                 &repo,
                 &bbox_file,
                 "file",
                 &file_metadata,
             )?;
+
+            println!("staged column metadata to: {:?}", bbox_file);
 
             // Fetch staged
             let schema =

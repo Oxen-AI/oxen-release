@@ -320,7 +320,7 @@ pub fn add_schema_metadata(
 
     file_node.set_name(path.to_str().unwrap());
     file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
-    file_node.set_combined_hash(MerkleHash::new(combined_hash));
+    file_node.set_combined_hash(&MerkleHash::new(combined_hash));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);
 
@@ -342,6 +342,9 @@ pub fn add_column_metadata(
     let db = get_staged_db(repo)?;
     let path = path.as_ref();
     let path = util::fs::path_relative_to_dir(path, &repo.path)?;
+
+    log::debug!("add_column_metadata: path: {:?}", path);
+
     let column = column.as_ref();
 
     let key = path.to_string_lossy();
@@ -349,9 +352,11 @@ pub fn add_column_metadata(
     let staged_merkle_tree_node = db.get(key.as_bytes())?;
     let mut staged_nodes: HashMap<PathBuf, StagedMerkleTreeNode> = HashMap::new();
 
+    let mut is_new_file = false;
     let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
         let staged_merkle_tree_node: StagedMerkleTreeNode =
             rmp_serde::from_slice(&staged_merkle_tree_node)?;
+        is_new_file = true;
         staged_merkle_tree_node.node.file()?
     } else {
         // Get the FileNode from the CommitMerkleTree
@@ -360,7 +365,10 @@ pub fn add_column_metadata(
                 "Cannot add metadata, no commits found.",
             ));
         };
-        let node = repositories::tree::get_node_by_path(repo, &commit, &path)?.unwrap();
+        log::debug!("add_column_metadata: commit: {} path: {:?}", commit, path);
+        let Some(node) = repositories::tree::get_node_by_path(repo, &commit, &path)? else {
+            return Err(OxenError::path_does_not_exist(path));
+        };
         let mut parent_id = node.parent_id;
         let mut dir_path = path.clone();
         while let Some(current_parent_id) = parent_id {
@@ -409,7 +417,11 @@ pub fn add_column_metadata(
     }
 
     let mut staged_entry = StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
+        status: if is_new_file {
+            StagedEntryStatus::Added
+        } else {
+            StagedEntryStatus::Modified
+        },
         node: MerkleTreeNode::from_file(file_node.clone()),
     };
 
@@ -430,7 +442,7 @@ pub fn add_column_metadata(
     let mut file_node = staged_entry.node.file()?;
 
     file_node.set_name(path.to_str().unwrap());
-    file_node.set_combined_hash(MerkleHash::new(combined_hash));
+    file_node.set_combined_hash(&MerkleHash::new(combined_hash));
     file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);

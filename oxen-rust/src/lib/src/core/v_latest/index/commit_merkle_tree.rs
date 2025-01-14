@@ -459,7 +459,14 @@ impl CommitMerkleTree {
             return Ok(None);
         };
 
-        // log::debug!("read_file merkle_node: {:?}", merkle_node);
+        let EMerkleTreeNode::Directory(dir_node) = &dir_merkle_node.node else {
+            return Err(OxenError::basic_str(format!(
+                "Expected directory node, got {:?}",
+                dir_merkle_node.node.node_type()
+            )));
+        };
+
+        // log::debug!("read_file merkle_node: {:?}", dir_merkle_node);
 
         let vnodes = dir_merkle_node.children;
 
@@ -467,16 +474,18 @@ impl CommitMerkleTree {
 
         // Calculate the total number of children in the vnodes
         // And use this to skip to the correct vnode
-        let total_children = vnodes
-            .iter()
-            .map(|vnode| vnode.vnode().unwrap().num_entries())
-            .sum::<u64>();
+        let total_children = dir_node.num_entries();
         let vnode_size = repo.vnode_size();
         let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
 
         log::debug!("read_file total_children: {}", total_children);
         log::debug!("read_file vnode_size: {}", vnode_size);
         log::debug!("read_file num_vnodes: {}", num_vnodes);
+
+        if num_vnodes == 0 {
+            log::debug!("read_file num_vnodes is 0, returning None");
+            return Ok(None);
+        }
 
         // Calculate the bucket to skip to based on the path and the number of vnodes
         let bucket = hasher::hash_buffer_128bit(path.to_str().unwrap().as_bytes()) % num_vnodes;
@@ -770,6 +779,7 @@ mod tests {
                 assert!(!node.children.is_empty());
                 let dir = node.dir().unwrap();
                 assert!(dir.num_files() > 0);
+                assert!(dir.num_entries() > 0);
             }
 
             Ok(())

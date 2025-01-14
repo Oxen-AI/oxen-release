@@ -51,12 +51,12 @@ impl TFileNode for FileNodeData {
         MinOxenVersion::LATEST
     }
 
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
+    fn node_type(&self) -> &MerkleTreeNodeType {
+        &self.node_type
     }
 
-    fn hash(&self) -> MerkleHash {
-        self.hash
+    fn hash(&self) -> &MerkleHash {
+        &self.hash
     }
 
     fn name(&self) -> &str {
@@ -67,16 +67,16 @@ impl TFileNode for FileNodeData {
         self.name = name.to_string();
     }
 
-    fn combined_hash(&self) -> MerkleHash {
-        self.combined_hash
+    fn combined_hash(&self) -> &MerkleHash {
+        &self.combined_hash
     }
 
-    fn set_combined_hash(&mut self, combined_hash: MerkleHash) {
-        self.combined_hash = combined_hash;
+    fn set_combined_hash(&mut self, combined_hash: &MerkleHash) {
+        self.combined_hash = *combined_hash;
     }
 
-    fn metadata_hash(&self) -> Option<MerkleHash> {
-        self.metadata_hash
+    fn metadata_hash(&self) -> Option<&MerkleHash> {
+        self.metadata_hash.as_ref()
     }
 
     fn set_metadata_hash(&mut self, metadata_hash: Option<MerkleHash>) {
@@ -99,12 +99,12 @@ impl TFileNode for FileNodeData {
         self.num_bytes
     }
 
-    fn last_commit_id(&self) -> MerkleHash {
-        self.last_commit_id
+    fn last_commit_id(&self) -> &MerkleHash {
+        &self.last_commit_id
     }
 
-    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
-        self.last_commit_id = last_commit_id;
+    fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash) {
+        self.last_commit_id = *last_commit_id;
     }
 
     fn last_modified_seconds(&self) -> i64 {
@@ -115,8 +115,8 @@ impl TFileNode for FileNodeData {
         self.last_modified_nanoseconds
     }
 
-    fn data_type(&self) -> EntryDataType {
-        self.data_type.clone()
+    fn data_type(&self) -> &EntryDataType {
+        &self.data_type
     }
 
     fn mime_type(&self) -> &str {
@@ -127,19 +127,19 @@ impl TFileNode for FileNodeData {
         &self.extension
     }
 
-    fn chunk_hashes(&self) -> Vec<u128> {
-        self.chunk_hashes.clone()
+    fn chunk_hashes(&self) -> &Vec<u128> {
+        &self.chunk_hashes
     }
 
     fn set_chunk_hashes(&mut self, chunk_hashes: Vec<u128>) {
         self.chunk_hashes = chunk_hashes;
     }
 
-    fn chunk_type(&self) -> FileChunkType {
-        self.chunk_type.clone()
+    fn chunk_type(&self) -> &FileChunkType {
+        &self.chunk_type
     }
 
-    fn storage_backend(&self) -> FileStorageType {
-        self.storage_backend.clone()
+    fn storage_backend(&self) -> &FileStorageType {
+        &self.storage_backend
     }
 }
