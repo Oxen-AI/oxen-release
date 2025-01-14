@@ -19,12 +19,12 @@ impl TVNode for VNodeData {
         MinOxenVersion::V0_19_0
     }
 
-    fn hash(&self) -> MerkleHash {
-        self.hash
+    fn hash(&self) -> &MerkleHash {
+        &self.hash
     }
 
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
+    fn node_type(&self) -> &MerkleTreeNodeType {
+        &self.node_type
     }
 
     fn num_entries(&self) -> u64 {

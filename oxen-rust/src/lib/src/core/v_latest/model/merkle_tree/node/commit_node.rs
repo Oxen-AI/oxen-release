@@ -22,16 +22,16 @@ impl TCommitNode for CommitNodeData {
         MinOxenVersion::LATEST
     }
 
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
+    fn node_type(&self) -> &MerkleTreeNodeType {
+        &self.node_type
     }
 
-    fn hash(&self) -> MerkleHash {
-        self.hash
+    fn hash(&self) -> &MerkleHash {
+        &self.hash
     }
 
-    fn parent_ids(&self) -> Vec<MerkleHash> {
-        self.parent_ids.clone()
+    fn parent_ids(&self) -> &Vec<MerkleHash> {
+        &self.parent_ids
     }
 
     fn message(&self) -> &str {
@@ -46,7 +46,7 @@ impl TCommitNode for CommitNodeData {
         &self.email
     }
 
-    fn timestamp(&self) -> OffsetDateTime {
-        self.timestamp
+    fn timestamp(&self) -> &OffsetDateTime {
+        &self.timestamp
     }
 }

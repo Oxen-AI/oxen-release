@@ -433,7 +433,7 @@ pub fn add_column_metadata(
     let mut file_node = staged_entry.node.file()?;
 
     file_node.set_name(path.to_str().unwrap());
-    file_node.set_combined_hash(MerkleHash::new(combined_hash));
+    file_node.set_combined_hash(&MerkleHash::new(combined_hash));
     file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 
     staged_entry.node = MerkleTreeNode::from_file(file_node);

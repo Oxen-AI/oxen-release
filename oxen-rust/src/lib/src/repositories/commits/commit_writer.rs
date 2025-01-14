@@ -246,7 +246,7 @@ pub fn commit_dir_entries_with_parents(
     )?;
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, &commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
@@ -343,7 +343,7 @@ pub fn commit_dir_entries_new(
     )?;
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, &commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
@@ -459,7 +459,7 @@ pub fn commit_dir_entries(
     )?;
 
     let opts = db::key_val::opts::default();
-    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, &commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
@@ -893,7 +893,7 @@ fn r_create_dir_node(
                         // log::debug!("r_create_dir_node skipping {:?}", dir_path);
                         // Look up the old dir node and reference it
                         let Some(old_dir_node) =
-                            CommitMerkleTree::read_node(repo, &node.hash(), false)?
+                            CommitMerkleTree::read_node(repo, node.hash(), false)?
                         else {
                             // log::debug!(
                             //     "r_create_dir_node could not read old dir node {:?}",
@@ -942,11 +942,11 @@ fn r_create_dir_node(
                     let chunks = vec![file_node.hash().to_u128()];
                     file_node.set_chunk_hashes(chunks);
                     let last_commit_id = if entry.status == StagedEntryStatus::Unmodified {
-                        file_node.last_commit_id()
+                        *file_node.last_commit_id()
                     } else {
                         commit_id
                     };
-                    file_node.set_last_commit_id(last_commit_id);
+                    file_node.set_last_commit_id(&last_commit_id);
                     file_node.set_name(file_name);
 
                     // if let Some(vnode_db) = &mut maybe_vnode_db {
@@ -1039,8 +1039,14 @@ fn compute_dir_node(
             let err_msg = format!("compute_dir_node No entries found for directory {:?}", path);
             return Err(OxenError::basic_str(err_msg));
         };
-        log::debug!("Aggregating dir {:?} with {} vnodes", path, vnodes.len());
+        log::debug!(
+            "Aggregating dir {:?} child {:?} with {} vnodes",
+            path,
+            child,
+            vnodes.len()
+        );
         for vnode in vnodes.iter() {
+            log::debug!("Aggregating vnode entries {:?}", vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
@@ -1050,9 +1056,10 @@ fn compute_dir_node(
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
-                            "Updating hash for file {} -> hash {}",
+                            "Updating hash for file {} -> hash {} status {:?}",
                             file_node.name(),
-                            file_node.hash()
+                            file_node.hash(),
+                            entry.status
                         );
                         hasher.update(file_node.name().as_bytes());
                         hasher.update(&file_node.combined_hash().to_le_bytes());
@@ -1082,10 +1089,6 @@ fn compute_dir_node(
                                 // Do nothing
                             }
                         }
-                    }
-                    EMerkleTreeNode::VNode(vnode_node) => {
-                        log::debug!("Aggregating vnode {:?}", vnode_node);
-                        num_entries += 1;
                     }
                     _ => {
                         return Err(OxenError::basic_str(format!(
@@ -1185,7 +1188,6 @@ mod tests {
     use std::path::Path;
 
     use crate::core::v_latest::index::CommitMerkleTree;
-    use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::MerkleHash;
     use crate::repositories;
@@ -1197,7 +1199,7 @@ mod tests {
     fn test_first_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 2)?;
@@ -1282,7 +1284,7 @@ mod tests {
     fn test_commit_only_dirs_at_top_level() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("all_files/dir_0/new_file.txt");
@@ -1311,7 +1313,7 @@ mod tests {
     fn test_commit_single_file_deep_in_dir() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("files/dir_0/new_file.txt");
@@ -1340,7 +1342,7 @@ mod tests {
     fn test_2nd_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;
@@ -1395,7 +1397,7 @@ mod tests {
     fn test_second_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;
@@ -1516,7 +1518,7 @@ mod tests {
     fn test_commit_configurable_vnode_size() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let mut repo = repositories::init::init(dir)?;
             // Set the vnode size to 5
             repo.set_vnode_size(5);
 
@@ -1577,7 +1579,7 @@ mod tests {
     fn test_commit_20_files_6_vnode_size() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let mut repo = repositories::init::init(dir)?;
             // Set the vnode size to 6
             repo.set_vnode_size(6);
 
@@ -1646,7 +1648,7 @@ mod tests {
     fn test_third_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init(dir)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;

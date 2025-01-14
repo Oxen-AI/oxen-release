@@ -879,7 +879,7 @@ mod tests {
 
             let file_entry = file_node.unwrap();
             let file_node = file_entry.file()?;
-            assert_eq!(file_node.data_type(), EntryDataType::Binary);
+            assert_eq!(*file_node.data_type(), EntryDataType::Binary);
 
             Ok(())
         })

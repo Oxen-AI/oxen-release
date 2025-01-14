@@ -195,15 +195,15 @@ fn dir_node_to_metadata_entry(
     };
 
     if let std::collections::hash_map::Entry::Vacant(e) =
-        found_commits.entry(dir_node.last_commit_id())
+        found_commits.entry(*dir_node.last_commit_id())
     {
-        let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id())?.ok_or(
+        let commit = repositories::commits::get_by_hash(repo, dir_node.last_commit_id())?.ok_or(
             OxenError::commit_id_does_not_exist(dir_node.last_commit_id().to_string()),
         )?;
         e.insert(commit);
     }
 
-    let commit = found_commits.get(&dir_node.last_commit_id()).unwrap();
+    let commit = found_commits.get(dir_node.last_commit_id()).unwrap();
     let mut parsed_resource = parsed_resource.clone();
     if should_append_resource {
         parsed_resource.resource = parsed_resource.resource.join(dir_node.name());
@@ -234,16 +234,16 @@ fn file_node_to_metadata_entry(
     found_commits: &mut HashMap<MerkleHash, Commit>,
 ) -> Result<Option<MetadataEntry>, OxenError> {
     if let std::collections::hash_map::Entry::Vacant(e) =
-        found_commits.entry(file_node.last_commit_id())
+        found_commits.entry(*file_node.last_commit_id())
     {
-        let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id())?.ok_or(
+        let commit = repositories::commits::get_by_hash(repo, file_node.last_commit_id())?.ok_or(
             OxenError::commit_id_does_not_exist(file_node.last_commit_id().to_string()),
         )?;
         e.insert(commit);
     }
 
-    let commit = found_commits.get(&file_node.last_commit_id()).unwrap();
-    let data_type = &file_node.data_type();
+    let commit = found_commits.get(file_node.last_commit_id()).unwrap();
+    let data_type = file_node.data_type();
 
     let mut parsed_resource = parsed_resource.clone();
     // HACK for not knowing if we have the full path or just the dir path
@@ -272,10 +272,10 @@ fn file_node_to_metadata_entry(
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
         size: file_node.num_bytes(),
-        data_type: file_node.data_type(),
+        data_type: file_node.data_type().clone(),
         mime_type: file_node.mime_type().to_string(),
         extension: file_node.extension().to_string(),
-        metadata: file_node.metadata().clone(),
+        metadata: file_node.metadata(),
         is_queryable: is_indexed,
     }))
 }

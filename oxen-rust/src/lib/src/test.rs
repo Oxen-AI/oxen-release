@@ -267,7 +267,7 @@ where
     });
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -325,7 +325,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -965,7 +965,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -999,7 +999,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1102,7 +1102,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1502,7 +1502,7 @@ where
     });
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
