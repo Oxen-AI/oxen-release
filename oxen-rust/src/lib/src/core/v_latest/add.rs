@@ -132,7 +132,7 @@ fn add_files(
                     total.total_bytes += file_node.num_bytes();
                     total
                         .data_type_counts
-                        .entry(data_type)
+                        .entry(data_type.clone())
                         .and_modify(|count| *count += 1)
                         .or_insert(1);
                 }
@@ -387,7 +387,7 @@ pub fn process_add_file(
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        previous_oxen_metadata = file_node.metadata().clone();
+        previous_oxen_metadata = file_node.metadata();
         if has_different_modification_time(file_node, &mtime) {
             log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;

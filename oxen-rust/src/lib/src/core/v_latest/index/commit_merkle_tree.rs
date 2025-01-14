@@ -466,7 +466,7 @@ impl CommitMerkleTree {
             )));
         };
 
-        log::debug!("read_file merkle_node: {:?}", dir_merkle_node);
+        // log::debug!("read_file merkle_node: {:?}", dir_merkle_node);
 
         let vnodes = dir_merkle_node.children;
 

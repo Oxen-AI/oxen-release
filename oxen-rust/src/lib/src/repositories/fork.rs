@@ -228,7 +228,7 @@ mod tests {
                 // Verify that the content of .oxen/config.toml is the same in both repos
                 let new_file_path = new_repo_path.join("dir/test_file.txt");
                 let original_content = fs::read_to_string(&file_path)?;
-                let mut retries = 10;
+                let mut retries = 20;
                 let mut sleep_time = 100;
                 let new_content = loop {
                     if new_file_path.exists() {
@@ -241,7 +241,7 @@ mod tests {
 
                     tokio::time::sleep(Duration::from_millis(sleep_time)).await;
                     retries -= 1;
-                    sleep_time += sleep_time;
+                    sleep_time += 200;
                 };
 
                 assert_eq!(

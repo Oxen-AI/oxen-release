@@ -128,7 +128,7 @@ fn export_tabular_data_frames(
                     {
                         node_path = dir_path.join(node_path);
                     }
-                    if file_node.data_type() == EntryDataType::Tabular {
+                    if *file_node.data_type() == EntryDataType::Tabular {
                         log::debug!(
                             "Exporting tabular data frame: {:?} -> {:?}",
                             node_path,

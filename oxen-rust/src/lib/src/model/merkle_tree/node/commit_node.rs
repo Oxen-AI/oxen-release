@@ -13,14 +13,14 @@ use crate::model::{Commit, LocalRepository};
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
 pub trait TCommitNode {
-    fn node_type(&self) -> MerkleTreeNodeType;
+    fn node_type(&self) -> &MerkleTreeNodeType;
     fn version(&self) -> MinOxenVersion;
-    fn hash(&self) -> MerkleHash;
-    fn parent_ids(&self) -> Vec<MerkleHash>;
+    fn hash(&self) -> &MerkleHash;
+    fn parent_ids(&self) -> &Vec<MerkleHash>;
     fn message(&self) -> &str;
     fn author(&self) -> &str;
     fn email(&self) -> &str;
-    fn timestamp(&self) -> OffsetDateTime;
+    fn timestamp(&self) -> &OffsetDateTime;
 }
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -131,11 +131,11 @@ impl CommitNode {
         self.node().version()
     }
 
-    pub fn hash(&self) -> MerkleHash {
+    pub fn hash(&self) -> &MerkleHash {
         self.node().hash()
     }
 
-    pub fn parent_ids(&self) -> Vec<MerkleHash> {
+    pub fn parent_ids(&self) -> &Vec<MerkleHash> {
         self.node().parent_ids()
     }
 
@@ -151,7 +151,7 @@ impl CommitNode {
         self.node().email()
     }
 
-    pub fn timestamp(&self) -> OffsetDateTime {
+    pub fn timestamp(&self) -> &OffsetDateTime {
         self.node().timestamp()
     }
 }
@@ -174,11 +174,11 @@ impl Default for CommitNode {
 
 impl MerkleTreeNodeIdType for CommitNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        self.node().node_type()
+        *self.node().node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        self.node().hash()
+        *self.node().hash()
     }
 }
 

@@ -29,29 +29,29 @@ pub struct FileNodeOpts {
 
 pub trait TFileNode {
     fn version(&self) -> MinOxenVersion;
-    fn node_type(&self) -> MerkleTreeNodeType;
-    fn hash(&self) -> MerkleHash;
+    fn node_type(&self) -> &MerkleTreeNodeType;
+    fn hash(&self) -> &MerkleHash;
     fn name(&self) -> &str;
     fn set_name(&mut self, name: &str);
-    fn combined_hash(&self) -> MerkleHash;
-    fn set_combined_hash(&mut self, combined_hash: MerkleHash);
-    fn metadata_hash(&self) -> Option<MerkleHash>;
+    fn combined_hash(&self) -> &MerkleHash;
+    fn set_combined_hash(&mut self, combined_hash: &MerkleHash);
+    fn metadata_hash(&self) -> Option<&MerkleHash>;
     fn set_metadata_hash(&mut self, metadata_hash: Option<MerkleHash>);
     fn num_bytes(&self) -> u64;
-    fn last_commit_id(&self) -> MerkleHash;
-    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash);
+    fn last_commit_id(&self) -> &MerkleHash;
+    fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash);
     fn last_modified_seconds(&self) -> i64;
     fn last_modified_nanoseconds(&self) -> u32;
-    fn data_type(&self) -> EntryDataType;
+    fn data_type(&self) -> &EntryDataType;
     fn metadata(&self) -> Option<GenericMetadata>;
     fn get_mut_metadata(&mut self) -> &mut Option<GenericMetadata>;
     fn set_metadata(&mut self, metadata: Option<GenericMetadata>);
     fn mime_type(&self) -> &str;
     fn extension(&self) -> &str;
-    fn chunk_hashes(&self) -> Vec<u128>;
+    fn chunk_hashes(&self) -> &Vec<u128>;
     fn set_chunk_hashes(&mut self, chunk_hashes: Vec<u128>);
-    fn chunk_type(&self) -> FileChunkType;
-    fn storage_backend(&self) -> FileStorageType;
+    fn chunk_type(&self) -> &FileChunkType;
+    fn storage_backend(&self) -> &FileStorageType;
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -119,7 +119,7 @@ impl FileNode {
         }
     }
 
-    pub fn node_type(&self) -> MerkleTreeNodeType {
+    pub fn node_type(&self) -> &MerkleTreeNodeType {
         self.node().node_type()
     }
 
@@ -127,7 +127,7 @@ impl FileNode {
         self.node().version()
     }
 
-    pub fn hash(&self) -> MerkleHash {
+    pub fn hash(&self) -> &MerkleHash {
         self.node().hash()
     }
 
@@ -139,15 +139,15 @@ impl FileNode {
         self.mut_node().set_name(name);
     }
 
-    pub fn combined_hash(&self) -> MerkleHash {
+    pub fn combined_hash(&self) -> &MerkleHash {
         self.node().combined_hash()
     }
 
-    pub fn set_combined_hash(&mut self, combined_hash: MerkleHash) {
+    pub fn set_combined_hash(&mut self, combined_hash: &MerkleHash) {
         self.mut_node().set_combined_hash(combined_hash);
     }
 
-    pub fn metadata_hash(&self) -> Option<MerkleHash> {
+    pub fn metadata_hash(&self) -> Option<&MerkleHash> {
         self.node().metadata_hash()
     }
 
@@ -159,11 +159,11 @@ impl FileNode {
         self.node().num_bytes()
     }
 
-    pub fn last_commit_id(&self) -> MerkleHash {
+    pub fn last_commit_id(&self) -> &MerkleHash {
         self.node().last_commit_id()
     }
 
-    pub fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
+    pub fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash) {
         self.mut_node().set_last_commit_id(last_commit_id);
     }
 
@@ -175,7 +175,7 @@ impl FileNode {
         self.node().last_modified_nanoseconds()
     }
 
-    pub fn data_type(&self) -> EntryDataType {
+    pub fn data_type(&self) -> &EntryDataType {
         self.node().data_type()
     }
 
@@ -199,7 +199,7 @@ impl FileNode {
         self.node().extension()
     }
 
-    pub fn chunk_hashes(&self) -> Vec<u128> {
+    pub fn chunk_hashes(&self) -> &Vec<u128> {
         self.node().chunk_hashes()
     }
 
@@ -207,11 +207,11 @@ impl FileNode {
         self.mut_node().set_chunk_hashes(chunk_hashes);
     }
 
-    pub fn chunk_type(&self) -> FileChunkType {
+    pub fn chunk_type(&self) -> &FileChunkType {
         self.node().chunk_type()
     }
 
-    pub fn storage_backend(&self) -> FileStorageType {
+    pub fn storage_backend(&self) -> &FileStorageType {
         self.node().storage_backend()
     }
 }
@@ -243,11 +243,11 @@ impl Default for FileNode {
 
 impl MerkleTreeNodeIdType for FileNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type()
+        *self.node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        self.hash()
+        *self.hash()
     }
 }
 

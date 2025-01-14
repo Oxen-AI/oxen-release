@@ -15,15 +15,15 @@ use crate::view::DataTypeCount;
 
 pub trait TDirNode {
     fn version(&self) -> MinOxenVersion;
-    fn node_type(&self) -> MerkleTreeNodeType;
-    fn hash(&self) -> MerkleHash;
+    fn node_type(&self) -> &MerkleTreeNodeType;
+    fn hash(&self) -> &MerkleHash;
     fn name(&self) -> &str;
     fn set_name(&mut self, name: &str);
     fn num_files(&self) -> u64; // This us just the number of files
     fn num_entries(&self) -> u64; // This is the number of files and directories and vnodes
     fn num_bytes(&self) -> u64;
-    fn last_commit_id(&self) -> MerkleHash;
-    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash);
+    fn last_commit_id(&self) -> &MerkleHash;
+    fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash);
     fn last_modified_seconds(&self) -> i64;
     fn last_modified_nanoseconds(&self) -> u32;
     fn data_type_counts(&self) -> &HashMap<String, u64>;
@@ -146,11 +146,11 @@ impl DirNode {
         self.node().version()
     }
 
-    pub fn node_type(&self) -> MerkleTreeNodeType {
+    pub fn node_type(&self) -> &MerkleTreeNodeType {
         self.node().node_type()
     }
 
-    pub fn hash(&self) -> MerkleHash {
+    pub fn hash(&self) -> &MerkleHash {
         self.node().hash()
     }
 
@@ -166,11 +166,11 @@ impl DirNode {
         self.node().num_bytes()
     }
 
-    pub fn last_commit_id(&self) -> MerkleHash {
+    pub fn last_commit_id(&self) -> &MerkleHash {
         self.node().last_commit_id()
     }
 
-    pub fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
+    pub fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash) {
         self.mut_node().set_last_commit_id(last_commit_id);
     }
 
@@ -212,11 +212,11 @@ impl Default for DirNode {
 
 impl MerkleTreeNodeIdType for DirNode {
     fn node_type(&self) -> MerkleTreeNodeType {
-        self.node().node_type()
+        *self.node().node_type()
     }
 
     fn hash(&self) -> MerkleHash {
-        self.node().hash()
+        *self.node().hash()
     }
 }
 

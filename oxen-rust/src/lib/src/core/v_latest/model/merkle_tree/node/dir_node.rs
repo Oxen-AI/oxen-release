@@ -39,12 +39,12 @@ impl TDirNode for DirNodeData {
         MinOxenVersion::LATEST
     }
 
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
+    fn node_type(&self) -> &MerkleTreeNodeType {
+        &self.node_type
     }
 
-    fn hash(&self) -> MerkleHash {
-        self.hash
+    fn hash(&self) -> &MerkleHash {
+        &self.hash
     }
 
     fn name(&self) -> &str {
@@ -67,12 +67,12 @@ impl TDirNode for DirNodeData {
         self.num_bytes
     }
 
-    fn last_commit_id(&self) -> MerkleHash {
-        self.last_commit_id
+    fn last_commit_id(&self) -> &MerkleHash {
+        &self.last_commit_id
     }
 
-    fn set_last_commit_id(&mut self, last_commit_id: MerkleHash) {
-        self.last_commit_id = last_commit_id;
+    fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash) {
+        self.last_commit_id = *last_commit_id;
     }
 
     fn last_modified_seconds(&self) -> i64 {
