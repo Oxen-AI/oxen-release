@@ -682,7 +682,7 @@ fn r_list_files_by_type(
     for child in &node.children {
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
-                if file_node.data_type() == *data_type {
+                if file_node.data_type() == data_type {
                     let mut file_node = file_node.to_owned();
                     let full_path = traversed_path.join(file_node.name());
                     file_node.set_name(&full_path.to_string_lossy());
@@ -704,8 +704,8 @@ fn r_list_files_by_type(
 
 pub fn cp_dir_hashes_to(
     repo: &LocalRepository,
-    original_commit_id: MerkleHash,
-    new_commit_id: MerkleHash,
+    original_commit_id: &MerkleHash,
+    new_commit_id: &MerkleHash,
 ) -> Result<(), OxenError> {
     let original_dir_hashes_path = dir_hash_db_path_from_commit_id(repo, original_commit_id);
     let new_dir_hashes_path = dir_hash_db_path_from_commit_id(repo, new_commit_id);
@@ -925,7 +925,7 @@ pub fn dir_hash_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
         .join(DIR_HASHES_DIR)
 }
 
-pub fn dir_hash_db_path_from_commit_id(repo: &LocalRepository, commit_id: MerkleHash) -> PathBuf {
+pub fn dir_hash_db_path_from_commit_id(repo: &LocalRepository, commit_id: &MerkleHash) -> PathBuf {
     util::fs::oxen_hidden_dir(&repo.path)
         .join(Path::new(HISTORY_DIR))
         .join(commit_id.to_string())

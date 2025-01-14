@@ -28,7 +28,7 @@ pub fn get_slice(
 
     let metadata: Result<MetadataTabularImpl, OxenError> = match file_node.metadata() {
         Some(metadata) => match metadata {
-            GenericMetadata::MetadataTabular(metadata) => Ok(metadata.tabular),
+            GenericMetadata::MetadataTabular(metadata) => Ok(metadata.tabular.clone()),
             _ => {
                 return Err(OxenError::basic_str("Metadata is not tabular"));
             }

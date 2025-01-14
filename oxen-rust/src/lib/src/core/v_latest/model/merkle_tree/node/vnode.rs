@@ -2,6 +2,7 @@
 //! that is stored in on disk
 //!
 
+use crate::core::versions::MinOxenVersion;
 use crate::model::merkle_tree::node::vnode::TVNode;
 use crate::model::{MerkleHash, MerkleTreeNodeType};
 use serde::{Deserialize, Serialize};
@@ -14,12 +15,16 @@ pub struct VNodeData {
 }
 
 impl TVNode for VNodeData {
-    fn hash(&self) -> MerkleHash {
-        self.hash
+    fn version(&self) -> MinOxenVersion {
+        MinOxenVersion::LATEST
     }
 
-    fn node_type(&self) -> MerkleTreeNodeType {
-        self.node_type
+    fn hash(&self) -> &MerkleHash {
+        &self.hash
+    }
+
+    fn node_type(&self) -> &MerkleTreeNodeType {
+        &self.node_type
     }
 
     fn num_entries(&self) -> u64 {

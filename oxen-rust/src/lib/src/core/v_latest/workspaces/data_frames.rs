@@ -6,7 +6,7 @@ use crate::core::db;
 use crate::core::db::data_frames::df_db;
 use crate::core::v_latest::add::add_dir_to_staged_db;
 use crate::core::v_latest::index::CommitMerkleTree;
-use crate::core::v_latest::workspaces::files::track_modified_data_frame;
+use crate::core::v_latest::workspaces::files::{add, track_modified_data_frame};
 use rmp_serde::Serializer;
 use serde::Serialize;
 use sql_query_builder::Delete;
@@ -45,7 +45,7 @@ pub fn is_queryable_data_frame_indexed_from_file_node(
     file_node: &FileNode,
     path: &Path,
 ) -> Result<bool, OxenError> {
-    match get_queryable_data_frame_workspace_from_file_node(repo, &file_node.last_commit_id(), path)
+    match get_queryable_data_frame_workspace_from_file_node(repo, file_node.last_commit_id(), path)
     {
         Ok(_workspace) => Ok(true),
         Err(e) => match e {
@@ -92,7 +92,7 @@ pub fn get_queryable_data_frame_workspace(
     log::debug!("get_queryable_data_frame_workspace path: {:?}", path);
     let file_node = repositories::tree::get_file_by_path(repo, commit, path)?
         .ok_or(OxenError::path_does_not_exist(path))?;
-    if file_node.data_type() != EntryDataType::Tabular {
+    if *file_node.data_type() != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
@@ -109,7 +109,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     let file_node =
         repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, path)?
             .ok_or(OxenError::path_does_not_exist(path))?;
-    if file_node.data_type() != EntryDataType::Tabular {
+    if *file_node.data_type() != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
@@ -209,21 +209,54 @@ pub fn rename(
     let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
     let mut staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let mut staged_entry = staged_db.get(
-        path.to_str()
-            .ok_or(OxenError::basic_str("path not found"))?,
-    )?;
+    let mut staged_entry = staged_db.get(path.to_string_lossy().as_bytes())?;
     if staged_entry.is_none() {
         drop(staged_db);
-        track_modified_data_frame(workspace, path)?;
+        let workspace_file_path = workspace.workspace_repo.path.join(new_path);
+
+        // Export the file from the version path to the new path
+        if let Some(existing_file_node) =
+            repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, path)?
+        {
+            let version_path = util::fs::version_path_from_node(
+                &workspace.base_repo,
+                existing_file_node.hash().to_string(),
+                path,
+            );
+            log::debug!(
+                "rename: copying version path: {:?} to {:?}",
+                version_path,
+                workspace_file_path
+            );
+            util::fs::copy_mkdir(version_path, &workspace_file_path)?;
+        }
+
+        // Check if the new path exists in the merkle tree, if it does, it is modified
+        let is_modified = repositories::tree::get_file_by_path(
+            &workspace.base_repo,
+            &workspace.commit,
+            new_path,
+        )?
+        .is_some();
+        log::debug!(
+            "rename is_modified: {:?} workspace_file_path: {:?}",
+            is_modified,
+            workspace_file_path
+        );
+
+        if is_modified {
+            track_modified_data_frame(workspace, new_path)?;
+        } else {
+            add(workspace, &workspace_file_path)?;
+        }
+
         staged_db = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-        staged_entry = staged_db.get(
-            path.to_str()
-                .ok_or(OxenError::basic_str("path not found"))?,
-        )?;
+        staged_entry = staged_db.get(new_path.to_string_lossy().as_bytes())?;
+        log::debug!("rename: staged_entry: {:?}", staged_entry);
     }
-    let mut new_staged_entry: StagedMerkleTreeNode =
-        rmp_serde::from_slice(&staged_entry.ok_or(OxenError::basic_str("path not found"))?)?;
+    let mut new_staged_entry: StagedMerkleTreeNode = rmp_serde::from_slice(&staged_entry.ok_or(
+        OxenError::basic_str(format!("rename: new staged path not found: {:?}", path)),
+    )?)?;
     if let EMerkleTreeNode::File(file) = &mut new_staged_entry.node.node {
         file.set_name(new_path.to_str().unwrap());
     }

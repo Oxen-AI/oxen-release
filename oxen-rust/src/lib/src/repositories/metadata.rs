@@ -121,10 +121,10 @@ pub fn from_file_node(
             resource: PathBuf::from(commit.id.to_string()).join(node.name()),
         }),
         size: node.num_bytes(),
-        data_type: node.data_type(),
+        data_type: node.data_type().clone(),
         mime_type: node.mime_type().to_string(),
         extension: node.extension().to_string(),
-        metadata: node.metadata().clone(),
+        metadata: node.metadata(),
         is_queryable: None,
     })
 }

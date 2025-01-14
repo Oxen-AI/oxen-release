@@ -116,7 +116,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode
     pub fn from_file(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash(),
+            hash: *file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -126,7 +126,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode with the path relative to the repo
     pub fn from_file_relative_to_repo(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash(),
+            hash: *file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -136,7 +136,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a DirNode
     pub fn from_dir(dir_node: DirNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: dir_node.hash(),
+            hash: *dir_node.hash(),
             node: EMerkleTreeNode::Directory(dir_node),
             parent_id: None,
             children: Vec::new(),
@@ -404,10 +404,12 @@ impl MerkleTreeNode {
 
     pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
-            MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash()),
-            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash()),
-            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash()),
-            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash()),
+            MerkleTreeNodeType::Commit => {
+                CommitNode::deserialize(data).map(|commit| *commit.hash())
+            }
+            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| *vnode.hash()),
+            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| *dir.hash()),
+            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| *file.hash()),
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
             }
@@ -629,13 +631,21 @@ impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.node {
             EMerkleTreeNode::Commit(commit) => {
-                write!(f, "[{:?}] {} {}", self.node.node_type(), self.hash, commit)
+                write!(
+                    f,
+                    "[{:?}] ({}) {} {}",
+                    self.node.node_type(),
+                    commit.version(),
+                    self.hash,
+                    commit
+                )
             }
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] ({}) {} {} ({} children)",
                     self.node.node_type(),
+                    vnode.version(),
                     self.hash.to_short_str(),
                     vnode,
                     self.children.len()
@@ -644,8 +654,9 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::Directory(dir) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] ({}) {} {} ({} children)",
                     self.node.node_type(),
+                    dir.version(),
                     self.hash.to_short_str(),
                     dir,
                     self.children.len()
@@ -654,8 +665,9 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::File(file) => {
                 write!(
                     f,
-                    "[{:?}] {} {}",
+                    "[{:?}] ({}) {} {}",
                     self.node.node_type(),
+                    file.version(),
                     self.hash.to_short_str(),
                     file
                 )

@@ -268,7 +268,7 @@ fn remove_file_inner(
                 total.total_files += 1;
                 total
                     .data_type_counts
-                    .entry(file_node.data_type())
+                    .entry(file_node.data_type().clone())
                     .and_modify(|count| *count += 1)
                     .or_insert(1);
             }
@@ -608,7 +608,7 @@ fn r_process_remove_dir(
                             total.total_files += 1;
                             total
                                 .data_type_counts
-                                .entry(file_node.data_type())
+                                .entry(file_node.data_type().clone())
                                 .and_modify(|count| *count += 1)
                                 .or_insert(1);
                         }
