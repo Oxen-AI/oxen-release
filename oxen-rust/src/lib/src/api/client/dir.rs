@@ -77,7 +77,8 @@ pub async fn get_dir(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    let response: Result<PaginatedDirEntriesResponse, serde_json::Error> = serde_json::from_str(&body);
+    let response: Result<PaginatedDirEntriesResponse, serde_json::Error> =
+        serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val),
         Err(err) => Err(OxenError::basic_str(format!(
@@ -332,7 +333,11 @@ mod tests {
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
             let mut local_repo = local_repo;
 
-            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_repo.remote.url)?;
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
             let repo_path = local_repo.path.join("dir=dir");
             util::fs::create_dir_all(&repo_path)?;
             let file_path = repo_path.join("file example.txt");
@@ -341,7 +346,8 @@ mod tests {
             repositories::commit(&local_repo, "Adding README")?;
             repositories::push(&local_repo).await?;
 
-            let dir_response = api::client::dir::get_dir(&remote_repo, DEFAULT_BRANCH_NAME, "dir=dir").await?;
+            let dir_response =
+                api::client::dir::get_dir(&remote_repo, DEFAULT_BRANCH_NAME, "dir=dir").await?;
             assert_eq!(dir_response.status.status, "success");
 
             // Assert the directory is present and named "dir=dir"
@@ -351,9 +357,13 @@ mod tests {
             } else {
                 panic!("Directory 'dir=dir' not found");
             }
-        
+
             // Assert the file "file example.txt" is present in the entries
-            let file_entry = dir_response.entries.entries.iter().find(|entry| entry.filename == "file example.txt");
+            let file_entry = dir_response
+                .entries
+                .entries
+                .iter()
+                .find(|entry| entry.filename == "file example.txt");
             match file_entry {
                 Some(file) => {
                     assert_eq!(file.filename, "file example.txt");
