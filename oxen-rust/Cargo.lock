@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Oxen"
-version = "0.24.3"
+version = "0.24.4"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -3315,7 +3315,7 @@ checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "liboxen"
-version = "0.24.3"
+version = "0.24.4"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -4019,7 +4019,7 @@ dependencies = [
 
 [[package]]
 name = "oxen-cli"
-version = "0.24.3"
+version = "0.24.4"
 dependencies = [
  "async-trait",
  "bytesize",
@@ -4041,7 +4041,7 @@ dependencies = [
 
 [[package]]
 name = "oxen-server"
-version = "0.24.3"
+version = "0.24.4"
 dependencies = [
  "actix-files",
  "actix-http",
