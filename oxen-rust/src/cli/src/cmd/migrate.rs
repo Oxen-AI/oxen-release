@@ -1,24 +1,13 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::{
-    command::migrate::AddChildCountsToNodesMigration, error::OxenError, model::LocalRepository,
-};
+use liboxen::{error::OxenError, model::LocalRepository};
 
 use crate::cmd::RunCmd;
-use liboxen::command::migrate::Migrate;
+use crate::helpers::migrations;
 
 pub const NAME: &str = "migrate";
-
-fn migrations() -> HashMap<String, Box<dyn Migrate>> {
-    let mut map: HashMap<String, Box<dyn Migrate>> = HashMap::new();
-    map.insert(
-        AddChildCountsToNodesMigration.name().to_string(),
-        Box::new(AddChildCountsToNodesMigration),
-    );
-    map
-}
 
 pub fn migrate_args(name: &'static str, desc: &'static str) -> Command {
     Command::new(name)

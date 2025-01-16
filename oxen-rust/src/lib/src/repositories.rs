@@ -93,7 +93,7 @@ fn is_repo_forked(repo_dir: &Path) -> Result<Option<LocalRepository>, OxenError>
     let status_path = repo_dir.join(FORK_STATUS_FILE);
 
     if status_path.exists() {
-        Ok(Some(LocalRepository::new(repo_dir)?))
+        Ok(Some(LocalRepository::from_dir(repo_dir)?))
     } else {
         Err(OxenError::basic_str(NO_REPO_FOUND))
     }
