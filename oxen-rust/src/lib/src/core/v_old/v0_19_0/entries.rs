@@ -8,7 +8,7 @@ use crate::model::{
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_old::v0_19_0::index::CommitMerkleTree;
 use crate::repositories;
 
 pub fn get_file(

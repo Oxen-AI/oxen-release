@@ -22,7 +22,9 @@ use crate::core::refs::RefWriter;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::status;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::commit_node::CommitNodeOpts;
 use crate::model::merkle_tree::node::dir_node::DirNodeOpts;
+use crate::model::merkle_tree::node::vnode::VNodeOpts;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::merkle_tree::node::VNode;
@@ -237,12 +239,14 @@ pub fn commit_dir_entries_with_parents(
 
     let node = CommitNode::new(
         repo,
-        commit_id,
-        parent_hashes,
-        new_commit.email.clone(),
-        new_commit.author.clone(),
-        message.to_string(),
-        timestamp,
+        CommitNodeOpts {
+            hash: commit_id,
+            parent_ids: parent_hashes,
+            email: new_commit.email.clone(),
+            author: new_commit.author.clone(),
+            message: message.to_string(),
+            timestamp,
+        },
     )?;
 
     let opts = db::key_val::opts::default();
@@ -330,16 +334,18 @@ pub fn commit_dir_entries_new(
 
     let node = CommitNode::new(
         repo,
-        commit_id,
-        new_commit
-            .parent_ids
-            .iter()
-            .map(|id: &String| MerkleHash::from_str(id).unwrap())
-            .collect(),
-        new_commit.email.clone(),
-        new_commit.author.clone(),
-        message.to_string(),
-        timestamp,
+        CommitNodeOpts {
+            hash: commit_id,
+            parent_ids: new_commit
+                .parent_ids
+                .iter()
+                .map(|id: &String| MerkleHash::from_str(id).unwrap())
+                .collect(),
+            email: new_commit.email.clone(),
+            author: new_commit.author.clone(),
+            message: message.to_string(),
+            timestamp,
+        },
     )?;
 
     let opts = db::key_val::opts::default();
@@ -450,12 +456,14 @@ pub fn commit_dir_entries(
 
     let node = CommitNode::new(
         repo,
-        commit_id,
-        parent_ids,
-        new_commit.email.clone(),
-        new_commit.author.clone(),
-        message.to_string(),
-        timestamp,
+        CommitNodeOpts {
+            hash: commit_id,
+            parent_ids,
+            email: new_commit.email.clone(),
+            author: new_commit.author.clone(),
+            message: message.to_string(),
+            timestamp,
+        },
     )?;
 
     let opts = db::key_val::opts::default();
@@ -817,7 +825,11 @@ fn r_create_dir_node(
 
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
-        let vnode_obj = VNode::new(repo, vnode.id, vnode.entries.len() as u64)?;
+        let opts = VNodeOpts {
+            hash: vnode.id,
+            num_entries: vnode.entries.len() as u64,
+        };
+        let vnode_obj = VNode::new(repo, opts)?;
         if let Some(dir_db) = maybe_dir_db {
             dir_db.add_child(&vnode_obj)?;
             *total_written += 1;

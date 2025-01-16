@@ -12,14 +12,17 @@ use tar::Archive;
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR, NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
 use crate::core::db;
 use crate::core::db::merkle_node::merkle_node_db::{node_db_path, node_db_prefix};
+use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::v_latest::index::CommitMerkleTree as CommitMerkleTreeLatest;
 use crate::core::v_old::v0_19_0::index::CommitMerkleTree as CommitMerkleTreeV0_19_0;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{
-    DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
+    CommitNode, DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
 };
-use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash, MerkleTreeNodeType};
+use crate::model::{
+    Commit, EntryDataType, LocalRepository, MerkleHash, MerkleTreeNodeType, TMerkleTreeNode,
+};
 use crate::{repositories, util};
 
 /// This will return the MerkleTreeNode with type CommitNode if the Commit exists
@@ -882,6 +885,46 @@ pub fn unpack_nodes(
         }
     }
     Ok(hashes)
+}
+
+/// Write a node to disk
+pub fn write_tree(repo: &LocalRepository, node: &MerkleTreeNode) -> Result<(), OxenError> {
+    let EMerkleTreeNode::Commit(commit_node) = &node.node else {
+        return Err(OxenError::basic_str("Expected commit node"));
+    };
+    let commit_node = CommitNode::new(repo, commit_node.get_opts())?;
+    p_write_tree(repo, node, &commit_node)?;
+    Ok(())
+}
+
+fn p_write_tree(
+    repo: &LocalRepository,
+    node: &MerkleTreeNode,
+    node_impl: &impl TMerkleTreeNode,
+) -> Result<(), OxenError> {
+    let parent_id = node.parent_id;
+
+    let mut db = MerkleNodeDB::open_read_write(repo, node_impl, parent_id)?;
+    for child in &node.children {
+        match &child.node {
+            EMerkleTreeNode::VNode(ref vnode) => {
+                db.add_child(vnode)?;
+                p_write_tree(repo, child, vnode)?;
+            }
+            EMerkleTreeNode::Directory(ref dir_node) => {
+                db.add_child(dir_node)?;
+                p_write_tree(repo, child, dir_node)?;
+            }
+            EMerkleTreeNode::File(ref file_node) => {
+                db.add_child(file_node)?;
+            }
+            node => {
+                panic!("p_write_tree Unexpected node type: {:?}", node);
+            }
+        }
+    }
+    db.close()?;
+    Ok(())
 }
 
 /// The dir hashes allow you to skip to a directory in the tree

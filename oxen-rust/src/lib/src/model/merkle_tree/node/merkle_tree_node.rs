@@ -476,6 +476,16 @@ impl MerkleTreeNode {
         }
     }
 
+    pub fn walk_tree_mut(&mut self, mut f: impl FnMut(&mut MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter_mut().rev() {
+                stack.push(child);
+            }
+        }
+    }
+
     pub fn walk_tree_without_leaves(&self, mut f: impl FnMut(&MerkleTreeNode)) {
         let mut stack = vec![self];
         while let Some(node) = stack.pop() {
@@ -599,7 +609,7 @@ impl MerkleTreeNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "[{:?}]", self.node.node_type())?;
+        writeln!(f, "{}\n=============", self)?;
         writeln!(f, "hash: {}", self.hash)?;
         writeln!(f, "node: {:?}", self.node)?;
         writeln!(
@@ -609,8 +619,6 @@ impl fmt::Debug for MerkleTreeNode {
                 .map_or("None".to_string(), |id| id.to_string())
         )?;
         writeln!(f, "children.len(): {}", self.children.len())?;
-        writeln!(f, "=============")?;
-        writeln!(f, "{}", self)?;
         writeln!(f, "=============")?;
 
         for child in &self.children {
@@ -633,7 +641,7 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::Commit(commit) => {
                 write!(
                     f,
-                    "[{:?}] ({}) {} {}",
+                    "[{:?}_{}] {} {}",
                     self.node.node_type(),
                     commit.version(),
                     self.hash,
@@ -643,29 +651,29 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
-                    "[{:?}] ({}) {} {} ({} children)",
+                    "[{:?}_{}] {} {} ({} entries)",
                     self.node.node_type(),
                     vnode.version(),
                     self.hash.to_short_str(),
                     vnode,
-                    self.children.len()
+                    vnode.num_entries()
                 )
             }
             EMerkleTreeNode::Directory(dir) => {
                 write!(
                     f,
-                    "[{:?}] ({}) {} {} ({} children)",
+                    "[{:?}_{}] {} {} ({} entries)",
                     self.node.node_type(),
                     dir.version(),
                     self.hash.to_short_str(),
                     dir,
-                    self.children.len()
+                    dir.num_entries()
                 )
             }
             EMerkleTreeNode::File(file) => {
                 write!(
                     f,
-                    "[{:?}] ({}) {} {}",
+                    "[{:?}_{}] {} {}",
                     self.node.node_type(),
                     file.version(),
                     self.hash.to_short_str(),

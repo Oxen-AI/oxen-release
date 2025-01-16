@@ -59,6 +59,10 @@ impl TDirNode for DirNodeData {
         self.data_type_counts.values().sum()
     }
 
+    fn set_num_entries(&mut self, num_entries: u64) {
+        self.num_entries = num_entries;
+    }
+
     fn num_entries(&self) -> u64 {
         self.num_entries
     }

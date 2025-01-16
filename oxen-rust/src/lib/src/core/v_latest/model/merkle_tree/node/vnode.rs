@@ -30,4 +30,8 @@ impl TVNode for VNodeData {
     fn num_entries(&self) -> u64 {
         self.num_entries
     }
+
+    fn set_num_entries(&mut self, num_entries: u64) {
+        self.num_entries = num_entries;
+    }
 }

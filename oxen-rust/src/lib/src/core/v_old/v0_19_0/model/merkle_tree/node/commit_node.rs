@@ -5,7 +5,7 @@ use crate::core::versions::MinOxenVersion;
 use crate::model::merkle_tree::node::commit_node::TCommitNode;
 use crate::model::{MerkleHash, MerkleTreeNodeType};
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct CommitNodeData {
     pub hash: MerkleHash,
     pub node_type: MerkleTreeNodeType,

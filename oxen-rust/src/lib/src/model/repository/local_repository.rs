@@ -123,6 +123,10 @@ impl LocalRepository {
         }
     }
 
+    pub fn set_remote_name(&mut self, name: impl AsRef<str>) {
+        self.remote_name = Some(name.as_ref().to_string());
+    }
+
     pub fn set_min_version(&mut self, version: MinOxenVersion) {
         self.min_version = Some(version.to_string());
     }
