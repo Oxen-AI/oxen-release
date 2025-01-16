@@ -1,14 +1,10 @@
 maturin
-numpy>=2.0.0
-opencv-python-headless==4.10.0.84
 pandas>=2.0.1
-polars>=1.15.0
+polars>=1.20.0
 pyarrow>=18.0.0
 pytest-datadir==1.4.1
 pytest==8.3.4
 requests>=2.32.3
 ruff>=0.5.0
-tensorflow>=2.16.1
 toml==0.10.2
-torch>=2.2.0
 tqdm>=4.67.1
