@@ -38,10 +38,13 @@ impl Migrate for AddChildCountsToNodesMigration {
     }
 
     fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let latest_commit = repositories::commits::latest_commit(repo)?;
-        let commit_node_version =
-            repositories::tree::get_commit_node_version(repo, &latest_commit)?;
-        Ok(commit_node_version == MinOxenVersion::V0_19_0)
+        let min_version = repo.min_version();
+        log::debug!(
+            "checking if migration is needed for repo: {:?}, min_version: {}",
+            repo.path,
+            min_version
+        );
+        Ok(min_version == MinOxenVersion::V0_19_0)
     }
 }
 

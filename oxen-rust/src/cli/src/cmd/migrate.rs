@@ -73,7 +73,7 @@ impl RunCmd for MigrateCmd {
                 let all = sub_matches.get_flag("all");
 
                 if direction == "up" {
-                    let repo = LocalRepository::new(path)?;
+                    let repo = LocalRepository::from_dir(path)?;
                     if migration.is_needed(&repo)? {
                         migration.up(path, all)?;
                     } else {
