@@ -21,6 +21,7 @@ pub trait TDirNode {
     fn set_name(&mut self, name: &str);
     fn num_files(&self) -> u64; // This us just the number of files
     fn num_entries(&self) -> u64; // This is the number of files and directories and vnodes
+    fn set_num_entries(&mut self, num_entries: u64);
     fn num_bytes(&self) -> u64;
     fn last_commit_id(&self) -> &MerkleHash;
     fn set_last_commit_id(&mut self, last_commit_id: &MerkleHash);
@@ -90,26 +91,31 @@ impl DirNode {
         }
     }
 
-    /// Number of files (not including directories)
-    pub fn num_files(&self) -> u64 {
-        // The data type counts are the number of files per data type,
-        // so we can sum them to get the total number of files
-        self.data_type_counts().values().sum()
-    }
-
-    /// Number of files and directories
-    pub fn num_entries(&self) -> u64 {
-        self.node().num_entries()
-    }
-
-    pub fn data_types(&self) -> Vec<DataTypeCount> {
-        self.data_type_counts()
-            .iter()
-            .map(|(k, v)| DataTypeCount {
-                data_type: k.clone(),
-                count: *v as usize,
-            })
-            .collect()
+    pub fn get_opts(&self) -> DirNodeOpts {
+        match &self.node {
+            EDirNode::V0_25_0(ref data) => DirNodeOpts {
+                name: data.name.clone(),
+                hash: data.hash,
+                num_entries: data.num_entries,
+                num_bytes: data.num_bytes,
+                last_commit_id: data.last_commit_id,
+                last_modified_seconds: data.last_modified_seconds,
+                last_modified_nanoseconds: data.last_modified_nanoseconds,
+                data_type_counts: data.data_type_counts.clone(),
+                data_type_sizes: data.data_type_sizes.clone(),
+            },
+            EDirNode::V0_19_0(ref data) => DirNodeOpts {
+                name: data.name.clone(),
+                hash: data.hash,
+                num_entries: 0, // not supported in v0.19.0
+                num_bytes: data.num_bytes,
+                last_commit_id: data.last_commit_id,
+                last_modified_seconds: data.last_modified_seconds,
+                last_modified_nanoseconds: data.last_modified_nanoseconds,
+                data_type_counts: data.data_type_counts.clone(),
+                data_type_sizes: data.data_type_sizes.clone(),
+            },
+        }
     }
 
     pub fn deserialize(data: &[u8]) -> Result<DirNode, OxenError> {
@@ -119,9 +125,9 @@ impl DirNode {
             Ok(dir_node) => dir_node,
             Err(_) => {
                 // This is a fallback for old versions of the dir node
-                let dir_node: DirNodeDataV0_25_0 = rmp_serde::from_slice(data)?;
+                let dir_node: DirNodeDataV0_19_0 = rmp_serde::from_slice(data)?;
                 Self {
-                    node: EDirNode::V0_25_0(dir_node),
+                    node: EDirNode::V0_19_0(dir_node),
                 }
             }
         };
@@ -142,6 +148,10 @@ impl DirNode {
         }
     }
 
+    pub fn hash(&self) -> &MerkleHash {
+        self.node().hash()
+    }
+
     pub fn version(&self) -> MinOxenVersion {
         self.node().version()
     }
@@ -150,8 +160,14 @@ impl DirNode {
         self.node().node_type()
     }
 
-    pub fn hash(&self) -> &MerkleHash {
-        self.node().hash()
+    pub fn data_types(&self) -> Vec<DataTypeCount> {
+        self.data_type_counts()
+            .iter()
+            .map(|(k, v)| DataTypeCount {
+                data_type: k.clone(),
+                count: *v as usize,
+            })
+            .collect()
     }
 
     pub fn name(&self) -> &str {
@@ -160,6 +176,22 @@ impl DirNode {
 
     pub fn set_name(&mut self, name: impl AsRef<str>) {
         self.mut_node().set_name(name.as_ref());
+    }
+
+    /// /// Number of files (not including directories)
+    pub fn num_files(&self) -> u64 {
+        // The data type counts are the number of files per data type,
+        // so we can sum them to get the total number of files
+        self.data_type_counts().values().sum()
+    }
+
+    /// Number of files and directories and vnodes
+    pub fn num_entries(&self) -> u64 {
+        self.node().num_entries()
+    }
+
+    pub fn set_num_entries(&mut self, num_entries: u64) {
+        self.mut_node().set_num_entries(num_entries);
     }
 
     pub fn num_bytes(&self) -> u64 {

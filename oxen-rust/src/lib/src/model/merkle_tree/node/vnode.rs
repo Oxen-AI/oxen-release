@@ -18,6 +18,7 @@ pub trait TVNode {
     fn hash(&self) -> &MerkleHash;
     fn version(&self) -> MinOxenVersion;
     fn num_entries(&self) -> u64;
+    fn set_num_entries(&mut self, _: u64);
 }
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -26,29 +27,30 @@ pub enum EVNode {
     V0_25_0(VNodeImplV0_25_0),
 }
 
+pub struct VNodeOpts {
+    pub hash: MerkleHash,
+    pub num_entries: u64,
+}
+
 #[derive(Deserialize, Serialize, Clone, Eq, PartialEq)]
 pub struct VNode {
     pub node: EVNode,
 }
 
 impl VNode {
-    pub fn new(
-        repo: &LocalRepository,
-        hash: MerkleHash,
-        num_entries: u64,
-    ) -> Result<VNode, OxenError> {
+    pub fn new(repo: &LocalRepository, vnode_opts: VNodeOpts) -> Result<VNode, OxenError> {
         match repo.min_version() {
             MinOxenVersion::V0_19_0 => Ok(Self {
                 node: EVNode::V0_19_0(VNodeImplV0_19_0 {
-                    hash,
+                    hash: vnode_opts.hash,
                     node_type: MerkleTreeNodeType::VNode,
                 }),
             }),
             MinOxenVersion::LATEST => Ok(Self {
                 node: EVNode::V0_25_0(VNodeImplV0_25_0 {
-                    hash,
+                    hash: vnode_opts.hash,
                     node_type: MerkleTreeNodeType::VNode,
-                    num_entries,
+                    num_entries: vnode_opts.num_entries,
                 }),
             }),
             _ => Err(OxenError::basic_str("VNode not supported in this version")),
@@ -71,10 +73,30 @@ impl VNode {
         Ok(vnode)
     }
 
+    pub fn get_opts(&self) -> VNodeOpts {
+        match &self.node {
+            EVNode::V0_25_0(vnode) => VNodeOpts {
+                hash: vnode.hash,
+                num_entries: vnode.num_entries,
+            },
+            EVNode::V0_19_0(vnode) => VNodeOpts {
+                hash: vnode.hash,
+                num_entries: 0,
+            },
+        }
+    }
+
     fn node(&self) -> &dyn TVNode {
         match self.node {
             EVNode::V0_25_0(ref vnode) => vnode,
             EVNode::V0_19_0(ref vnode) => vnode,
+        }
+    }
+
+    fn mut_node(&mut self) -> &mut dyn TVNode {
+        match self.node {
+            EVNode::V0_25_0(ref mut vnode) => vnode,
+            EVNode::V0_19_0(ref mut vnode) => vnode,
         }
     }
 
@@ -88,6 +110,10 @@ impl VNode {
 
     pub fn num_entries(&self) -> u64 {
         self.node().num_entries()
+    }
+
+    pub fn set_num_entries(&mut self, num_entries: u64) {
+        self.mut_node().set_num_entries(num_entries);
     }
 }
 

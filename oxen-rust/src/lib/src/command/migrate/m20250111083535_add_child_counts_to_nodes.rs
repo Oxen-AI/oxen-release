@@ -4,7 +4,8 @@ use super::Migrate;
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::LocalRepository;
+use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, VNode};
+use crate::model::{Commit, LocalRepository};
 
 use crate::repositories;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -74,7 +75,57 @@ pub fn run_on_all_repos(path: &Path) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn run_on_one_repo(_repo: &LocalRepository) -> Result<(), OxenError> {
+fn run_on_one_repo(repo: &LocalRepository) -> Result<(), OxenError> {
+    let commits = repositories::commits::list_all(repo)?;
+    for commit in commits {
+        run_on_commit(repo, &commit)?;
+    }
+
+    Ok(())
+}
+
+fn run_on_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
+    log::info!(
+        "Running add_child_counts_to_nodes on commit: {} for repo: {:?}",
+        commit.id,
+        repo.path
+    );
+    let mut repo = repo.clone();
+
+    let Some(mut root_node) = repositories::tree::get_root_with_children(&repo, commit)? else {
+        return Err(OxenError::basic_str("Root node not found"));
+    };
+
+    // Iterate over the nodes, find the VNode and DirNode, and add the child counts
+
+    // TODO: Need to add a clean function to write the nodes back to disk
+
+    repo.set_min_version(MinOxenVersion::from_string("0.25.0")?);
+
+    root_node.walk_tree_mut(|node| {
+        match &mut node.node {
+            EMerkleTreeNode::Directory(dir) => {
+                // Fuck, how do we update all the children nodes too?
+                let child_count = node.children.len() as u64;
+                let opts = dir.get_opts();
+                let mut new_dir = DirNode::new(&repo, opts).expect("Failed to create dir");
+                new_dir.set_num_entries(child_count);
+                *dir = new_dir;
+            }
+            EMerkleTreeNode::VNode(vnode) => {
+                let opts = vnode.get_opts();
+                let mut new_vnode = VNode::new(&repo, opts).expect("Failed to create vnode");
+                new_vnode.set_num_entries(node.children.len() as u64);
+                *vnode = new_vnode;
+            }
+            _ => {
+                // pass, FileNode was not changed, so it is on the latest version
+            }
+        }
+    });
+
+    repositories::tree::write_tree(&repo, &root_node)?;
+
     Ok(())
 }
 
@@ -83,7 +134,11 @@ pub fn run_on_one_repo(_repo: &LocalRepository) -> Result<(), OxenError> {
 mod tests {
     use super::*;
 
-    use crate::test;
+    use crate::{
+        model::{merkle_tree::node::EMerkleTreeNode, MerkleHash},
+        test,
+    };
+    use std::str::FromStr;
 
     #[test]
     fn test_add_child_counts_to_nodes_migration() -> Result<(), OxenError> {
@@ -98,17 +153,32 @@ mod tests {
 
             // Test that the root commit
             let latest_commit = repositories::commits::latest_commit(&repo)?;
-            let commit_node_version =
-                repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
+            let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
+            let Some(old_root_node) =
+                repositories::tree::get_node_by_id_with_children(&repo, &commit_hash)?
+            else {
+                return Err(OxenError::basic_str("Root node not found"));
+            };
 
             repositories::tree::print_tree(&repo, &latest_commit)?;
 
-            // TODO: Since the writers always assume the latest version,
-            // this doesn't work. Either the writers need to accept a version,
-            // or we need to make a little v0.19.0 repository and check it in to test...
-            // making the writers work with a version is the more robust solution, because then we can still
-            // write to old versions of the repository.
-            assert_eq!(commit_node_version, MinOxenVersion::V0_19_0);
+            old_root_node.walk_tree(|node| {
+                println!("test_add_child_counts_to_nodes node: {}", node);
+                match &node.node {
+                    EMerkleTreeNode::Commit(commit) => {
+                        assert_eq!(commit.version(), MinOxenVersion::V0_19_0);
+                    }
+                    EMerkleTreeNode::Directory(dir) => {
+                        assert_eq!(dir.version(), MinOxenVersion::V0_19_0);
+                    }
+                    EMerkleTreeNode::VNode(vnode) => {
+                        assert_eq!(vnode.version(), MinOxenVersion::V0_19_0);
+                    }
+                    _ => {
+                        // pass, FileNode was not changed, so it is on the latest version
+                    }
+                }
+            });
 
             // Run the migration
             run_on_one_repo(&repo)?;
@@ -119,6 +189,40 @@ mod tests {
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
             let node_version_str = commit_node_version.to_string();
             assert_eq!(node_version_str, "0.25.0");
+
+            let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
+            let Some(new_root_node) =
+                repositories::tree::get_node_by_id_with_children(&repo, &commit_hash)?
+            else {
+                return Err(OxenError::basic_str("Root node not found"));
+            };
+
+            new_root_node.walk_tree(|node| {
+                println!("test_add_child_counts_to_nodes node: {}", node);
+                match &node.node {
+                    EMerkleTreeNode::Commit(commit) => {
+                        assert_eq!(
+                            commit.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    EMerkleTreeNode::Directory(dir) => {
+                        assert_eq!(
+                            dir.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    EMerkleTreeNode::VNode(vnode) => {
+                        assert_eq!(
+                            vnode.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    _ => {
+                        // pass, FileNode was not changed, so it is on the latest version
+                    }
+                }
+            });
 
             Ok(())
         })

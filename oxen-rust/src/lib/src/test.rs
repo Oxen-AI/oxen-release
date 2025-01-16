@@ -179,7 +179,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -239,7 +239,7 @@ where
         std::fs::remove_dir_all(&new_repo_dir)?;
     }
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -267,7 +267,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -294,7 +294,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -325,7 +325,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -376,7 +376,7 @@ where
     };
 
     // Cleanup local repo
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -681,7 +681,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -734,7 +734,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -831,7 +831,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -882,7 +882,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -933,7 +933,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -965,7 +965,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -999,7 +999,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1033,7 +1033,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1074,7 +1074,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1102,7 +1102,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1132,7 +1132,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     match result {
@@ -1166,7 +1166,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -1204,7 +1204,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1243,7 +1243,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1317,7 +1317,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1350,7 +1350,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1415,7 +1415,7 @@ where
         }
     };
 
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     assert!(result);
     Ok(())
@@ -1454,7 +1454,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     match result {
@@ -1502,7 +1502,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -1548,10 +1548,21 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
+    Ok(())
+}
+
+// This function conditionally removes the repo dir given a CLEANUP_REPOS environment variable
+fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
+    let no_cleanup = std::env::var("NO_CLEANUP") == Ok("true".to_string())
+        || std::env::var("NO_CLEANUP") == Ok("1".to_string());
+    log::debug!("maybe_cleanup_repo: no_cleanup: {no_cleanup}");
+    if !no_cleanup {
+        util::fs::remove_dir_all(repo_dir)?;
+    }
     Ok(())
 }
 

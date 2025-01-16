@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 use crate::core;
 use crate::core::refs::{RefReader, RefWriter};
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::commit_node::CommitNodeOpts;
 use crate::model::merkle_tree::node::{CommitNode, EMerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash, User};
 use crate::opts::PaginateOpts;
@@ -190,12 +191,14 @@ pub fn create_empty_commit(
     let timestamp = OffsetDateTime::now_utc();
     let commit_node = CommitNode::new(
         repo,
-        MerkleHash::from_str(&new_commit.id)?,
-        vec![existing_commit_id],
-        new_commit.email.clone(),
-        new_commit.author.clone(),
-        new_commit.message.clone(),
-        timestamp,
+        CommitNodeOpts {
+            hash: MerkleHash::from_str(&new_commit.id)?,
+            parent_ids: vec![existing_commit_id],
+            email: new_commit.email.clone(),
+            author: new_commit.author.clone(),
+            message: new_commit.message.clone(),
+            timestamp,
+        },
     )?;
 
     let parent_id = Some(existing_node.hash);
