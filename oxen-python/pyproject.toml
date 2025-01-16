@@ -12,16 +12,12 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "numpy",
-    "opencv-python-headless",
     "pandas",
     "polars",
     "pyarrow",
     "requests",
     "toml",
-    "tqdm",
-    "torch",
-    "tensorflow",
+    "tqdm"
 ]
 
 
