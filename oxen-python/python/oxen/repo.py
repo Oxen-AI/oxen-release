@@ -213,3 +213,9 @@ class Repo:
         Returns the current branch.
         """
         return self._repo.current_branch()
+
+    def merge(self, branch: str):
+        """
+        Merge a branch into the current branch.
+        """
+        return self._repo.merge(branch)

@@ -202,11 +202,19 @@ impl PyRepo {
                 branch: branch.to_string(),
                 subtree_paths: None,
                 depth: None,
-                all
+                all,
             };
             repositories::pull_remote_branch(&repo, &fetch_opts).await
         })?;
         Ok(())
+    }
+
+    pub fn merge(&self, branch: &str) -> Result<Option<PyCommit>, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        match repositories::merge::merge(&repo, branch)? {
+            Some(commit) => Ok(Some(PyCommit { commit })),
+            None => Ok(None),
+        }
     }
 
     // pub fn diff(&self, path: &str) -> Result<PyDiff, PyOxenError> {
