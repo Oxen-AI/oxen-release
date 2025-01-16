@@ -1579,7 +1579,7 @@ pub fn compare_file_contents(
 
     let file_2 = File::open(path_2).map_err(|err| {
         eprintln!("Could not open file {:?} due to {:?}", path_2, err);
-        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_1, err))
+        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_2, err))
     })?;
 
     let mut reader_1 = BufReader::new(file_1);
