@@ -1,4 +1,5 @@
 import os
+import pytest
 from oxen import RemoteRepo, Workspace
 
 
@@ -18,5 +19,11 @@ def test_commit_one_file(
 def test_commit_empty(celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     workspace = Workspace(remote_repo, "main")
-    workspace.commit("a commit message")
-    assert len(remote_repo.log()) == 2
+
+    with pytest.raises(ValueError) as e:
+        # empty commits in workspace should raise an error
+        workspace.commit("a commit message")
+        assert "No changes to commit" in str(e)
+
+    # should still be 1 commit
+    assert len(remote_repo.log()) == 1
