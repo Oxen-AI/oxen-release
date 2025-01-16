@@ -2,13 +2,14 @@ use std::path::Path;
 
 use super::Migrate;
 
+use crate::config::RepositoryConfig;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, VNode};
 use crate::model::{Commit, LocalRepository};
 
-use crate::repositories;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
+use crate::{repositories, util};
 
 pub struct AddChildCountsToNodesMigration;
 impl AddChildCountsToNodesMigration {}
@@ -26,7 +27,7 @@ impl Migrate for AddChildCountsToNodesMigration {
         if all {
             run_on_all_repos(path)?;
         } else {
-            let repo = LocalRepository::new(path)?;
+            let repo = LocalRepository::from_dir(path)?;
             run_on_one_repo(&repo)?;
         }
         Ok(())
@@ -124,7 +125,14 @@ fn run_on_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenErro
         }
     });
 
+    // Write the tree back to disk
     repositories::tree::write_tree(&repo, &root_node)?;
+
+    // Set the oxen version to 0.25.0
+    let mut config = RepositoryConfig::from_repo(&repo)?;
+    config.min_version = Some("0.25.0".to_string());
+    let path = util::fs::config_filepath(&repo.path);
+    config.save(&path)?;
 
     Ok(())
 }
@@ -183,7 +191,7 @@ mod tests {
             // Run the migration
             run_on_one_repo(&repo)?;
 
-            let repo = LocalRepository::new(&repo.path)?;
+            let repo = LocalRepository::from_dir(&repo.path)?;
             let latest_commit = repositories::commits::latest_commit(&repo)?;
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
@@ -223,6 +231,11 @@ mod tests {
                     }
                 }
             });
+
+            // Make sure that the repo version is updated
+            let repo = LocalRepository::from_dir(&repo.path)?;
+            let version_str = repo.min_version().to_string();
+            assert_eq!(version_str, "0.25.0");
 
             Ok(())
         })

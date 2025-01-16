@@ -30,8 +30,40 @@ pub struct LocalRepositoryWithEntries {
 }
 
 impl LocalRepository {
+    /// Load a repository from a directory, this reads the config file and returns the repository struct
+    pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
+        let config_path = util::fs::config_filepath(dir);
+        if !config_path.exists() {
+            return Err(OxenError::LocalRepoNotFound(Box::new(
+                dir.to_path_buf().into(),
+            )));
+        }
+        let cfg = RepositoryConfig::from_file(&config_path)?;
+        let vnode_size = cfg.vnode_size();
+        let repo = LocalRepository {
+            path: dir.to_path_buf(),
+            remotes: cfg.remotes,
+            remote_name: cfg.remote_name,
+            min_version: cfg.min_version,
+            vnode_size: Some(vnode_size),
+            subtree_paths: cfg.subtree_paths,
+            depth: cfg.depth,
+        };
+        Ok(repo)
+    }
+
+    /// Load a repository from the current directory
+    /// this traverses up the directory tree until it finds a .oxen/ directory
+    pub fn from_current_dir() -> Result<LocalRepository, OxenError> {
+        let repo_dir = util::fs::get_repo_root_from_current_dir()
+            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+
+        LocalRepository::from_dir(&repo_dir)
+    }
+
     /// Instantiate a new repository at a given path
-    /// Note: Does not create the repository on disk, just instantiates the struct
+    /// Note: Does not create the repository on disk, or read the config file, just instantiates the struct
+    /// To load the repository, use `LocalRepository::from_dir` or `LocalRepository::from_current_dir`
     pub fn new(path: impl AsRef<Path>) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
             path: path.as_ref().to_path_buf(),
@@ -84,34 +116,6 @@ impl LocalRepository {
             subtree_paths: None,
             depth: None,
         })
-    }
-
-    pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
-        let config_path = util::fs::config_filepath(dir);
-        if !config_path.exists() {
-            return Err(OxenError::LocalRepoNotFound(Box::new(
-                dir.to_path_buf().into(),
-            )));
-        }
-        let cfg = RepositoryConfig::from_file(&config_path)?;
-        let vnode_size = cfg.vnode_size();
-        let repo = LocalRepository {
-            path: dir.to_path_buf(),
-            remotes: cfg.remotes,
-            remote_name: cfg.remote_name,
-            min_version: cfg.min_version,
-            vnode_size: Some(vnode_size),
-            subtree_paths: cfg.subtree_paths,
-            depth: cfg.depth,
-        };
-        Ok(repo)
-    }
-
-    pub fn from_current_dir() -> Result<LocalRepository, OxenError> {
-        let repo_dir = util::fs::get_repo_root_from_current_dir()
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-        LocalRepository::from_dir(&repo_dir)
     }
 
     pub fn min_version(&self) -> MinOxenVersion {

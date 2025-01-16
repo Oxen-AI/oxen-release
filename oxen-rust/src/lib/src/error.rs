@@ -138,7 +138,7 @@ pub enum OxenError {
 impl fmt::Display for OxenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OxenError::Basic(err) => write!(f, "{}", err),
+            OxenError::OxenUpdateRequired(err) | OxenError::Basic(err) => write!(f, "{}", err),
             _ => {
                 write!(f, "{:?}", self)
             }
