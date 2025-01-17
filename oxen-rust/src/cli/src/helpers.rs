@@ -1,7 +1,5 @@
 use liboxen::api;
-use liboxen::command::migrate::CreateMerkleTreesMigration;
 use liboxen::command::migrate::Migrate;
-use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::AuthConfig;
 use liboxen::constants;
 use liboxen::error::OxenError;
@@ -10,7 +8,10 @@ use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
 
+use std::collections::HashMap;
 use std::str::FromStr;
+
+use liboxen::command::migrate::AddChildCountsToNodesMigration;
 
 pub fn get_host_or_default() -> Result<String, OxenError> {
     let config = AuthConfig::get_or_create()?;
@@ -59,7 +60,7 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
 
             if local_oxen_version < min_oxen_version {
                 return Err(OxenError::OxenUpdateRequired(format!(
-                    "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.",
+                    "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.\n\nOn Mac:\n\n  brew update\n  brew install oxen\n\nOn Ubuntu:\n\n  wget https://github.com/Oxen-AI/Oxen/releases/latest/download/oxen-ubuntu-latest.deb\n  sudo dpkg -i oxen-ubuntu-latest.deb",
                     min_oxen_version,
                     local_oxen_version
                 ).into()));
@@ -74,15 +75,21 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
     Ok(())
 }
 
+pub fn migrations() -> HashMap<String, Box<dyn Migrate>> {
+    let mut map: HashMap<String, Box<dyn Migrate>> = HashMap::new();
+    map.insert(
+        AddChildCountsToNodesMigration.name().to_string(),
+        Box::new(AddChildCountsToNodesMigration),
+    );
+    map
+}
+
 pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migrations: Vec<Box<dyn Migrate>> = vec![
-        Box::new(UpdateVersionFilesMigration),
-        Box::new(CreateMerkleTreesMigration),
-    ];
+    let migrations = migrations();
 
     let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
 
-    for migration in migrations {
+    for (_, migration) in migrations {
         if migration.is_needed(repo)? {
             migrations_needed.push(migration);
         }
@@ -91,15 +98,14 @@ pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenErr
     if migrations_needed.is_empty() {
         return Ok(());
     }
-    let warning = "\nWarning: 🐂 This repo requires a quick migration to the latest Oxen version. \n\nPlease run the following to update:".to_string().yellow();
-    eprintln!("{warning}\n\n");
+    let warning = "\nWarning: 🐂 This repo requires a migration to the latest Oxen version. \n\nPlease run the following to update:".to_string().yellow();
+    eprintln!("{warning}\n");
     for migration in migrations_needed {
         eprintln!(
             "{}",
-            format!("oxen migrate up {} .\n", migration.name()).yellow()
+            format!("  oxen migrate up {} .\n", migration.name()).yellow()
         );
     }
-    eprintln!("\n");
     Err(OxenError::MigrationRequired(
         "Error: Migration required".to_string().into(),
     ))

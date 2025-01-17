@@ -5,43 +5,19 @@ use liboxen::constants::DIR_HASHES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::OBJECTS_DIR;
-use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 
-// TODO: Move all the v0.10.0 modules out of controllers so it is more abstracted
-use liboxen::core::v0_10_0::cache::cacher_status::CacherStatusType;
-use liboxen::core::v0_10_0::cache::cachers::content_validator;
-use liboxen::core::v0_10_0::cache::commit_cacher;
-use liboxen::core::v0_10_0::commits::create_commit_object_with_committers;
-use liboxen::core::v0_10_0::commits::head_commits_have_conflicts;
-use liboxen::core::v0_10_0::commits::list_with_missing_dbs;
-use liboxen::core::v0_10_0::commits::merge_objects_dbs;
-use liboxen::core::v0_10_0::index::CommitReader;
-use liboxen::core::v0_10_0::index::CommitWriter;
-use liboxen::core::versions::MinOxenVersion;
-
-use liboxen::core::refs::RefWriter;
 use liboxen::error::OxenError;
-use liboxen::model::commit::CommitWithBranchName;
-use liboxen::model::RepoNew;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::PaginateOpts;
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::branch::BranchName;
-use liboxen::view::commit::CommitSyncStatusResponse;
-use liboxen::view::commit::CommitTreeValidationResponse;
-use liboxen::view::http::MSG_CONTENT_IS_INVALID;
-use liboxen::view::http::MSG_FAILED_PROCESS;
-use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
-use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
-use liboxen::view::http::STATUS_ERROR;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::{
-    CommitResponse, IsValidStatusMessage, ListCommitResponse, PaginatedCommits, Pagination,
-    RootCommitResponse, StatusMessage,
+    CommitResponse, ListCommitResponse, PaginatedCommits, Pagination, RootCommitResponse,
+    StatusMessage,
 };
 use os_path::OsPath;
 
@@ -51,8 +27,6 @@ use crate::helpers::get_repo;
 use crate::params::parse_resource;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
-use crate::tasks;
-use crate::tasks::post_push_complete::PostPushComplete;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
@@ -61,7 +35,6 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
@@ -90,7 +63,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
-pub async fn commit_history(
+pub async fn history(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -216,237 +189,6 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         status: StatusMessage::resource_found(),
         commit,
     }))
-}
-
-/// TODO: Depreciate this API - not good to send the full commit list separately from objects in the tree
-///       We should just have commits be an object, and send them all last
-pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let commit_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-
-    let commits_to_sync = list_with_missing_dbs(&repo, &commit_id)?;
-
-    log::debug!(
-        "About to respond with {} commits to sync",
-        commits_to_sync.len()
-    );
-
-    Ok(HttpResponse::Ok().json(ListCommitResponse {
-        status: StatusMessage::resource_found(),
-        commits: commits_to_sync,
-    }))
-}
-
-/// TODO: Depreciate this after v0.19.0
-pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let commit_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-
-    let commits_to_sync = repositories::commits::list_with_missing_entries(&repo, &commit_id)?;
-
-    Ok(HttpResponse::Ok().json(ListCommitResponse {
-        status: StatusMessage::resource_found(),
-        commits: commits_to_sync,
-    }))
-}
-
-pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let repository = get_repo(&app_data.path, namespace, repo_name)?;
-    let commit_id = path_param(&req, "commit_id")?;
-
-    let commits = repositories::commits::list_from(&repository, &commit_id)?;
-    log::debug!("latest_synced has commits {}", commits.len());
-    // for commit in commits.iter() {
-    //     log::debug!("latest_synced has commit.... {}", commit);
-    // }
-
-    // If the repo is v0.19.0 we don't use this API anymore outside of tests,
-    // so we can just assume everything is synced
-    if repository.min_version() == MinOxenVersion::V0_19_0 {
-        return Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
-            status: StatusMessage::resource_found(),
-            latest_synced: commits.last().cloned(),
-            num_unsynced: 0,
-        }));
-    }
-
-    let mut latest_synced: Option<Commit> = None;
-    let mut commits_to_sync: Vec<Commit> = Vec::new();
-
-    // Iterate old to new over commits
-    for commit in commits {
-        // log::debug!("latest_synced checking commit {}", commit);
-        // Include "None" and "Pending" in n_unsynced. Success, Failure, and Errors are "finished" processing
-        match commit_cacher::get_status(&repository, &commit) {
-            Ok(Some(CacherStatusType::Success)) => {
-                match content_validator::is_valid(&repository, &commit) {
-                    Ok(true) => {
-                        // Iterating backwards, so this is the latest synced commit
-                        // For this to work, we need to maintain relative order of commits in redis queue push // one worker, for now.
-                        // TODO: If we want to move to multiple workers or break this order,
-                        // we can make this more robust (but slower) by checking the full commit history
-                        log::debug!("latest_synced commit is valid: {}", commit);
-                        latest_synced = Some(commit);
-                        // break;
-                    }
-                    Ok(false) => {
-                        // Invalid, but processed - don't include in n_unsynced
-                        log::debug!("latest_synced commit is invalid: {:?}", commit.id);
-                    }
-                    err => {
-                        log::error!("latest_synced content_validator::is_valid error {err:?}");
-                        return Ok(HttpResponse::InternalServerError().json(
-                            IsValidStatusMessage {
-                                status: String::from(STATUS_ERROR),
-                                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                                status_description: format!("Err: {err:?}"),
-                                is_processing: false,
-                                is_valid: false,
-                            },
-                        ));
-                    }
-                }
-            }
-            Ok(Some(CacherStatusType::Pending)) => {
-                log::debug!("latest_synced commit is pending {}", commit);
-                commits_to_sync.push(commit);
-            }
-            Ok(Some(CacherStatusType::Failed)) => {
-                let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
-                let error_str = errors
-                    .into_iter()
-                    .map(|e| e.status_message)
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                log::error!("latest_synced CacherStatusType::Failed for commit {error_str}");
-            }
-            Ok(None) => {
-                // log::debug!("latest_synced commit not yet processing: {}", commit.id);
-                commits_to_sync.push(commit);
-            }
-
-            err => {
-                log::error!("latest_synced {:?}", err);
-                return Ok(
-                    HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                        status_description: format!("Err: {err:?}"),
-                        is_processing: false,
-                        is_valid: false,
-                    }),
-                );
-            }
-        };
-    }
-
-    Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
-        status: StatusMessage::resource_found(),
-        latest_synced,
-        num_unsynced: commits_to_sync.len(),
-    }))
-}
-
-// TODO: Deprecate this after v0.19.0
-pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let commit_or_branch = path_param(&req, "commit_or_branch")?;
-    let repository = get_repo(&app_data.path, namespace, &repo_name)?;
-
-    let commit = repositories::revisions::get(&repository, &commit_or_branch)?.ok_or(
-        OxenError::revision_not_found(commit_or_branch.clone().into()),
-    )?;
-
-    let response = match repositories::commits::get_commit_status_tmp(&repository, &commit) {
-        Ok(Some(CacherStatusType::Success)) => {
-            match repositories::commits::is_commit_valid_tmp(&repository, &commit) {
-                Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    status_description: String::from(""),
-                    is_processing: false,
-                    is_valid: true,
-                }),
-                Ok(false) => {
-                    log::error!("content_validator::is_valid false");
-
-                    HttpResponse::Ok().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_CONTENT_IS_INVALID),
-                        status_description: "Content is not valid".to_string(),
-                        is_processing: false,
-                        is_valid: false,
-                    })
-                }
-                err => {
-                    log::error!("content_validator::is_valid error {err:?}");
-
-                    HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                        status_description: format!("Err: {err:?}"),
-                        is_processing: false,
-                        is_valid: false,
-                    })
-                }
-            }
-        }
-        Ok(Some(CacherStatusType::Pending)) => HttpResponse::Ok().json(IsValidStatusMessage {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_IS_PROCESSING),
-            status_description: String::from("Commit is still processing"),
-            is_processing: true,
-            is_valid: false,
-        }),
-        Ok(Some(CacherStatusType::Failed)) => {
-            let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
-            let error_str = errors
-                .into_iter()
-                .map(|e| e.status_message)
-                .collect::<Vec<String>>()
-                .join(", ");
-            log::error!("CacherStatusType::Failed for commit {error_str}");
-            HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                status: String::from(STATUS_ERROR),
-                status_message: String::from(MSG_FAILED_PROCESS),
-                status_description: format!("Err: {error_str}"),
-                is_processing: false,
-                is_valid: false,
-            })
-        }
-        Ok(None) => {
-            // This means background status was never kicked off...
-            log::debug!(
-                "get_status commit {} no status kicked off for repo: {}",
-                commit_or_branch,
-                repo_name
-            );
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        err => {
-            log::error!("Error getting status... {:?}", err);
-            HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                status: String::from(STATUS_ERROR),
-                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                status_description: format!("Err: {err:?}"),
-                is_processing: false,
-                is_valid: false,
-            })
-        }
-    };
-
-    Ok(response)
 }
 
 pub async fn parents(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -711,63 +453,6 @@ pub async fn create(
     }
 }
 
-/// TODO: Depreciate this (should send the commits as part of the tree)
-pub async fn create_bulk(
-    req: HttpRequest,
-    body: String,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let repository = get_repo(&app_data.path, namespace, repo_name)?;
-
-    let commits: Vec<CommitWithBranchName> = match serde_json::from_str(&body) {
-        Ok(commits) => commits,
-        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
-    };
-
-    let mut result_commits: Vec<Commit> = Vec::new();
-
-    let commit_reader = CommitReader::new(&repository)?;
-    let commit_writer = CommitWriter::new(&repository)?;
-
-    let ref_writer = RefWriter::new(&repository)?;
-
-    for commit_with_branch in &commits {
-        // get branch name from this commit and raise error if it's not there
-        let bn = &commit_with_branch.branch_name;
-
-        // Get commit from commit_with_branch
-        let commit = Commit::from_with_branch_name(commit_with_branch);
-
-        if let Err(err) = create_commit_object_with_committers(
-            &repository.path,
-            bn,
-            &commit,
-            &commit_reader,
-            &commit_writer,
-            &ref_writer,
-        ) {
-            log::error!("Err create_commit: {}", err);
-            match err {
-                OxenError::RootCommitDoesNotMatch(commit_id) => {
-                    log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
-                    return Err(OxenHttpError::BadRequest("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote.".into()));
-                }
-                _ => {
-                    return Err(OxenHttpError::InternalServerError);
-                }
-            }
-        }
-
-        result_commits.push(commit);
-    }
-    Ok(HttpResponse::Ok().json(ListCommitResponse {
-        status: StatusMessage::resource_created(),
-        commits: result_commits.to_owned(),
-    }))
-}
-
 /// Controller to upload large chunks of data that will be combined at the end
 pub async fn upload_chunk(
     req: HttpRequest,
@@ -1012,52 +697,6 @@ pub async fn upload_tree(
     }))
 }
 
-pub async fn can_push(
-    req: HttpRequest,
-    query: web::Query<HashMap<String, String>>,
-) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let client_head_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, name)?;
-    let server_head_id = query.get("remote_head").unwrap();
-    let lca_id = query.get("lca").unwrap();
-
-    log::debug!("in the new_can_push endpoint");
-
-    // Ensuring these commits exist on server
-    let _server_head_commit = repositories::commits::get_by_id(&repo, server_head_id)?.ok_or(
-        OxenError::revision_not_found(server_head_id.to_owned().into()),
-    )?;
-    let _lca_commit = repositories::commits::get_by_id(&repo, lca_id)?
-        .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
-
-    let can_merge = !head_commits_have_conflicts(&repo, &client_head_id, server_head_id, lca_id)?;
-
-    // Clean up tmp tree files from client head commit
-    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path)
-        .join("tmp")
-        .join(client_head_id)
-        .join(TREE_DIR);
-
-    if tmp_tree_dir.exists() {
-        std::fs::remove_dir_all(tmp_tree_dir).unwrap();
-    }
-
-    if can_merge {
-        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(),
-            can_merge: true,
-        }))
-    } else {
-        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(),
-            can_merge: false,
-        }))
-    }
-}
-
 pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -1214,71 +853,6 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     }
 }
 
-// Bulk complete
-pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let mut queue = app_data.queue.clone();
-
-    // name to the repo, should be in url path so okay to unwrap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let _repo = get_repo(&app_data.path, namespace, repo_name)?;
-    // Deserialize the "commits" param into Vec<Commit> with serde
-    let commits: Vec<Commit> = match serde_json::from_str(&body) {
-        Ok(commits) => commits,
-        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
-    };
-
-    // Get repo by name
-    let repo = repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
-        .ok_or(OxenError::repo_not_found(RepoNew::from_namespace_name(
-            namespace, repo_name,
-        )))?;
-
-    // List commits for this repo
-    let all_commits = repositories::commits::list(&repo)?;
-
-    // Read through existing commits and find any with pending status stuck from previous pushes.
-    // This shouldn't be a super common case, but can freeze the repo on commits from old versions
-
-    for commit in all_commits {
-        log::debug!("Checking commit {:?}", commit.id);
-        if commit_cacher::get_status(&repo, &commit)? == Some(CacherStatusType::Pending) {
-            // Need to force remove errantly left locks
-            commit_cacher::force_remove_lock(&repo, &commit)?;
-            let task = PostPushComplete {
-                commit: commit.clone(),
-                repo: repo.clone(),
-            };
-            // Append a task to the queue
-            log::debug!(
-                "complete_bulk found stuck pending commit {:?}, adding to queue",
-                commit.clone()
-            );
-
-            queue.push(tasks::Task::PostPushComplete(task))
-        }
-    }
-
-    let commit_reader = CommitReader::new(&repo)?;
-
-    for req_commit in commits {
-        let commit_id = req_commit.id;
-        let commit = commit_reader
-            .get_commit_by_id(&commit_id)?
-            .ok_or(OxenError::revision_not_found(commit_id.clone().into()))?;
-
-        // Append a task to the queue
-        let task = PostPushComplete {
-            commit: commit.clone(),
-            repo: repo.clone(),
-        };
-
-        queue.push(tasks::Task::PostPushComplete(task))
-    }
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
-}
-
 fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     match archive.entries() {
         Ok(entries) => {
@@ -1385,17 +959,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
             log::error!("Err: {:?}", err);
         }
     }
-    let tmp_objects_dir = hidden_dir.join("tmp").join(OBJECTS_DIR);
-
-    // If this dir exists:
-    if tmp_objects_dir.exists() {
-        log::debug!("tmp objects dir exists, let's do some stuff");
-
-        // merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
-        merge_objects_dbs(&hidden_dir.join(OBJECTS_DIR), &tmp_objects_dir).unwrap();
-
-        std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
-    }
 
     log::debug!("Done decompressing.");
 }
@@ -1425,13 +988,12 @@ mod tests {
     async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
         init_test_env();
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await.unwrap();
 
@@ -1449,7 +1011,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -1462,7 +1023,7 @@ mod tests {
         repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -1479,7 +1040,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1498,7 +1058,6 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
@@ -1508,9 +1067,7 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query)
-            .await
-            .unwrap();
+        let resp = controllers::commits::history(req, query).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1526,7 +1083,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_some_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1554,7 +1110,6 @@ mod tests {
         );
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
@@ -1564,9 +1119,7 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query)
-            .await
-            .unwrap();
+        let resp = controllers::commits::history(req, query).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1582,7 +1135,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_upload() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1614,7 +1166,7 @@ mod tests {
         let uri = format!("/oxen/{}/{}/commits/upload", namespace, repo_name);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(OxenAppData::new(sync_dir.clone(), queue))
+                .app_data(OxenAppData::new(sync_dir.clone()))
                 .route(
                     "/oxen/{namespace}/{repo_name}/commits/upload",
                     web::post().to(controllers::commits::upload),

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::core::v0_19_0::index::CommitMerkleTree;
+use liboxen::core::v_latest::index::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository, MerkleHash};
 use liboxen::repositories;
@@ -112,27 +112,28 @@ impl TreeCmd {
         depth: i32,
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
-        let tree = match (repo.subtree_paths(), repo.depth()) {
+        match (repo.subtree_paths(), repo.depth()) {
             (Some(subtrees), Some(depth)) => {
                 println!("Working with subtrees: {:?}", subtrees);
                 println!("Depth: {}", depth);
                 println!("Loading first tree...");
-                CommitMerkleTree::from_path_depth(repo, commit, subtrees.first().unwrap(), depth)?
+                repositories::tree::print_tree_depth_subtree(
+                    repo,
+                    commit,
+                    depth,
+                    subtrees.first().unwrap(),
+                )?;
             }
             (_, _) => {
                 if let Some(path) = path {
-                    CommitMerkleTree::from_path(repo, commit, path, true)?
+                    repositories::tree::print_tree_path(repo, commit, path)?;
                 } else {
-                    CommitMerkleTree::from_commit(repo, commit)?
+                    repositories::tree::print_tree_depth(repo, commit, depth)?;
                 }
             }
         };
         let load_duration = load_start.elapsed(); // Calculate duration
-        let print_start = Instant::now(); // Start timing
-        tree.print_depth(depth);
-        let print_duration = print_start.elapsed(); // Calculate duration
         println!("Time to load tree: {:?}", load_duration);
-        println!("Time to print tree: {:?}", print_duration);
         Ok(())
     }
 }
