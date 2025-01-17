@@ -17,15 +17,6 @@ pub struct StatusMessageDescription {
     pub status_description: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct IsValidStatusMessage {
-    pub status: String,
-    pub status_message: String,
-    pub status_description: String,
-    pub is_processing: bool,
-    pub is_valid: bool,
-}
-
 impl StatusMessageDescription {
     pub fn not_found(description: impl AsRef<str>) -> StatusMessageDescription {
         StatusMessageDescription {

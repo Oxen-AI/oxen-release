@@ -14,6 +14,8 @@ use crate::{core, resource};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+pub mod commit_writer;
+
 /// # Commit the staged files in the repo
 ///
 /// ```
@@ -45,24 +47,24 @@ use std::path::{Path, PathBuf};
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::commit(repo, message),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::commit(repo, message),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::commit(repo, message),
     }
 }
 
 /// Iterate over all commits and get the one with the latest timestamp
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::latest_commit(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::latest_commit(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::latest_commit(repo),
     }
 }
 
 /// The current HEAD commit of the branch you currently have checked out
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::head_commit(repo),
     }
 }
 
@@ -70,27 +72,24 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 /// Returns None if the head commit does not exist (empty repo)
 pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit_maybe(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit_maybe(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::head_commit_maybe(repo),
     }
 }
 
 /// Get the root commit of a repository
 pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            let root_commit = core::v0_10_0::commits::root_commit(repo)?;
-            Ok(Some(root_commit))
-        }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::root_commit_maybe(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::root_commit_maybe(repo),
     }
 }
 
 /// Get a commit by it's MerkleHash
 pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, &hash.to_string()),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_hash(repo, hash),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::get_by_hash(repo, hash),
     }
 }
 
@@ -101,8 +100,8 @@ pub fn get_by_id(
 ) -> Result<Option<Commit>, OxenError> {
     let commit_id = commit_id.as_ref();
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, commit_id),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_id(repo, commit_id),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::get_by_id(repo, commit_id),
     }
 }
 
@@ -123,25 +122,23 @@ pub fn create_empty_commit(
     let branch_name = branch_name.as_ref();
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("create_empty_commit not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::create_empty_commit(repo, branch_name, commit)
-        }
+        _ => core::v_latest::commits::create_empty_commit(repo, branch_name, commit),
     }
 }
 
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::list(repo),
     }
 }
 
 /// List commits for the repository in no particular order
 pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_all(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_all(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::list_all(repo),
     }
 }
 
@@ -149,7 +146,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
 pub fn list_unsynced(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("list_unsynced not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced(repo),
+        _ => core::v_latest::commits::list_unsynced(repo),
     }
 }
 
@@ -160,7 +157,7 @@ pub fn list_unsynced_from(
 ) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("list_unsynced_from not supported in v0.10.0"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_unsynced_from(repo, revision),
+        _ => core::v_latest::commits::list_unsynced_from(repo, revision),
     }
 }
 // Source
@@ -170,9 +167,7 @@ pub fn get_commit_or_head<S: AsRef<str> + Clone>(
 ) -> Result<Commit, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => resource::get_commit_or_head(repo, commit_id_or_branch_name),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::get_commit_or_head(repo, commit_id_or_branch_name)
-        }
+        _ => core::v_latest::commits::get_commit_or_head(repo, commit_id_or_branch_name),
     }
 }
 
@@ -194,8 +189,8 @@ pub fn list_all_paginated(
 /// List the history for a specific branch or commit (revision)
 pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_from(repo, revision),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from(repo, revision),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::list_from(repo, revision),
     }
 }
 pub fn list_from_with_depth(
@@ -206,7 +201,7 @@ pub fn list_from_with_depth(
         MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
             "list_from_with_depth not supported in v0.10.0",
         )),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from_with_depth(repo, revision),
+        _ => core::v_latest::commits::list_from_with_depth(repo, revision),
     }
 }
 
@@ -217,8 +212,8 @@ pub fn list_between(
     end: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_between(repo, start, end),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_between(repo, start, end),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::list_between(repo, start, end),
     }
 }
 
@@ -246,22 +241,6 @@ pub fn first_by_message(
         .find(|commit| commit.message == msg.as_ref()))
 }
 
-/// List all the commits that have missing entries
-/// Useful for knowing which commits to resend
-pub fn list_with_missing_entries(
-    repo: &LocalRepository,
-    commit_id: impl AsRef<str>,
-) -> Result<Vec<Commit>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::commits::list_with_missing_entries(repo, commit_id)
-        }
-        MinOxenVersion::V0_19_0 => {
-            panic!("list_with_missing_entries not needed in v0.19.0");
-        }
-    }
-}
-
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
     repo: &LocalRepository,
@@ -269,8 +248,8 @@ pub fn search_entries(
     pattern: &str,
 ) -> Result<HashSet<PathBuf>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::search_entries(repo, commit, pattern),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::search_entries(repo, commit, pattern),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::search_entries(repo, commit, pattern),
     }
 }
 
@@ -303,35 +282,8 @@ pub fn list_by_path_from_paginated(
 ) -> Result<PaginatedCommits, OxenError> {
     log::info!("list_by_path_from_paginated: {:?} {:?}", commit, path);
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
-        }
-    }
-}
-
-// TODO: Temporary function until after v0.19.0, we shouldn't need this check
-// once everything is working off the Merkle tree
-pub fn get_commit_status_tmp(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<Option<core::v0_10_0::cache::cacher_status::CacherStatusType>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::cache::commit_cacher::get_status(repo, commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_commit_status_tmp(repo, commit),
-    }
-}
-
-// TODO: Temporary function until after v0.19.0, we shouldn't need this check
-// once everything is working off the Merkle tree
-pub fn is_commit_valid_tmp(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::cache::cachers::content_validator::is_valid(repo, commit)
-        }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::is_commit_valid_tmp(repo, commit),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::list_by_path_from_paginated(repo, commit, path, pagination),
     }
 }
 
@@ -633,7 +585,7 @@ mod tests {
 
             // Make sure the entry is still there
             let head = repositories::commits::head_commit(&repo)?;
-            let tree = repositories::tree::get_by_commit(&repo, &head)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &head)?.unwrap();
             let text_entry = tree.get_by_path(Path::new("text.txt"))?;
             assert!(text_entry.is_some());
 
@@ -674,9 +626,7 @@ mod tests {
             let head = repositories::commits::head_commit(&repo)?;
 
             // get the merkle tree for the commit
-            let tree = repositories::tree::get_by_commit(&repo, &head)?;
-            println!("tree after second commit");
-            tree.print();
+            let tree = repositories::tree::get_root_with_children(&repo, &head)?.unwrap();
 
             // Get the commit entry for the text file
             let text_entry = tree.get_by_path(Path::new("text.txt"))?.unwrap();
@@ -855,10 +805,6 @@ mod tests {
             repositories::add(&repo, &repo.path)?;
             let commit_1 = repositories::commit(&repo, "adding test dir")?;
 
-            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("INITIAL commit_1: {}", commit_1);
-            tree_1.print();
-
             // New file in root
             let file_path_2 = Path::new("test_file_2.txt");
             let file_repo_path_2 = repo.path.join(file_path_2);
@@ -868,13 +814,8 @@ mod tests {
             repositories::add(&repo, &file_repo_path_2)?;
             let commit_2 = repositories::commit(&repo, "adding test file")?;
 
-            let tree_1 = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("AFTER commit_1: {}", commit_1);
-            tree_1.print();
-
-            let tree_2 = repositories::tree::get_by_commit(&repo, &commit_2)?;
-            println!("AFTER commit_2: {}", commit_2);
-            tree_2.print();
+            let tree_1 = repositories::tree::get_root_with_children(&repo, &commit_1)?.unwrap();
+            let tree_2 = repositories::tree::get_root_with_children(&repo, &commit_2)?.unwrap();
 
             // Make sure the file is not in the first commit
             // This was biting us in an initial implementation
@@ -914,9 +855,7 @@ mod tests {
 
             let commit = repositories::commit(&repo, "adding empty dir")?;
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after commit: {}", commit);
-            tree.print();
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
 
             assert!(tree.get_by_path(PathBuf::from("empty_dir"))?.is_some());
 
@@ -934,15 +873,13 @@ mod tests {
             repositories::add(&repo, &full_path)?;
             let commit = repositories::commit(&repo, "Adding invalid parquet file")?;
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            tree.print();
-
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let file_node = tree.get_by_path(PathBuf::from("invalid.parquet"))?;
             assert!(file_node.is_some());
 
             let file_entry = file_node.unwrap();
             let file_node = file_entry.file()?;
-            assert_eq!(file_node.data_type, EntryDataType::Binary);
+            assert_eq!(*file_node.data_type(), EntryDataType::Binary);
 
             Ok(())
         })
@@ -971,10 +908,8 @@ A: Oxen.ai
 ",
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
-                let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
-
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let _commit =
+                    repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
                 Ok(dir)
             })
@@ -1002,13 +937,13 @@ A: Oxen.ai
                 repositories::add(&local_repo, &empty_file)?;
                 let commit = repositories::commit(&local_repo, "adding empty file")?;
 
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let tree =
+                    repositories::tree::get_root_with_children(&local_repo, &commit)?.unwrap();
 
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());
                 let file_node = file_node.unwrap().file()?;
-                assert_eq!(file_node.num_bytes, 0);
+                assert_eq!(file_node.num_bytes(), 0);
 
                 // Edit the file
                 let raw_str = r"
@@ -1020,13 +955,13 @@ A: Oxen.ai
                 repositories::add(&local_repo, &empty_file)?;
                 let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
+                let tree =
+                    repositories::tree::get_root_with_children(&local_repo, &commit)?.unwrap();
 
                 let file_node = tree.get_by_path(PathBuf::from("empty.txt"))?;
                 assert!(file_node.is_some());
                 let file_node = file_node.unwrap().file()?;
-                assert_eq!(file_node.num_bytes, raw_str.len() as u64);
+                assert_eq!(file_node.num_bytes(), raw_str.len() as u64);
 
                 Ok(dir)
             })

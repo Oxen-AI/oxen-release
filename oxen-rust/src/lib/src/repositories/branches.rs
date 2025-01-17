@@ -325,8 +325,8 @@ pub async fn checkout_branch_from_commit(
     let name = name.as_ref();
     log::debug!("checkout_branch {}", name);
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name, from_commit).await,
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::branches::checkout(repo, name, from_commit).await,
     }
 }
 
@@ -341,8 +341,8 @@ pub async fn checkout_subtrees_from_commit(
         MinOxenVersion::V0_10_0 => {
             panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
+        _ => {
+            core::v_latest::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
                 .await
         }
     }
@@ -355,12 +355,8 @@ pub async fn checkout_commit_from_commit(
     from_commit: &Option<Commit>,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::branches::checkout_commit_id(repo, &commit.id).await
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout_commit(repo, commit, from_commit).await
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::branches::checkout_commit(repo, commit, from_commit).await,
     }
 }
 
@@ -419,12 +415,8 @@ pub fn list_entry_versions_on_branch(
         branch.commit_id
     );
     match local_repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::branches::list_entry_versions_for_commit(
-            local_repo,
-            &branch.commit_id,
-            path,
-        ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::list_entry_versions_for_commit(
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::branches::list_entry_versions_for_commit(
             local_repo,
             &branch.commit_id,
             path,
@@ -441,9 +433,7 @@ pub async fn set_working_repo_to_commit(
         MinOxenVersion::V0_10_0 => {
             panic!("set_working_repo_to_commit not implemented for oxen v0.10.0")
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::set_working_repo_to_commit(repo, commit, from_commit).await
-        }
+        _ => core::v_latest::branches::set_working_repo_to_commit(repo, commit, from_commit).await,
     }
 }
 
@@ -517,18 +507,6 @@ mod tests {
             assert_eq!(file_versions.len(), 2);
             assert_eq!(file_versions[0].0.id, commit_3.id);
             assert_eq!(file_versions[1].0.id, commit_1.id);
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit_1)?;
-            println!("AFTER commit_1: {}", commit_1);
-            tree.print();
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit_2)?;
-            println!("AFTER commit_2: {}", commit_2);
-            tree.print();
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit_3)?;
-            println!("AFTER commit_3: {}", commit_3);
-            tree.print();
 
             println!("commit_1: {}", commit_1);
             println!("commit_2: {}", commit_2);
