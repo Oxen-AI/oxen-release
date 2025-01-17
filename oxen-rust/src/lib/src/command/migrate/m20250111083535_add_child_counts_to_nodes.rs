@@ -94,32 +94,40 @@ fn run_on_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenErro
         commit.id,
         repo.path
     );
-    let mut repo = repo.clone();
+    let old_repo = repo.clone();
 
-    let Some(mut root_node) = repositories::tree::get_root_with_children(&repo, commit)? else {
+    let Some(mut root_node) = repositories::tree::get_root_with_children(&old_repo, commit)? else {
         return Err(OxenError::basic_str("Root node not found"));
     };
 
+    log::debug!("old tree");
+    repositories::tree::print_tree(&old_repo, commit)?;
+
     // Iterate over the nodes, find the VNode and DirNode, and add the child counts
+    let mut new_repo = repo.clone();
+    new_repo.set_min_version(MinOxenVersion::from_string("0.25.0")?);
 
-    // TODO: Need to add a clean function to write the nodes back to disk
-
-    repo.set_min_version(MinOxenVersion::from_string("0.25.0")?);
+    // *******************************************************************
+    // We need to load all the children of all the VNodes for each DirNode
+    // Then re-assign the children to new VNodes based on their full path
+    // *******************************************************************
 
     root_node.walk_tree_mut(|node| {
         match &mut node.node {
             EMerkleTreeNode::Directory(dir) => {
-                // Fuck, how do we update all the children nodes too?
                 let child_count = node.children.len() as u64;
+                log::debug!("walk dir {} child_count: {}", dir, child_count);
                 let opts = dir.get_opts();
-                let mut new_dir = DirNode::new(&repo, opts).expect("Failed to create dir");
+                let mut new_dir = DirNode::new(&new_repo, opts).expect("Failed to create dir");
                 new_dir.set_num_entries(child_count);
                 *dir = new_dir;
             }
             EMerkleTreeNode::VNode(vnode) => {
                 let opts = vnode.get_opts();
-                let mut new_vnode = VNode::new(&repo, opts).expect("Failed to create vnode");
-                new_vnode.set_num_entries(node.children.len() as u64);
+                let child_count = node.children.len() as u64;
+                log::debug!("walk vnode {} child_count: {}", vnode, child_count);
+                let mut new_vnode = VNode::new(&new_repo, opts).expect("Failed to create vnode");
+                new_vnode.set_num_entries(child_count);
                 *vnode = new_vnode;
             }
             _ => {
@@ -128,13 +136,18 @@ fn run_on_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenErro
         }
     });
 
+    log::debug!("new tree");
+    repositories::tree::print_tree(&new_repo, commit)?;
+
     // Write the tree back to disk
-    repositories::tree::write_tree(&repo, &root_node)?;
+    repositories::tree::write_tree(&new_repo, &root_node)?;
+
+    log::debug!("new tree written to disk");
 
     // Set the oxen version to 0.25.0
-    let mut config = RepositoryConfig::from_repo(&repo)?;
+    let mut config = RepositoryConfig::from_repo(&new_repo)?;
     config.min_version = Some("0.25.0".to_string());
-    let path = util::fs::config_filepath(&repo.path);
+    let path = util::fs::config_filepath(&new_repo.path);
     config.save(&path)?;
 
     Ok(())
@@ -149,7 +162,7 @@ mod tests {
         model::{merkle_tree::node::EMerkleTreeNode, MerkleHash},
         test,
     };
-    use std::str::FromStr;
+    use std::{path::PathBuf, str::FromStr};
 
     #[test]
     fn test_add_child_counts_to_nodes_migration() -> Result<(), OxenError> {
@@ -234,6 +247,123 @@ mod tests {
                     }
                 }
             });
+
+            // Make sure that the repo version is updated
+            let repo = LocalRepository::from_dir(&repo.path)?;
+            let version_str = repo.min_version().to_string();
+            assert_eq!(version_str, "0.25.0");
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_add_child_counts_migration_with_many_vnodes() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate an older repository
+            let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            // Set the vnode size to 5
+            repo.set_vnode_size(3);
+
+            // Populate the repo with some files
+            test::populate_dir_with_training_data(&repo.path)?;
+            // Make a variety of commits
+            test::make_many_commits(&repo)?;
+
+            // Test that the root commit
+            let latest_commit = repositories::commits::latest_commit(&repo)?;
+            let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
+            let Some(old_root_node) =
+                repositories::tree::get_node_by_id_with_children(&repo, &commit_hash)?
+            else {
+                return Err(OxenError::basic_str("Root node not found"));
+            };
+
+            repositories::tree::print_tree(&repo, &latest_commit)?;
+
+            old_root_node.walk_tree(|node| {
+                println!("test_add_child_counts_to_nodes node: {}", node);
+                match &node.node {
+                    EMerkleTreeNode::Commit(commit) => {
+                        assert_eq!(commit.version(), MinOxenVersion::V0_19_0);
+                    }
+                    EMerkleTreeNode::Directory(dir) => {
+                        assert_eq!(dir.version(), MinOxenVersion::V0_19_0);
+                    }
+                    EMerkleTreeNode::VNode(vnode) => {
+                        assert_eq!(vnode.version(), MinOxenVersion::V0_19_0);
+                    }
+                    _ => {
+                        // pass, FileNode was not changed, so it is on the latest version
+                    }
+                }
+            });
+
+            // Run the migration
+            run_on_one_repo(&repo)?;
+
+            let repo = LocalRepository::from_dir(&repo.path)?;
+            let latest_commit = repositories::commits::latest_commit(&repo)?;
+            let commit_node_version =
+                repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
+            let node_version_str = commit_node_version.to_string();
+            assert_eq!(node_version_str, "0.25.0");
+
+            let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
+            let Some(new_root_node) =
+                repositories::tree::get_node_by_id_with_children(&repo, &commit_hash)?
+            else {
+                return Err(OxenError::basic_str("Root node not found"));
+            };
+
+            new_root_node.walk_tree(|node| {
+                println!("test_add_child_counts_to_nodes node: {}", node);
+                match &node.node {
+                    EMerkleTreeNode::Commit(commit) => {
+                        assert_eq!(
+                            commit.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    EMerkleTreeNode::Directory(dir) => {
+                        assert_eq!(
+                            dir.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    EMerkleTreeNode::VNode(vnode) => {
+                        assert_eq!(
+                            vnode.version(),
+                            MinOxenVersion::from_string("0.25.0").unwrap()
+                        );
+                    }
+                    _ => {
+                        // pass, FileNode was not changed, so it is on the latest version
+                    }
+                }
+            });
+
+            // Make sure we can get an individual file
+            let file_node = repositories::tree::get_node_by_path(
+                &repo,
+                &latest_commit,
+                PathBuf::from("README.md"),
+            )?;
+            assert!(file_node.is_some());
+
+            for i in 0..3 {
+                let path = PathBuf::from("train").join(format!("dog_{}.jpg", i));
+                log::debug!("LOOKING UP DOG: {:?}", path);
+                let file_node = repositories::tree::get_node_by_path(&repo, &latest_commit, &path)?;
+                assert!(file_node.is_some());
+            }
+
+            for i in 0..2 {
+                let path = PathBuf::from("train").join(format!("cat_{}.jpg", i));
+                log::debug!("LOOKING UP CAT: {:?}", path);
+                let file_node = repositories::tree::get_node_by_path(&repo, &latest_commit, &path)?;
+                assert!(file_node.is_some());
+            }
 
             // Make sure that the repo version is updated
             let repo = LocalRepository::from_dir(&repo.path)?;
