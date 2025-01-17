@@ -60,12 +60,12 @@ impl TDirNode for DirNodeData {
     }
 
     fn num_entries(&self) -> u64 {
-        log::warn!("num_entries is not supported for v0.19.0");
+        // log::warn!("num_entries is not supported for v0.19.0");
         0
     }
 
     fn set_num_entries(&mut self, _: u64) {
-        log::warn!("set_num_entries is not supported for v0.19.0");
+        // log::warn!("set_num_entries is not supported for v0.19.0");
     }
 
     fn num_bytes(&self) -> u64 {

@@ -98,7 +98,6 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use crate::view::StatusMessage;
 
     use std::path::Path;
 

@@ -475,6 +475,10 @@ impl CommitMerkleTree {
         // Calculate the total number of children in the vnodes
         // And use this to skip to the correct vnode
         let total_children = dir_node.num_entries();
+        // let total_children = vnodes
+        //     .iter()
+        //     .map(|vnode| vnode.vnode().unwrap().num_entries())
+        //     .sum::<u64>();
         let vnode_size = repo.vnode_size();
         let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
 
@@ -498,7 +502,7 @@ impl CommitMerkleTree {
         // Load the children for the vnode
         let vnode_with_children =
             CommitMerkleTree::read_depth(repo, &vnode_without_children.hash, 0)?;
-        log::debug!("read_file vnode_with_children: {:?}", vnode_with_children);
+        // log::debug!("read_file vnode_with_children: {:?}", vnode_with_children);
         let Some(vnode_with_children) = vnode_with_children else {
             return Ok(None);
         };
