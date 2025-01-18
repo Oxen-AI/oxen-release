@@ -474,7 +474,9 @@ impl CommitMerkleTree {
 
         // Calculate the total number of children in the vnodes
         // And use this to skip to the correct vnode
+        log::debug!("read_file dir_node {:?}", dir_node);
         let total_children = dir_node.num_entries();
+
         // let total_children = vnodes
         //     .iter()
         //     .map(|vnode| vnode.vnode().unwrap().num_entries())
@@ -492,7 +494,9 @@ impl CommitMerkleTree {
         }
 
         // Calculate the bucket to skip to based on the path and the number of vnodes
-        let bucket = hasher::hash_buffer_128bit(path.to_str().unwrap().as_bytes()) % num_vnodes;
+        let path_hash = hasher::hash_buffer_128bit(path.to_str().unwrap().as_bytes());
+        log::debug!("read_file path_hash: {}", path_hash);
+        let bucket = path_hash % num_vnodes;
 
         log::debug!("read_file bucket: {}", bucket);
 
