@@ -698,7 +698,7 @@ fn split_into_vnodes(
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
-            // generate a uuid for the vnode
+            // add the dir name to the vnode hash
             vnode_hasher.update(directory.to_str().unwrap().as_bytes());
 
             let mut has_new_entries = false;

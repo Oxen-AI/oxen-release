@@ -391,7 +391,11 @@ mod tests {
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
-            repositories::merge::merge(&repo, branch_name)?.unwrap();
+            let commit = repositories::merge::merge(&repo, branch_name)?.unwrap();
+
+            // Make sure the merge commit has two parents
+            // Well shoot - we have to fix this bug too....merges should have two parents
+            assert_eq!(commit.parent_ids.len(), 2);
 
             // Now that we've merged in, world file should be new content
             assert!(world_file.exists(), "World file should exist after merge");
