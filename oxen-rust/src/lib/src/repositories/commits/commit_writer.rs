@@ -1564,7 +1564,8 @@ mod tests {
                 let dir_num = i % 2;
                 let new_file = repo
                     .path
-                    .join(format!("files/dir_{}", dir_num))
+                    .join("files")
+                    .join(format!("dir_{}", dir_num))
                     .join(format!("new_file_{}.txt", i));
                 util::fs::write_to_path(&new_file, format!("New fileeeee {}", i))?;
                 repositories::add(&repo, &new_file)?;
