@@ -1,20 +1,16 @@
-use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::str::FromStr;
-use rocksdb::{DBWithThreadMode, SingleThreaded};
 
 use super::Migrate;
 
 use crate::config::RepositoryConfig;
-use crate::core::db;
 use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::vnode::VNodeOpts;
-use crate::model::merkle_tree::node::{CommitNode, DirNode, EMerkleTreeNode, MerkleTreeNode, VNode};
+use crate::model::merkle_tree::node::{
+    CommitNode, DirNode, EMerkleTreeNode, MerkleTreeNode, VNode,
+};
 use crate::model::{Commit, LocalRepository, MerkleHash};
-use crate::core::v_old::v0_19_0::index::CommitMerkleTree as OldCommitMerkleTree;
-use crate::core::v_latest::index::CommitMerkleTree as NewCommitMerkleTree;
 
 use crate::util::hasher;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -122,9 +118,6 @@ fn run_on_commit(repository: &LocalRepository, commit: &Commit) -> Result<(), Ox
     let Some(root_node) = repositories::tree::get_root_with_children(&old_repo, commit)? else {
         return Err(OxenError::basic_str("Root node not found"));
     };
-    let EMerkleTreeNode::Commit(commit_node) = root_node.node.clone() else {
-        return Err(OxenError::basic_str("Root node must be CommitNode"));
-    };
 
     let root_dir_node = repositories::tree::get_root_dir(&root_node)?;
     let EMerkleTreeNode::Directory(dir_node) = root_dir_node.node.clone() else {
@@ -133,19 +126,23 @@ fn run_on_commit(repository: &LocalRepository, commit: &Commit) -> Result<(), Ox
 
     // ✍️ Do all the rewriting
     let num_children = root_dir_node.children.len();
-    log::debug!("setting num children {} for root dir on commit {}", num_children, commit);
+    log::debug!(
+        "setting num children {} for root dir on commit {}",
+        num_children,
+        commit
+    );
     let mut dir_node_opts = dir_node.get_opts();
     dir_node_opts.num_entries = num_children as u64;
     let dir_node = DirNode::new(&new_repo, dir_node_opts)?;
 
     // Write a new commit db
     let commit_node = CommitNode::from_commit(commit.clone());
-    let mut root_commit_db = MerkleNodeDB::open_read_write(&old_repo, &commit_node, root_node.parent_id)?;
+    let mut root_commit_db =
+        MerkleNodeDB::open_read_write(&old_repo, &commit_node, root_node.parent_id)?;
     root_commit_db.add_child(&dir_node)?;
 
-    let mut root_dir_db = MerkleNodeDB::open_read_write(&old_repo, &dir_node, root_dir_node.parent_id)?;
     let current_path = Path::new("");
-    rewrite_nodes(&old_repo, &new_repo, &root_node, &mut root_dir_db, &current_path)?;
+    rewrite_nodes(&old_repo, &new_repo, &root_node, current_path)?;
 
     println!("new tree for commit {}", commit);
     repositories::tree::print_tree(&new_repo, commit)?;
@@ -165,8 +162,7 @@ fn rewrite_nodes(
     old_repo: &LocalRepository,
     new_repo: &LocalRepository,
     node: &MerkleTreeNode,
-    parent_db: &mut MerkleNodeDB,
-    current_dir: &Path
+    current_dir: &Path,
 ) -> Result<(), OxenError> {
     for child in node.children.iter() {
         match &child.node {
@@ -178,16 +174,22 @@ fn rewrite_nodes(
                 let dir_children = repositories::tree::list_files_and_folders(child)?;
                 let current_dir = current_dir.join(dir.name());
 
-                log::debug!("rewrite_nodes {} children on current_dir {:?} DIRECTORY {} {}", dir_children.len(), current_dir, dir.hash(), dir);
+                log::debug!(
+                    "rewrite_nodes {} children on current_dir {:?} DIRECTORY {} {}",
+                    dir_children.len(),
+                    current_dir,
+                    dir.hash(),
+                    dir
+                );
 
                 let total_children = dir_children.len();
                 let vnode_size = old_repo.vnode_size();
                 let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
-                
+
                 // Create our new DirNode
                 let mut dir_node_opts = dir.get_opts();
                 dir_node_opts.num_entries = total_children as u64;
-                let dir = DirNode::new(&new_repo, dir_node_opts)?;
+                let dir = DirNode::new(new_repo, dir_node_opts)?;
                 let mut dir_db = MerkleNodeDB::open_read_write(old_repo, &dir, node.parent_id)?;
 
                 log::debug!(
@@ -199,18 +201,19 @@ fn rewrite_nodes(
                 );
 
                 // Compute buckets
-                let mut buckets: Vec<Vec<MerkleTreeNode>> =
-                    vec![vec![]; num_vnodes as usize];
+                let mut buckets: Vec<Vec<MerkleTreeNode>> = vec![vec![]; num_vnodes as usize];
                 for dir_child in dir_children {
                     let path = current_dir.join(dir_child.maybe_path().unwrap());
-                    let hash = hasher::hash_buffer_128bit(
-                        path
-                            .to_str()
-                            .unwrap()
-                            .as_bytes(),
-                    );
+                    let hash = hasher::hash_buffer_128bit(path.to_str().unwrap().as_bytes());
                     let bucket_idx = hash % num_vnodes;
-                    log::debug!("\trewrite_nodes dir_child {:?} bucket {} num_vnodes {} hash {} {}", path, bucket_idx, num_vnodes, hash, dir_child);
+                    log::debug!(
+                        "\trewrite_nodes dir_child {:?} bucket {} num_vnodes {} hash {} {}",
+                        path,
+                        bucket_idx,
+                        num_vnodes,
+                        hash,
+                        dir_child
+                    );
                     buckets[bucket_idx as usize].push(dir_child);
                 }
 
@@ -219,11 +222,7 @@ fn rewrite_nodes(
                 for bucket in buckets.iter_mut() {
                     // Sort the entries in the vnode by path
                     // to make searching for entries faster
-                    bucket.sort_by(|a, b| {
-                        a.maybe_path()
-                          .unwrap()
-                          .cmp(&b.maybe_path().unwrap())
-                    });
+                    bucket.sort_by_key(|a| a.maybe_path().unwrap());
 
                     // Compute hash for the vnode
                     let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
@@ -247,34 +246,35 @@ fn rewrite_nodes(
                 for (hash, entries) in vnodes.iter() {
                     // create a new vnode obj and add the the db
                     let opts = VNodeOpts {
-                        hash: hash.clone(),
+                        hash: *hash,
                         num_entries: entries.len() as u64,
                     };
                     let vnode_obj = VNode::new(new_repo, opts)?;
                     log::debug!("rewrite_nodes adding VNode to DirNode! {:?}", vnode_obj);
                     dir_db.add_child(&vnode_obj)?;
 
-                    let mut vnode_db = MerkleNodeDB::open_read_write(
-                        new_repo,
-                        &vnode_obj,
-                        Some(dir_db.node_id),
-                    )?;
-                    
+                    let mut vnode_db =
+                        MerkleNodeDB::open_read_write(new_repo, &vnode_obj, Some(dir_db.node_id))?;
+
                     log::debug!("rewrite_nodes count entries {}", entries.len());
                     for entry in entries {
                         match &entry.node {
                             EMerkleTreeNode::File(f_node) => {
                                 log::debug!("rewrite_nodes adding FileNode to VNode! {}", f_node);
                                 vnode_db.add_child(f_node)?;
-                            },
+                            }
                             EMerkleTreeNode::Directory(d_node) => {
                                 let mut d_node_opts = d_node.get_opts();
                                 let d_children = repositories::tree::list_files_and_folders(entry)?;
                                 d_node_opts.num_entries = d_children.len() as u64;
-                                log::debug!("rewrite_nodes adding DirNode to VNode with {} num_entries {}", d_node_opts.num_entries, d_node);
-                                let d_node = DirNode::new(&new_repo, d_node_opts)?;
+                                log::debug!(
+                                    "rewrite_nodes adding DirNode to VNode with {} num_entries {}",
+                                    d_node_opts.num_entries,
+                                    d_node
+                                );
+                                let d_node = DirNode::new(new_repo, d_node_opts)?;
                                 vnode_db.add_child(&d_node)?;
-                            },
+                            }
                             _ => {
                                 panic!("Shouldn't reach here.")
                             }
@@ -282,18 +282,18 @@ fn rewrite_nodes(
                     }
                 }
 
-                rewrite_nodes(old_repo, new_repo, child, &mut dir_db, &current_dir)?;
+                rewrite_nodes(old_repo, new_repo, child, &current_dir)?;
             }
             EMerkleTreeNode::VNode(_) => {
                 // VNode just needs to traverse to the next dirnode
-                rewrite_nodes(old_repo, new_repo, child, parent_db, current_dir)?;
+                rewrite_nodes(old_repo, new_repo, child, current_dir)?;
             }
             _ => {
                 // pass, FileNode was not changed, so it is on the latest version
             }
         }
     }
-    
+
     Ok(())
 }
 
