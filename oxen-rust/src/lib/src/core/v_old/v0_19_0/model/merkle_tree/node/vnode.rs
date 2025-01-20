@@ -28,11 +28,11 @@ impl TVNode for VNodeData {
     }
 
     fn num_entries(&self) -> u64 {
-        log::warn!("VNodeData(0.19.0) does not have num_entries");
+        // log::warn!("VNodeData(0.19.0) does not have num_entries");
         0
     }
 
     fn set_num_entries(&mut self, _: u64) {
-        log::warn!("VNodeData(0.19.0) does not have num_entries");
+        // log::warn!("VNodeData(0.19.0) does not have num_entries");
     }
 }

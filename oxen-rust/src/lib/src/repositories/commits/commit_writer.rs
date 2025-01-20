@@ -698,7 +698,7 @@ fn split_into_vnodes(
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
-            // generate a uuid for the vnode
+            // add the dir name to the vnode hash
             vnode_hasher.update(directory.to_str().unwrap().as_bytes());
 
             let mut has_new_entries = false;
@@ -1559,12 +1559,14 @@ mod tests {
             let dir_1_node = first_tree.get_by_path(Path::new("files/dir_1"))?.unwrap();
             assert_eq!(dir_1_node.num_vnodes(), 3);
 
-            // Add a news files
+            // Add a new files
             for i in 0..10 {
                 let dir_num = i % 2;
                 let new_file = repo
                     .path
-                    .join(format!("files/dir_{}/new_file_{}.txt", dir_num, i));
+                    .join("files")
+                    .join(format!("dir_{}", dir_num))
+                    .join(format!("new_file_{}.txt", i));
                 util::fs::write_to_path(&new_file, format!("New fileeeee {}", i))?;
                 repositories::add(&repo, &new_file)?;
             }
@@ -1582,6 +1584,21 @@ mod tests {
             // Read the second merkle tree
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
+
+            // Make sure we can read the new files
+            for i in 0..10 {
+                let dir_num = i % 2;
+                let file_path = Path::new("files")
+                    .join(format!("dir_{}", dir_num))
+                    .join(format!("new_file_{}.txt", i));
+
+                let file_node = second_tree.get_by_path(&file_path)?;
+                assert!(file_node.is_some());
+
+                let file_node =
+                    repositories::tree::get_node_by_path(&repo, &second_commit, &file_path)?;
+                assert!(file_node.is_some());
+            }
 
             Ok(())
         })
