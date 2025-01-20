@@ -78,6 +78,7 @@ pub struct StagedData {
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: HashSet<PathBuf>,
     pub moved_files: Vec<(PathBuf, PathBuf, String)>,
+    pub removed_dirs: Vec<(PathBuf, usize)>,
     pub removed_files: HashSet<PathBuf>,
     pub merge_conflicts: Vec<EntryMergeConflict>,
 }
@@ -92,6 +93,7 @@ impl StagedData {
             untracked_files: vec![],
             modified_files: HashSet::new(),
             removed_files: HashSet::new(),
+            removed_dirs:  untracked_dirs: vec![],
             moved_files: vec![],
             merge_conflicts: vec![],
         }
@@ -105,6 +107,7 @@ impl StagedData {
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
+            && self.removed_dirs.is_empty()
             && self.merge_conflicts.is_empty()
             && self.moved_files.is_empty()
     }
@@ -118,7 +121,7 @@ impl StagedData {
     }
 
     pub fn has_removed_entries(&self) -> bool {
-        !self.removed_files.is_empty()
+        !self.removed_files.is_empty() || !self.removed_dirs.is_empty()
     }
 
     pub fn has_untracked_entries(&self) -> bool {
@@ -156,7 +159,9 @@ impl StagedData {
         self.__collect_merge_conflicts(&mut outputs, opts);
         self.__collect_untracked_dirs(&mut outputs, opts);
         self.__collect_untracked_files(&mut outputs, opts);
+        self.removed_dirs(&mut outputs, opts);
         self.__collect_removed_files(&mut outputs, opts);
+    
 
         outputs
     }
@@ -462,6 +467,47 @@ impl StagedData {
             outputs,
             opts,
         );
+        outputs.push("\n".normal());
+    }
+
+    fn removed_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        let mut dirs: Vec<Vec<ColoredString>> = vec![];
+        for (path, removed_dirs) in self.removed_dirs.paths.iter() {
+            let mut dir_row: Vec<ColoredString> = vec![];
+            for removed_dir in removed_dirs.iter() {
+                if *path == PathBuf::from("") {
+                    continue;
+                }
+
+                dir_row.push("  removed: ".red());
+                dir_row.push(removed_dir.path.to_str().unwrap().to_string().red().bold());
+
+                let num_files_str = match removed_dir.num_files_staged {
+                    1 => Some(format!(" with {} file\n", removed_dir.num_files_staged).normal()),
+                    0 => {
+                        // limit since we don't have any staged files in this dir
+                        log::warn!("Added dir with no files staged: {:?}", path);
+                        None
+                    }
+                    _ => Some(format!(" with {} files\n", removed_dir.num_files_staged).normal()),
+                };
+                if let Some(num_files_str) = num_files_str {
+                    dir_row.push(num_files_str);
+                } else {
+                    dir_row.push("\n".normal());
+                }
+            }
+            if !dir_row.is_empty() {
+                dirs.push(dir_row);
+            }
+        }
+
+        if dirs.is_empty() {
+            return;
+        }
+
+        outputs.push("Directories to be committed\n".normal());
+        self.__collapse_outputs(&dirs, |dir| dir.to_vec(), outputs, opts);
         outputs.push("\n".normal());
     }
 
