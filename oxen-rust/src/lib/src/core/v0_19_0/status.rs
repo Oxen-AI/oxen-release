@@ -128,7 +128,6 @@ pub fn status_from_dir_entries(
     log::debug!("staged data: {staged_data:?}");
 
     log::debug!("dir_entries.len(): {:?}", dir_entries.len());
-    let mut is_removed = false;
 
     for (dir, entries) in dir_entries {
         log::debug!(
@@ -155,13 +154,8 @@ pub fn status_from_dir_entries(
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
 
-                    // Correction for status of empty dirs 
-                    if entry.status == StagedEntryStatus::Removed {
-                        is_removed = true; 
-                    }
-
                     // Cannot be removed if it's staged
-                    if !staged_data.staged_dirs.contains_key(&dir) {
+                    if staged_data.staged_dirs.contains_key(&dir) {
                         staged_data.removed_dirs.remove(&dir);
                     }
 
@@ -211,14 +205,6 @@ pub fn status_from_dir_entries(
 
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
         // Otherwise we are filtering out parent dirs that were added during add
-        if entries.len() == 0 {
-            // DOESNT WORK
-            if is_removed {
-                summarized_dir_stats.add_stats(&stats);
-            } else {
-                summarized_dir_stats.add_stats(&removed_stats);
-            }
-        } 
 
         if stats.num_files_staged > 0 {
             summarized_dir_stats.add_stats(&stats);
