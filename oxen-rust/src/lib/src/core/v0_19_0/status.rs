@@ -60,7 +60,7 @@ pub fn status_from_opts(
 
     let mut untracked = UntrackedData::new();
     let mut modified = HashSet::new();
-    let mut removed = HashSet::new();
+    let mut removed = RemovedData::new();
 
     for dir in opts.paths.iter() {
         let relative_dir = util::fs::path_relative_to_dir(dir, &repo.path)?;
@@ -75,7 +75,7 @@ pub fn status_from_opts(
         )?;
         untracked.merge(sub_untracked);
         modified.extend(sub_modified);
-        removed.extend(sub_removed);
+        removed.merge(sub_removed);
     }
 
     log::debug!("find_changes untracked: {:?}", untracked);
@@ -86,7 +86,8 @@ pub fn status_from_opts(
     staged_data.untracked_dirs = untracked.dirs.into_iter().collect();
     staged_data.untracked_files = untracked.files;
     staged_data.modified_files = modified;
-    staged_data.removed_files = removed;
+    staged_data.removed_dirs = removed.dirs.into_iter().collect();
+    staged_data.removed_files = removed.files;
 
     // Find merge conflicts
     let conflicts = repositories::merge::list_conflicts(repo)?;
@@ -102,6 +103,7 @@ pub fn status_from_opts(
         return Ok(staged_data);
     };
 
+    // TODO: Consider moving this to the top to keep track of removed dirs and avoid unecessary recursion with count_removed_entries
     let mut dir_entries = HashMap::new();
     for dir in opts.paths.iter() {
         let (sub_dir_entries, _) =
@@ -123,8 +125,10 @@ pub fn status_from_dir_entries(
         total_files: 0,
         paths: HashMap::new(),
     };
+    log::debug!("staged data: {staged_data:?}");
 
     log::debug!("dir_entries.len(): {:?}", dir_entries.len());
+
     for (dir, entries) in dir_entries {
         log::debug!(
             "dir_entries dir: {:?} entries.len(): {:?}",
@@ -137,13 +141,27 @@ pub fn status_from_dir_entries(
             total_files: 0,
             status: StagedEntryStatus::Added,
         };
+
+        let mut removed_stats = StagedDirStats {
+            path: dir.clone(),
+            num_files_staged: 0,
+            total_files: 0,
+            status: StagedEntryStatus::Removed,
+        };
+
+        let mut is_removed = false;
+
         for entry in &entries {
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
+                    // Correction for empty dir status
+                    is_removed = true;
+
                     // Cannot be removed if it's staged
+                    // This logic seems incorrect, but necessary? I think it should probably be removed in all cases if u get here...
                     if !staged_data.staged_dirs.contains_key(&dir) {
-                        staged_data.removed_files.remove(&dir);
+                        staged_data.removed_dirs.remove(&PathBuf::from(&node.name));
                     }
                 }
                 EMerkleTreeNode::File(node) => {
@@ -157,16 +175,22 @@ pub fn status_from_dir_entries(
                         hash: node.hash.to_string(),
                         status: entry.status.clone(),
                     };
+                    
                     staged_data
                         .staged_files
                         .insert(file_path.clone(), staged_entry);
-                    stats.num_files_staged += 1;
                     maybe_add_schemas(node, staged_data)?;
 
                     // Cannot be removed if it's staged
                     if staged_data.staged_files.contains_key(&file_path) {
                         staged_data.removed_files.remove(&file_path);
                         staged_data.modified_files.remove(&file_path);
+                    }
+
+                    if entry.status == StagedEntryStatus::Removed {
+                        removed_stats.num_files_staged += 1;
+                    } else {
+                        stats.num_files_staged += 1;
                     }
                 }
                 _ => {
@@ -185,8 +209,21 @@ pub fn status_from_dir_entries(
 
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
         // Otherwise we are filtering out parent dirs that were added during add
-        if stats.num_files_staged > 0 || entries.is_empty() {
+
+        if entries.len() == 0 {
+            if !is_removed {
+                summarized_dir_stats.add_stats(&removed_stats);
+            } else {
+                summarized_dir_stats.add_stats(&stats);
+            }
+        }
+
+        if stats.num_files_staged > 0 {
             summarized_dir_stats.add_stats(&stats);
+        }
+
+        if removed_stats.num_files_staged > 0  {
+            summarized_dir_stats.add_stats(&removed_stats);
         }
     }
 
@@ -257,7 +294,7 @@ pub fn read_staged_entries(
     repo: &LocalRepository,
     db: &DBWithThreadMode<SingleThreaded>,
     read_progress: &ProgressBar,
-) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
     read_staged_entries_below_path(repo, db, Path::new(""), read_progress)
 }
 
@@ -266,7 +303,7 @@ pub fn read_staged_entries_below_path(
     db: &DBWithThreadMode<SingleThreaded>,
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
-) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
     let start_path = util::fs::path_relative_to_dir(start_path.as_ref(), &repo.path)?;
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
@@ -283,9 +320,8 @@ pub fn read_staged_entries_below_path(
                 }
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
                 log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
-                let full_path = repo.path.join(path);
 
-                if full_path.is_dir() {
+                if let EMerkleTreeNode::Directory(_) = &entry.node.node { 
                     // add the dir as a key in dir_entries
                     log::debug!("read_staged_entries adding dir {:?}", path);
                     dir_entries.entry(path.to_path_buf()).or_default();
@@ -334,8 +370,8 @@ fn find_changes(
     staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
     progress: &ProgressBar,
-    total_entries: &mut u64,
-) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
+    total_entries: &mut usize,
+) -> Result<(UntrackedData, HashSet<PathBuf>, RemovedData), OxenError> {
     let relative_path = relative_path.as_ref();
     let full_path = repo.path.join(relative_path);
     log::debug!(
@@ -346,13 +382,13 @@ fn find_changes(
 
     if let Some(ignore) = &opts.ignore {
         if ignore.contains(relative_path) || ignore.contains(&full_path) {
-            return Ok((UntrackedData::new(), HashSet::new(), HashSet::new()));
+            return Ok((UntrackedData::new(), HashSet::new(), RemovedData::new()));
         }
     }
 
     let mut untracked = UntrackedData::new();
     let mut modified = HashSet::new();
-    let mut removed = HashSet::new();
+    let mut removed = RemovedData::new();
     let gitignore = oxenignore::create(repo);
 
     let mut entries: Vec<PathBuf> = Vec::new();
@@ -398,7 +434,7 @@ fn find_changes(
             )?;
             untracked.merge(sub_untracked);
             modified.extend(sub_modified);
-            removed.extend(sub_removed);
+            removed.merge(sub_removed)
         } else if is_staged(&relative_path, staged_db)? {
             // check this after handling directories, because we still need to recurse into staged directories
             untracked.all_untracked = false;
@@ -406,6 +442,7 @@ fn find_changes(
         } else if let Some(node) =
             maybe_get_child_node(relative_path.file_name().unwrap(), &dir_node)?
         {
+
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
@@ -429,11 +466,12 @@ fn find_changes(
     }
 
     // Only add the untracked directory if it's not the root directory
-    // and it's not staged
+    // and it's not staged or committed
     if untracked.all_untracked
         && relative_path != Path::new("")
         && !is_staged(relative_path, staged_db)?
         && full_path.is_dir()
+        && !dir_node.is_some()
     {
         untracked.add_dir(relative_path.to_path_buf(), untracked_count);
         // Clear individual files as they're now represented by the directory
@@ -453,10 +491,10 @@ fn find_changes(
                 let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
                 if let Some(node) = dir_node {
                     for child in CommitMerkleTree::node_files_and_folders(&node)? {
-                        if let EMerkleTreeNode::File(file) = &child.node {
-                            let file_path = full_path.join(&file.name);
+                        if let EMerkleTreeNode::File(file_node) = &child.node {
+                            let file_path = full_path.join(&file_node.name);
                             if !file_path.exists() {
-                                removed.insert(relative_path.join(&file.name));
+                                removed.add_file(relative_path.join(&file_node.name));
                             }
                         }
                     }
@@ -468,15 +506,28 @@ fn find_changes(
         let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
         if let Some(node) = dir_node {
             for child in CommitMerkleTree::node_files_and_folders(&node)? {
-                if let EMerkleTreeNode::File(file) = &child.node {
-                    let file_path = full_path.join(&file.name);
+                if let EMerkleTreeNode::File(file_node) = &child.node {
+                    let file_path = full_path.join(&file_node.name);
                     if !file_path.exists() {
-                        removed.insert(relative_path.join(&file.name));
+                        removed.add_file(relative_path.join(&file_node.name));
                     }
                 } else if let EMerkleTreeNode::Directory(dir) = &child.node {
                     let dir_path = full_path.join(&dir.name);
+                    let relative_dir_path = relative_path.join(&dir.name);
                     if !dir_path.exists() {
-                        removed.insert(relative_path.join(&dir.name));
+                        // Only call this for non-existant dirs, because existant dirs already trigger a find_changes call
+
+                        let mut count: usize = 0;
+                        count_removed_entries(
+                            repo,
+                            &relative_dir_path,
+                            &dir.hash,
+                            &gitignore,
+                            &mut count,
+                        )?;
+                        
+                        *total_entries += count;
+                        removed.add_dir(relative_dir_path, count);
                     }
                 }
             }
@@ -484,6 +535,43 @@ fn find_changes(
     }
 
     Ok((untracked, modified, removed))
+}
+
+// Traverse the merkle tree to count removed entries under a dir node
+// This is faster than adding every removed file, as we don't have to perform additional 
+fn count_removed_entries(
+    repo: &LocalRepository,
+    relative_path: &Path,
+    dir_hash: &MerkleHash,
+    gitignore: &Option<Gitignore>,
+    removed_entries: &mut usize,
+) -> Result<(), OxenError> {
+
+
+    if is_ignored(relative_path, gitignore, relative_path.is_dir()) {
+        return Ok(());
+    }
+
+    let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
+    if let Some(ref node) = dir_node {
+        for child in CommitMerkleTree::node_files_and_folders(node)? {    
+            if let EMerkleTreeNode::File(_) = &child.node {
+                // Any files nodes accessed here are children of a removed dir, so they must also be removed 
+                *removed_entries += 1;
+            } else if let EMerkleTreeNode::Directory(dir) = child.node {
+                let relative_dir_path = relative_path.join(&dir.name);
+                count_removed_entries(
+                    repo,
+                    &relative_dir_path,
+                    &dir.hash,
+                    gitignore,
+                    removed_entries,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 // Helper functions (implement these based on your existing code)
@@ -603,6 +691,56 @@ impl UntrackedData {
         self.dirs.extend(other.dirs);
         self.files.extend(other.files);
         self.all_untracked = self.all_untracked && other.all_untracked;
+    }
+}
+
+
+#[derive(Debug)]
+struct RemovedData {
+    dirs: HashMap<PathBuf, usize>,
+    files: HashSet<PathBuf>,
+    all_removed: bool,
+}
+
+// TODO: This struct exists to count the number of files in removed dirs
+
+impl RemovedData {
+    fn new() -> Self {
+        Self {
+            dirs: HashMap::new(),
+            files: HashSet::new(),
+            all_removed: true,
+        }
+    }
+
+    fn add_dir(&mut self, path: PathBuf, count: usize) {
+        // Check if this directory is a parent of any existing entries. It will
+        // never be a child since we process child directories first.
+        let subdirs: Vec<_> = self
+            .dirs
+            .keys()
+            .filter(|k| k.starts_with(&path) && **k != path)
+            .cloned()
+            .collect();
+
+        let total_count: usize = subdirs.iter().map(|k| self.dirs[k]).sum::<usize>() + count;
+
+        for subdir in subdirs {
+            self.dirs.remove(&subdir);
+        }
+
+        self.dirs.insert(path, total_count);
+    }
+
+    fn add_file(&mut self, file_path: PathBuf) {
+        self.files.insert(file_path);
+    }
+
+    fn merge(&mut self, other: RemovedData) {
+        // Since we process child directories first, we can just extend
+        self.dirs.extend(other.dirs);
+        self.files.extend(other.files);
+        self.all_removed = self.all_removed && other.all_removed;
     }
 }
 
