@@ -149,16 +149,20 @@ pub fn status_from_dir_entries(
             status: StagedEntryStatus::Removed,
         };
 
+        let mut is_removed = false;
+
         for entry in &entries {
             match &entry.node.node {
                 EMerkleTreeNode::Directory(node) => {
                     log::debug!("dir_entries dir_node: {}", node);
+                    // Correction for empty dir status
+                    is_removed = true;
 
                     // Cannot be removed if it's staged
-                    if staged_data.staged_dirs.contains_key(&dir) {
-                        staged_data.removed_dirs.remove(&dir);
+                    // This logic seems incorrect, but necessary? I think it should probably be removed in all cases if u get here...
+                    if !staged_data.staged_dirs.contains_key(&dir) {
+                        staged_data.removed_dirs.remove(&PathBuf::from(&node.name));
                     }
-
                 }
                 EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
@@ -177,16 +181,16 @@ pub fn status_from_dir_entries(
                         .insert(file_path.clone(), staged_entry);
                     maybe_add_schemas(node, staged_data)?;
 
-                    if entry.status == StagedEntryStatus::Removed {
-                        removed_stats.num_files_staged += 1;
-                    } else {
-                        stats.num_files_staged += 1;
-                    }
-
                     // Cannot be removed if it's staged
                     if staged_data.staged_files.contains_key(&file_path) {
                         staged_data.removed_files.remove(&file_path);
                         staged_data.modified_files.remove(&file_path);
+                    }
+
+                    if entry.status == StagedEntryStatus::Removed {
+                        removed_stats.num_files_staged += 1;
+                    } else {
+                        stats.num_files_staged += 1;
                     }
                 }
                 _ => {
@@ -205,6 +209,14 @@ pub fn status_from_dir_entries(
 
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
         // Otherwise we are filtering out parent dirs that were added during add
+
+        if entries.len() == 0 {
+            if !is_removed {
+                summarized_dir_stats.add_stats(&removed_stats);
+            } else {
+                summarized_dir_stats.add_stats(&stats);
+            }
+        }
 
         if stats.num_files_staged > 0 {
             summarized_dir_stats.add_stats(&stats);

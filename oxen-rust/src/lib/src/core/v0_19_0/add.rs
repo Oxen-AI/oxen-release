@@ -76,7 +76,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let stats = add_files(repo, &paths, &staged_db)?;
+    let _stats = add_files(repo, &paths, &staged_db)?;
 
     Ok(())
 }
