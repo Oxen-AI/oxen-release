@@ -577,7 +577,7 @@ mod tests {
             assert_eq!(status.untracked_dirs.len(), 1);
             // TODO: v0_10_0 test had 5 removed files here, but when the entire
             // directory was moved it doesn't make sense to show individual files
-            assert_eq!(status.removed_files.len(), 1);
+            assert_eq!(status.removed_dirs.len(), 1);
 
             // Add the removals
             repositories::add(&repo, &og_dir)?;
