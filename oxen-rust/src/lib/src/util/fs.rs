@@ -1357,50 +1357,19 @@ pub fn path_relative_to_dir(
     path: impl AsRef<Path>,
     dir: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    // Embedded canonicalize calls to catch every case:
-    // -- if both paths can be canonicalized, they both will be
-    // -- if only the dir can be canonicalized, only the dir will be
-    // -- if the dir cannot be canonicalized, neither will be
-    let (path, dir) = match canonicalize(&dir) {
-        Ok(canon_dir) => {
-            /*log::debug!(
-              "dir {:?} canonicalized. Checking path {:?}",
-                dir.as_ref(),
-                path.as_ref()
-            );*/
-            match canonicalize(&path) {
-                Ok(canon_path) => (canon_path, canon_dir),
-                // '_' because the debug statement is commented out
-                Err(_err) => {
-                    /*log::debug!(
-                        "Err with canonicalization: {err:?}. Returning path {:?} immediately",
-                        path.as_ref()
-                    );*/
-                    return Ok(path.as_ref().to_path_buf());
-                }
-            }
-        }
-        // '_' because the debug statement is commented out
-        Err(_err) => {
-            /*log::debug!(
-                "Err with canonicalization: {err:?}. Skipping canonicalization of path {:?}",
-                path.as_ref()
-            );*/
-            (path.as_ref().to_path_buf(), dir.as_ref().to_path_buf())
-        }
-    };
+    let path = path.as_ref();
+    let dir = dir.as_ref();
 
-    let mut mut_path = path.clone();
+    let dir_string = dir.to_str().unwrap().to_string().to_lowercase();
+
+    let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        /*log::debug!(
-            "Comparing {:?} => {:?} => {:?}",
-            path,
-            mut_path.parent(),
-            dir
-        );*/
+        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
         if let Some(filename) = mut_path.file_name() {
-            if mut_path != dir {
+            let path_string = mut_path.to_str().unwrap().to_string().to_lowercase();
+
+            if path_string != dir_string {
                 components.push(PathBuf::from(filename));
             } else {
                 break;
