@@ -493,7 +493,8 @@ impl StagedData {
                     let path_str = path.to_str().unwrap();
                     let num_spaces = max_dir_len - path_str.len();
                     vec![
-                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
+                        "  removed: ".to_string().red(),
+                        format!("{} {}", path_str, StagedData::spaces(num_spaces))
                             .red()
                             .bold(),
                         format!("({} {})\n", size, StagedData::item_str_plural(**size)).normal(),
@@ -527,7 +528,7 @@ impl StagedData {
                     let path_str = path.to_str().unwrap();
                     let num_spaces = max_dir_len - path_str.len();
                     vec![
-                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
+                        format!("  {} {}", path_str, StagedData::spaces(num_spaces))
                             .red()
                             .bold(),
                         format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
