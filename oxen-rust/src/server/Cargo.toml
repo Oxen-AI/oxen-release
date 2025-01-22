@@ -30,6 +30,7 @@ jsonwebtoken = "9.3.0"
 liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
+mime = "0.3.17"
 os_path = "0.8.0"
 percent-encoding = "2.1"
 polars = { version = "0.44.2", features = [
