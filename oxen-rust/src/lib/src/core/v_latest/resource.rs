@@ -16,7 +16,7 @@ pub fn parse_resource_from_path(
 
     // See if the first component is the commit id
     // log::debug!(
-    //     "parse_resource_from_path_v0_19_0 looking for commit id in path {:?}",
+    //     "parse_resource_from_path looking for commit id in path {:?}",
     //     path
     // );
 
@@ -24,7 +24,7 @@ pub fn parse_resource_from_path(
         let base_path: &Path = first_component.as_ref();
         let maybe_commit_id = base_path.to_str().unwrap();
         // log::debug!(
-        //     "parse_resource_from_path_v0_19_0 looking at component {}",
+        //     "parse_resource_from_path looking at component {}",
         //     maybe_commit_id
         // );
         if let Some(commit) = repositories::commits::get_by_id(repo, maybe_commit_id)? {
@@ -36,7 +36,7 @@ pub fn parse_resource_from_path(
                 }
             }
             log::debug!(
-                "parse_resource_from_path_v0_19_0 got commit.id [{}] and filepath [{:?}]",
+                "parse_resource_from_path got commit.id [{}] and filepath [{:?}]",
                 commit.id,
                 file_path
             );
@@ -50,7 +50,7 @@ pub fn parse_resource_from_path(
         }
         //  else {
         //     log::debug!(
-        //         "parse_resource_from_path_v0_19_0 did not find commit [{}]",
+        //         "parse_resource_from_path did not find commit [{}]",
         //         maybe_commit_id
         //     );
         // }
@@ -69,7 +69,7 @@ pub fn parse_resource_from_path(
         }
 
         // log::debug!(
-        //     "parse_resource_from_path_v0_19_0 got file path [{:?}] with {} remaining components",
+        //     "parse_resource_from_path got file path [{:?}] with {} remaining components",
         //     file_path,
         //     components.len()
         // );
@@ -104,12 +104,12 @@ pub fn parse_resource_from_path(
 
         let branch_name = util::fs::linux_path_str(branch_path.to_str().unwrap());
         // log::debug!(
-        //     "parse_resource_from_path_v0_19_0 looking for branch [{}]",
+        //     "parse_resource_from_path looking for branch [{}]",
         //     branch_name
         // );
         if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
             log::debug!(
-                "parse_resource_from_path_v0_19_0 got branch [{}] and filepath [{:?}]",
+                "parse_resource_from_path got branch [{}] and filepath [{:?}]",
                 branch_name,
                 file_path
             );
