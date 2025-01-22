@@ -434,7 +434,7 @@ impl MerkleNodeDB {
         // log::debug!("--add_child-- hash {:x}", item.id());
         // log::debug!("--add_child-- data_offset {}", self.data_offset);
         // log::debug!("--add_child-- data_len {}", data_len);
-        log::debug!("--add_child-- child {}", item);
+        // log::debug!("--add_child-- child {}", item);
 
         node_file.write_all(&item.node_type().to_u8().to_le_bytes())?;
         node_file.write_all(&item.hash().to_le_bytes())?; // id of child

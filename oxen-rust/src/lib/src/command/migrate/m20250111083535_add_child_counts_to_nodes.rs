@@ -101,8 +101,8 @@ fn run_on_commit(repository: &LocalRepository, commit: &Commit) -> Result<(), Ox
     );
     let old_repo = repository.clone();
 
-    println!("old tree for commit {}", commit);
-    repositories::tree::print_tree(&old_repo, commit)?;
+    // println!("old tree for commit {}", commit);
+    // repositories::tree::print_tree(&old_repo, commit)?;
 
     // Iterate over the nodes, find the VNode and DirNode, and add the child counts
     let mut new_repo = repository.clone();
@@ -144,8 +144,8 @@ fn run_on_commit(repository: &LocalRepository, commit: &Commit) -> Result<(), Ox
     let current_path = Path::new("");
     rewrite_nodes(&old_repo, &new_repo, &root_node, current_path)?;
 
-    println!("new tree for commit {}", commit);
-    repositories::tree::print_tree(&new_repo, commit)?;
+    // println!("new tree for commit {}", commit);
+    // repositories::tree::print_tree(&new_repo, commit)?;
 
     // Set the oxen version to 0.25.0
     let mut config = RepositoryConfig::from_repo(&new_repo)?;
