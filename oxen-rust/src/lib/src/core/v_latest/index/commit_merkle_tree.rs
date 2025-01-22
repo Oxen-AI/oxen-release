@@ -600,12 +600,12 @@ impl CommitMerkleTree {
         recurse: bool,
     ) -> Result<(), OxenError> {
         let dtype = node.node.node_type();
-        log::debug!(
-            "read_children_from_node tree_db_dir: {:?} dtype {:?} recurse {}",
-            node_db.path(),
-            dtype,
-            recurse
-        );
+        // log::debug!(
+        //     "read_children_from_node tree_db_dir: {:?} dtype {:?} recurse {}",
+        //     node_db.path(),
+        //     dtype,
+        //     recurse
+        // );
 
         if dtype != MerkleTreeNodeType::Commit
             && dtype != MerkleTreeNodeType::Dir
@@ -616,7 +616,7 @@ impl CommitMerkleTree {
         }
 
         let children: Vec<(MerkleHash, MerkleTreeNode)> = node_db.map()?;
-        log::debug!("read_children_from_node Got {} children", children.len());
+        // log::debug!("read_children_from_node Got {} children", children.len());
 
         for (_key, child) in children {
             let mut child = child.to_owned();
