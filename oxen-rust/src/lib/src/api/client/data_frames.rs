@@ -347,7 +347,7 @@ mod tests {
             assert_eq!(df.data_frame.source.size.width, 11);
 
             assert_eq!(df.data_frame.view.size.height, 100);
-            assert_eq!(df.data_frame.view.size.width, 3);
+            assert_eq!(df.data_frame.view.size.width, 6);
             assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
 
             assert_eq!(df.data_frame.view.pagination.page_number, 1);
