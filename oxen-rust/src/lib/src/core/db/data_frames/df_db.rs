@@ -309,7 +309,8 @@ fn add_special_columns(conn: &duckdb::Connection, sql: &str) -> Result<String, O
     if is_subset {
         let special_columns: Vec<&str> = OXEN_COLS
             .iter()
-            .filter(|col| !result_field_names.contains(col)).copied()
+            .filter(|col| !result_field_names.contains(col))
+            .copied()
             .collect();
 
         if !special_columns.is_empty() {
