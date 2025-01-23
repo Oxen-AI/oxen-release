@@ -31,15 +31,15 @@ pub async fn pull_remote_branch(
     let remote = &fetch_opts.remote;
     let branch = &fetch_opts.branch;
     println!("🐂 oxen pull {} {}", remote, branch);
-    
+
     let remote = repo
-    .get_remote(remote)
-    .ok_or(OxenError::remote_not_set(remote))?;
+        .get_remote(remote)
+        .ok_or(OxenError::remote_not_set(remote))?;
 
     let remote_repo = api::client::repositories::get_by_remote(&remote)
-    .await?
+        .await?
         .ok_or(OxenError::remote_not_found(remote.clone()))?;
-    
+
     api::client::repositories::pre_pull(&remote_repo).await?;
 
     let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
