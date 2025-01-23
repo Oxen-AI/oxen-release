@@ -40,6 +40,8 @@ pub async fn pull_remote_branch(
         .await?
         .ok_or(OxenError::remote_not_found(remote.clone()))?;
 
+    api::client::repositories::pre_pull(&remote_repo).await?;
+
     let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     // Fetch all the tree nodes and the entries
@@ -79,6 +81,7 @@ pub async fn pull_remote_branch(
     }
 
     repositories::branches::set_head(repo, branch)?;
+    api::client::repositories::post_pull(&remote_repo).await?;
 
     Ok(())
 }
