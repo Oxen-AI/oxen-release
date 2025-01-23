@@ -76,18 +76,9 @@ pub async fn fetch_remote_branch(
     );
 
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
-            let rb = RemoteBranch {
-                remote: fetch_opts.remote.clone(),
-                branch: fetch_opts.branch.clone(),
-            };
-            indexer
-                .pull_most_recent_commit_object(remote_repo, &rb, false)
-                .await?;
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => {
+            core::v_latest::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
         }
     }
 

@@ -57,9 +57,6 @@ pub use crate::model::entry::ContentHashable;
 pub use crate::model::merge_conflict::EntryMergeConflict;
 pub use crate::model::merge_conflict::NodeMergeConflict;
 
-// Metadata
-pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;
-
 pub use crate::model::data_frame::data_frame_size::DataFrameSize;
 
 pub use crate::model::user::User;

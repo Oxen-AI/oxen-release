@@ -1,12 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
-use flate2::read::GzDecoder;
 use futures_util::stream::StreamExt as _;
-use liboxen::constants::NODES_DIR;
-use liboxen::constants::OXEN_HIDDEN_DIR;
-use liboxen::constants::TREE_DIR;
-use liboxen::core::v0_19_0::index::merkle_node_db::node_db_path;
-use liboxen::core::v0_19_0::index::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
 use liboxen::model::Commit;
 use liboxen::model::LocalRepository;
@@ -15,11 +9,7 @@ use liboxen::view::tree::MerkleHashResponse;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use std::collections::HashSet;
-use std::path::Path;
-use tar::Archive;
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -159,45 +149,7 @@ pub async fn create_nodes(
         ByteSize::b(bytes.len() as u64)
     );
 
-    let mut hashes: HashSet<MerkleHash> = HashSet::new();
-    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-    let Ok(entries) = archive.entries() else {
-        return Err(OxenHttpError::BadRequest(
-            "Could not unpack tree database from archive".into(),
-        ));
-    };
-
-    for file in entries {
-        let Ok(mut file) = file else {
-            log::error!("Could not unpack file in archive...");
-            continue;
-        };
-        let path = file.path().unwrap();
-        let oxen_hidden_path = repository.path.join(OXEN_HIDDEN_DIR);
-        let dst_path = oxen_hidden_path.join(TREE_DIR).join(NODES_DIR).join(path);
-
-        if let Some(parent) = dst_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).expect("Could not create parent dir");
-            }
-        }
-        // log::debug!("create_node writing {:?}", dst_path);
-        file.unpack(&dst_path).unwrap();
-
-        // the hash is the last two path components combined
-        if !dst_path.ends_with("node") && !dst_path.ends_with("children") {
-            let id = dst_path
-                .components()
-                .rev()
-                .take(2)
-                .map(|c| c.as_os_str().to_str().unwrap())
-                .collect::<Vec<&str>>()
-                .into_iter()
-                .rev()
-                .collect::<String>();
-            hashes.insert(MerkleHash::from_str(&id)?);
-        }
-    }
+    let hashes = repositories::tree::unpack_nodes(&repository, &bytes[..])?;
 
     Ok(HttpResponse::Ok().json(MerkleHashesResponse {
         status: StatusMessage::resource_found(),
@@ -212,7 +164,7 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let repository = get_repo(&app_data.path, namespace, name)?;
 
     // Download the entire tree
-    let buffer = compress_tree(&repository)?;
+    let buffer = repositories::tree::compress_tree(&repository)?;
 
     Ok(HttpResponse::Ok().body(buffer))
 }
@@ -265,31 +217,11 @@ pub async fn download_tree_nodes(
     // Could be a single commit or a range of commits
     let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
 
-    // zip up the node directories for each commit tree
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
         get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth, is_download)?;
 
-    log::debug!("Compressing {} unique nodes...", unique_node_hashes.len());
-    for hash in unique_node_hashes {
-        // This will be the subdir within the tarball
-        // so when we untar it, all the subdirs will be extracted to
-        // tree/nodes/...
-        let dir_prefix = node_db_prefix(&hash);
-        let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
-
-        let node_dir = node_db_path(&repository, &hash);
-        // log::debug!("Compressing node from dir {:?}", node_dir);
-        if node_dir.exists() {
-            tar.append_dir_all(&tar_subdir, node_dir)?;
-        }
-    }
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let buffer = repositories::tree::compress_nodes(&repository, &unique_node_hashes)?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
     log::debug!(
         "Compressed {} commits size is {}",
@@ -371,7 +303,7 @@ fn get_unique_node_hashes(
             }
 
             if !is_download {
-                repositories::tree::read_nodes_along_path(
+                repositories::tree::collect_nodes_along_path(
                     repository,
                     commit,
                     all_parent_paths,
@@ -402,7 +334,8 @@ fn get_unique_node_hashes_for_subtree(
     depth: &Option<i32>,
     unique_node_hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
-    let tree = repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)?;
+    let tree = repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)?
+        .ok_or(OxenError::basic_str("subtree not found"))?;
     tree.walk_tree_without_leaves(|node| {
         unique_node_hashes.insert(node.hash);
     });
@@ -418,7 +351,7 @@ pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let hash = MerkleHash::from_str(&hash_str)?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    let buffer = compress_node(&repository, &hash)?;
+    let buffer = repositories::tree::compress_node(&repository, &hash)?;
 
     Ok(HttpResponse::Ok().body(buffer))
 }
@@ -447,27 +380,7 @@ pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpRespons
         repositories::commits::list_from(&repository, &base_commit_id)?
     };
 
-    // zip up the node directory
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    for commit in &commits {
-        let hash = commit.hash()?;
-        // This will be the subdir within the tarball
-        // so when we untar it, all the subdirs will be extracted to
-        // tree/nodes/...
-        let dir_prefix = node_db_prefix(&hash);
-        let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
-
-        let node_dir = node_db_path(&repository, &hash);
-        log::debug!("Compressing commit from dir {:?}", node_dir);
-        if node_dir.exists() {
-            tar.append_dir_all(&tar_subdir, node_dir)?;
-        }
-    }
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let buffer = repositories::tree::compress_commits(&repository, &commits)?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
     log::debug!(
         "Compressed {} commits size is {}",
@@ -476,72 +389,6 @@ pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpRespons
     );
 
     Ok(HttpResponse::Ok().body(buffer))
-}
-
-fn compress_node(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<u8>, OxenError> {
-    // This will be the subdir within the tarball
-    // so when we untar it, all the subdirs will be extracted to
-    // tree/nodes/...
-    let dir_prefix = node_db_prefix(hash);
-    let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
-
-    // zip up the node directory
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-    let node_dir = node_db_path(repository, hash);
-
-    // log::debug!("Compressing node {} from dir {:?}", hash, node_dir);
-    if node_dir.exists() {
-        tar.append_dir_all(&tar_subdir, node_dir)?;
-    }
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-    log::debug!(
-        "Compressed node {} size is {}",
-        hash,
-        ByteSize::b(total_size)
-    );
-
-    Ok(buffer)
-}
-
-fn compress_tree(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-    compress_full_tree(repository, &mut tar)?;
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-
-    log::debug!("Compressed entire tree size is {}", ByteSize::b(total_size));
-
-    Ok(buffer)
-}
-
-fn compress_full_tree(
-    repository: &LocalRepository,
-    tar: &mut tar::Builder<GzEncoder<Vec<u8>>>,
-) -> Result<(), OxenError> {
-    // This will be the subdir within the tarball,
-    // so when we untar it, all the subdirs will be extracted to
-    // tree/nodes/...
-    let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR);
-    let nodes_dir = repository
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(TREE_DIR)
-        .join(NODES_DIR);
-
-    log::debug!("Compressing tree in dir {:?}", nodes_dir);
-
-    if nodes_dir.exists() {
-        tar.append_dir_all(&tar_subdir, nodes_dir)?;
-    }
-
-    Ok(())
 }
 
 fn node_to_json(node: MerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHttpError> {

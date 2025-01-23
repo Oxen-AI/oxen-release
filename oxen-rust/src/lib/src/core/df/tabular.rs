@@ -960,7 +960,7 @@ fn try_to_read_extension_from_node(
 ) -> Result<DataFrame, OxenError> {
     let node = repositories::tree::get_file_by_path(repo, commit, &path)?;
     if let Some(file_node) = node {
-        read_df_with_extension(&version_path, file_node.extension, opts)
+        read_df_with_extension(&version_path, file_node.extension(), opts)
     } else {
         let err = format!("Could not find file node {:?}", path.as_ref());
         Err(OxenError::basic_str(err))
@@ -1324,7 +1324,7 @@ pub fn show_node(
     let file_node = node.file()?;
     log::debug!("Opening chunked reader");
 
-    let df = if file_node.name.ends_with("parquet") {
+    let df = if file_node.name().ends_with("parquet") {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = ParquetReader::new(chunk_reader);
         log::debug!("Reading chunked parquet");
@@ -1339,7 +1339,7 @@ pub fn show_node(
                 err
             ))),
         }?
-    } else if file_node.name.ends_with("arrow") {
+    } else if file_node.name().ends_with("arrow") {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = IpcReader::new(chunk_reader);
         log::debug!("Reading chunked arrow");

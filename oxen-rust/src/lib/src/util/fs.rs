@@ -107,8 +107,8 @@ pub fn resized_path_for_file_node(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    let path = version_path_from_hash(repo, file_node.hash.to_string());
-    let extension = file_node.extension.clone();
+    let path = version_path_from_hash(repo, file_node.hash().to_string());
+    let extension = file_node.extension().to_string();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = path.parent().unwrap().join(format!(
@@ -177,9 +177,7 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
             entry.hash.clone(),
             entry.filename(),
         ),
-        MinOxenVersion::V0_19_0 => {
-            version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
-        }
+        _ => version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename()),
     }
 }
 
@@ -196,7 +194,7 @@ pub fn version_path_from_hash_and_filename(
         MinOxenVersion::V0_10_0 => {
             version_path_from_hash_and_file_v0_10_0(&repo.path, hash, filename)
         }
-        MinOxenVersion::V0_19_0 => version_path_from_hash_and_file(&repo.path, hash, filename),
+        _ => version_path_from_hash_and_file(&repo.path, hash, filename),
     }
 }
 
@@ -209,7 +207,7 @@ pub fn version_path_from_node(
         MinOxenVersion::V0_10_0 => {
             version_path_from_hash_and_file_v0_10_0(&repo.path, file_hash, path)
         }
-        MinOxenVersion::V0_19_0 => version_path_from_hash_and_file(&repo.path, file_hash, path),
+        _ => version_path_from_hash_and_file(&repo.path, file_hash, path),
     }
 }
 
@@ -218,9 +216,7 @@ pub fn version_path_from_hash(repo: &LocalRepository, hash: impl AsRef<str>) -> 
         MinOxenVersion::V0_10_0 => {
             version_path_from_hash_and_file_v0_10_0(&repo.path, hash, PathBuf::new())
         }
-        MinOxenVersion::V0_19_0 => {
-            version_path_from_hash_and_file(&repo.path, hash, PathBuf::new())
-        }
+        _ => version_path_from_hash_and_file(&repo.path, hash, PathBuf::new()),
     }
 }
 
@@ -1339,6 +1335,18 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
         }
     }
     false
+}
+
+// Return canonicalized path if possible, otherwise return original
+pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+    //log::debug!("Path to canonicalize: {path:?}");
+    match dunce::canonicalize(path) {
+        Ok(canon_path) => Ok(canon_path),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "path {path:?} cannot be canonicalized due to err {err:?}"
+        ))),
+    }
 }
 
 pub fn path_relative_to_dir(

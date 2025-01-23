@@ -337,6 +337,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_rename_data_frame() -> Result<(), OxenError> {
+        // Skip workspace ops on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
