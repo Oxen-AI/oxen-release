@@ -91,6 +91,16 @@ pub fn list_directory_w_version(
     }
 }
 
+pub fn update_metadata(repo: &LocalRepository, revision: impl AsRef<str>) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            panic!("update_metadata not implemented for oxen v0.10.0")
+        }
+        MinOxenVersion::V0_19_0 => panic!("update_metadata not implemented for oxen v0.19.0"),
+        _ => core::v_latest::entries::update_metadata(repo, revision),
+    }
+}
+
 /// Get the entry for a given path in a commit.
 /// Could be a file or a directory.
 pub fn get_meta_entry(

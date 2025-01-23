@@ -95,4 +95,12 @@ impl TDirNode for DirNodeData {
     fn data_type_sizes(&self) -> &HashMap<String, u64> {
         &self.data_type_sizes
     }
+
+    fn set_data_type_counts(&mut self, data_type_counts: HashMap<String, u64>) {
+        self.data_type_counts = data_type_counts;
+    }
+
+    fn set_data_type_sizes(&mut self, data_type_sizes: HashMap<String, u64>) {
+        self.data_type_sizes = data_type_sizes;
+    }
 }
