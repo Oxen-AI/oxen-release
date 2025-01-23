@@ -192,10 +192,6 @@ pub const DEFAULT_PAGE_SIZE: usize = 100;
 /// Pagination page number of 1
 pub const DEFAULT_PAGE_NUM: usize = 1;
 
-/// Redis queue name for post commit actions
-pub const COMMIT_QUEUE_NAME: &str = "commit_queue";
-pub const DEFAULT_REDIS_URL: &str = "redis://localhost:6379";
-
 /// Data Types
 pub const TEXT: &str = "text";
 pub const IMAGE: &str = "image";
@@ -206,7 +202,7 @@ pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
 /// Minimum allowable oxen version to push or pull data
-pub const MIN_OXEN_VERSION: MinOxenVersion = MinOxenVersion::V0_19_0;
+pub const MIN_OXEN_VERSION: MinOxenVersion = MinOxenVersion::LATEST;
 
 /// Filepath used to track repo and server-level migration status
 pub const LAST_MIGRATION_FILE: &str = "last_migration.txt";

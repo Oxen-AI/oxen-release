@@ -18,6 +18,8 @@ const CLONE: &str = "clone";
 const PUSH: &str = "push";
 const UPLOAD: &str = "upload";
 const DOWNLOAD: &str = "download";
+const PULL: &str = "pull";
+const FETCH: &str = "fetch";
 
 enum ActionEventState {
     Started,
@@ -454,6 +456,26 @@ pub async fn pre_download(repository: &RemoteRepository) -> Result<(), OxenError
 
 pub async fn post_download(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = DOWNLOAD;
+    action_hook(repository, action_name, ActionEventState::Completed, None).await
+}
+
+pub async fn pre_pull(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = PULL;
+    action_hook(repository, action_name, ActionEventState::Started, None).await
+}
+
+pub async fn post_pull(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = PULL;
+    action_hook(repository, action_name, ActionEventState::Completed, None).await
+}
+
+pub async fn pre_fetch(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = FETCH;
+    action_hook(repository, action_name, ActionEventState::Started, None).await
+}
+
+pub async fn post_fetch(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = FETCH;
     action_hook(repository, action_name, ActionEventState::Completed, None).await
 }
 

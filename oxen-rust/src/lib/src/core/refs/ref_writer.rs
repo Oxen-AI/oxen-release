@@ -1,6 +1,6 @@
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::core::db;
-use crate::core::v0_10_0::index::RefDBReader;
+use crate::core::refs::ref_db_reader::RefDBReader;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;

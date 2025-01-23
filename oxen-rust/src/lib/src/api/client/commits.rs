@@ -1,29 +1,20 @@
 use crate::api::client;
-use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, HISTORY_DIR, OBJECTS_DIR, TREE_DIR,
-};
+use crate::constants::{DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, HISTORY_DIR, OBJECTS_DIR};
 
-use crate::core::db::{self};
-use crate::core::v0_10_0::commits::merge_objects_dbs;
-use crate::core::v0_10_0::index::{
-    CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
-};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{Branch, Commit, LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::PaginateOpts;
-use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
-use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
 use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::{api, constants, repositories};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
-    CommitResponse, IsValidStatusMessage, ListCommitResponse, MerkleHashesResponse,
-    PaginatedCommits, RootCommitResponse, StatusMessage,
+    CommitResponse, ListCommitResponse, MerkleHashesResponse, PaginatedCommits, RootCommitResponse,
+    StatusMessage,
 };
 
 use std::collections::HashSet;
@@ -39,7 +30,6 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub struct ChunkParams {
     pub chunk_num: usize,
@@ -261,116 +251,6 @@ async fn list_all_commits_paginated(
     }
 }
 
-pub async fn commit_is_synced(
-    remote_repo: &RemoteRepository,
-    commit_id: &str,
-) -> Result<Option<IsValidStatusMessage>, OxenError> {
-    let uri = format!("/commits/{commit_id}/is_synced");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("commit_is_synced checking URL: {}", url);
-
-    let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("commit_is_synced Got response [{}]", res.status());
-        if res.status() == 404 {
-            return Ok(None);
-        }
-
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("commit_is_synced got response body: {}", body);
-        let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res)),
-            Err(err) => {
-                log::debug!("Error getting remote commit {}", err);
-                Err(OxenError::basic_str(
-                    "commit_is_synced() unable to parse body",
-                ))
-            }
-        }
-    } else {
-        Err(OxenError::basic_str("commit_is_synced() Request failed"))
-    }
-}
-
-pub async fn latest_commit_synced(
-    remote_repo: &RemoteRepository,
-    commit_id: &str,
-) -> Result<CommitSyncStatusResponse, OxenError> {
-    let uri = format!("/commits/{commit_id}/latest_synced");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("latest_commit_synced checking URL: {}", url);
-
-    let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("latest_commit_synced Got response [{}]", res.status());
-        if res.status() == 404 {
-            return Err(OxenError::basic_str("No synced commits found"));
-        }
-
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("latest_commit_synced got response body: {}", body);
-        // Sync status response
-        let response: Result<CommitSyncStatusResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(result) => Ok(result),
-            Err(err) => {
-                log::debug!("Error getting remote commit {}", err);
-                Err(OxenError::basic_str(
-                    "latest_commit_synced() unable to parse body",
-                ))
-            }
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "latest_commit_synced() Request failed",
-        ))
-    }
-}
-
-/// Download the database of all the commits in a repository
-pub async fn download_commits_db_to_repo(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-) -> Result<PathBuf, OxenError> {
-    // Download to tmp path, then merge with existing commits db
-    let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
-    let new_path = download_commits_db_to_path(remote_repo, tmp_path).await?;
-    log::debug!(
-        "download_commits_db_to_repo downloaded db to {:?}",
-        new_path
-    );
-
-    // Merge with existing commits db
-    let opts = db::key_val::opts::default();
-    let new_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_path, false)?;
-    let new_commits = CommitDBReader::list_all(&new_db)?;
-    log::debug!(
-        "download_commits_db_to_repo got {} new commits",
-        new_commits.len()
-    );
-
-    let writer = CommitWriter::new(local_repo)?;
-    for commit in new_commits {
-        if writer.get_commit_by_id(&commit.id)?.is_some() {
-            continue;
-        }
-
-        log::debug!(
-            "download_commits_db_to_repo Adding new commit to db {}",
-            commit
-        );
-        writer.add_commit_to_db(&commit)?;
-    }
-
-    // Remove the tmp db
-    util::fs::remove_dir_all(&new_path)?;
-
-    Ok(writer.commits_db.path().to_path_buf())
-}
-
 pub async fn root_commit_maybe(
     remote_repo: &RemoteRepository,
 ) -> Result<Option<Commit>, OxenError> {
@@ -394,139 +274,6 @@ pub async fn root_commit_maybe(
     }
 }
 
-pub async fn can_push(
-    remote_repo: &RemoteRepository,
-    remote_branch_name: &str,
-    local_repo: &LocalRepository,
-    local_head: &Commit,
-) -> Result<bool, OxenError> {
-    // Before we do this, need to ensure that we are working in the same repo
-    // If we don't, downloading the commits db in the next step
-    // will mess up the local commit history by merging two different repos
-
-    let Some(local_root) = repositories::commits::root_commit_maybe(local_repo)? else {
-        log::warn!("Local repository has no root commit, nothing to push");
-        return Ok(false);
-    };
-    let Some(remote_root) = api::client::commits::root_commit_maybe(remote_repo).await? else {
-        log::info!("Remote repository has no root commit, we can push");
-        return Ok(true);
-    };
-
-    if local_root.id != remote_root.id {
-        return Err(OxenError::basic_str(
-            "Cannot push to a different repository",
-        ));
-    }
-
-    // First need to download local history so we can get LCA
-    download_commits_db_to_repo(local_repo, remote_repo).await?;
-
-    let remote_branch = api::client::branches::get_by_name(remote_repo, remote_branch_name)
-        .await?
-        .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
-
-    let remote_head_id = remote_branch.commit_id;
-    let remote_head = api::client::commits::get_by_id(remote_repo, &remote_head_id)
-        .await?
-        .unwrap();
-
-    let merger = Merger::new(local_repo)?;
-    let reader = CommitReader::new(local_repo)?;
-    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
-
-    // Create a temporary local tree representing the head commit
-    let local_head_writer = CommitEntryWriter::new(local_repo, local_head)?;
-    let tmp_tree_path = local_head_writer.save_temp_commit_tree()?;
-
-    let tar_base_dir = Path::new("tmp").join(&local_head.id); // Still want to save out in tmp, which is good
-
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    let tar_path = tar_base_dir.join(TREE_DIR);
-
-    if tmp_tree_path.exists() {
-        tar.append_dir_all(&tar_path, tmp_tree_path.clone())?;
-    };
-
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-
-    let is_compressed = true;
-    let filename = None;
-
-    let quiet_bar = Arc::new(ProgressBar::hidden());
-
-    log::debug!("posting data to server...");
-
-    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await?;
-
-    // Delete tmp tree
-    util::fs::remove_dir_all(&tmp_tree_path)?;
-
-    let uri = format!(
-        "/commits/{}/can_push?remote_head={}&lca={}",
-        local_head.id, remote_head.id, lca.id
-    );
-
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let client = client::new_for_url(&url)?;
-
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("can_push() request successful");
-        let body = client::parse_json_body(&url, res).await?;
-        let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
-        log::debug!(
-            "can_merge response for commit {} is {}",
-            local_head.message,
-            response.can_merge
-        );
-        Ok(response.can_merge)
-    } else {
-        Err(OxenError::basic_str("can_push() Request failed"))
-    }
-}
-
-pub async fn download_commits_db_to_path(
-    remote_repo: &RemoteRepository,
-    dst: impl AsRef<Path>,
-) -> Result<PathBuf, OxenError> {
-    let uri = "/commits_db".to_string();
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("{} downloading from {}", current_function!(), url);
-
-    let client = client::new_for_url(&url)?;
-    let res = client.get(url).send().await?;
-
-    let dst = dst.as_ref();
-    let reader = res
-        .bytes_stream()
-        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-        .into_async_read();
-    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
-    let archive = Archive::new(decoder);
-
-    // On the server we pack up the data in a directory called "commits", so that is where it gets unpacked to
-    let unpacked_path = dst.join(COMMITS_DIR);
-    // If the directory already exists, remove it
-    if unpacked_path.exists() {
-        log::debug!(
-            "{} removing existing {:?}",
-            current_function!(),
-            unpacked_path
-        );
-        util::fs::remove_dir_all(&unpacked_path)?;
-    }
-
-    log::debug!("{} writing to {:?}", current_function!(), dst);
-    archive.unpack(dst).await?;
-
-    Ok(unpacked_path)
-}
-
 /// Download the database of all the entries given a commit
 pub async fn download_commit_entries_db_to_repo(
     local_repo: &LocalRepository,
@@ -535,70 +282,6 @@ pub async fn download_commit_entries_db_to_repo(
 ) -> Result<PathBuf, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
     download_dir_hashes_db_to_path(remote_repo, commit_id, hidden_dir).await
-}
-
-pub async fn download_objects_db_to_path(
-    remote_repo: &RemoteRepository,
-    dst: impl AsRef<Path>,
-) -> Result<PathBuf, OxenError> {
-    // In the future, if needed we can use this commit_ids param to
-    // only download the ids for necessary commits. For now though, we'll use it to prevent
-    // trying to download objects db on empty repos where one doesn't exist yet, causing errors
-
-    log::debug!("in the downloading objects db fn in remote commits");
-    let uri = "/objects_db".to_string();
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    log::debug!("{} downloading from {}", current_function!(), url);
-
-    let client = client::new_for_url(&url)?;
-    let res = client.get(url).send().await?;
-
-    let dst = dst.as_ref();
-
-    // Get the size of the archive
-    let reader = res
-        .bytes_stream()
-        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-        .into_async_read();
-    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
-    let archive = Archive::new(decoder);
-
-    let unpacked_path = dst.join(OBJECTS_DIR);
-    // If the directory already exists, remove it
-    if unpacked_path.exists() {
-        log::debug!(
-            "{} removing existing {:?}",
-            current_function!(),
-            unpacked_path
-        );
-        util::fs::remove_dir_all(&unpacked_path)?;
-    }
-
-    log::debug!("{} writing to {:?}", current_function!(), dst);
-    let archive_result = archive.unpack(dst).await;
-    log::debug!("archive result: {:?}", archive_result);
-    archive_result?;
-
-    Ok(unpacked_path)
-}
-
-pub async fn download_objects_db_to_repo(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-) -> Result<(), OxenError> {
-    let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
-    log::debug!("downloading objects db...");
-    let tmp_objects_dir = download_objects_db_to_path(remote_repo, tmp_path).await?;
-    log::debug!("downloaded objects db");
-    let local_objects_dir = oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
-
-    log::debug!("merging objects db...");
-    // Merge with existing objects db
-    merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
-    log::debug!("merged objects db");
-
-    Ok(())
 }
 
 pub async fn download_dir_hashes_from_commit(
@@ -1337,139 +1020,11 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
 
-    use crate::model::entry::commit_entry::Entry;
-    use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
     use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
 
     use std::str::FromStr;
-
-    #[tokio::test]
-    async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let train_dir = local_repo.path.join("annotations").join("train");
-            repositories::add(&local_repo, &train_dir)?;
-            // Commit the directory
-            let commit1 = repositories::commit(&local_repo, "Adding 1")?;
-
-            let test_dir = local_repo.path.join("annotations").join("test");
-            repositories::add(&local_repo, &test_dir)?;
-            // Commit the directory
-            let commit2 = repositories::commit(&local_repo, "Adding 2")?;
-
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Post commit
-
-            let unsynced_commits = vec![
-                UnsyncedCommitEntries {
-                    commit: commit1,
-                    entries: Vec::<Entry>::new(),
-                },
-                UnsyncedCommitEntries {
-                    commit: commit2,
-                    entries: Vec::<Entry>::new(),
-                },
-            ];
-
-            api::client::commits::post_commits_to_server(
-                &local_repo,
-                &remote_repo,
-                &unsynced_commits,
-                branch.name.clone(),
-            )
-            .await?;
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-            let commit_history = repositories::commits::list(&local_repo)?;
-            let commit = commit_history.first().unwrap();
-
-            // Set the proper remote
-            let name = local_repo.dirname();
-            let remote = test::repo_remote_url_from(&name);
-            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create Remote
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            // Push it
-            repositories::push(&local_repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_remote_commits_is_not_valid() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let annotations_dir = local_repo.path.join("annotations");
-            repositories::add(&local_repo, &annotations_dir)?;
-            // Commit the directory
-            let commit = repositories::commit(
-                &local_repo,
-                "Adding annotations data dir, which has two levels",
-            )?;
-            let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            // Dummy entries, not checking this
-            let entries = Vec::<Entry>::new();
-
-            let unsynced_commits = vec![UnsyncedCommitEntries {
-                commit: commit.clone(),
-                entries,
-            }];
-
-            api::client::commits::post_commits_to_server(
-                &local_repo,
-                &remote_repo,
-                &unsynced_commits,
-                branch.name.clone(),
-            )
-            .await?;
-
-            // Should not be synced because we didn't actually post the files
-            let is_synced =
-                api::client::commits::commit_is_synced(&remote_repo, &commit.id).await?;
-            // We never kicked off the background processes
-            assert!(is_synced.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
 
     #[tokio::test]
     async fn test_list_remote_commits_all() -> Result<(), OxenError> {
