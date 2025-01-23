@@ -477,7 +477,7 @@ pub async fn pre_fetch(repository: &RemoteRepository) -> Result<(), OxenError> {
 pub async fn post_fetch(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = FETCH;
     action_hook(repository, action_name, ActionEventState::Completed, None).await
-}   
+}
 
 pub async fn pre_push(
     repository: &RemoteRepository,
