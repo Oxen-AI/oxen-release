@@ -426,13 +426,13 @@ pub fn update_metadata(repo: &LocalRepository, revision: impl AsRef<str>) -> Res
     let mut num_bytes = 0;
 
     // Start the recursive traversal
-    traverse_and_update(repo, &mut node, &mut num_bytes)?;
+    traverse_and_update_sizes_and_counts(repo, &mut node, &mut num_bytes)?;
 
     Ok(())
 }
 
 #[allow(clippy::type_complexity)]
-fn traverse_and_update(
+fn traverse_and_update_sizes_and_counts(
     repo: &LocalRepository,
     node: &mut MerkleTreeNode,
     num_bytes: &mut u64,
@@ -514,7 +514,8 @@ fn process_children(
     num_bytes: &mut u64,
 ) -> Result<(), OxenError> {
     for child in children.iter_mut() {
-        let (child_counts, child_sizes) = traverse_and_update(repo, child, num_bytes)?;
+        let (child_counts, child_sizes) =
+            traverse_and_update_sizes_and_counts(repo, child, num_bytes)?;
         for (key, count) in child_counts {
             *local_counts.entry(key).or_insert(0) += count;
         }
