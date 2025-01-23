@@ -11,11 +11,8 @@ pub mod errors;
 pub mod helpers;
 pub mod middleware;
 pub mod params;
-pub mod queue_poller;
-pub mod queues;
 pub mod routes;
 pub mod services;
-pub mod tasks;
 pub mod test;
 
 extern crate log;
@@ -133,14 +130,7 @@ async fn main() -> std::io::Result<()> {
                     println!("Running on {host}:{port}");
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
-
-                    log::debug!("initializing queue");
-                    let queue = queue_poller::init_queue();
-                    log::debug!("initialized queue");
-                    let data = app_data::OxenAppData::new(PathBuf::from(sync_dir), queue.clone());
-                    // Poll for post-commit tasks in background
-                    log::debug!("initialized app data, spawning polling worker");
-                    tokio::spawn(async move { queue_poller::poll_queue(queue.clone()).await });
+                    let data = app_data::OxenAppData::new(PathBuf::from(sync_dir));
 
                     HttpServer::new(move || {
                         App::new()

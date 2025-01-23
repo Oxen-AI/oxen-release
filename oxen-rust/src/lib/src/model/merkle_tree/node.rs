@@ -8,6 +8,7 @@ pub mod file_node;
 pub mod file_node_types;
 pub mod file_node_with_dir;
 pub mod merkle_tree_node;
+pub mod staged_merkle_tree_node;
 pub mod vnode;
 
 pub use commit_node::CommitNode;
@@ -18,6 +19,7 @@ pub use file_node::FileNode;
 pub use file_node_types::{FileChunkType, FileStorageType};
 pub use file_node_with_dir::FileNodeWithDir;
 pub use merkle_tree_node::MerkleTreeNode;
+pub use staged_merkle_tree_node::StagedMerkleTreeNode;
 pub use vnode::VNode;
 
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -46,20 +48,20 @@ impl EMerkleTreeNode {
         }
     }
 
-    pub fn hash(&self) -> MerkleHash {
+    pub fn hash(&self) -> &MerkleHash {
         match self {
-            EMerkleTreeNode::File(file) => file.hash,
-            EMerkleTreeNode::Directory(dir) => dir.hash,
-            EMerkleTreeNode::VNode(vnode) => vnode.hash,
-            EMerkleTreeNode::FileChunk(file_chunk) => file_chunk.hash,
-            EMerkleTreeNode::Commit(commit) => commit.hash,
+            EMerkleTreeNode::File(file) => file.hash(),
+            EMerkleTreeNode::Directory(dir) => dir.hash(),
+            EMerkleTreeNode::VNode(vnode) => vnode.hash(),
+            EMerkleTreeNode::FileChunk(file_chunk) => &file_chunk.hash,
+            EMerkleTreeNode::Commit(commit) => commit.hash(),
         }
     }
 
-    pub fn metadata(&self) -> &Option<GenericMetadata> {
+    pub fn metadata(&self) -> Option<GenericMetadata> {
         match self {
-            EMerkleTreeNode::File(file) => &file.metadata,
-            _ => &None,
+            EMerkleTreeNode::File(file) => file.metadata(),
+            _ => None,
         }
     }
 

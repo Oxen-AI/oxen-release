@@ -7,7 +7,7 @@ use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::RemoteRepository;
-use crate::view::PaginatedDirEntries;
+use crate::view::{PaginatedDirEntries, PaginatedDirEntriesResponse};
 
 pub async fn list_root(remote_repo: &RemoteRepository) -> Result<PaginatedDirEntries, OxenError> {
     list(
@@ -60,6 +60,29 @@ pub async fn file_counts(
         },
         None => Err(OxenError::basic_str(format!(
             "No directory found at {path_str}"
+        ))),
+    }
+}
+
+pub async fn get_dir(
+    remote_repo: &RemoteRepository,
+    revision: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<PaginatedDirEntriesResponse, OxenError> {
+    let path_str = path.as_ref().to_string_lossy();
+    let revision = revision.as_ref();
+    let uri = format!("/dir/{revision}/{path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<PaginatedDirEntriesResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::dir::get_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
         ))),
     }
 }
@@ -299,6 +322,54 @@ mod tests {
                 Path::new("README.md")
             );
 
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_dir_encoding() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let mut local_repo = local_repo;
+
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+            let repo_path = local_repo.path.join("dir=dir");
+            util::fs::create_dir_all(&repo_path)?;
+            let file_path = repo_path.join("file example.txt");
+            util::fs::write_to_path(&file_path, "Hello World")?;
+            repositories::add(&local_repo, &file_path)?;
+            repositories::commit(&local_repo, "Adding README")?;
+            repositories::push(&local_repo).await?;
+
+            let dir_response =
+                api::client::dir::get_dir(&remote_repo, DEFAULT_BRANCH_NAME, "dir=dir").await?;
+            assert_eq!(dir_response.status.status, "success");
+
+            // Assert the directory is present and named "dir=dir"
+            if let Some(ref dir) = dir_response.entries.dir {
+                assert_eq!(dir.filename, "dir=dir");
+                assert!(dir.is_dir);
+            } else {
+                panic!("Directory 'dir=dir' not found");
+            }
+
+            // Assert the file "file example.txt" is present in the entries
+            let file_entry = dir_response
+                .entries
+                .entries
+                .iter()
+                .find(|entry| entry.filename == "file example.txt");
+            match file_entry {
+                Some(file) => {
+                    assert_eq!(file.filename, "file example.txt");
+                    assert!(!file.is_dir);
+                }
+                None => panic!("File 'file example.txt' not found"),
+            }
             Ok(remote_repo)
         })
         .await

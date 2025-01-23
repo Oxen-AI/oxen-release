@@ -3,11 +3,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
-use super::{Branch, MerkleHash, User};
-use crate::core::v0_10_0::index::CommitReader;
+use super::{MerkleHash, User};
 use crate::error::OxenError;
 use crate::view::workspaces::WorkspaceCommit;
-use core::convert::Into;
 
 use std::str::FromStr;
 
@@ -49,7 +47,6 @@ pub struct Commit {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: Option<String>, // Option for now to facilitate migration from older stored commits
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
 }
@@ -80,7 +77,6 @@ pub struct CommitWithSize {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -94,7 +90,6 @@ pub struct CommitWithBranchName {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -125,7 +120,6 @@ impl Commit {
             author: new_commit.author.to_owned(),
             email: new_commit.email.to_owned(),
             timestamp: new_commit.timestamp.to_owned(),
-            root_hash: None,
         }
     }
 
@@ -137,38 +131,7 @@ impl Commit {
             author: new_commit.author.to_owned(),
             email: new_commit.email.to_owned(),
             timestamp: new_commit.timestamp.to_owned(),
-            root_hash: None,
         }
-    }
-
-    pub fn has_ancestor(
-        &self,
-        parent_id: &str,
-        commit_reader: &CommitReader,
-    ) -> Result<bool, OxenError> {
-        if self.id == parent_id {
-            return Ok(true);
-        }
-        for parent in &self.parent_ids {
-            if parent == parent_id {
-                return Ok(true);
-            }
-
-            // Recurse
-            let commit = commit_reader.get_commit_by_id(parent)?;
-            if let Some(commit) = commit {
-                if commit.has_ancestor(parent_id, commit_reader)? {
-                    return Ok(true);
-                }
-            } else {
-                return Err(OxenError::local_parent_link_broken(parent));
-            }
-        }
-        Ok(false)
-    }
-
-    pub fn update_root_hash(&mut self, root_hash: String) {
-        self.root_hash = Some(root_hash);
     }
 
     pub fn from_with_size(commit: &CommitWithSize) -> Commit {
@@ -179,7 +142,6 @@ impl Commit {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
-            root_hash: commit.root_hash.to_owned(),
         }
     }
 
@@ -191,16 +153,7 @@ impl Commit {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
-            root_hash: commit.root_hash.to_owned(),
         }
-    }
-
-    pub fn from_branch(commit_reader: &CommitReader, branch: &Branch) -> Result<Commit, OxenError> {
-        commit_reader
-            .get_commit_by_id(&branch.commit_id)?
-            .ok_or(OxenError::revision_not_found(
-                branch.commit_id.to_string().into(),
-            ))
     }
 
     pub fn hash(&self) -> Result<MerkleHash, OxenError> {
@@ -228,7 +181,6 @@ impl CommitWithSize {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
-            root_hash: commit.root_hash.to_owned(),
             size,
         }
     }
@@ -243,7 +195,6 @@ impl CommitWithBranchName {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
-            root_hash: commit.root_hash.to_owned(),
             size,
             branch_name,
         }

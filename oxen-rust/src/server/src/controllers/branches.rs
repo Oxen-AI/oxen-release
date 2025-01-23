@@ -368,7 +368,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_branches_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -377,7 +376,7 @@ mod tests {
         repositories::add(&repo, &hello_file)?;
         repositories::commit(&repo, "First commit")?;
         let uri = format!("/oxen/{namespace}/{name}/branches");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -398,7 +397,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_branches_index_multiple_branches() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -410,7 +408,7 @@ mod tests {
         repositories::branches::create_from_head(&repo, "branch-2")?;
 
         let uri = format!("/oxen/{namespace}/{name}/branches");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -429,7 +427,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_branch_show() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -443,7 +440,6 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{repo_name}/branches");
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
@@ -467,7 +463,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_branch_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-Create";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -483,7 +478,7 @@ mod tests {
             from_name: DEFAULT_BRANCH_NAME.to_string(),
         };
         let uri = format!("/oxen/{namespace}/{name}/branches");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::create(req, serde_json::to_string(&params)?)
             .await
@@ -505,7 +500,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_branch_get_latest() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -523,7 +517,6 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{repo_name}/branches/");
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,
