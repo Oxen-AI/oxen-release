@@ -29,6 +29,8 @@ pub trait TDirNode {
     fn last_modified_nanoseconds(&self) -> u32;
     fn data_type_counts(&self) -> &HashMap<String, u64>;
     fn data_type_sizes(&self) -> &HashMap<String, u64>;
+    fn set_data_type_counts(&mut self, data_type_counts: HashMap<String, u64>);
+    fn set_data_type_sizes(&mut self, data_type_sizes: HashMap<String, u64>);
 }
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -220,6 +222,14 @@ impl DirNode {
 
     pub fn data_type_sizes(&self) -> &HashMap<String, u64> {
         self.node().data_type_sizes()
+    }
+
+    pub fn set_data_type_counts(&mut self, data_type_counts: HashMap<String, u64>) {
+        self.mut_node().set_data_type_counts(data_type_counts);
+    }
+
+    pub fn set_data_type_sizes(&mut self, data_type_sizes: HashMap<String, u64>) {
+        self.mut_node().set_data_type_sizes(data_type_sizes);
     }
 }
 
