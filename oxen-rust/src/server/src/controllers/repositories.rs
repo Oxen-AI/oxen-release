@@ -64,13 +64,13 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         if let Some(dir_node) =
             repositories::entries::get_directory(&repository, &commit, PathBuf::from(""))?
         {
-            size = dir_node.num_bytes;
+            size = dir_node.num_bytes();
             data_types = dir_node
-                .data_type_counts
-                .into_iter()
+                .data_type_counts()
+                .iter()
                 .map(|(data_type, count)| DataTypeCount {
-                    data_type,
-                    count: count as usize,
+                    data_type: data_type.to_string(),
+                    count: *count as usize,
                 })
                 .collect();
         }
@@ -100,7 +100,7 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repo)) => {
-                let stats = repositories::get_repo_stats(&repo);
+                let stats = repositories::stats::get_stats(&repo)?;
                 let data_types: Vec<DataTypeView> = stats
                     .data_types
                     .values()
@@ -471,11 +471,10 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_repositories_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
 
         let namespace = "repositories";
         let uri = format!("/api/repos/{namespace}");
-        let req = test::namespace_request(&sync_dir, queue, &uri, namespace);
+        let req = test::namespace_request(&sync_dir, &uri, namespace);
 
         let resp = controllers::repositories::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -493,14 +492,13 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_respositories_index_multiple_repos() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
 
         let namespace = "Test-Namespace";
         test::create_local_repo(&sync_dir, namespace, "Testing-1")?;
         test::create_local_repo(&sync_dir, namespace, "Testing-2")?;
 
         let uri = format!("/api/repos/{namespace}");
-        let req = test::namespace_request(&sync_dir, queue, &uri, namespace);
+        let req = test::namespace_request(&sync_dir, &uri, namespace);
         let resp = controllers::repositories::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -518,14 +516,13 @@ mod tests {
     async fn test_controllers_respositories_show() -> Result<(), OxenError> {
         log::info!("starting test");
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Test-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
         log::info!("test created local repo: {}", name);
 
         let uri = format!("/api/repos/{namespace}/{name}");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::repositories::show(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -546,7 +543,6 @@ mod tests {
         let sync_dir = test::get_sync_dir()?;
         let namespace = "Test-Namespace";
         let name = "Testing-Name";
-        let queue = test::init_queue();
         test::create_local_repo(&sync_dir, namespace, name)?;
 
         // Create new repo in a namespace so it exists
@@ -555,7 +551,7 @@ mod tests {
         test::create_local_repo(&sync_dir, new_namespace, new_name)?;
 
         let uri = format!("/api/repos/{namespace}/{name}/transfer");
-        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let params = NamespaceView {
             namespace: new_namespace.to_string(),
