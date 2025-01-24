@@ -47,7 +47,7 @@ pub fn status_from_opts(
     repo: &LocalRepository,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    log::debug!("status_from_opts {:?}", opts.paths);
+    //log::debug!("status_from_opts {:?}", opts.paths);
     let staged_db_maybe = open_staged_db(repo)?;
     let head_commit = repositories::commits::head_commit_maybe(repo)?;
     let dir_hashes = get_dir_hashes(repo, &head_commit)?;
@@ -91,7 +91,7 @@ pub fn status_from_opts(
 
     // Find merge conflicts
     let conflicts = repositories::merge::list_conflicts(repo)?;
-    log::debug!("list_conflicts found {} conflicts", conflicts.len());
+    //log::debug!("list_conflicts found {} conflicts", conflicts.len());
     for conflict in conflicts {
         staged_data
             .merge_conflicts
@@ -125,9 +125,8 @@ pub fn status_from_dir_entries(
         total_files: 0,
         paths: HashMap::new(),
     };
-    log::debug!("staged data: {staged_data:?}");
 
-    log::debug!("dir_entries.len(): {:?}", dir_entries.len());
+    //log::debug!("dir_entries.len(): {:?}", dir_entries.len());
 
     for (dir, entries) in dir_entries {
         log::debug!(
@@ -783,14 +782,14 @@ fn is_modified(
     if node_modified_nanoseconds != mtime.nanoseconds()
         || node_modified_seconds != mtime.unix_seconds()
     {
-        log::debug!(
+        /*log::debug!(
             "is_modified path {:?} modified time mismatch {:?} vs {:?} || {:?} vs {:?}. Comparing file content",
             full_path.as_ref(),
             node_modified_seconds,
             mtime.unix_seconds(),
             node_modified_nanoseconds,
             mtime.nanoseconds()
-        );
+        );*/
 
         // if the times are different, check the file contents
         let version_path =
@@ -798,7 +797,7 @@ fn is_modified(
         let is_modified = util::fs::compare_file_contents(version_path, full_path)?;
         return Ok(is_modified);
     }
-    log::debug!("Last modified time matches node. File is unmodified");
+    //log::debug!("Last modified time matches node. File is unmodified");
 
     Ok(false)
 }
