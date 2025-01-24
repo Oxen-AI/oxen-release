@@ -20,9 +20,7 @@ pub fn status_from_dir(
     directory: impl AsRef<Path>,
 ) -> Result<StagedData, OxenError> {
     match workspace.base_repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::stager::status(workspace, directory)
-        }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::status::status(workspace, directory),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::status::status(workspace, directory),
     }
 }

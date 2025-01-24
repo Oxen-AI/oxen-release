@@ -16,6 +16,7 @@ pub mod data_frames;
 pub mod diff;
 pub mod dir;
 pub mod entries;
+pub mod file;
 pub mod merger;
 pub mod metadata;
 pub mod repositories;

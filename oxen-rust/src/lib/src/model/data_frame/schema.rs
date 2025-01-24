@@ -284,7 +284,7 @@ impl Schema {
     }
 
     pub fn num_bytes(&self) -> u64 {
-        let bytes = serde_json::to_string(&self).unwrap().as_bytes().len();
+        let bytes = serde_json::to_string(&self).unwrap().len();
         bytes as u64
     }
 

@@ -1,6 +1,4 @@
 use crate::app_data::OxenAppData;
-use crate::helpers;
-use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
@@ -16,21 +14,6 @@ pub fn init_test_env() {
 
     unsafe {
         std::env::set_var("TEST", "true");
-    }
-
-    init_queue();
-}
-
-pub fn init_queue() -> TaskQueue {
-    match helpers::get_redis_connection() {
-        Ok(pool) => {
-            println!("connecting to redis established, initializing queue");
-            TaskQueue::Redis(RedisTaskQueue { pool })
-        }
-        Err(_) => {
-            println!("Failed to connect to Redis. Falling back to in-memory queue.");
-            TaskQueue::InMemory(InMemoryTaskQueue::new())
-        }
     }
 }
 
@@ -74,33 +57,31 @@ where
     Ok(())
 }
 
-pub fn request(sync_dir: &Path, queue: TaskQueue, uri: &str) -> actix_web::HttpRequest {
+pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .to_http_request()
 }
 
 pub fn namespace_request(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .param("namespace", repo_namespace)
         .to_http_request()
 }
 
 pub fn repo_request(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
     repo_name: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
         .to_http_request()
@@ -108,7 +89,6 @@ pub fn repo_request(
 
 pub fn repo_request_with_param(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
     repo_name: impl Into<Cow<'static, str>>,
@@ -116,7 +96,7 @@ pub fn repo_request_with_param(
     val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
         .param(key, val)
@@ -125,39 +105,36 @@ pub fn repo_request_with_param(
 
 pub fn request_with_param(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     key: impl Into<Cow<'static, str>>,
     val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .param(key, val)
         .to_http_request()
 }
 
 pub fn request_with_json(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     data: impl Serialize,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .set_json(data)
         .to_http_request()
 }
 
 pub fn request_with_payload_and_entry(
     sync_dir: &Path,
-    queue: TaskQueue,
     uri: &str,
     filename: impl Into<Cow<'static, str>>,
     hash: impl Into<Cow<'static, str>>,
     data: impl Into<actix_web::web::Bytes>,
 ) -> (actix_web::HttpRequest, actix_web::dev::Payload) {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
+        .app_data(OxenAppData::new(sync_dir.to_path_buf()))
         .param("filename", filename)
         .param("hash", hash)
         .set_payload(data)

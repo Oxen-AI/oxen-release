@@ -22,7 +22,7 @@ pub fn update_schema(
     before_column: &str,
     after_column: &str,
 ) -> Result<(), OxenError> {
-    core::v0_19_0::workspaces::data_frames::schemas::update_schema(
+    core::v_latest::workspaces::data_frames::schemas::update_schema(
         workspace,
         path,
         og_schema,

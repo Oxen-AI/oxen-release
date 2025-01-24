@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
 use crate::helpers::{check_remote_version, get_host_or_default};
+use crate::util;
 use liboxen::repositories;
 
 pub const INIT: &str = "init";
@@ -48,7 +49,7 @@ impl RunCmd for InitCmd {
         check_remote_version(host).await?;
 
         // Initialize the repository
-        let directory = dunce::canonicalize(PathBuf::from(&path))?;
+        let directory = util::fs::canonicalize(PathBuf::from(&path))?;
         repositories::init::init_with_version(&directory, oxen_version)?;
         println!("🐂 repository initialized at: {directory:?}");
         Ok(())
