@@ -1,49 +1,13 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::{
-    command::migrate::{
-        AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
-        OptimizeMerkleTreesMigration, PropagateSchemasMigration, UpdateVersionFilesMigration,
-    },
-    error::OxenError,
-    model::LocalRepository,
-};
+use liboxen::{error::OxenError, model::LocalRepository};
 
 use crate::cmd::RunCmd;
-use liboxen::command::migrate::Migrate;
+use crate::helpers::migrations;
 
 pub const NAME: &str = "migrate";
-
-fn migrations() -> HashMap<String, Box<dyn Migrate>> {
-    let mut map: HashMap<String, Box<dyn Migrate>> = HashMap::new();
-    map.insert(
-        UpdateVersionFilesMigration.name().to_string(),
-        Box::new(UpdateVersionFilesMigration),
-    );
-    map.insert(
-        PropagateSchemasMigration.name().to_string(),
-        Box::new(PropagateSchemasMigration),
-    );
-    map.insert(
-        CacheDataFrameSizeMigration.name().to_string(),
-        Box::new(CacheDataFrameSizeMigration),
-    );
-    map.insert(
-        CreateMerkleTreesMigration.name().to_string(),
-        Box::new(CreateMerkleTreesMigration),
-    );
-    map.insert(
-        AddDirectoriesToCacheMigration.name().to_string(),
-        Box::new(AddDirectoriesToCacheMigration),
-    );
-    map.insert(
-        OptimizeMerkleTreesMigration.name().to_string(),
-        Box::new(OptimizeMerkleTreesMigration),
-    );
-    map
-}
 
 pub fn migrate_args(name: &'static str, desc: &'static str) -> Command {
     Command::new(name)
@@ -109,7 +73,7 @@ impl RunCmd for MigrateCmd {
                 let all = sub_matches.get_flag("all");
 
                 if direction == "up" {
-                    let repo = LocalRepository::new(path)?;
+                    let repo = LocalRepository::from_dir(path)?;
                     if migration.is_needed(&repo)? {
                         migration.up(path, all)?;
                     } else {

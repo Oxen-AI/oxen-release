@@ -201,24 +201,12 @@ pub async fn dir_entries(
 
     log::debug!("summary: {:?}", summary);
 
-    // let filtered_diff = subset_diff_to_direct_children(entries_diff, dir.clone())?;
-
-    let self_entry = repositories::diffs::get_dir_diff_entry_with_summary(
-        &repository,
-        dir,
-        &base_commit,
-        &head_commit,
-        summary,
-    )?;
-
-    log::debug!("self_entry: {:?}", self_entry);
-
     let compare = CompareEntries {
         base_commit,
         head_commit,
         counts: entries_diff.counts,
         entries: entries_diff.entries,
-        self_diff: self_entry,
+        self_diff: None, // TODO: Implement this
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),

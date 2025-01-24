@@ -41,7 +41,6 @@ mod tests {
     #[actix_web::test]
     async fn test_get() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Repo";
         let resource_str = "main/to/resource";
@@ -57,7 +56,6 @@ mod tests {
 
         let req = test::repo_request_with_param(
             &sync_dir,
-            queue,
             &uri,
             namespace,
             repo_name,

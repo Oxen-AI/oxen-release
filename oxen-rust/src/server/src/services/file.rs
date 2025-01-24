@@ -4,5 +4,7 @@ use actix_web::Scope;
 use crate::controllers;
 
 pub fn file() -> Scope {
-    web::scope("/file").route("/{resource:.*}", web::get().to(controllers::file::get))
+    web::scope("/file")
+        .route("/{resource:.*}", web::get().to(controllers::file::get))
+        .route("/{resource:.*}", web::put().to(controllers::file::update))
 }
