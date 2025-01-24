@@ -174,7 +174,7 @@ pub fn status_from_dir_entries(
                         hash: node.hash.to_string(),
                         status: entry.status.clone(),
                     };
-                    
+
                     staged_data
                         .staged_files
                         .insert(file_path.clone(), staged_entry);
@@ -221,7 +221,7 @@ pub fn status_from_dir_entries(
             summarized_dir_stats.add_stats(&stats);
         }
 
-        if removed_stats.num_files_staged > 0  {
+        if removed_stats.num_files_staged > 0 {
             summarized_dir_stats.add_stats(&removed_stats);
         }
     }
@@ -320,7 +320,7 @@ pub fn read_staged_entries_below_path(
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
                 log::debug!("read_staged_entries key {key} entry: {entry} path: {path:?}");
 
-                if let EMerkleTreeNode::Directory(_) = &entry.node.node { 
+                if let EMerkleTreeNode::Directory(_) = &entry.node.node {
                     // add the dir as a key in dir_entries
                     log::debug!("read_staged_entries adding dir {:?}", path);
                     dir_entries.entry(path.to_path_buf()).or_default();
@@ -441,7 +441,6 @@ fn find_changes(
         } else if let Some(node) =
             maybe_get_child_node(relative_path.file_name().unwrap(), &dir_node)?
         {
-
             // If we have a dir node, it's either tracked (clean) or modified
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
@@ -522,43 +521,6 @@ fn find_changes(
     }
 
     Ok((untracked, modified, removed))
-}
-
-// Traverse the merkle tree to count removed entries under a dir node
-// This is faster than adding every removed file, as we don't have to perform additional 
-fn count_removed_entries(
-    repo: &LocalRepository,
-    relative_path: &Path,
-    dir_hash: &MerkleHash,
-    gitignore: &Option<Gitignore>,
-    removed_entries: &mut usize,
-) -> Result<(), OxenError> {
-
-
-    if is_ignored(relative_path, gitignore, relative_path.is_dir()) {
-        return Ok(());
-    }
-
-    let dir_node = CommitMerkleTree::read_depth(repo, dir_hash, 1)?;
-    if let Some(ref node) = dir_node {
-        for child in CommitMerkleTree::node_files_and_folders(node)? {    
-            if let EMerkleTreeNode::File(_) = &child.node {
-                // Any files nodes accessed here are children of a removed dir, so they must also be removed 
-                *removed_entries += 1;
-            } else if let EMerkleTreeNode::Directory(dir) = child.node {
-                let relative_dir_path = relative_path.join(&dir.name);
-                count_removed_entries(
-                    repo,
-                    &relative_dir_path,
-                    &dir.hash,
-                    gitignore,
-                    removed_entries,
-                )?;
-            }
-        }
-    }
-
-    Ok(())
 }
 
 // Helper functions (implement these based on your existing code)

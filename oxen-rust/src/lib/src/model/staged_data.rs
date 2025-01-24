@@ -118,7 +118,7 @@ impl StagedData {
     }
 
     pub fn has_removed_entries(&self) -> bool {
-        !self.removed_files.is_empty() 
+        !self.removed_files.is_empty()
     }
 
     pub fn has_untracked_entries(&self) -> bool {
@@ -157,7 +157,6 @@ impl StagedData {
         self.__collect_untracked_dirs(&mut outputs, opts);
         self.__collect_untracked_files(&mut outputs, opts);
         self.__collect_removed_files(&mut outputs, opts);
-    
 
         outputs
     }
