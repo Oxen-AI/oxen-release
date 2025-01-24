@@ -87,7 +87,7 @@ fn add_files(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files: {:?}", paths);
-    
+
     // Start a timer
     let start = std::time::Instant::now();
 
