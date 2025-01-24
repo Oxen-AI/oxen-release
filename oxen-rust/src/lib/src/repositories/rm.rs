@@ -132,7 +132,7 @@ mod tests {
             status.print();
             assert_eq!(0, status.staged_files.len());
             // One removed dir (rolled up)
-            assert_eq!(1, status.removed_dirs.len());
+            assert_eq!(1, status.removed_files.len());
 
             // This should restore all the files from the HEAD commit
             let opts = RestoreOpts::from_path(&rm_dir);
@@ -472,7 +472,7 @@ mod tests {
             // status.removed_files currently is files and dirs,
             // we roll up the dirs into the parent dir, so len should be 1
             // TODO: https://app.asana.com/0/1204211285259102/1208493904390183/f
-            assert_eq!(status.removed_dirs.len(), 1);
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             println!("BEFORE ADD");

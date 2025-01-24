@@ -473,7 +473,7 @@ mod tests {
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
             let status = repositories::status(&repo)?;
-            assert_eq!(status.removed_dirs.len(), 1);
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
