@@ -109,22 +109,22 @@ pub fn from_file_node(
     commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
     Ok(MetadataEntry {
-        filename: node.name.clone(),
-        hash: node.hash.to_string(),
+        filename: node.name().to_string(),
+        hash: node.hash().to_string(),
         is_dir: false,
         latest_commit: Some(commit.to_owned()),
         resource: Some(ParsedResource {
             commit: Some(commit.to_owned()),
             branch: None,
-            path: PathBuf::from(node.name.clone()),
+            path: PathBuf::from(node.name()),
             version: PathBuf::from(commit.id.to_string()),
-            resource: PathBuf::from(commit.id.to_string()).join(node.name.clone()),
+            resource: PathBuf::from(commit.id.to_string()).join(node.name()),
         }),
-        size: node.num_bytes,
-        data_type: node.data_type.clone(),
-        mime_type: node.mime_type.clone(),
-        extension: node.extension.clone(),
-        metadata: node.metadata.clone(),
+        size: node.num_bytes(),
+        data_type: node.data_type().clone(),
+        mime_type: node.mime_type().to_string(),
+        extension: node.extension().to_string(),
+        metadata: node.metadata(),
         is_queryable: None,
     })
 }
@@ -135,12 +135,12 @@ pub fn from_dir_node(
     commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
     Ok(MetadataEntry {
-        filename: node.name.clone(),
-        hash: node.hash.to_string(),
+        filename: node.name().to_string(),
+        hash: node.hash().to_string(),
         is_dir: true,
         latest_commit: Some(commit.to_owned()),
         resource: None,
-        size: node.num_bytes,
+        size: node.num_bytes(),
         data_type: EntryDataType::Dir,
         mime_type: "inode/directory".to_string(),
         extension: "".to_string(),
@@ -156,8 +156,8 @@ pub fn get_cli(
     data_path: impl AsRef<Path>,
 ) -> Result<CLIMetadataEntry, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::metadata::get_cli(repo, entry_path, data_path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::metadata::get_cli(repo, entry_path, data_path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::metadata::get_cli(repo, entry_path, data_path),
     }
 }
 

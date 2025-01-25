@@ -101,7 +101,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     }
 }
 
-async fn save_parts(
+pub async fn save_parts(
     workspace: &Workspace,
     directory: &Path,
     mut payload: Multipart,

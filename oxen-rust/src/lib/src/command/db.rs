@@ -3,8 +3,8 @@
 //! Print out values from an oxen database
 //!
 
-use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::util::progress_bar::spinner_with_msg;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -46,7 +46,7 @@ pub fn list(path: impl AsRef<Path>, limit: Option<usize>) -> Result<(), OxenErro
                     }
                 };
 
-                // try deserialize as ComputedEntryFields
+                // try deserialize as StagedMerkleTreeNode
                 let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
                     rmp_serde::from_slice(&value);
                 match val {

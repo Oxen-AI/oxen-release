@@ -46,8 +46,8 @@ pub fn add_with_version(
     version: MinOxenVersion,
 ) -> Result<(), OxenError> {
     match version {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::add::add(repo, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::add::add(repo, path),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::add::add(repo, path),
     }
 }
 
@@ -349,7 +349,7 @@ A: Oxen.ai
             // status.removed_files currently is files and dirs,
             // we roll up the dirs into the parent dir, so len should be 1
             // TODO: https://app.asana.com/0/1204211285259102/1208493904390183/f
-            assert_eq!(status.removed_dirs.len(), 1);
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             // Add the removed nlp dir with a wildcard
