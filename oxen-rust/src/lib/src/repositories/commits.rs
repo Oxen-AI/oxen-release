@@ -328,6 +328,7 @@ mod tests {
     use crate::model::MerkleHash;
     use crate::model::StagedEntryStatus;
     use crate::opts::CloneOpts;
+    use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -402,7 +403,7 @@ mod tests {
             let train_dir = repo.path.join("train");
             repositories::add(&repo, train_dir)?;
             // Commit the file
-            repositories::commit(&repo, "Adding training data")?;
+            let commit = repositories::commit(&repo, "Adding training data")?;
 
             let repo_status = repositories::status(&repo)?;
             repo_status.print();
@@ -410,6 +411,12 @@ mod tests {
             assert_eq!(repo_status.staged_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 4);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
+
+            repositories::tree::print_tree(&repo, &commit)?;
+
+            let dir_node =
+                repositories::tree::get_node_by_path(&repo, &commit, PathBuf::from("train"))?;
+            assert!(dir_node.is_some());
 
             let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 1);
@@ -832,7 +839,39 @@ mod tests {
     }
 
     #[test]
-    fn test_add_and_commit_empty_dir() -> Result<(), OxenError> {
+    fn test_commit_10k_files_vnode_size_10k() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make a dir
+            let dir_path = Path::new("test_dir");
+            let dir_repo_path = repo.path.join(dir_path);
+            util::fs::create_dir_all(&dir_repo_path)?;
+
+            for i in 0..10000 {
+                let file_path = dir_path.join(format!("file_{}.txt", i));
+                let file_repo_path = repo.path.join(&file_path);
+                util::fs::write_to_path(&file_repo_path, "test")?;
+            }
+
+            // Add a file called "images.csv" at the root of the repo
+            let images_csv_path = Path::new("images.csv");
+            let images_csv_repo_path = repo.path.join(images_csv_path);
+            util::fs::write_to_path(&images_csv_repo_path, "images,path\n1,test.jpg\n2,test.png")?;
+
+            repositories::add(&repo, &dir_repo_path)?;
+            repositories::add(&repo, &images_csv_repo_path)?;
+            let commit = repositories::commit(&repo, "adding 10k files")?;
+
+            repositories::tree::print_tree(&repo, &commit)?;
+
+            let file_node = repositories::tree::get_file_by_path(&repo, &commit, images_csv_path)?;
+            assert!(file_node.is_some());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_add_and_rm_empty_dir() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Make an empty dir
             let empty_dir = repo.path.join("empty_dir");
@@ -858,6 +897,15 @@ mod tests {
             let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
 
             assert!(tree.get_by_path(PathBuf::from("empty_dir"))?.is_some());
+
+            // Remove the empty dir
+            let mut rm_opts = RmOpts::from_path(PathBuf::from("empty_dir"));
+            rm_opts.recursive = true;
+            repositories::rm(&repo, &rm_opts)?;
+            let commit_2 = repositories::commit(&repo, "removing empty dir")?;
+
+            let tree_2 = repositories::tree::get_root_with_children(&repo, &commit_2)?.unwrap();
+            assert!(tree_2.get_by_path(PathBuf::from("empty_dir"))?.is_none());
 
             Ok(())
         })
