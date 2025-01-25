@@ -29,12 +29,8 @@ pub fn add(
     new_column: &NewColumn,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::add(
-            workspace,
-            file_path.as_ref(),
-            new_column,
-        ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::add(
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::columns::add(
             workspace,
             file_path.as_ref(),
             new_column,
@@ -49,12 +45,8 @@ pub fn update(
     column_to_update: &ColumnToUpdate,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::update(
-            workspace,
-            file_path.as_ref(),
-            column_to_update,
-        ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::update(
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::columns::update(
             workspace,
             file_path.as_ref(),
             column_to_update,
@@ -69,12 +61,8 @@ pub fn delete(
     column_to_delete: &ColumnToDelete,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::delete(
-            workspace,
-            file_path.as_ref(),
-            column_to_delete,
-        ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::delete(
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::columns::delete(
             workspace,
             file_path.as_ref(),
             column_to_delete,
@@ -91,11 +79,9 @@ pub fn add_column_metadata(
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => Err(OxenError::basic_str("Not implemented")),
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::columns::add_column_metadata(
-                repo, workspace, file_path, column, metadata,
-            )
-        }
+        _ => core::v_latest::workspaces::data_frames::columns::add_column_metadata(
+            repo, workspace, file_path, column, metadata,
+        ),
     }
 }
 
@@ -106,12 +92,8 @@ pub fn restore(
     column_to_restore: &ColumnToRestore,
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::restore(
-            workspace,
-            file_path.as_ref(),
-            column_to_restore,
-        ),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::restore(
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::columns::restore(
             workspace,
             file_path.as_ref(),
             column_to_restore,

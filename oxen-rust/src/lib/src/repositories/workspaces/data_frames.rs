@@ -51,16 +51,10 @@ pub fn is_queryable_data_frame_indexed(
     commit: &Commit,
 ) -> Result<bool, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, commit, path,
-            )
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo, commit, path,
-            )
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::is_queryable_data_frame_indexed(
+            repo, commit, path,
+        ),
     }
 }
 
@@ -73,11 +67,9 @@ pub fn get_queryable_data_frame_workspace(
         MinOxenVersion::V0_10_0 => {
             panic!("get_queryable_data_frame_workspace not implemented for v0.10.0");
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::get_queryable_data_frame_workspace(
-                repo, path, commit,
-            )
-        }
+        _ => core::v_latest::workspaces::data_frames::get_queryable_data_frame_workspace(
+            repo, path, commit,
+        ),
     }
 }
 
@@ -87,12 +79,8 @@ pub fn index(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::index::workspaces::data_frames::index(workspace, path.as_ref())
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::index(workspace, path.as_ref())
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::data_frames::index(workspace, path.as_ref()),
     }
 }
 
@@ -102,12 +90,10 @@ pub fn rename(
     new_path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
     match workspace.base_repo.min_version() {
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::data_frames::rename(workspace, path, new_path)
-        }
-        _ => Err(OxenError::basic_str(
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
             "rename is not supported for this version of oxen",
         )),
+        _ => core::v_latest::workspaces::data_frames::rename(workspace, path, new_path),
     }
 }
 

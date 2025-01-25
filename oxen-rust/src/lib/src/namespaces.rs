@@ -1,10 +1,10 @@
 use fs_extra::dir::get_size;
 use rayon::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::core;
+use crate::constants::{CACHE_DIR, HISTORY_DIR};
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Namespace};
+use crate::model::{Commit, LocalRepository, Namespace};
 use crate::repositories;
 use crate::util;
 
@@ -66,7 +66,7 @@ fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
         }
     };
 
-    let cache_path = core::v0_10_0::cache::cachers::repo_size::repo_size_path(repo, &latest_commit);
+    let cache_path = repo_size_path(repo, &latest_commit);
     log::debug!(
         "repositories::namespaces::get_storage_for_repo cache path {:?}",
         cache_path
@@ -90,8 +90,15 @@ fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
         }
         Err(_) => {
             log::warn!("repositories::namespaces::get_storage_for_repo cache file not found, calculating size");
+            // It can be expensive to get the size of the repo, so we cache it per commit
             match get_size(&repo.path) {
-                Ok(size) => Ok(size),
+                Ok(size) => {
+                    // Create the cache dir if it doesn't exist
+                    let cache_dir = cache_path.parent().unwrap();
+                    std::fs::create_dir_all(cache_dir)?;
+                    util::fs::write_to_path(&cache_path, size.to_string())?;
+                    Ok(size)
+                }
                 Err(e) => {
                     log::error!(
                         "repositories::namespaces::get_storage_for_repo error getting size: {}",
@@ -102,4 +109,12 @@ fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
             }
         }
     }
+}
+
+pub fn repo_size_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
+    util::fs::oxen_hidden_dir(&repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id)
+        .join(CACHE_DIR)
+        .join("repo_size.txt")
 }

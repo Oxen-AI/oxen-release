@@ -25,7 +25,7 @@
 //! use liboxen::model::LocalRepository;
 //!
 //! // Create LocalRepository from existing repo
-//! let repo = LocalRepository::new("test_repo")?;
+//! let repo = LocalRepository::from_dir("test_repo")?;
 //! // Add a file to the repo
 //! repositories::add(&repo, "file.txt")?;
 //! // Commit the file
