@@ -327,6 +327,58 @@ pub fn list_files_and_folders(node: &MerkleTreeNode) -> Result<Vec<MerkleTreeNod
     Ok(children)
 }
 
+/// List the files and folders given a directory node in a HashSet
+pub fn list_files_and_folders_set(
+    node: &MerkleTreeNode,
+) -> Result<HashSet<MerkleTreeNode>, OxenError> {
+    if MerkleTreeNodeType::Dir != node.node.node_type() {
+        return Err(OxenError::basic_str(format!(
+            "list_files_and_folders Merkle tree node is not a directory: '{:?}'",
+            node.node.node_type()
+        )));
+    }
+
+    // The dir node will have vnode children
+    let mut children = HashSet::new();
+    for child in &node.children {
+        if let EMerkleTreeNode::VNode(_) = &child.node {
+            children.extend(child.children.iter().cloned());
+        }
+    }
+    Ok(children)
+}
+
+/// List the files and folders given a directory node in a HashMap
+pub fn list_files_and_folders_map(
+    node: &MerkleTreeNode,
+) -> Result<HashMap<PathBuf, MerkleTreeNode>, OxenError> {
+    if MerkleTreeNodeType::Dir != node.node.node_type() {
+        return Err(OxenError::basic_str(format!(
+            "list_files_and_folders_map Merkle tree node is not a directory: '{:?}'",
+            node.node.node_type()
+        )));
+    }
+
+    // The dir node will have vnode children
+    let mut children = HashMap::new();
+    for child in &node.children {
+        if let EMerkleTreeNode::VNode(_) = &child.node {
+            for child in &child.children {
+                match &child.node {
+                    EMerkleTreeNode::File(file_node) => {
+                        children.insert(PathBuf::from(file_node.name()), child.clone());
+                    }
+                    EMerkleTreeNode::Directory(dir_node) => {
+                        children.insert(PathBuf::from(dir_node.name()), child.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(children)
+}
+
 /// Will traverse the given paths and return the node hashes in the `hashes` HashSet<MerkleHash>
 pub fn collect_nodes_along_path(
     repo: &LocalRepository,
