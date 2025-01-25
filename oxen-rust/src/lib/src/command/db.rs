@@ -46,7 +46,7 @@ pub fn list(path: impl AsRef<Path>, limit: Option<usize>) -> Result<(), OxenErro
                     }
                 };
 
-                // try deserialize as ComputedEntryFields
+                // try deserialize as StagedMerkleTreeNode
                 let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
                     rmp_serde::from_slice(&value);
                 match val {
