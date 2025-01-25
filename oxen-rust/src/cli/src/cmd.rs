@@ -84,9 +84,6 @@ pub use remote::RemoteCmd;
 pub mod restore;
 pub use restore::RestoreCmd;
 
-pub mod read_lines;
-pub use read_lines::ReadLinesCmd;
-
 pub mod rm;
 pub use rm::RmCmd;
 

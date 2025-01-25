@@ -51,8 +51,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
-    // Start a timer
-    let start = std::time::Instant::now();
     let path = path.as_ref();
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
@@ -80,19 +78,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let stats = add_files(repo, &paths, &staged_db)?;
-
-    // Stop the timer, and round the duration to the nearest second
-    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
-    log::debug!("---END--- oxen add: {:?} duration: {:?}", path, duration);
-
-    // oxen staged?
-    println!(
-        "🐂 oxen added {} files ({}) in {}",
-        stats.total_files,
-        bytesize::ByteSize::b(stats.total_bytes),
-        humantime::format_duration(duration)
-    );
+    let _stats = add_files(repo, &paths, &staged_db)?;
 
     Ok(())
 }
@@ -103,6 +89,9 @@ fn add_files(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files: {:?}", paths);
+
+    // Start a timer
+    let start = std::time::Instant::now();
 
     // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
@@ -145,8 +134,23 @@ fn add_files(
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
             core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
+
+            // TODO: Make rm_with_staged_db return the stats of the files it removes
+            return Ok(total);
         }
     }
+
+    // Stop the timer, and round the duration to the nearest second
+    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
+    log::debug!("---END--- oxen add: {:?} duration: {:?}", paths, duration);
+
+    // oxen staged?
+    println!(
+        "🐂 oxen added {} files ({}) in {}",
+        total.total_files,
+        bytesize::ByteSize::b(total.total_bytes),
+        humantime::format_duration(duration)
+    );
 
     Ok(total)
 }

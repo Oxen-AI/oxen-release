@@ -56,7 +56,7 @@ mod tests {
 
             let response = api::client::file::create_or_update(
                 &remote_repo,
-                &branch_name,
+                branch_name,
                 directory_name,
                 &file_path,
                 Some(commit_body),
