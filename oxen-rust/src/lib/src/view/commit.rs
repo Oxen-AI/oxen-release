@@ -39,14 +39,6 @@ pub struct ListCommitResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct CommitSyncStatusResponse {
-    #[serde(flatten)]
-    pub status: StatusMessage,
-    pub latest_synced: Option<Commit>,
-    pub num_unsynced: usize,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct CommitTreeValidationResponse {
     #[serde(flatten)]
     pub status: StatusMessage,

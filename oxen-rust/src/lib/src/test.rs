@@ -179,7 +179,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -239,7 +239,7 @@ where
         std::fs::remove_dir_all(&new_repo_dir)?;
     }
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -267,7 +267,7 @@ where
     });
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -294,7 +294,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -325,7 +325,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -376,7 +376,7 @@ where
     };
 
     // Cleanup local repo
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -463,6 +463,37 @@ where
     Ok(())
 }
 
+pub fn make_many_commits(local_repo: &LocalRepository) -> Result<(), OxenError> {
+    // Make a few commits before we sync
+    repositories::add(local_repo, local_repo.path.join("train"))?;
+    repositories::commit(local_repo, "Adding train/")?;
+
+    repositories::add(local_repo, local_repo.path.join("test"))?;
+    repositories::commit(local_repo, "Adding test/")?;
+
+    repositories::add(local_repo, local_repo.path.join("annotations"))?;
+    repositories::commit(local_repo, "Adding annotations/")?;
+
+    repositories::add(local_repo, local_repo.path.join("nlp"))?;
+    repositories::commit(local_repo, "Adding nlp/")?;
+
+    // Remove the test dir to make a more complex history
+    let rm_opts = RmOpts {
+        path: PathBuf::from("test"),
+        recursive: true,
+        staged: false,
+    };
+
+    repositories::rm(local_repo, &rm_opts)?;
+    repositories::commit(local_repo, "Removing test/")?;
+
+    // Add all the files
+    repositories::add(local_repo, &local_repo.path)?;
+    // Commit all the data locally
+    repositories::commit(local_repo, "Adding rest of data")?;
+    Ok(())
+}
+
 /// Test where we synced training data to the remote
 pub async fn run_training_data_fully_sync_remote<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -477,33 +508,8 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    // Make a few commits before we sync
-    repositories::add(&local_repo, local_repo.path.join("train"))?;
-    repositories::commit(&local_repo, "Adding train/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("test"))?;
-    repositories::commit(&local_repo, "Adding test/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("annotations"))?;
-    repositories::commit(&local_repo, "Adding annotations/")?;
-
-    repositories::add(&local_repo, local_repo.path.join("nlp"))?;
-    repositories::commit(&local_repo, "Adding nlp/")?;
-
-    // Remove the test dir to make a more complex history
-    let rm_opts = RmOpts {
-        path: PathBuf::from("test"),
-        recursive: true,
-        staged: false,
-    };
-
-    repositories::rm(&local_repo, &rm_opts)?;
-    repositories::commit(&local_repo, "Removing test/")?;
-
-    // Add all the files
-    repositories::add(&local_repo, &local_repo.path)?;
-    // Commit all the data locally
-    repositories::commit(&local_repo, "Adding rest of data")?;
+    // Make commits that add, rm, etc
+    make_many_commits(&local_repo)?;
 
     // Create remote
     let remote_repo = create_remote_repo(&local_repo).await?;
@@ -675,7 +681,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -728,7 +734,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -825,7 +831,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -876,7 +882,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -927,7 +933,7 @@ where
     };
 
     // Cleanup Local
-    util::fs::remove_dir_all(path)?;
+    maybe_cleanup_repo(&path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -959,7 +965,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -993,7 +999,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1027,7 +1033,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1068,7 +1074,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1096,7 +1102,7 @@ where
     };
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1126,7 +1132,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     match result {
@@ -1160,7 +1166,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -1198,7 +1204,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1237,7 +1243,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1311,7 +1317,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1344,7 +1350,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1409,7 +1415,7 @@ where
         }
     };
 
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     assert!(result);
     Ok(())
@@ -1436,12 +1442,7 @@ where
     status.print();
 
     // Commit the data
-    let commit = repositories::commit(&repo, "adding all data baby")?;
-
-    // Read the tree for debug
-    let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-    println!("setup tree after commit:");
-    tree.print();
+    repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_repo_test_fully_committed running test");
@@ -1453,7 +1454,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     match result {
@@ -1501,7 +1502,7 @@ where
     });
 
     // Remove repo dir
-    // util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -1547,10 +1548,21 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
+    Ok(())
+}
+
+// This function conditionally removes the repo dir given a CLEANUP_REPOS environment variable
+fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
+    let no_cleanup = std::env::var("NO_CLEANUP") == Ok("true".to_string())
+        || std::env::var("NO_CLEANUP") == Ok("1".to_string());
+    log::debug!("maybe_cleanup_repo: no_cleanup: {no_cleanup}");
+    if !no_cleanup {
+        util::fs::remove_dir_all(repo_dir)?;
+    }
     Ok(())
 }
 

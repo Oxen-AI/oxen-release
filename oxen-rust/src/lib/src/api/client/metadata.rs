@@ -47,7 +47,7 @@ mod tests {
             let head = repositories::commits::head_commit(&local_repo)?;
 
             // Try to get the entry from the local repo
-            let tree = repositories::tree::get_by_commit(&local_repo, &head)?;
+            let tree = repositories::tree::get_root_with_children(&local_repo, &head)?.unwrap();
             let entry = tree.get_by_path(&path)?;
             assert!(entry.is_some());
 

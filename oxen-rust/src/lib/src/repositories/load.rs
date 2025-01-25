@@ -41,7 +41,7 @@ pub async fn load(
     }
 
     // Client repos - need to hydrate working dir from versions files
-    let repo = LocalRepository::new(&dest_path)?;
+    let repo = LocalRepository::from_dir(&dest_path)?;
 
     println!("🐂 Unpacking files to working directory {:?}", dest_path);
     let branch = repositories::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?

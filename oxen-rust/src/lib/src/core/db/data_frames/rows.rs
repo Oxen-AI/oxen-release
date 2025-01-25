@@ -13,11 +13,11 @@ use sql_query_builder as sql;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
 
 use crate::core::db;
+use crate::core::db::data_frames::row_changes_db;
 use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::df::tabular;
-use crate::core::v0_10_0::index::workspaces::data_frames::row_changes_db;
 use crate::model::data_frame::schema::Schema;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::view::data_frames::DataFrameRowChange;

@@ -11,7 +11,7 @@ pub struct FileNodeWithDir {
 
 impl PartialEq for FileNodeWithDir {
     fn eq(&self, other: &Self) -> bool {
-        self.dir.join(&self.file_node.name) == other.dir.join(&other.file_node.name)
+        self.dir.join(self.file_node.name()) == other.dir.join(other.file_node.name())
     }
 }
 
@@ -19,6 +19,6 @@ impl Eq for FileNodeWithDir {}
 
 impl Hash for FileNodeWithDir {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.dir.join(&self.file_node.name).hash(state);
+        self.dir.join(self.file_node.name()).hash(state);
     }
 }

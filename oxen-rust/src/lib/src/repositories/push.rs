@@ -49,8 +49,8 @@ use crate::model::{Branch, LocalRepository};
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::push::push(repo).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::push::push(repo).await,
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 is deprecated"),
+        _ => core::v_latest::push::push(repo).await,
     }
 }
 
@@ -61,12 +61,8 @@ pub async fn push_remote_branch(
     branch_name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::push::push_remote_branch(repo, remote, branch_name).await
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::push::push_remote_branch(repo, remote, branch_name).await
-        }
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 is deprecated"),
+        _ => core::v_latest::push::push_remote_branch(repo, remote, branch_name).await,
     }
 }
 
@@ -134,94 +130,6 @@ mod tests {
             let readme_1_contents = util::fs::read_from_path(&download_path)?;
             let readme_2_contents = util::fs::read_from_path(&readme_path)?;
             assert_eq!(readme_1_contents, readme_2_contents);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            future::ok::<(), OxenError>(()).await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_command_push_check_is_synced_one_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async {
-            let mut repo = repo;
-
-            // Track the train and annotations dir
-            let train_dir = repo.path.join("train");
-            let annotations_dir = repo.path.join("annotations");
-
-            repositories::add(&repo, &train_dir)?;
-            repositories::add(&repo, &annotations_dir)?;
-            // Commit the train dir
-            let commit = repositories::commit(&repo, "Adding training data")?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&repo.dirname());
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            future::ok::<(), OxenError>(()).await
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async {
-            let mut repo = repo;
-
-            // Track the train and annotations dir
-            let train_dir = repo.path.join("train");
-            let train_bounding_box = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            repositories::add(&repo, &train_dir)?;
-            repositories::add(&repo, &train_bounding_box)?;
-            // Commit the train dir
-            repositories::commit(&repo, "Adding training data")?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&repo.dirname());
-            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            // Sleep so it can unpack...
-            std::thread::sleep(std::time::Duration::from_secs(2));
-
-            // Add and commit the rest of the annotations
-            // The nlp annotations have duplicates which broke the system at a time
-            let annotations_dir = repo.path.join("nlp");
-            repositories::add(&repo, &annotations_dir)?;
-            let commit = repositories::commit(&repo, "adding the rest of the annotations")?;
-
-            // Push again
-            repositories::push(&repo).await?;
-
-            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(is_synced.is_valid);
 
             api::client::repositories::delete(&remote_repo).await?;
 
@@ -659,11 +567,6 @@ mod tests {
     #[tokio::test]
     async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
-            // Current local head
-            let local_head = repositories::commits::head_commit(&local_repo)?;
-
-            // Branch name
-
             // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
@@ -679,11 +582,6 @@ mod tests {
                     .await?;
             assert_eq!(history.len(), 25);
 
-            // Latest commit synced should be == local head, with no unsynced commits
-            let sync_response =
-                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-            assert_eq!(sync_response.num_unsynced, 0);
-
             Ok(remote_repo)
         })
         .await
@@ -692,16 +590,11 @@ mod tests {
     #[tokio::test]
     async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
-            // Current local head
-            let local_head = repositories::commits::head_commit(&local_repo)?;
-
             // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history.len(), 0);
-            // TODO: v0_10_0 logic should have 1 commit on main
-            // assert_eq!(history.len(), 0);
 
             // Create new local branch
             let new_branch_name = "my-branch";
@@ -746,11 +639,6 @@ mod tests {
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history_main.len(), 25);
-
-            // 0 unsynced on main
-            let sync_response =
-                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-            assert_eq!(sync_response.num_unsynced, 0);
 
             Ok(remote_repo)
         })
@@ -899,77 +787,6 @@ mod tests {
         .await
     }
 
-    // Test that we can push when the remote repo is ahead, but files don't conflict
-    // 1) Clone repo to user A
-    // 2) Clone repo to user B
-    // 3) User A makes commit with `new_file.txt`` and pushes
-    // 4) User B makes commit with `another_file.txt` pushes and succeeds
-    // 5) User B pulls user A's changes, pushes and succeeds
-    /*
-    #[tokio::test]
-    async fn test_tree_can_push_when_remote_repo_is_ahead_new_file() -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir_copy.join("new_repo"),
-                )
-                .await?;
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
-
-                    let user_b_repo = repositories::clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir_copy.join("New_repo"),
-                    )
-                    .await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file.txt";
-                    let new_file_path = user_a_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushes
-                    let different_file = "another_file.txt";
-                    let new_file_path = user_b_repo.path.join(different_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
-                    repositories::add(&user_b_repo, &new_file_path)?;
-                    repositories::commit(&user_b_repo, "Adding second file path.")?;
-
-                    // Push should succeed now!!! there are no conflicts
-                    let result = repositories::push(&user_b_repo).await;
-                    assert!(result.is_ok());
-
-                    // Pull should succeed
-                    repositories::pull(&user_b_repo).await?;
-
-                    // Push should now succeed
-                    repositories::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-     */
-
     // Test that we cannot push when the remote repo is ahead
     // * Clone repo to user A
     // * Clone repo to user B
@@ -1060,314 +877,6 @@ mod tests {
         .await
     }
 
-    // Test that we cannot push when the remote repo multiple commits is ahead
-    // * Create repo for user A
-    // * Add data for user A
-    // * Push data for user A
-    // * Clone repo to user B
-    // * User A makes commit modifying `annotations/train/bounding_box.csv` and pushes
-    // * User B makes commit modifying `README.md` pushes and succeeds
-    // * User B pulls user A's changes and there is a conflict
-    // * User B fixes the conflict and pushes and succeeds
-    /*
-    #[tokio::test]
-    async fn test_tree_cannot_push_when_remote_repo_is_2_commits_ahead_same_file(
-    ) -> Result<(), OxenError> {
-        // Create Repo for User A
-        test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-            let mut user_a_repo = repositories::init(&user_a_repo_dir)?;
-
-            // Add data for User A
-            let mod_file = "README.md";
-            let a_mod_file_path = user_a_repo.path.join(mod_file);
-            let a_mod_file_path =
-                test::write_txt_file_to_path(a_mod_file_path, "I am the original README")?;
-
-            // Make a directory for the of random data
-            let random_data_dir = user_a_repo.path.join("random_data");
-            util::fs::create_dir_all(&random_data_dir)?;
-            // add 10 text files to the random data directory
-            for i in 0..10 {
-                let file_name = format!("random_file_{}.txt", i);
-                let file_path = random_data_dir.join(file_name);
-                let file_path = test::write_txt_file_to_path(file_path, "random data")?;
-                repositories::add(&user_a_repo, &file_path)?;
-            }
-
-            repositories::add(&user_a_repo, &a_mod_file_path)?;
-            repositories::commit(&user_a_repo, "User A adding the README.")?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&user_a_repo).await?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&user_a_repo.dirname());
-            command::config::set_remote(&mut user_a_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Push data for User A
-            println!("Pushing README.md for user A...");
-            repositories::push(&user_a_repo).await?;
-
-            // Clone Repo to User B
-            test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
-
-                let user_b_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_b_repo_dir_copy.join("New_repo"),
-                )
-                .await?;
-
-                // User A modifies the bounding_box.csv and pushes
-                let mod_file = PathBuf::from("bounding_box.csv");
-                let a_mod_file_path = user_a_repo.path.join(mod_file);
-                let a_mod_file_path =
-                    test::write_txt_file_to_path(a_mod_file_path, "path,annotation")?;
-                repositories::add(&user_a_repo, &a_mod_file_path)?;
-                repositories::commit(&user_a_repo, "User A adds bounding_box.csv.")?;
-                println!("Pushing bounding_box.csv for user A...");
-                repositories::push(&user_a_repo).await?;
-
-                // User B modifies the README.md and pushes
-                let mod_file = "README.md";
-                let b_mod_file_path = user_b_repo.path.join(mod_file);
-                let b_mod_file_path =
-                    test::write_txt_file_to_path(b_mod_file_path, "I be the README now.")?;
-                repositories::add(&user_b_repo, &b_mod_file_path)?;
-                println!("Pushing README.md for user B...");
-                repositories::commit(&user_b_repo, "User B modifying the README.")?;
-
-                // Push from B should succeed! No conflicting files
-                let first_push_result = repositories::push(&user_b_repo).await;
-                assert!(first_push_result.is_ok());
-
-                // User A modifies tries to modify the same README.md and pushes
-                let a_mod_file_path = user_a_repo.path.join(mod_file);
-                let a_mod_file_path =
-                    test::write_txt_file_to_path(a_mod_file_path, "I am the README now")?;
-                repositories::add(&user_a_repo, &a_mod_file_path)?;
-                repositories::commit(&user_a_repo, "User A modifying the README.")?;
-
-                // Push should fail! Remote is ahead
-                println!("Pushing README.md for user A...");
-                let second_push_a = repositories::push(&user_a_repo).await;
-                assert!(second_push_a.is_err());
-
-                // Try it again - I don't know why this is succeeding the second time
-                let second_push_again = repositories::push(&user_a_repo).await;
-                assert!(second_push_again.is_err());
-
-                // Pull A should succeed
-                let pull_a = repositories::pull(&user_a_repo).await;
-                assert!(pull_a.is_ok());
-
-                // There should be conflicts in A
-                let status = repositories::status(&user_a_repo)?;
-                assert!(status.has_merge_conflicts());
-
-                // User A resolves conflicts
-                let a_mod_file_path = user_a_repo.path.join(mod_file);
-                let a_mod_file_path = test::write_txt_file_to_path(
-                    a_mod_file_path,
-                    "No for real. I am the README now.",
-                )?;
-                repositories::add(&user_a_repo, &a_mod_file_path)?;
-                repositories::commit(&user_a_repo, "User A resolving conflicts.")?;
-
-                // Push should now succeed
-                println!("Final pushing README.md for user A...");
-                let third_push_result = repositories::push(&user_a_repo).await;
-                assert!(third_push_result.is_ok());
-
-                // Return repo B because that is the closure we are in
-                Ok(user_b_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(user_a_repo_dir)
-        })
-        .await?;
-
-        Ok(())
-    }
-    */
-
-    /*
-    #[tokio::test]
-    async fn test_tree_can_push_when_remote_repo_is_many_commits_ahead_new_file(
-    ) -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir_copy.join("new_repo"),
-                )
-                .await?;
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
-
-                    let user_b_repo = repositories::clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir_copy.join("new_repo"),
-                    )
-                    .await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file.txt";
-                    let new_file_path = user_a_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file_2.txt";
-                    let new_file_path = user_a_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding second file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file_3.txt";
-                    let new_file_path = user_a_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding third file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushes
-                    let different_file = "another_file.txt";
-                    let new_file_path = user_b_repo.path.join(different_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
-                    repositories::add(&user_b_repo, &new_file_path)?;
-                    repositories::commit(&user_b_repo, "User B adding second file path.")?;
-                    // This should now succeed! Used to fail, but auto-merges now.
-                    log::debug!("pushing b...");
-                    let result = repositories::push(&user_b_repo).await;
-                    assert!(result.is_ok());
-
-                    repositories::pull(&user_b_repo).await?;
-
-                    repositories::push(&user_b_repo).await?;
-
-                    // Full pull
-                    repositories::pull_all(&user_b_repo).await?;
-
-                    // Push should now succeed
-                    repositories::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-    */
-
-    /*
-    #[tokio::test]
-    async fn test_tree_can_push_when_remote_is_many_commits_ahead_no_tree_conflicts(
-    ) -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Log out all files in this directory with fs
-                let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
-                for item in files {
-                    log::debug!("\nfile or dir: {:?}\n", item)
-                }
-
-                // User A: add files in `nlp`
-                // User B: add files in `annotations`
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_a_modify_dir = "nlp";
-                    let user_b_modify_dir = "annotations";
-
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
-
-                    let user_b_repo = repositories::clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir.join("new_repo"),
-                    )
-                    .await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file.txt";
-                    let new_file_path = user_a_repo.path.join(user_a_modify_dir).join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file_2.txt";
-                    let new_file_path = user_a_repo.path.join(user_a_modify_dir).join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding second file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User A adds a file and pushes
-                    let new_file = "new_file_3.txt";
-                    let new_file_path = user_a_repo.path.join(user_a_modify_dir).join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    repositories::add(&user_a_repo, &new_file_path)?;
-                    repositories::commit(&user_a_repo, "Adding third file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushes
-                    let different_file = "another_file.txt";
-                    let new_file_path = user_b_repo
-                        .path
-                        .join(user_b_modify_dir)
-                        .join(different_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
-                    repositories::add(&user_b_repo, &new_file_path)?;
-                    repositories::commit(&user_b_repo, "User B adding second file path.")?;
-
-                    // Push should succeed - different dirs!
-                    repositories::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-    */
-
     #[tokio::test]
     async fn test_tree_cannot_push_when_remote_is_many_commits_ahead_tree_conflicts(
     ) -> Result<(), OxenError> {
@@ -1441,78 +950,6 @@ mod tests {
         })
         .await
     }
-
-    /*
-    #[tokio::test]
-    async fn test_tree_can_push_tree_no_conflict_added_file() -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Log out all files in this directory with fs
-                let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
-                for item in files {
-                    log::debug!("\nfile or dir: {:?}\n", item)
-                }
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
-
-                    log::debug!("About to clone b...");
-                    let user_b_repo = repositories::clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir.join("new_repo"),
-                    )
-                    .await?;
-                    log::debug!("finished cloning b.");
-
-                    // User A adds a file and pushes
-                    let modify_path_a = user_a_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("averynewfile.txt");
-                    let modify_path_b = user_b_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("anothernewfile.txt");
-                    test::write_txt_file_to_path(&modify_path_a, "new file")?;
-                    repositories::add(&user_a_repo, &modify_path_a)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushes
-                    test::write_txt_file_to_path(&modify_path_b, "newer file")?;
-                    repositories::add(&user_b_repo, &modify_path_b)?;
-                    repositories::commit(&user_b_repo, "User B adding second file path.")?;
-
-                    // Push should succeed - different dirs!
-                    repositories::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-    */
 
     #[tokio::test]
     async fn test_tree_cannot_push_tree_conflict_deleted_file() -> Result<(), OxenError> {
@@ -1594,7 +1031,8 @@ mod tests {
 
                     // Before this commit, init a reader at b's head
                     let head = repositories::commits::head_commit(&user_b_repo)?;
-                    let pre_b = repositories::tree::get_by_commit(&user_b_repo, &head)?;
+                    let pre_b =
+                        repositories::tree::get_root_with_children(&user_b_repo, &head)?.unwrap();
                     log::debug!("b head before is {:?}", head);
 
                     let maybe_b_entry = pre_b.get_by_path(
@@ -1609,7 +1047,8 @@ mod tests {
                         repositories::commit(&user_b_repo, "user B deleting file path.")?;
 
                     let head = repositories::commits::head_commit(&user_b_repo)?;
-                    let post_b = repositories::tree::get_by_commit(&user_b_repo, &head)?;
+                    let post_b =
+                        repositories::tree::get_root_with_children(&user_b_repo, &head)?.unwrap();
                     let maybe_b_entry = post_b.get_by_path(
                         PathBuf::from("annotations")
                             .join("train")
@@ -1648,173 +1087,6 @@ mod tests {
         })
         .await
     }
-
-    /*
-    #[tokio::test]
-    async fn test_tree_can_push_tree_no_conflict_deleted_file() -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Log out all files in this directory with fs
-                let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
-                for item in files {
-                    log::debug!("\nfile or dir: {:?}\n", item)
-                }
-
-                // User A: add files in `nlp`
-                // User B: add files in `annotations`
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
-
-                    let user_b_repo = repositories::clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir.join("new_repo"),
-                    )
-                    .await?;
-
-                    // User A adds a file and pushes
-                    let modify_path_a = user_a_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("averynewfile.txt");
-                    let modify_path_b = user_b_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("anothernewfile.txt");
-                    test::write_txt_file_to_path(&modify_path_a, "new file")?;
-                    repositories::add(&user_a_repo, &modify_path_a)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushe
-                    test::write_txt_file_to_path(&modify_path_b, "newer file")?;
-                    repositories::add(&user_b_repo, &modify_path_b)?;
-                    repositories::commit(&user_b_repo, "User B adding second file path.")?;
-
-                    // Push should succeed - different dirs!
-                    repositories::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-    */
-
-    /*
-    #[tokio::test]
-    async fn test_tree_merge_on_push_to_branch() -> Result<(), OxenError> {
-        let new_branch = "new_branch";
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo = repositories::deep_clone_url(
-                    &remote_repo.remote.url,
-                    &user_a_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Save the current head of main
-                let main_head = repositories::commits::head_commit(&user_a_repo)?;
-
-                // User a checkout a branch
-                repositories::branches::create_checkout(&user_a_repo, new_branch)?;
-
-                // Clone Repo to User B
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
-
-                    let user_b_repo = repositories::deep_clone_url(
-                        &remote_repo.remote.url,
-                        &user_b_repo_dir.join("new_repo"),
-                    )
-                    .await?;
-
-                    // User b checkout the same branch
-                    repositories::branches::create_checkout(&user_b_repo, new_branch)?;
-
-                    // User A adds a file and pushes
-                    let modify_path_a = user_a_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("averynewfile.txt");
-                    let modify_path_b = user_b_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("anothernewfile.txt");
-                    test::write_txt_file_to_path(&modify_path_a, "new file")?;
-                    repositories::add(&user_a_repo, &modify_path_a)?;
-                    repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    repositories::push(&user_a_repo).await?;
-
-                    // User B adds a different file and pushe
-                    test::write_txt_file_to_path(&modify_path_b, "newer file")?;
-                    repositories::add(&user_b_repo, &modify_path_b)?;
-
-                    repositories::commit(&user_b_repo, "User B adding second file path.")?;
-
-                    // Push should succeed - different dirs!
-                    repositories::push(&user_b_repo).await?;
-
-                    // Get the new branch head
-                    let new_main =
-                        api::client::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
-                            .await?
-                            .unwrap();
-                    let new_branch = api::client::branches::get_by_name(&remote_repo, new_branch)
-                        .await?
-                        .unwrap();
-
-                    // Assert commits have updated in the right place
-                    assert_eq!(new_main.commit_id, main_head.id);
-
-                    // Head at new_branch should be a merge commit
-                    let new_branch_head =
-                        api::client::commits::get_by_id(&remote_repo, &new_branch.commit_id)
-                            .await?
-                            .unwrap();
-
-                    // Must be a merge commit
-                    assert_eq!(new_branch_head.parent_ids.len(), 2);
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-    */
 
     #[tokio::test]
     async fn test_push_move_entire_directory() -> Result<(), OxenError> {
@@ -1923,10 +1195,6 @@ A: Oxen.ai is a great tool for this! It can handle any size dataset, and is opti
                 repositories::add(&local_repo, &readme_file)?;
                 let commit = repositories::commit(&local_repo, "Added another file")?;
 
-                println!("Tree for commit: {}", commit);
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
-
                 let result = repositories::push(&local_repo).await;
                 println!("push result: {:?}", result);
 
@@ -1973,9 +1241,6 @@ A: Checkout Oxen.ai
                 )?;
                 repositories::add(&local_repo, &readme_file)?;
                 let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
-
-                let tree = repositories::tree::get_by_commit(&local_repo, &commit)?;
-                tree.print();
 
                 let result = repositories::push(&local_repo).await;
                 println!("push result: {:?}", result);
