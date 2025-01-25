@@ -98,7 +98,7 @@ fn to_merge_conflict_entry(node: &FileNode, path: &Path) -> MergeConflictEntry {
     MergeConflictEntry {
         path: path.to_path_buf(),
         filename: path.file_name().unwrap().to_string_lossy().into_owned(),
-        hash: node.hash.to_string(),
-        commit_id: node.last_commit_id.to_string(),
+        hash: node.hash().to_string(),
+        commit_id: node.last_commit_id().to_string(),
     }
 }

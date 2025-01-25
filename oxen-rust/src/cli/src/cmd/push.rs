@@ -67,7 +67,8 @@ impl RunCmd for PushCmd {
             println!("Deleted remote branch: {remote}/{branch}");
             Ok(())
         } else {
-            let repository = LocalRepository::from_current_dir()?;
+            let mut repository = LocalRepository::from_current_dir()?;
+            repository.set_remote_name(remote);
             let host = get_host_from_repo(&repository)?;
 
             check_repo_migration_needed(&repository)?;

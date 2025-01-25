@@ -1,18 +1,17 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
+// use std::collections::HashMap;
+// use std::fs::File;
+// use std::io::Read;
+// use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::core::v0_10_0::index::CommitEntryReader;
 use liboxen::error::OxenError;
-use liboxen::model::{CommitEntry, LocalRepository};
-use liboxen::util::hasher;
-use liboxen::{repositories, util};
-use rocksdb::DBWithThreadMode;
-use rocksdb::MultiThreaded;
+// use liboxen::model::{CommitEntry, LocalRepository};
+// use liboxen::util::hasher;
+// use liboxen::{repositories, util};
+// use rocksdb::DBWithThreadMode;
+// use rocksdb::MultiThreaded;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "pack";
@@ -55,33 +54,34 @@ impl RunCmd for PackCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let paths: Vec<PathBuf> = args
+        let _paths: Vec<PathBuf> = args
             .get_many::<String>("files")
             .expect("Must supply files")
             .map(PathBuf::from)
             .collect();
 
-        let n = args
+        let _n = args
             .get_one::<String>("number")
             .expect("Must supply number")
             .parse::<usize>()
             .expect("number must be a valid integer.");
 
-        let chunk_size = args
+        let _chunk_size = args
             .get_one::<String>("chunk_size")
             .expect("Must supply chunk size")
             .parse::<usize>()
             .expect("Chunk size must be a valid integer.");
 
-        if paths.len() != 1 {
+        if _paths.len() != 1 {
             return Err(OxenError::basic_str("Must supply exactly one file"));
         }
+        /*
 
-        let path = &paths[0];
+        let _path = &paths[0];
 
         // Traverse back in file history, split file into chunks.
-        let repo = LocalRepository::from_current_dir()?;
-        let commits = repositories::commits::list(&repo)?;
+        let _repo = LocalRepository::from_current_dir()?;
+        let _commits = repositories::commits::list(&repo)?;
 
         // Take first n commits
         let commits = commits.into_iter().take(n);
@@ -205,6 +205,7 @@ impl RunCmd for PackCmd {
             "🎉 Total space saved: {}",
             bytesize::ByteSize::b(total_size - compressed_size)
         );
+         */
 
         Ok(())
     }

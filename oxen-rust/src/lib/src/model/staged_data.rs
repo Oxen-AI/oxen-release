@@ -80,7 +80,6 @@ pub struct StagedData {
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: HashSet<PathBuf>,
     pub moved_files: Vec<(PathBuf, PathBuf, String)>,
-    pub removed_dirs: HashMap<PathBuf, usize>,
     pub removed_files: HashSet<PathBuf>,
     pub merge_conflicts: Vec<EntryMergeConflict>,
 }
@@ -94,7 +93,6 @@ impl StagedData {
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: HashSet::new(),
-            removed_dirs: HashMap::new(),
             removed_files: HashSet::new(),
             moved_files: vec![],
             merge_conflicts: vec![],
@@ -109,7 +107,6 @@ impl StagedData {
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
-            && self.removed_dirs.is_empty()
             && self.merge_conflicts.is_empty()
             && self.moved_files.is_empty()
     }
@@ -123,7 +120,7 @@ impl StagedData {
     }
 
     pub fn has_removed_entries(&self) -> bool {
-        !self.removed_files.is_empty() || !self.removed_dirs.is_empty()
+        !self.removed_files.is_empty()
     }
 
     pub fn has_untracked_entries(&self) -> bool {
@@ -161,7 +158,6 @@ impl StagedData {
         self.__collect_merge_conflicts(&mut outputs, opts);
         self.__collect_untracked_dirs(&mut outputs, opts);
         self.__collect_untracked_files(&mut outputs, opts);
-        self.__collect_removed_dirs(&mut outputs, opts);
         self.__collect_removed_files(&mut outputs, opts);
 
         outputs
@@ -228,6 +224,7 @@ impl StagedData {
     }
 
     fn staged_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        log::debug!("staged_dirs: {:?}", self.staged_dirs);
         let mut dirs: Vec<Vec<ColoredString>> = vec![];
         for (path, staged_dirs) in self.staged_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];
@@ -469,41 +466,6 @@ impl StagedData {
             opts,
         );
         outputs.push("\n".normal());
-    }
-
-    fn __collect_removed_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
-        // List Removed files
-        if !self.removed_dirs.is_empty() {
-            outputs.push("Removed Directories\n".normal());
-            outputs.push(MSG_OXEN_RM_DIR_EXAMPLE.normal());
-
-            let mut dirs: Vec<(&PathBuf, &usize)> = self.removed_dirs.iter().collect();
-            dirs.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
-
-            let max_dir_len = dirs
-                .iter()
-                .map(|(path, _size)| path.to_str().unwrap().len())
-                .max()
-                .unwrap();
-
-            self.__collapse_outputs(
-                &dirs,
-                |(path, size)| {
-                    let path_str = path.to_str().unwrap();
-                    let num_spaces = max_dir_len - path_str.len();
-                    vec![
-                        "  removed: ".to_string().red(),
-                        format!("{} {}", path_str, StagedData::spaces(num_spaces))
-                            .red()
-                            .bold(),
-                        format!("({} {})\n", size, StagedData::item_str_plural(**size)).normal(),
-                    ]
-                },
-                outputs,
-                opts,
-            );
-            outputs.push("\n".normal());
-        }
     }
 
     fn __collect_untracked_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {

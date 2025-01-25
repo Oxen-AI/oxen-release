@@ -35,11 +35,10 @@ async fn main() -> ExitCode {
         Box::new(cmd::MigrateCmd),
         Box::new(cmd::MooCmd),
         Box::new(cmd::NodeCmd),
-        Box::new(cmd::PackCmd),
+        // Box::new(cmd::PackCmd),
         Box::new(cmd::PullCmd),
         Box::new(cmd::PushCmd),
         Box::new(cmd::RestoreCmd),
-        Box::new(cmd::ReadLinesCmd),
         Box::new(cmd::RemoteCmd),
         Box::new(cmd::RmCmd),
         Box::new(cmd::SaveCmd),
@@ -47,7 +46,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::StatusCmd),
         Box::new(cmd::TreeCmd),
         Box::new(cmd::UploadCmd),
-        Box::new(cmd::UnpackCmd),
+        // Box::new(cmd::UnpackCmd),
         Box::new(cmd::WorkspaceCmd),
     ];
 

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use super::*;
-use crate::core::v0_19_0::index::MerkleNodeDB;
+use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::util;
@@ -94,8 +94,7 @@ impl MerkleTreeNode {
     pub fn default_dir_from_path(path: impl AsRef<Path>) -> MerkleTreeNode {
         let mut dir_node = DirNode::default();
         let dir_str = path.as_ref().to_str().unwrap().to_string();
-        // let dir_hash = util::hasher::hash_buffer_128bit(&dir_str.as_bytes());
-        dir_node.name = dir_str;
+        dir_node.set_name(dir_str);
         MerkleTreeNode {
             hash: MerkleHash::new(0),
             node: EMerkleTreeNode::Directory(dir_node),
@@ -117,7 +116,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode
     pub fn from_file(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash,
+            hash: *file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -127,7 +126,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a FileNode with the path relative to the repo
     pub fn from_file_relative_to_repo(file_node: FileNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: file_node.hash,
+            hash: *file_node.hash(),
             node: EMerkleTreeNode::File(file_node),
             parent_id: None,
             children: Vec::new(),
@@ -137,7 +136,7 @@ impl MerkleTreeNode {
     /// Create a MerkleTreeNode from a DirNode
     pub fn from_dir(dir_node: DirNode) -> MerkleTreeNode {
         MerkleTreeNode {
-            hash: dir_node.hash,
+            hash: *dir_node.hash(),
             node: EMerkleTreeNode::Directory(dir_node),
             parent_id: None,
             children: Vec::new(),
@@ -146,12 +145,12 @@ impl MerkleTreeNode {
 
     pub fn maybe_path(&self) -> Result<PathBuf, OxenError> {
         if let EMerkleTreeNode::Directory(dir_node) = &self.node {
-            return Ok(PathBuf::from(dir_node.name.clone()));
+            return Ok(PathBuf::from(dir_node.name()));
         }
         // From DEF of file_node, file_name.name == file_path to this file
         // e.g., the file 'happy' in the folder 'sad' is called 'sad//happy'
         if let EMerkleTreeNode::File(file_node) = &self.node {
-            return Ok(PathBuf::from(file_node.name.clone()));
+            return Ok(PathBuf::from(file_node.name()));
         }
         Err(OxenError::basic_str(format!(
             "MerkleTreeNode::maybe_path called on non-file or non-dir node: {:?}",
@@ -177,7 +176,7 @@ impl MerkleTreeNode {
         }
         for child in &self.children {
             if let EMerkleTreeNode::Directory(dir) = &child.node {
-                let new_path = current_path.join(&dir.name);
+                let new_path = current_path.join(dir.name());
                 child.list_dir_paths_helper(&new_path, dirs)?;
             } else {
                 child.list_dir_paths_helper(current_path, dirs)?;
@@ -236,7 +235,7 @@ impl MerkleTreeNode {
 
         if MerkleTreeNodeType::Dir != node.node.node_type() {
             return Err(OxenError::basic_str(format!(
-                "Merkle tree node is not a directory: '{:?}'",
+                "get_vnodes_for_dir Merkle tree node is not a directory: '{:?}'",
                 path
             )));
         }
@@ -280,7 +279,7 @@ impl MerkleTreeNode {
 
         if let EMerkleTreeNode::File(_) = &self.node {
             let file_node = self.file()?;
-            let file_path = traversed_path.join(file_node.name);
+            let file_path = traversed_path.join(file_node.name());
             // log::debug!(
             //     "get_by_path_helper {} is file! [{:?}] {:?} {:?}",
             //     self,
@@ -319,8 +318,8 @@ impl MerkleTreeNode {
                 //     child
                 // );
                 let child_name = match &child.node {
-                    EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
-                    EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
+                    EMerkleTreeNode::Directory(dir) => Some(dir.name()),
+                    EMerkleTreeNode::File(file) => Some(file.name()),
                     _ => None,
                 };
                 // log::debug!(
@@ -329,7 +328,7 @@ impl MerkleTreeNode {
                 //     child_name,
                 //     target_name
                 // );
-                child_name.unwrap_or("".to_string()).cmp(&target_name)
+                child_name.unwrap_or("").cmp(&target_name)
             }) {
                 Ok(index) => {
                     let child = &self.children[index];
@@ -346,7 +345,7 @@ impl MerkleTreeNode {
                         //     dir_node
                         // );
                         if let Some(node) =
-                            child.get_by_path_helper(&traversed_path.join(&dir_node.name), path)?
+                            child.get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
                         {
                             return Ok(Some(node));
                         }
@@ -383,7 +382,7 @@ impl MerkleTreeNode {
             // log::debug!("get_by_path_helper {} traversing child: {}", self, child);
             if let EMerkleTreeNode::Directory(dir_node) = &child.node {
                 if let Some(node) =
-                    child.get_by_path_helper(&traversed_path.join(&dir_node.name), path)?
+                    child.get_by_path_helper(&traversed_path.join(dir_node.name()), path)?
                 {
                     return Ok(Some(node));
                 }
@@ -405,10 +404,12 @@ impl MerkleTreeNode {
 
     pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
-            MerkleTreeNodeType::Commit => CommitNode::deserialize(data).map(|commit| commit.hash),
-            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| vnode.hash),
-            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| dir.hash),
-            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| file.hash),
+            MerkleTreeNodeType::Commit => {
+                CommitNode::deserialize(data).map(|commit| *commit.hash())
+            }
+            MerkleTreeNodeType::VNode => VNode::deserialize(data).map(|vnode| *vnode.hash()),
+            MerkleTreeNodeType::Dir => DirNode::deserialize(data).map(|dir| *dir.hash()),
+            MerkleTreeNodeType::File => FileNode::deserialize(data).map(|file| *file.hash()),
             MerkleTreeNodeType::FileChunk => {
                 FileChunkNode::deserialize(data).map(|file_chunk| file_chunk.hash)
             }
@@ -475,6 +476,16 @@ impl MerkleTreeNode {
         }
     }
 
+    pub fn walk_tree_mut(&mut self, mut f: impl FnMut(&mut MerkleTreeNode)) {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            f(node);
+            for child in node.children.iter_mut().rev() {
+                stack.push(child);
+            }
+        }
+    }
+
     pub fn walk_tree_without_leaves(&self, mut f: impl FnMut(&MerkleTreeNode)) {
         let mut stack = vec![self];
         while let Some(node) = stack.pop() {
@@ -487,15 +498,15 @@ impl MerkleTreeNode {
         }
     }
 
-    pub fn get_nodes_along_path(
+    pub fn get_nodes_along_paths(
         &self,
-        path: Vec<PathBuf>,
+        paths: Vec<PathBuf>,
     ) -> Result<(Option<MerkleTreeNode>, Vec<MerkleTreeNode>), OxenError> {
         let traversed_path = Path::new("");
-        self.get_nodes_along_path_helper(traversed_path, path)
+        self.get_nodes_along_paths_helper(traversed_path, paths)
     }
 
-    fn get_nodes_along_path_helper(
+    fn get_nodes_along_paths_helper(
         &self,
         traversed_path: &Path,
         path: Vec<PathBuf>,
@@ -514,7 +525,7 @@ impl MerkleTreeNode {
 
         if let EMerkleTreeNode::File(_) = &self.node {
             let file_node = self.file()?;
-            let file_path = traversed_path.join(file_node.clone().name);
+            let file_path = traversed_path.join(file_node.name());
             if &file_path == path_components.last().unwrap() {
                 traversed_nodes.push(self.clone()); // Add the current node to the traversed nodes
                 return Ok((Some(self.clone()), traversed_nodes));
@@ -536,8 +547,8 @@ impl MerkleTreeNode {
                 .to_string();
             if let Ok(index) = self.children.binary_search_by(|child| {
                 let child_name = match &child.node {
-                    EMerkleTreeNode::Directory(dir) => Some(dir.name.to_owned()),
-                    EMerkleTreeNode::File(file) => Some(file.name.to_owned()),
+                    EMerkleTreeNode::Directory(dir) => Some(dir.name().to_owned()),
+                    EMerkleTreeNode::File(file) => Some(file.name().to_owned()),
                     _ => None,
                 };
                 child_name.unwrap_or("".to_string()).cmp(&target_name)
@@ -545,11 +556,11 @@ impl MerkleTreeNode {
                 let child = &self.children[index];
                 if let EMerkleTreeNode::Directory(dir_node) = &child.node {
                     // Check if the directory name matches the next component of the path
-                    if dir_node.name == target_name {
+                    if dir_node.name() == target_name {
                         path_components.remove(0); // Remove the matched component
                         if let (Some(node), mut child_traversed_nodes) = child
-                            .get_nodes_along_path_helper(
-                                &traversed_path.join(&dir_node.name),
+                            .get_nodes_along_paths_helper(
+                                &traversed_path.join(dir_node.name()),
                                 path_components.clone(),
                             )?
                         {
@@ -559,7 +570,7 @@ impl MerkleTreeNode {
                         }
                     }
                 } else if let (Some(node), mut child_traversed_nodes) = child
-                    .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                    .get_nodes_along_paths_helper(traversed_path, path_components.clone())
                     .unwrap_or((None, Vec::new()))
                 {
                     traversed_nodes.push(self.clone());
@@ -571,16 +582,18 @@ impl MerkleTreeNode {
 
         for child in &self.children {
             if let EMerkleTreeNode::Directory(dir_node) = &child.node {
-                if let (Some(node), mut child_traversed_nodes) = child.get_nodes_along_path_helper(
-                    &traversed_path.join(&dir_node.name),
-                    path_components.clone(),
-                )? {
+                if let (Some(node), mut child_traversed_nodes) = child
+                    .get_nodes_along_paths_helper(
+                        &traversed_path.join(dir_node.name()),
+                        path_components.clone(),
+                    )?
+                {
                     traversed_nodes.push(self.clone());
                     traversed_nodes.append(&mut child_traversed_nodes);
                     return Ok((Some(node), traversed_nodes));
                 }
             } else if let (Some(node), mut child_traversed_nodes) = child
-                .get_nodes_along_path_helper(traversed_path, path_components.clone())
+                .get_nodes_along_paths_helper(traversed_path, path_components.clone())
                 .unwrap_or((None, Vec::new()))
             {
                 traversed_nodes.push(self.clone());
@@ -596,7 +609,7 @@ impl MerkleTreeNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "[{:?}]", self.node.node_type())?;
+        writeln!(f, "{}\n=============", self)?;
         writeln!(f, "hash: {}", self.hash)?;
         writeln!(f, "node: {:?}", self.node)?;
         writeln!(
@@ -606,8 +619,6 @@ impl fmt::Debug for MerkleTreeNode {
                 .map_or("None".to_string(), |id| id.to_string())
         )?;
         writeln!(f, "children.len(): {}", self.children.len())?;
-        writeln!(f, "=============")?;
-        writeln!(f, "{}", self)?;
         writeln!(f, "=============")?;
 
         for child in &self.children {
@@ -633,21 +644,21 @@ impl fmt::Display for MerkleTreeNode {
             EMerkleTreeNode::VNode(vnode) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] {} {} ({} entries)",
                     self.node.node_type(),
                     self.hash.to_short_str(),
                     vnode,
-                    self.children.len()
+                    vnode.num_entries()
                 )
             }
             EMerkleTreeNode::Directory(dir) => {
                 write!(
                     f,
-                    "[{:?}] {} {} ({} children)",
+                    "[{:?}] {} {} ({} entries)",
                     self.node.node_type(),
                     self.hash.to_short_str(),
                     dir,
-                    self.children.len()
+                    dir.num_entries()
                 )
             }
             EMerkleTreeNode::File(file) => {

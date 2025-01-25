@@ -30,16 +30,10 @@ pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
 
 fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            log::debug!("Version found: V0_10_0");
-            for path in paths {
-                let opts = RmOpts::from_path_opts(path, opts);
-                core::v0_10_0::index::rm(repo, &opts)?;
-            }
-        }
-        MinOxenVersion::V0_19_0 => {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => {
             log::debug!("Version found: V0_19_0");
-            core::v0_19_0::rm::rm(paths, repo, opts)?;
+            core::v_latest::rm::rm(paths, repo, opts)?;
         }
     }
     Ok(())
@@ -132,7 +126,7 @@ mod tests {
             status.print();
             assert_eq!(0, status.staged_files.len());
             // One removed dir (rolled up)
-            assert_eq!(1, status.removed_dirs.len());
+            assert_eq!(1, status.removed_files.len());
 
             // This should restore all the files from the HEAD commit
             let opts = RestoreOpts::from_path(&rm_dir);
@@ -186,7 +180,7 @@ mod tests {
                 assert!(!repo_filepath.exists())
             }
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
             assert_eq!(files.len(), 0);
             for dir in dirs.iter() {
@@ -339,7 +333,7 @@ mod tests {
                 }
             }
 
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
             assert_eq!(files.len(), 0);
             assert_eq!(dirs.len(), 0);
@@ -405,11 +399,7 @@ mod tests {
 
             let rm_opts = RmOpts::from_path(repo_filepath);
             repositories::rm(&repo, &rm_opts)?;
-            let commit = repositories::commit(&repo, "Removing dog")?;
-
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after rm dog");
-            tree.print();
+            let _commit = repositories::commit(&repo, "Removing dog")?;
 
             // Add dwight howard and vince carter
             let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
@@ -419,10 +409,7 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after add dwight/vince");
-            tree.print();
-
+            let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
 
             for dir in dirs.iter() {
@@ -472,7 +459,7 @@ mod tests {
             // status.removed_files currently is files and dirs,
             // we roll up the dirs into the parent dir, so len should be 1
             // TODO: https://app.asana.com/0/1204211285259102/1208493904390183/f
-            assert_eq!(status.removed_dirs.len(), 1);
+            assert_eq!(status.removed_files.len(), 1);
             assert_eq!(status.staged_files.len(), 0);
 
             println!("BEFORE ADD");
@@ -822,11 +809,6 @@ mod tests {
     #[tokio::test]
     async fn test_rm_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("train", |repo| async move {
-            let head_commit = repositories::commits::head_commit(&repo)?;
-            let og_tree = repositories::tree::get_by_commit(&repo, &head_commit)?;
-            println!("og tree");
-            og_tree.print();
-
             // Remove the train dir
             let path = Path::new("train");
 
@@ -851,11 +833,7 @@ mod tests {
             let commit = repositories::commit(&repo, "removed train dir")?;
 
             // make sure the train dir is deleted from the commits db
-            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            println!("tree after rm train dir");
-            tree.print();
-            let has_dir = tree.has_dir(path);
-            println!("has_dir: {:?}", has_dir);
+            let has_dir = repositories::tree::has_dir(&repo, &commit, path)?;
             assert!(!has_dir);
 
             Ok(())

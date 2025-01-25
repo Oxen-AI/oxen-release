@@ -69,8 +69,8 @@ use crate::model::{LocalRepository, StagedData};
 /// ```
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status(repo),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::status::status(repo),
     }
 }
 
@@ -80,7 +80,7 @@ pub fn status_from_opts(
 ) -> Result<StagedData, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v10 not supported"),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_opts(repo, opts),
+        _ => core::v_latest::status::status_from_opts(repo, opts),
     }
 }
 
@@ -89,8 +89,8 @@ pub fn status_from_dir(
     dir: impl AsRef<Path>,
 ) -> Result<StagedData, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status_from_dir(repo, dir),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_dir(repo, dir),
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::status::status_from_dir(repo, dir),
     }
 }
 
@@ -577,7 +577,7 @@ mod tests {
             assert_eq!(status.untracked_dirs.len(), 1);
             // TODO: v0_10_0 test had 5 removed files here, but when the entire
             // directory was moved it doesn't make sense to show individual files
-            assert_eq!(status.removed_dirs.len(), 1);
+            assert_eq!(status.removed_files.len(), 1);
 
             // Add the removals
             repositories::add(&repo, &og_dir)?;

@@ -15,7 +15,7 @@ impl RunCmd for MooCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         Command::new(NAME)
-            .about("Hello, world! 🐂")
+            .about("Moo! 🐂")
             .arg(
                 Arg::new("number")
                     .long("number")
