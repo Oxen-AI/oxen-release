@@ -222,6 +222,7 @@ impl StagedData {
     }
 
     fn staged_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        log::debug!("staged_dirs: {:?}", self.staged_dirs);
         let mut dirs: Vec<Vec<ColoredString>> = vec![];
         for (path, staged_dirs) in self.staged_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];

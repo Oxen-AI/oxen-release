@@ -102,7 +102,7 @@ pub fn status_from_opts(
         return Ok(staged_data);
     };
 
-    // TODO: Consider moving this to the top to keep track of removed dirs and avoid unecessary recursion with count_removed_entries
+    // TODO: Consider moving this to the top to keep track of removed dirs and avoid unnecessary recursion with count_removed_entries
     let mut dir_entries = HashMap::new();
     for dir in opts.paths.iter() {
         let (sub_dir_entries, _) =
@@ -203,16 +203,10 @@ pub fn status_from_dir_entries(
             }
         }
 
-        // Cannot be removed if it's staged
-        if !staged_data.staged_dirs.contains_key(&dir) {
-            staged_data.removed_files.remove(&dir);
-        }
-
         // Empty dirs should be added to summarized_dir_stats (entries.len() == 0)
         // Otherwise we are filtering out parent dirs that were added during add
-
         if entries.is_empty() {
-            if !is_removed {
+            if is_removed || staged_data.removed_files.contains(&dir) {
                 summarized_dir_stats.add_stats(&removed_stats);
             } else {
                 summarized_dir_stats.add_stats(&stats);
