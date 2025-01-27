@@ -115,7 +115,7 @@ pub async fn entries(
         dir: DirDiffSummaryImpl {
             file_counts: entries_diff.counts.clone(),
         },
-    });    
+    });
 
     let self_entry = get_dir_diff_entry_with_summary(
         &repository,
@@ -215,14 +215,9 @@ pub async fn dir_entries(
     });
 
     log::debug!("summary: {:?}", summary);
-    
-    let self_entry = get_dir_diff_entry_with_summary(
-        &repository,
-        dir,
-        &base_commit,
-        &head_commit,
-        summary,
-    )?;
+
+    let self_entry =
+        get_dir_diff_entry_with_summary(&repository, dir, &base_commit, &head_commit, summary)?;
 
     let compare = CompareEntries {
         base_commit,
