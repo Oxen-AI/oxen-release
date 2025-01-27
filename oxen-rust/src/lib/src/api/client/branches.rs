@@ -13,8 +13,9 @@ use std::path::Path;
 
 pub async fn get_by_name(
     repository: &RemoteRepository,
-    branch_name: &str,
+    branch_name: impl AsRef<str>,
 ) -> Result<Option<Branch>, OxenError> {
+    let branch_name = branch_name.as_ref();
     let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
 
@@ -135,13 +136,13 @@ pub async fn maybe_create_merge(
 /// # Delete a remote branch
 pub async fn delete_remote(
     repo: &LocalRepository,
-    remote: &str,
-    branch_name: &str,
+    remote: impl AsRef<str>,
+    branch_name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
-    if let Some(remote) = repo.get_remote(remote) {
+    if let Some(remote) = repo.get_remote(&remote) {
         if let Some(remote_repo) = api::client::repositories::get_by_remote(&remote).await? {
             if let Some(branch) =
-                api::client::branches::get_by_name(&remote_repo, branch_name).await?
+                api::client::branches::get_by_name(&remote_repo, &branch_name).await?
             {
                 api::client::branches::delete(&remote_repo, &branch.name).await?;
                 Ok(branch)

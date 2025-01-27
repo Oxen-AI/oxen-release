@@ -245,10 +245,10 @@ impl JsonDataFrameView {
                         let cols = columns
                             .iter()
                             .map(|name| {
-                                Column::Series(Series::new(
-                                    PlSmallStr::from_str(name),
-                                    Vec::<&str>::new(),
-                                ))
+                                Column::Series(
+                                    Series::new(PlSmallStr::from_str(name), Vec::<&str>::new())
+                                        .into(),
+                                )
                             })
                             .collect::<Vec<Column>>();
                         DataFrame::new(cols).unwrap()
@@ -328,11 +328,13 @@ impl JsonDataFrameViews {
 
 fn sanitize_df_for_serialization(df: &mut DataFrame) -> Result<(), OxenError> {
     let schema = df.schema();
+    let mut updates: Vec<(usize, Column)> = Vec::new();
 
+    // Collect all updates first
     for (idx, _field) in schema.iter_fields().enumerate() {
-        let series = df.select_at_idx(idx).unwrap(); // Index is in bounds, we passed it from the loop
+        let series = df.select_at_idx(idx).unwrap();
 
-        let new_series = match series.dtype() {
+        if let Some(new_series) = match series.dtype() {
             DataType::Binary => Some(cast_binary_to_string_with_fallback(series, "[binary]")),
             DataType::Struct(subfields) => {
                 let mut cast_series = series.clone();
@@ -354,11 +356,14 @@ fn sanitize_df_for_serialization(df: &mut DataFrame) -> Result<(), OxenError> {
                 _ => None,
             },
             _ => None,
-        };
-
-        if let Some(new_series) = new_series {
-            df.replace_column(idx, new_series)?;
+        } {
+            updates.push((idx, new_series));
         }
+    }
+
+    // Apply updates after collecting them all
+    for (idx, new_series) in updates {
+        df.replace_column(idx, new_series)?;
     }
 
     Ok(())
