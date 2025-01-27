@@ -328,6 +328,11 @@ pub fn object_dir_suffix_from_hash(_dst: impl AsRef<Path>, hash: String) -> Path
     PathBuf::from(topdir).join(subdir)
 }
 
+pub fn read_bytes_from_path(path: impl AsRef<Path>) -> Result<Vec<u8>, OxenError> {
+    let path = path.as_ref();
+    Ok(std::fs::read(path)?)
+}
+
 pub fn read_from_path(path: impl AsRef<Path>) -> Result<String, OxenError> {
     let path = path.as_ref();
     match std::fs::read_to_string(path) {
