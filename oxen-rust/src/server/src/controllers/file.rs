@@ -227,7 +227,7 @@ mod tests {
 
         // Check that the file was updated
         let entry =
-            repositories::entries::get_file(&repo, &resp.commit, &PathBuf::from("data/hello.txt"))?
+            repositories::entries::get_file(&repo, &resp.commit, PathBuf::from("data/hello.txt"))?
                 .unwrap();
         let version_path = util::fs::version_path_from_hash(&repo, entry.hash().to_string());
         let updated_content = util::fs::read_from_path(&version_path)?;

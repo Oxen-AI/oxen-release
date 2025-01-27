@@ -435,7 +435,9 @@ impl CommitMerkleTree {
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
         // Get the directory from the path
         let path = path.as_ref();
-        let parent_path = path.parent().unwrap();
+        let Some(parent_path) = path.parent() else {
+            return Ok(None);
+        };
         let file_name = path.file_name().unwrap().to_str().unwrap();
 
         log::debug!(

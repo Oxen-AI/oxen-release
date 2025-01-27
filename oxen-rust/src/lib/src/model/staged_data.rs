@@ -15,6 +15,8 @@ pub const MSG_OXEN_RM_FILE_EXAMPLE: &str =
     "  (use \"oxen add/rm <file>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_DIR_EXAMPLE: &str =
     "  (use \"oxen add <dir>...\" to update what will be committed)\n";
+pub const MSG_OXEN_RM_DIR_EXAMPLE: &str =
+    "  (use \"oxen add/rm <dir>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT: &str =
     "  (use \"oxen add <file>...\" to mark resolution)\n";
 pub const MSG_OXEN_RESTORE_FILE: &str =
@@ -222,6 +224,7 @@ impl StagedData {
     }
 
     fn staged_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        log::debug!("staged_dirs: {:?}", self.staged_dirs);
         let mut dirs: Vec<Vec<ColoredString>> = vec![];
         for (path, staged_dirs) in self.staged_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];
@@ -486,7 +489,7 @@ impl StagedData {
                     let path_str = path.to_str().unwrap();
                     let num_spaces = max_dir_len - path_str.len();
                     vec![
-                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
+                        format!("  {} {}", path_str, StagedData::spaces(num_spaces))
                             .red()
                             .bold(),
                         format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
@@ -752,11 +755,11 @@ mod tests {
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Directories\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_DIR_EXAMPLE.normal());
-        assert_eq!(outputs[2], "  annotations/ ".red().bold());
+        assert_eq!(outputs[2], "  annotations ".red().bold());
         assert_eq!(outputs[3], "(1 item)\n".normal());
-        assert_eq!(outputs[4], "  test/        ".red().bold());
+        assert_eq!(outputs[4], "  test        ".red().bold());
         assert_eq!(outputs[5], "(4 items)\n".normal());
-        assert_eq!(outputs[6], "  train/       ".red().bold());
+        assert_eq!(outputs[6], "  train       ".red().bold());
         assert_eq!(outputs[7], "(10 items)\n".normal());
     }
 
