@@ -1064,7 +1064,9 @@ fn compute_dir_node(
                 match &entry.node.node {
                     EMerkleTreeNode::Directory(node) => {
                         log::debug!("No need to aggregate dir {}", node.name());
-                        num_entries += 1;
+                        if path == *child {
+                            num_entries += 1;
+                        }
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
@@ -1079,7 +1081,9 @@ fn compute_dir_node(
                         match entry.status {
                             StagedEntryStatus::Added => {
                                 num_bytes += file_node.num_bytes();
-                                num_entries += 1;
+                                if path == *child {
+                                    num_entries += 1;
+                                }
                                 *data_type_counts
                                     .entry(file_node.data_type().to_string())
                                     .or_insert(0) += 1;
@@ -1089,7 +1093,9 @@ fn compute_dir_node(
                             }
                             StagedEntryStatus::Removed => {
                                 num_bytes -= file_node.num_bytes();
-                                num_entries -= 1;
+                                if path == *child {
+                                    num_entries -= 1;
+                                }
                                 *data_type_counts
                                     .entry(file_node.data_type().to_string())
                                     .or_insert(1) -= 1;
