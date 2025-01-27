@@ -5,6 +5,7 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
+use liboxen::core::v_latest::diff::get_dir_diff_entry_with_summary;
 use liboxen::error::OxenError;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
@@ -110,12 +111,26 @@ pub async fn entries(
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
 
+    let summary = GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+        dir: DirDiffSummaryImpl {
+            file_counts: entries_diff.counts.clone(),
+        },
+    });    
+
+    let self_entry = get_dir_diff_entry_with_summary(
+        &repository,
+        PathBuf::from(""),
+        &base_commit,
+        &head_commit,
+        summary,
+    )?;
+
     let compare = CompareEntries {
         base_commit,
         head_commit,
         counts: entries_diff.counts,
         entries,
-        self_diff: None,
+        self_diff: self_entry,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
@@ -200,13 +215,21 @@ pub async fn dir_entries(
     });
 
     log::debug!("summary: {:?}", summary);
+    
+    let self_entry = get_dir_diff_entry_with_summary(
+        &repository,
+        dir,
+        &base_commit,
+        &head_commit,
+        summary,
+    )?;
 
     let compare = CompareEntries {
         base_commit,
         head_commit,
         counts: entries_diff.counts,
         entries: entries_diff.entries,
-        self_diff: None, // TODO: Implement this
+        self_diff: self_entry,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
