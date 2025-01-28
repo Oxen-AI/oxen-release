@@ -28,7 +28,7 @@ pub mod util;
 fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     let mut builder = tokio::runtime::Builder::new_multi_thread();
     builder.enable_all();
-    pyo3_asyncio::tokio::init(builder);
+    pyo3_async_runtimes::tokio::init(builder);
 
     // Logger was causing deadlock unless we run with py.allow_threads in our
     // bridge I'd rather not do that, because it's less efficient, leaving this
