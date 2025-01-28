@@ -16,7 +16,7 @@ pub fn get_repo(
     host: String,
     scheme: &str,
 ) -> Result<Option<PyRemoteRepo>, PyOxenError> {
-    let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
+    let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         liboxen::api::client::repositories::get_by_name_and_host(name, &host).await
     })?;
 
@@ -49,7 +49,7 @@ pub fn create_repo(
     let namespace = name.split("/").collect::<Vec<&str>>()[0].to_string();
     let repo_name = name.split("/").collect::<Vec<&str>>()[1].to_string();
 
-    let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
+    let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         let config = UserConfig::get()?;
         let user = config.to_user();
 

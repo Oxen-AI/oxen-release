@@ -43,7 +43,7 @@ impl PyRepo {
     }
 
     pub fn clone(&mut self, url: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
-        let repo = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let repo = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let opts = CloneOpts {
                 url: url.to_string(),
                 dst: self.path.clone(),
@@ -143,7 +143,7 @@ impl PyRepo {
         let branch = if create {
             repositories::branches::create_checkout(&repo, revision)?
         } else {
-            pyo3_asyncio::tokio::get_runtime().block_on(async {
+            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
                 repositories::checkout(&repo, revision)
                     .await?
                     .ok_or(OxenError::local_branch_not_found(revision))
@@ -179,7 +179,7 @@ impl PyRepo {
 
     pub fn push(&self, remote: &str, branch: &str, delete: bool) -> Result<PyBranch, PyOxenError> {
         let result: Result<Branch, OxenError> =
-            pyo3_asyncio::tokio::get_runtime().block_on(async {
+            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
                 let repo = LocalRepository::from_dir(&self.path)?;
                 if delete {
                     // Delete the remote branch
@@ -195,7 +195,7 @@ impl PyRepo {
     }
 
     pub fn pull(&self, remote: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
             let fetch_opts = FetchOpts {
                 remote: remote.to_string(),

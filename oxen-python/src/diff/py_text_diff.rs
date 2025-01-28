@@ -3,8 +3,8 @@ use pyo3::prelude::*;
 use liboxen::model::diff::ChangeType;
 use liboxen::model::diff::TextDiff;
 
-#[derive(Debug, Clone)]
-#[pyclass]
+#[derive(Debug, Clone, PartialEq)]
+#[pyclass(eq, eq_int)]
 pub enum PyChangeType {
     Added,
     Removed,
