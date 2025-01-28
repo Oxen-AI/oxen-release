@@ -182,12 +182,13 @@ pub fn create_empty_commit(
         return Err(OxenError::revision_not_found(branch_name.into()));
     };
     let existing_commit_id = MerkleHash::from_str(&existing_commit.id)?;
-    let existing_node = repositories::tree::get_node_by_id(repo, &existing_commit_id)?.ok_or(
-        OxenError::basic_str(format!(
-            "Merkle tree node not found for commit: '{}'",
-            existing_commit.id
-        )),
-    )?;
+    let existing_node =
+        repositories::tree::get_node_by_id_with_children(repo, &existing_commit_id)?.ok_or(
+            OxenError::basic_str(format!(
+                "Merkle tree node not found for commit: '{}'",
+                existing_commit.id
+            )),
+        )?;
     let timestamp = OffsetDateTime::now_utc();
     let commit_node = CommitNode::new(
         repo,
