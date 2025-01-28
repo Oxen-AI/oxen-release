@@ -25,7 +25,7 @@ impl PyRemoteDataFrame {
     }
 
     fn size(&self) -> Result<(usize, usize), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some("0..1".to_string());
 
@@ -45,7 +45,7 @@ impl PyRemoteDataFrame {
     }
 
     fn get_row_by_index(&self, row: usize) -> Result<String, PyOxenError> {
-        let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", row, row + 1));
 
@@ -75,7 +75,7 @@ impl PyRemoteDataFrame {
         end: usize,
         columns: Vec<String>,
     ) -> Result<String, PyOxenError> {
-        let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", start, end));
 

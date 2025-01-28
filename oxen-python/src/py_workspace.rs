@@ -31,9 +31,8 @@ impl PyWorkspace {
         let name = name.unwrap_or_else(|| format!("workspace-{}", Uuid::new_v4()));
 
         // Get the workspace by name
-        let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::client::workspaces::get_by_name(&repo.repo, &name).await
-        })?;
+        let workspace = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::workspaces::get_by_name(&repo.repo, &name).await })?;
 
         if let Some(workspace) = workspace {
             return Ok(Self {
@@ -43,7 +42,7 @@ impl PyWorkspace {
             });
         }
 
-        let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let workspace = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::create_with_path(
                 &repo.repo,
                 &branch_name,
@@ -70,7 +69,7 @@ impl PyWorkspace {
     }
 
     fn status(&self, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
-        let remote_status = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let remote_status = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::changes::list(
                 &self.repo.repo,
                 &self.id,
@@ -86,19 +85,20 @@ impl PyWorkspace {
     }
 
     fn add(&self, src: PathBuf, dst: String) -> Result<(), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::files::post_file(&self.repo.repo, &self.id, &dst, src).await
         })?;
         Ok(())
     }
 
     fn rm(&self, path: PathBuf) -> Result<(), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::files::rm(&self.repo.repo, &self.id, path).await
         })?;
         Ok(())
     }
 
+    #[pyo3(signature = (message, should_delete, branch_name=None))]
     fn commit(
         &self,
         message: String,
@@ -112,7 +112,7 @@ impl PyWorkspace {
             author: user.name,
             email: user.email,
         };
-        let commit = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let commit = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let commit =
                 api::client::workspaces::commit(&self.repo.repo, &branch_name, &self.id, &commit)
                     .await?;
@@ -122,7 +122,7 @@ impl PyWorkspace {
         if !should_delete {
             // Commit will delete the workspace, since they are tied to commits
             // so we create a new one off the branch if success
-            pyo3_asyncio::tokio::get_runtime().block_on(async {
+            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
                 api::client::workspaces::create(&self.repo.repo, &branch_name, &self.id).await
             })?;
         }
