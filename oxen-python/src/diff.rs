@@ -12,6 +12,7 @@ pub use py_tabular_diff::{PyTabularDiff, PyTabularDiffMods, PyTabularDiffSummary
 pub use py_text_diff::PyTextDiff;
 
 #[pyfunction]
+#[pyo3(signature = (path_1, keys, compares, path_2=None, repo_dir=None, revision_1=None, revision_2=None))]
 pub fn diff_paths(
     path_1: PathBuf,
     keys: Vec<String>,
