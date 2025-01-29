@@ -1,3 +1,4 @@
+fsspec
 maturin
 pandas>=2.0.1
 polars>=1.20.0
