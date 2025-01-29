@@ -8,18 +8,28 @@ use crate::view::CommitResponse;
 use reqwest::multipart::{Form, Part};
 use std::path::Path;
 
-pub async fn create_or_update(
+pub async fn put_file(
     remote_repo: &RemoteRepository,
-    branch: &str,
-    directory: &str,
-    file_path: &Path,
+    branch: impl AsRef<str>,
+    directory: impl AsRef<str>,
+    file_path: impl AsRef<Path>,
+    file_name: Option<impl AsRef<str>>,
     commit_body: Option<NewCommitBody>,
 ) -> Result<CommitResponse, OxenError> {
+    let branch = branch.as_ref();
+    let directory = directory.as_ref();
+    let file_path = file_path.as_ref();
     let uri = format!("/file/{branch}/{directory}");
+    log::debug!("put_file {uri:?}, file_path {file_path:?}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
     let file_part = Part::file(file_path).await?;
+    let file_part = if let Some(file_name) = file_name {
+        file_part.file_name(file_name.as_ref().to_string())
+    } else {
+        file_part
+    };
     let form = Form::new().part("file", file_part);
 
     let mut req = client.put(&url).multipart(form);
@@ -55,11 +65,12 @@ mod tests {
                 message: "Update file test".to_string(),
             };
 
-            let response = api::client::file::create_or_update(
+            let response = api::client::file::put_file(
                 &remote_repo,
                 branch_name,
                 directory_name,
                 &file_path,
+                Some("test.jpeg"),
                 Some(commit_body),
             )
             .await?;
@@ -70,10 +81,7 @@ mod tests {
             repositories::pull(&local_repo).await?;
 
             // Check that the file exists in the local repo after pulling
-            let file_path_in_repo = local_repo
-                .path
-                .join(directory_name)
-                .join(file_path.file_name().unwrap());
+            let file_path_in_repo = local_repo.path.join(directory_name).join("test.jpeg");
             assert!(file_path_in_repo.exists());
 
             Ok(remote_repo)
