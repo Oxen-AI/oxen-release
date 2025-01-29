@@ -2,6 +2,7 @@ use liboxen::model::User;
 use pyo3::prelude::*;
 
 #[pyclass]
+#[derive(Clone)]
 pub struct PyUser {
     _user: User,
 }
