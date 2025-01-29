@@ -522,6 +522,18 @@ jobs:
           asset_name: oxen-server-mac-15.0.tar.gz
           tag: ${{ github.ref }}
 
+  release_homebrew_oxen:
+    needs: [release_mac_13, release_mac_14, release_mac_15]
+    uses: oxen-ai/homebrew-oxen/.github/workflows/update-formula.yml@main
+    with:
+      version: ${{ github.ref_name != '' && github.ref_name starts_with('v') && github.ref_name[1:] || github.ref_name }}
+
+  release_homebrew_oxen_server:
+    needs: [release_mac_13, release_mac_14, release_mac_15]
+    uses: oxen-ai/homebrew-oxen-server/.github/workflows/update-formula.yml@main
+    with:
+      version: ${{ github.ref_name != '' && github.ref_name starts_with('v') && github.ref_name[1:] || github.ref_name }}
+
   stop-self-hosted-runner:
     name: Stop self-hosted EC2 runner
     needs:
