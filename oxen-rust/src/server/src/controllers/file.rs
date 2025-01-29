@@ -88,11 +88,11 @@ pub async fn get(
 }
 
 /// Update file content in place (add to temp workspace and commit)
-pub async fn update(
+pub async fn put(
     req: HttpRequest,
     payload: Multipart,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("update file path {:?}", req.path());
+    log::debug!("file::put path {:?}", req.path());
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -108,7 +108,7 @@ pub async fn update(
     let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
     // Generate a random workspace id
     let workspace_id = Uuid::new_v4().to_string();
-    let workspace_name = format!("file-update-{}-{}", commit.id, resource.path.display());
+    let workspace_name = format!("file-put-{}-{}", commit.id, resource.path.display());
     // Make sure the resource path is not already a file
     let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
     if node.is_some() && node.unwrap().is_file() {
@@ -140,9 +140,9 @@ pub async fn update(
         controllers::workspaces::files::save_parts(&workspace, &resource.path, payload).await?;
 
     for file in files.iter() {
-        log::debug!("file::update add file {:?}", file);
+        log::debug!("file::put add file {:?}", file);
         let path = repositories::workspaces::files::add(&workspace, file)?;
-        log::debug!("file::update add file ✅ success! staged file {:?}", path);
+        log::debug!("file::put add file ✅ success! staged file {:?}", path);
     }
 
     // Commit workspace
@@ -155,7 +155,7 @@ pub async fn update(
         ),
     };
     let commit = repositories::workspaces::commit(&workspace, &commit_body, branch.name)?;
-    log::debug!("workspace::commit ✅ success! commit {:?}", commit);
+    log::debug!("file::put workspace commit ✅ success! commit {:?}", commit);
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_created(),
@@ -181,7 +181,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_controllers_file_update() -> Result<(), OxenError> {
+    async fn test_controllers_file_put() -> Result<(), OxenError> {
         test::init_test_env();
         let sync_dir = test::get_sync_dir()?;
         let namespace = "Testing-Namespace";
@@ -220,7 +220,7 @@ mod tests {
                 .app_data(OxenAppData::new(sync_dir.clone()))
                 .route(
                     "/oxen/{namespace}/{repo_name}/file/{resource:.*}",
-                    web::put().to(controllers::file::update),
+                    web::put().to(controllers::file::put),
                 ),
         )
         .await;
