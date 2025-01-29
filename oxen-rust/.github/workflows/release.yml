@@ -8,6 +8,7 @@ env:
   AWS_REGION: us-west-1
   AWS_ROLE: ${{ vars.EC2_GITHUB_RUNNER_ROLE }}
   REGISTRY_IMAGE: oxen/oxen-server
+  RELEASE_VERSION: ${GITHUB_REF#refs/*/v}
 
 permissions:
   id-token: write
@@ -526,8 +527,6 @@ jobs:
     needs: [release_mac_13, release_mac_14, release_mac_15]
     runs-on: ubuntu-latest
     steps:
-      - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
       - name: Update Homebrew formula
         uses: oxen-ai/homebrew-oxen/.github/workflows/update-formula.yml@main
         with:
@@ -537,8 +536,6 @@ jobs:
     needs: [release_mac_13, release_mac_14, release_mac_15]
     runs-on: ubuntu-latest
     steps:
-      - name: Set env
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
       - name: Update Homebrew formula
         uses: oxen-ai/homebrew-oxen-server/.github/workflows/update-formula.yml@main
         with:
