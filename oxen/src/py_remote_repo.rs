@@ -2,6 +2,7 @@ use liboxen::model::file::{FileContents, FileNew};
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
+use liboxen::model::commit::NewCommitBody;
 use liboxen::model::{Remote, RemoteRepository, RepoNew};
 use liboxen::{api, repositories};
 
@@ -11,8 +12,9 @@ use std::path::PathBuf;
 use crate::error::PyOxenError;
 use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
-
+use crate::py_entry::PyEntry;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
+use crate::py_user::PyUser;
 
 #[derive(Clone)]
 #[pyclass]
@@ -157,6 +159,35 @@ impl PyRemoteRepo {
         Ok(())
     }
 
+    fn put_file(
+        &self,
+        branch: &str,
+        directory: &str,
+        local_path: PathBuf,
+        file_name: &str,
+        commit_message: &str,
+        user: PyUser,
+    ) -> Result<(), PyOxenError> {
+        let commit_body = NewCommitBody {
+            message: commit_message.to_string(),
+            author: user.name().to_string(),
+            email: user.email().to_string(),
+        };
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::file::put_file(
+                &self.repo,
+                &branch,
+                &directory,
+                &local_path,
+                Some(file_name),
+                Some(commit_body),
+            )
+            .await
+        })?;
+
+        Ok(())
+    }
+
     fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let log = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::commits::list_commit_history(&self.repo, &self.revision).await
@@ -185,6 +216,14 @@ impl PyRemoteRepo {
 
         // Convert remote status to a PyStagedData using the from method
         Ok(PyPaginatedDirEntries::from(result))
+    }
+
+    fn metadata(&self, path: PathBuf) -> Result<PyEntry, PyOxenError> {
+        let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::metadata::get_file(&self.repo, &self.revision, &path).await
+        })?;
+
+        Ok(PyEntry::from(result.entry))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
