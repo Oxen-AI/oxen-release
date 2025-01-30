@@ -1,5 +1,3 @@
-from oxen import Repo, RemoteRepo
-
 def test_remote_repo_list_contents(celeba_remote_repo_fully_pushed):
     """
     Tests both `ls()` (paginated) and `scan()` (generator) 
