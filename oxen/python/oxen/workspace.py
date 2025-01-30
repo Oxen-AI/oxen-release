@@ -1,6 +1,10 @@
-from typing import Optional
-from oxen import RemoteRepo
+from typing import Optional, TYPE_CHECKING
+
 from .oxen import PyWorkspace
+
+# Use TYPE_CHECKING for type hints to avoid runtime circular imports
+if TYPE_CHECKING:
+    from .remote_repo import RemoteRepo
 
 
 class Workspace:
@@ -44,7 +48,7 @@ class Workspace:
 
     def __init__(
         self,
-        repo: RemoteRepo,
+        repo: "RemoteRepo",
         branch: str,
         workspace_id: Optional[str] = None,
         path: Optional[str] = None,
