@@ -91,6 +91,15 @@ impl PyRemoteRepo {
         self.revision = new_revision;
     }
 
+    fn list_workspaces(&self) -> Result<Vec<String>, PyOxenError> {
+        let workspaces = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::workspaces::list(&self.repo).await
+        })?;
+        println!("{:?}", workspaces);
+        let id = workspaces.iter().map(|w| w.id.clone()).collect();
+        Ok(id)
+    }
+
     fn create(&mut self, empty: bool, is_public: bool) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             if empty {
