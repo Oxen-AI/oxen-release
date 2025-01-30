@@ -23,7 +23,7 @@ from oxen.clone import clone
 from oxen.diff.diff import diff
 from oxen.init import init
 from oxen.config import is_configured
-from oxen.fsspec_backend import OxenFS
+from oxen.oxen_fs import OxenFS
 
 # Names of public modules we want to expose
 __all__ = [

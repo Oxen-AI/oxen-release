@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.entry-points."fsspec.specs"]
-oxen = "oxen.fsspec_backend:OxenFS"
+oxen = "oxen.oxen_fs:OxenFS"
 
 [tool.maturin]
 python-source = "python"
