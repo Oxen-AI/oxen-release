@@ -181,7 +181,7 @@ jobs:
         run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.name == 'Ubuntu Latest'
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: oxen/dist
@@ -189,7 +189,7 @@ jobs:
   # sdist:
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - uses: actions/checkout@v3
+  #     - uses: actions/checkout@v4
   #     - name: Build sdist
   #       uses: PyO3/maturin-action@v1
   #       with:
@@ -210,7 +210,7 @@ jobs:
     steps:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         id: download
         with:
           name: wheels
