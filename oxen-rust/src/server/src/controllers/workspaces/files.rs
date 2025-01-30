@@ -175,6 +175,7 @@ pub async fn save_stream(
     filepath: &PathBuf,
     chunk: Vec<u8>,
 ) -> Result<PathBuf, Error> {
+    // This function append and save file chunk
     log::debug!(
         "workspace::files::save_stream writing {} bytes to file",
         chunk.len()
