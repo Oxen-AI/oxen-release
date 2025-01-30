@@ -18,6 +18,29 @@ pub struct PyWorkspace {
     pub id: String,
 }
 
+#[pyclass]
+pub struct PyWorkspaceResponse {
+    pub id: String,
+    pub name: Option<String>,
+    pub commit_id: String,
+}
+
+#[pymethods]
+impl PyWorkspaceResponse {
+    fn __repr__(&self) -> String {
+        format!(
+            "Workspace(id='{}', name='{}', commit_id='{}')",
+            self.id,
+            self.name.as_deref().unwrap_or("None"),
+            self.commit_id
+        )
+    }
+
+    fn __str__(&self) -> String {
+        self.__repr__()
+    }
+}
+
 #[pymethods]
 impl PyWorkspace {
     #[new]

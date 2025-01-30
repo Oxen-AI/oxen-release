@@ -15,6 +15,7 @@ use crate::py_commit::PyCommit;
 use crate::py_entry::PyEntry;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 use crate::py_user::PyUser;
+use crate::py_workspace::PyWorkspaceResponse;
 
 #[derive(Clone)]
 #[pyclass]
@@ -91,12 +92,15 @@ impl PyRemoteRepo {
         self.revision = new_revision;
     }
 
-    fn list_workspaces(&self) -> Result<Vec<String>, PyOxenError> {
+    fn list_workspaces(&self) -> Result<Vec<PyWorkspaceResponse>, PyOxenError> {
         let workspaces = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::list(&self.repo).await
         })?;
-        let id = workspaces.iter().map(|w| w.id.clone()).collect();
-        Ok(id)
+        Ok(workspaces.iter().map(|w| PyWorkspaceResponse {
+            id: w.id.clone(),
+            name: w.name.clone(),
+            commit_id: w.commit.id.clone(),
+        }).collect())
     }
 
     fn create(&mut self, empty: bool, is_public: bool) -> Result<PyRemoteRepo, PyOxenError> {
