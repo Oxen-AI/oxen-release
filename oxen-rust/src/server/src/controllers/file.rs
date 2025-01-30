@@ -13,7 +13,17 @@ use liboxen::view::{CommitResponse, StatusMessage};
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
+use futures::StreamExt;
+use reqwest::header::HeaderValue;
+use reqwest::Client;
+use serde_json::Value;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use uuid::Uuid;
+use zip::ZipArchive;
+
+const BUFFER_SIZE_THRESHOLD: usize = 262144; // 256kb
 
 /// Download file content
 pub async fn get(
@@ -161,6 +171,264 @@ pub async fn put(
         status: StatusMessage::resource_created(),
         commit,
     }))
+}
+
+/// import files from hf/kaggle (create a workspace and commit)
+pub async fn import(
+    req: HttpRequest,
+    body: web::Json<Value>,
+) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("In workspace::files::import_file");
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    // Resource must specify branch for committing the workspace
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::local_branch_not_found(
+            resource.version.to_string_lossy(),
+        ))?;
+    let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
+    let directory = resource.path.clone();
+    log::debug!("workspace::files::import_file Got directory: {directory:?}");
+
+    // commit info
+    let author = req.headers().get("oxen-commit-author");
+    let email = req.headers().get("oxen-commit-email");
+    let message = req.headers().get("oxen-commit-message");
+
+    log::debug!(
+        "file::import commit info author:{:?}, email:{:?}, message:{:?}",
+        author,
+        email,
+        message
+    );
+
+    let workspace_id = Uuid::new_v4().to_string();
+    let workspace_name = format!("import-file-{}", directory.display());
+
+    // Make sure the resource path is not already a file
+    let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
+    if node.is_some() && node.unwrap().is_file() {
+        return Err(OxenHttpError::BasicError(
+            format!(
+                "Target path must be a directory: {}",
+                resource.path.display()
+            )
+            .into(),
+        ));
+    }
+
+    // Create temporary workspace
+    let workspace = repositories::workspaces::create_with_name(
+        &repo,
+        &commit,
+        &workspace_id,
+        Some(workspace_name),
+        true,
+    )?;
+
+    log::debug!("workspace::files::import_file workspace created!");
+
+    // extract auth key from req body
+    let auth = body
+        .get("headers")
+        .and_then(|headers| headers.as_object())
+        .and_then(|map| map.get("Authorization"))
+        .and_then(|auth| auth.as_str())
+        .unwrap_or_default();
+
+    let url = body.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+
+    let mut filename = url.split('/').last().unwrap_or_default().to_string();
+    log::debug!(
+        "workspace::files::import_file Got uploaded file name: {}",
+        filename
+    );
+
+    let auth_header_value = HeaderValue::from_str(auth)
+        .map_err(|_e| OxenHttpError::BadRequest("Invalid header value".into()))?;
+
+    let response = Client::new()
+        .get(url)
+        .header("Authentication", auth_header_value)
+        .send()
+        .await
+        .map_err(|_e| OxenHttpError::BadRequest("Request failed".into()))?;
+
+    let resp_headers = response.headers();
+
+    let content_type = resp_headers
+        .get("content-type")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| OxenHttpError::BadRequest("Missing content type".into()))?;
+
+    let content_length = response
+        .content_length()
+        .ok_or_else(|| OxenHttpError::BadRequest("Missing content length".into()))?;
+
+    // change the suffix to .zip if it's zip file
+    let mut is_zip: bool = false;
+    if content_type.contains("zip") {
+        is_zip = true;
+        if let Some(dot_index) = filename.rfind('.') {
+            filename.truncate(dot_index);
+        }
+        filename.push_str(".zip");
+    };
+    log::debug!("files::import_file Got filename : {filename:?}");
+
+    let filepath = directory.join(filename);
+    log::debug!("files::import_file got download filepath: {:?}", filepath);
+
+    // handle download stream
+    let mut stream = response.bytes_stream();
+    let mut buffer = web::BytesMut::new();
+    let mut save_path = PathBuf::new();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk
+            .map_err(|_| OxenHttpError::BadRequest("Error reading import file payload".into()))?;
+        let processed_chunk = chunk.to_vec();
+        buffer.extend_from_slice(&processed_chunk);
+
+        if buffer.len() > BUFFER_SIZE_THRESHOLD {
+            save_path = controllers::workspaces::files::save_stream(
+                &workspace,
+                &filepath,
+                buffer.split().freeze().to_vec(),
+            )
+            .await?;
+        }
+    }
+
+    if !buffer.is_empty() {
+        save_path = controllers::workspaces::files::save_stream(
+            &workspace,
+            &filepath,
+            buffer.freeze().to_vec(),
+        )
+        .await?;
+    }
+    log::debug!("workspace::files::import_file save_path is {:?}", save_path);
+
+    let bytes_written = if save_path.exists() {
+        std::fs::metadata(&save_path)?.len()
+    } else {
+        0
+    };
+
+    log::debug!(
+        "workspace::files::import_file has written {:?} bytes. It's expecting {:?} bytes",
+        bytes_written,
+        content_length
+    );
+
+    // check if the file size matches
+    if bytes_written != content_length {
+        return Err(OxenHttpError::BadRequest(
+            "Content length does not match. File incomplete.".into(),
+        ));
+    }
+
+    // decompress and stage file
+    if is_zip {
+        let files = decompress_zip(&save_path).await?;
+        log::debug!("workspace::files::import_file unzipped file");
+
+        for file in files.iter() {
+            log::debug!("file::import add file {:?}", file);
+            let path = repositories::workspaces::files::add(&workspace, file)?;
+            log::debug!("file::import add file ✅ success! staged file {:?}", path);
+        }
+    } else {
+        log::debug!("file::import add file {:?}", &filepath);
+        let path = repositories::workspaces::files::add(&workspace, &save_path)?;
+        log::debug!("file::import add file ✅ success! staged file {:?}", path);
+    }
+
+    // Commit workspace
+    let commit_body = NewCommitBody {
+        author: author.map_or("".to_string(), |a| a.to_str().unwrap().to_string()),
+        email: email.map_or("".to_string(), |e| e.to_str().unwrap().to_string()),
+        message: message.map_or(
+            format!("Import files to {}", &resource.path.to_string_lossy()),
+            |m| m.to_str().unwrap().to_string(),
+        ),
+    };
+
+    let commit = repositories::workspaces::commit(&workspace, &commit_body, branch.name)?;
+    log::debug!("workspace::commit ✅ success! commit {:?}", commit);
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_created(),
+        commit,
+    }))
+}
+
+async fn decompress_zip(zip_filepath: &PathBuf) -> Result<Vec<PathBuf>, OxenError> {
+    let mut files: Vec<PathBuf> = vec![];
+    let file = File::open(zip_filepath)?;
+    let mut archive = ZipArchive::new(file)
+        .map_err(|e| OxenError::Basic(format!("Failed to access zip file: {}", e).into()))?;
+
+    log::debug!("files::decompress_zip zip filepath is {:?}", zip_filepath);
+
+    let parent = match zip_filepath.parent() {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from("."),
+    };
+    log::debug!("files::decompress_zip zipfilepath parent is {:?}", parent);
+
+    // iterate thru zip archive and save the decompressed file
+    for i in 0..archive.len() {
+        let mut zip_file = archive.by_index(i).map_err(|e| {
+            OxenError::Basic(format!("Failed to access zip file at index {}: {}", i, e).into())
+        })?;
+
+        let mut zipfile_name = zip_file.mangled_name();
+        if let Some(zipfile_name_str) = zipfile_name.to_str() {
+            if zipfile_name_str.contains(' ') {
+                let new_name = zipfile_name_str.replace(' ', "_");
+                zipfile_name = PathBuf::from(new_name);
+            }
+        }
+        let outpath = parent.join(zipfile_name);
+        log::debug!("files::decompress_zip unzipping file to: {:?}", outpath);
+        if let Some(outdir) = outpath.parent() {
+            std::fs::create_dir_all(outdir)?;
+        }
+
+        if zip_file.is_dir() {
+            std::fs::create_dir_all(&outpath)?;
+        } else {
+            let mut outfile = File::create(&outpath)?;
+            let mut buffer = vec![0; BUFFER_SIZE_THRESHOLD];
+
+            loop {
+                let n = zip_file.read(&mut buffer)?;
+                if n == 0 {
+                    break;
+                }
+                outfile.write_all(&buffer[..n])?;
+            }
+        }
+
+        files.push(outpath);
+    }
+    log::debug!(
+        "files::decompress_zip removing zip file: {:?}",
+        zip_filepath
+    );
+
+    // remove the zip file after decompress
+    std::fs::remove_file(zip_filepath)?;
+
+    Ok(files)
 }
 
 #[cfg(test)]
