@@ -303,6 +303,12 @@ class RemoteRepo:
         """
         return self._repo.list_branches()
 
+    def list_workspaces(self):
+        """
+        List all workspaces for a remote repo
+        """
+        return self._repo.list_workspaces()
+
     def get_branch(self, branch: str):
         """
         Return a branch by name on this repo, if exists
