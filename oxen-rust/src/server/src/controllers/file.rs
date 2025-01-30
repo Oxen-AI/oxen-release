@@ -271,7 +271,7 @@ pub async fn import(
         .content_length()
         .ok_or_else(|| OxenHttpError::BadRequest("Missing content length".into()))?;
 
-    // change the suffix to .zip if it's zip file
+    // change the suffix to .zip if is_zip
     let mut is_zip: bool = false;
     if content_type.contains("zip") {
         is_zip = true;
@@ -316,6 +316,7 @@ pub async fn import(
     }
     log::debug!("workspace::files::import_file save_path is {:?}", save_path);
 
+    // check if the file size matches
     let bytes_written = if save_path.exists() {
         std::fs::metadata(&save_path)?.len()
     } else {
@@ -327,8 +328,7 @@ pub async fn import(
         bytes_written,
         content_length
     );
-
-    // check if the file size matches
+    
     if bytes_written != content_length {
         return Err(OxenHttpError::BadRequest(
             "Content length does not match. File incomplete.".into(),

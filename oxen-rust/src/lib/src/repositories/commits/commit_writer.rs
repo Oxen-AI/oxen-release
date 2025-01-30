@@ -453,8 +453,7 @@ pub fn commit_dir_entries(
         timestamp,
     };
     let commit_id = compute_commit_id(&new_commit)?;
-    log::debug!("commit_dir_entries create commitNode(writing to db)");
-    println!("commit_dir_entries create commitNode(writing to db)");
+
     let node = CommitNode::new(
         repo,
         CommitNodeOpts {
@@ -466,11 +465,7 @@ pub fn commit_dir_entries(
             timestamp,
         },
     )?;
-    println!(
-        "commit_dir_entries create commitNode(writing to db) finished! hash: {}",
-        commit_id
-    );
-    log::debug!("commit_dir_entries create commitNode(writing to db) finished!");
+
     let opts = db::key_val::opts::default();
     let dir_hash_db_path = repositories::tree::dir_hash_db_path_from_commit_id(repo, &commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
@@ -481,11 +476,6 @@ pub fn commit_dir_entries(
     if let Some(commit) = &maybe_head_commit {
         parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        println!(
-            "Copy over {} dir hashes from previous commit {:?}",
-            dir_hashes.len(),
-            commit
-        );
         log::debug!(
             "Copy over {} dir hashes from previous commit {}",
             dir_hashes.len(),
