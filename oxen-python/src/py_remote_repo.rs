@@ -95,7 +95,6 @@ impl PyRemoteRepo {
         let workspaces = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::list(&self.repo).await
         })?;
-        println!("{:?}", workspaces);
         let id = workspaces.iter().map(|w| w.id.clone()).collect();
         Ok(id)
     }
