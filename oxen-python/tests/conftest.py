@@ -106,6 +106,31 @@ def chat_bot_local_repo_no_commits(shared_datadir):
 
 
 @pytest.fixture
+def chat_bot_local_repo_fully_committed(chat_bot_local_repo_no_commits):
+    repo = chat_bot_local_repo_no_commits
+
+    repo.add(os.path.join(repo.path, "examples.tsv"))
+    repo.add(os.path.join(repo.path, "prompt.txt"))
+    repo.commit("Adding all data")
+    yield repo
+
+
+@pytest.fixture
+def chat_bot_remote_repo_fully_pushed(
+    chat_bot_local_repo_fully_committed, empty_remote_repo
+):
+    local_repo = chat_bot_local_repo_fully_committed
+    remote_repo = empty_remote_repo
+
+    remote_name = "origin"
+    branch_name = "main"
+    local_repo.set_remote(remote_name, remote_repo.url)
+    local_repo.push(remote_name, branch_name)
+
+    yield local_repo, remote_repo
+
+
+@pytest.fixture
 def house_prices_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "HousePrices")
     repo = Repo(repo_dir)

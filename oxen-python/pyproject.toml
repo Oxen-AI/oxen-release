@@ -20,7 +20,8 @@ dependencies = [
     "tqdm"
 ]
 
-
+[project.entry-points."fsspec.specs"]
+oxen = "oxen.fsspec_backend:OxenFS"
 
 [tool.maturin]
 python-source = "python"
