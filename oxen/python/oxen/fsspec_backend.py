@@ -152,7 +152,7 @@ class OxenFSFileWriter:
         Commit the file to the remote repo.
         """
         logger.debug(f"Committing file {self.path} to {self.target_dir}")
-        self.repo.put_file(
+        self.repo.upload(
             self._tmp_file.name,
             commit_message=commit_message or self.commit_message,
             file_name=self.path,

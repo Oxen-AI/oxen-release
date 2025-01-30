@@ -258,7 +258,7 @@ class RemoteRepo:
 
         return self._workspace.commit(message)
 
-    def put_file(
+    def upload(
         self,
         src: str,
         commit_message: str,
