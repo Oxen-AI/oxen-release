@@ -3,6 +3,8 @@ import os
 from typing import Optional
 from typing import List, Tuple
 from .oxen import PyRemoteRepo, remote
+from . import user as oxen_user
+from .workspace import Workspace
 
 
 def get_repo(name: str, host: str = "hub.oxen.ai", scheme: str = "https"):
@@ -122,6 +124,8 @@ class RemoteRepo:
                 The scheme to use for the remote url. Default: 'https'
         """
         self._repo = PyRemoteRepo(repo_id, host, revision, scheme)
+        # An internal workspace gets created on the first add() call
+        self._workspace = None
 
     def __repr__(self):
         return f"RemoteRepo({self._repo.url()})"
@@ -210,6 +214,82 @@ class RemoteRepo:
             self._repo.download(src, dst, self.revision)
         else:
             self._repo.download(src, dst, revision)
+
+    def add(self, src: str, dst_dir: Optional[str] = "", branch: Optional[str] = None):
+        """
+        Stage a file to a workspace in the remote repo.
+
+        Args:
+            src: `str`
+                The path to the local file to upload
+            dst_dir: `str | None`
+                The directory to upload the file to. If None, will upload to the root directory.
+            branch: `str | None`
+                The branch to upload the file to. Defaults to `self.revision`
+
+        Returns:
+            [Workspace](/python-api/workspace)
+        """
+        if self._workspace is None:
+            if branch is None or branch == "":
+                branch = "main"
+            print(f"Creating workspace for branch {branch}")
+            self._workspace = Workspace(self, branch)
+
+        # Add a file to the workspace
+        self._workspace.add(src, dst_dir)
+        return self._workspace
+
+    def status(self):
+        """
+        Get the status of the workspace.
+        """
+        if self._workspace is None:
+            raise ValueError("No workspace found. Please call add() first.")
+
+        return self._workspace.status()
+
+    def commit(self, message: str):
+        """
+        Commit the workspace to the remote repo.
+        """
+        if self._workspace is None:
+            raise ValueError("No workspace found. Please call add() first.")
+
+        return self._workspace.commit(message)
+
+    def put_file(
+        self,
+        src: str,
+        commit_message: str,
+        file_name: Optional[str] = None,
+        dst_dir: Optional[str] = "",
+        branch: Optional[str] = None,
+    ):
+        """
+        Upload a file to the remote repo.
+
+        Args:
+            src: `str`
+                The path to the local file to upload
+            file_name: `str | None`
+                The name of the file to upload. If None, will use the name of the file in `src`
+            dst_dir: `str | None`
+                The directory to upload the file to. If None, will upload to the root directory.
+            branch: `str | None`
+                The branch to upload the file to. Defaults to `self.revision`
+        """
+        if branch is None:
+            branch = self.revision
+        user = oxen_user.current_user()
+
+        self._repo.put_file(branch, dst_dir, src, file_name, commit_message, user)
+
+    def metadata(self, path: str):
+        """
+        Get the metadata for a file in the remote repo.
+        """
+        return self._repo.metadata(path)
 
     def log(self):
         """

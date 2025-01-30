@@ -10,7 +10,7 @@ pub struct PyEntry {
 #[pymethods]
 impl PyEntry {
     fn __repr__(&self) -> String {
-        self._entry.filename.to_owned()
+        format!("{:?}", self._entry)
     }
 
     fn __str__(&self) -> String {
@@ -35,6 +35,11 @@ impl PyEntry {
     #[getter]
     pub fn size(&self) -> u64 {
         self._entry.size
+    }
+
+    #[getter]
+    pub fn is_dir(&self) -> bool {
+        self._entry.is_dir
     }
 }
 
