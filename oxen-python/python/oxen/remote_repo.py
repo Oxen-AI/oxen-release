@@ -212,7 +212,7 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def put_file(
+    def upload(
         self,
         src: str,
         commit_message: str,
