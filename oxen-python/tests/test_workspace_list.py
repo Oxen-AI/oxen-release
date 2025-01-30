@@ -25,7 +25,7 @@ def test_commit_to_new_workspace(
     workspace2 = Workspace(remote_repo, "main")
     image_path_2 = os.path.join(shared_datadir, "CelebA/images/3.jpg")
     workspace2.add(image_path_2)
-    workspace2.commit(
-        "Adding a new image to the feature branch", should_delete=False
-    )
-    assert len(remote_repo.list_workspaces()) == 1
+    workspace2.commit("Adding a new image to the feature branch", should_delete=False)
+    workspaces = remote_repo.list_workspaces()
+    print(workspaces)
+    assert len(workspaces) == 1
