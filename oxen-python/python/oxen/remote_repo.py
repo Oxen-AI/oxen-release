@@ -188,6 +188,36 @@ class RemoteRepo:
 
         return self._repo.ls(directory, page_num, page_size)
 
+    def scan(
+        self, directory: Optional[str] = None, page_size: int = 100
+    ):
+        """
+        Generator over the contents of a directory in the remote repo
+
+        Args:
+            directory: `str`
+                The directory to list. If None, will list the root directory
+            page_size: `int`
+                The number of items to return per page. Default: 100
+        """
+        if directory is None:
+            directory = ""
+
+        current_page = 1
+
+        while True:
+            contents = self._repo.ls(directory, page_num=current_page, page_size=page_size)
+
+            if not contents.entries:
+                return
+
+            yield from contents.entries
+
+            if current_page >= contents.total_pages:
+                return
+
+            current_page += 1
+
     def download(
         self, src: str, dst: Optional[str] = None, revision: Optional[str] = None
     ):
