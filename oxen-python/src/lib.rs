@@ -49,6 +49,7 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<py_commit::PyCommit>()?;
     m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_diff::PyDiff>()?;
+    m.add_class::<py_entry::PyEntry>()?;
     m.add_class::<diff::py_tabular_diff::PyTabularDiff>()?;
     m.add_class::<diff::py_text_diff::PyTextDiff>()?;
     m.add_class::<diff::py_text_diff::PyLineDiff>()?;

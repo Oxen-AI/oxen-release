@@ -41,6 +41,11 @@ impl PyEntry {
     pub fn is_dir(&self) -> bool {
         self._entry.is_dir
     }
+
+    #[getter]
+    pub fn hash(&self) -> &str {
+        &self._entry.hash
+    }
 }
 
 impl From<MetadataEntry> for PyEntry {
