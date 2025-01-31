@@ -7,14 +7,88 @@ from typing import Optional
 
 import fsspec
 from fsspec.utils import infer_storage_options
+
 from .remote_repo import RemoteRepo
+from .oxen import PyEntry
 
 logger = logging.getLogger(__name__)
 
 
 class OxenFS(fsspec.AbstractFileSystem):
     """
-    Oxen backend for fsspec.
+        OxenFS is a filesystem interface for Oxen repositories that implements the
+        [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) protocol. This
+        allows you to interact with Oxen repositories using familiar filesystem
+        operations and integrate with other compatible libraries like Pandas.
+
+        ## Basic Usage
+
+        ### Creating a Filesystem Instance
+
+        ```python
+        import oxen
+
+        # For Oxen Hub repositories
+        fs = oxen.OxenFS("ox", "Flowers")
+
+        # For local oxen-server
+        fs = oxen.OxenFS("ox", "test-repo", host="localhost:3000", scheme="http")
+        ```
+
+        ### Reading Files
+
+        ```python
+        with fs.open("data/train.csv") as f:
+            content = f.read()
+        ```
+
+        ### Writing Files
+
+        You must have write access to the repository to write files. See:
+        https://docs.oxen.ai/getting-started/python#private-repositories
+
+        OxenFS will automatically commit the file to the repository when the
+        context is exited (or the file is closed some other way). New
+        directories are automatically created as needed.
+
+        ```python
+        # Write with custom commit message
+        with fs.open("data/test.txt", mode="wb", commit_message="Added test.txt") as f:
+            f.write("Hello, world!")
+
+        # You can also set/update the commit message inside the context
+        with fs.open("data/test.txt", mode="wb") as f:
+            f.commit_message = "Updated test.txt"
+            f.write("Hello, world again!")
+        ```
+
+        ## Integration with Third Party Libraries (Pandas, etc.)
+
+        OxenFS works seamlessly with Pandas and other fsspec-compatible libraries using
+        the URL format: `oxen://namespace:repo@revision/path/to/file`
+
+        ### Reading Data
+
+        These will work with Pandas `{to,from}_{csv,parquet,json,etc.}` functions.
+
+        ```python
+        import pandas as pd
+
+        # Read parquet directly from Oxen repository
+        df = pd.read_parquet("oxen://openai:gsm8k@main/gsm8k_test.parquet")
+        ```
+
+        ### Writing Data
+
+        ```python
+        # Write DataFrame directly to Oxen repository
+        df.to_csv("oxen://ox:my-repo@main/data/test.csv", index=False)
+
+        ## Notes
+        - Only binary read ("rb") and write ("wb") modes are currently supported
+            - But writing will automatically encode strings to bytes
+        - Does not yet support streaming files. All operations use temporary local files.
+    ```
     """
 
     def __init__(
@@ -26,12 +100,66 @@ class OxenFS(fsspec.AbstractFileSystem):
         scheme: str = "https",
         **kwargs,
     ):
+        """
+        Initialize the OxenFS instance.
+
+        Args:
+            namespace: `str`
+                The namespace of the repository.
+            repo: `str`
+                The name of the repository.
+            host: `str`
+                The host to connect to. Defaults to 'hub.oxen.ai'
+            revision: `str`
+                The branch name or commit id to checkout. Defaults to 'main'
+            scheme: `str`
+                The scheme to use for the remote url. Default: 'https'
+        """
         super().__init__(**kwargs)
+        self.namespace = namespace
+        self.repo_name = repo
+        self.revision = revision
+        self.scheme = scheme
+        self.host = host
         self.repo = RemoteRepo(f"{namespace}/{repo}", host, revision, scheme)
-        logger.debug(f"Initialized OxenFS for {namespace}/{repo}@{revision}")
+        if not self.repo.exists():
+            raise ValueError(f"Repo {namespace}/{repo} not found on host {host}")
+        logger.debug(f"Initialized OxenFS for {namespace}/{repo}@{revision} on {host}")
+
+    def __repr__(self):
+        return f"OxenFS(namespace='{self.namespace}', repo='{self.repo_name}', revision='{self.revision}', host='{self.host}', scheme='{self.scheme}')"
 
     def ls(self, path: str = "", detail: bool = False):
-        return self.repo.ls(path)
+        """
+        List the contents of a directory.
+
+        Args:
+            path: `str`
+                The path to list the contents of.
+            detail: `bool`
+                If True, return a list of dictionaries with detailed metadata.
+                Otherwise, return a list of strings with the filenames.
+        """
+        metadata = self.repo.metadata(path)
+        if metadata.is_dir:
+            entries = self.repo.ls(path)
+            return [
+                self._metadata_entry_to_ls_entry(entry, detail) for entry in entries
+            ]
+        else:
+            return [self._metadata_entry_to_ls_entry(metadata, detail)]
+
+    @staticmethod
+    def _metadata_entry_to_ls_entry(entry: PyEntry, detail: bool = False):
+        if detail:
+            return {
+                "name": entry.filename,
+                "type": "directory" if entry.is_dir else "file",
+                "size": entry.size,
+                "hash": entry.hash,
+            }
+        else:
+            return entry.filename
 
     def _open(self, path: str, mode: str = "rb", **kwargs):
         """
@@ -56,6 +184,7 @@ class OxenFS(fsspec.AbstractFileSystem):
         tmp_file = tempfile.NamedTemporaryFile()
         dst_path = tmp_file.file.name
         self.repo.download(path, dst_path)
+        logger.debug(f"Downloaded file {path} to temp file {dst_path}")
         return open(dst_path, "rb")
 
     def _open_write(
@@ -104,6 +233,8 @@ class OxenFS(fsspec.AbstractFileSystem):
 class OxenFSFileWriter:
     """
     A file writer for the OxenFS backend.
+
+    This is normally called through `OxenFS.open()` or `fsspec.open()`.
     """
 
     def __init__(
@@ -118,6 +249,7 @@ class OxenFSFileWriter:
         self.commit_message = commit_message or "Auto-commit from OxenFS"
         self.target_dir = target_dir
         self._tmp_file = tempfile.NamedTemporaryFile()
+        self.closed = False
         logger.debug(f"Initialized OxenFSFileWriter for {path} in {target_dir}")
 
     def __enter__(self) -> OxenFSFileWriter:
@@ -168,4 +300,5 @@ class OxenFSFileWriter:
         self.flush()
         self.commit()
         self._tmp_file.close()
+        self.closed = True
         logger.debug(f"Closed OxenFSFileWriter for {self.path} in {self.target_dir}")
