@@ -213,6 +213,8 @@ jobs:
       - uses: actions/download-artifact@v4
         id: download
         with:
+          pattern: wheels-*
+          merge-multiple: true
           name: wheels
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
