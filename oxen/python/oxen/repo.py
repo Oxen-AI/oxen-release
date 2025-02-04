@@ -81,6 +81,12 @@ class Repo:
     def branch(self, name: str, delete=False):
         """ """
         return self._repo.branch(name, delete)
+    
+    def branch_exists(self, name: str): 
+        """
+        Explicitly test of branch exists
+        """
+        return self._repo.branch_exists(name)
 
     def checkout(self, revision: str, create=False):
         """
