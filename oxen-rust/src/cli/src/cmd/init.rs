@@ -12,6 +12,14 @@ use liboxen::repositories;
 
 pub const INIT: &str = "init";
 
+const AFTER_INIT_MSG: &str = "
+    📖 If this is your first time using Oxen, check out the CLI docs at:
+            https://docs.oxen.ai/getting-started/cli
+
+    💬 For more support, or to chat with the Oxen team, join our Discord:
+            https://discord.gg/s3tBEn7Ptg
+";
+
 pub struct InitCmd;
 
 #[async_trait]
@@ -52,6 +60,7 @@ impl RunCmd for InitCmd {
         let directory = util::fs::canonicalize(PathBuf::from(&path))?;
         repositories::init::init_with_version(&directory, oxen_version)?;
         println!("🐂 repository initialized at: {directory:?}");
+        println!("{}", AFTER_INIT_MSG);
         Ok(())
     }
 }
