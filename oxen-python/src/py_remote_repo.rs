@@ -93,14 +93,16 @@ impl PyRemoteRepo {
     }
 
     fn list_workspaces(&self) -> Result<Vec<PyWorkspaceResponse>, PyOxenError> {
-        let workspaces = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::workspaces::list(&self.repo).await
-        })?;
-        Ok(workspaces.iter().map(|w| PyWorkspaceResponse {
-            id: w.id.clone(),
-            name: w.name.clone(),
-            commit_id: w.commit.id.clone(),
-        }).collect())
+        let workspaces = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::workspaces::list(&self.repo).await })?;
+        Ok(workspaces
+            .iter()
+            .map(|w| PyWorkspaceResponse {
+                id: w.id.clone(),
+                name: w.name.clone(),
+                commit_id: w.commit.id.clone(),
+            })
+            .collect())
     }
 
     fn create(&mut self, empty: bool, is_public: bool) -> Result<PyRemoteRepo, PyOxenError> {
@@ -269,6 +271,20 @@ impl PyRemoteRepo {
         match branch {
             Ok(branch) => Ok(PyBranch::from(branch)),
             _ => Err(PyValueError::new_err("Could not get or create branch")),
+        }
+    }
+
+    fn merge(&self, base_branch: String, head_branch: String) -> PyResult<()> {
+        let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::merger::merge(&self.repo, &base_branch, &head_branch).await
+        });
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Could not merge branches: {}",
+                e
+            ))),
         }
     }
 
