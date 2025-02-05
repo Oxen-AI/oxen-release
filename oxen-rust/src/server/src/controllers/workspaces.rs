@@ -95,7 +95,7 @@ pub async fn get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
-            id: workspace_id,
+            id: workspace.id,
             name: workspace.name,
             commit: workspace.commit.into(),
         },
