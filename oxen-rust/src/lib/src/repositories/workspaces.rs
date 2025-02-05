@@ -67,7 +67,7 @@ pub fn get_by_dir(
 
     Ok(Workspace {
         id: config.workspace_id.unwrap_or(workspace_id.to_owned()),
-        name: Some(config.workspace_name),
+        name: config.workspace_name,
         base_repo: repo.clone(),
         workspace_repo: LocalRepository::new(workspace_dir)?,
         commit,
@@ -109,7 +109,6 @@ pub fn create_with_name(
     is_editable: bool,
 ) -> Result<Workspace, OxenError> {
     let workspace_id = workspace_id.as_ref();
-    let workspace_name = workspace_name.unwrap_or_else(|| workspace_id.to_string());
     let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
     let workspace_dir = Workspace::workspace_dir(base_repo, &workspace_id_hash);
     let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
@@ -133,7 +132,9 @@ pub fn create_with_name(
         if !is_editable {
             check_non_editable_workspace(&workspace, &commit)?;
         }
-        check_existing_workspace_name(&workspace, &workspace_name)?;
+        if let Some(workspace_name) = workspace_name.clone() {
+            check_existing_workspace_name(&workspace, &workspace_name)?;
+        }
     }
 
     log::debug!("index::workspaces::create Initializing oxen repo! 🐂");
@@ -144,7 +145,7 @@ pub fn create_with_name(
     let workspace_config = WorkspaceConfig {
         workspace_commit_id: commit.id.clone(),
         is_editable,
-        workspace_name: workspace_name.to_string(),
+        workspace_name: workspace_name.clone(),
         workspace_id: Some(workspace_id.to_string()),
     };
 
@@ -171,7 +172,7 @@ pub fn create_with_name(
 
     Ok(Workspace {
         id: workspace_id.to_owned(),
-        name: Some(workspace_name),
+        name: workspace_name,
         base_repo: base_repo.clone(),
         workspace_repo,
         commit: commit.clone(),
