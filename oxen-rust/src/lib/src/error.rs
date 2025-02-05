@@ -198,6 +198,10 @@ impl OxenError {
         ))
     }
 
+    pub fn merge_conflict(desc: impl AsRef<str>) -> Self {
+        OxenError::UpstreamMergeConflict(StringError::from(desc.as_ref()))
+    }
+
     pub fn incomplete_local_history() -> Self {
         OxenError::IncompleteLocalHistory(StringError::from(
             "\nCannot push to an empty repository with an incomplete local history. To fix, pull the complete history from your remote:\n\n  oxen pull <remote> <branch> --all\n",

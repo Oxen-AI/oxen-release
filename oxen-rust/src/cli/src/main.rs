@@ -8,6 +8,18 @@ use liboxen::util;
 pub mod cmd;
 pub mod helpers;
 
+const SHORT_ABOUT: &str = "🐂 is the AI and machine learning data management toolchain";
+
+const LONG_ABOUT: &str = "
+🐂 is the AI and machine learning data management toolchain
+
+    📖 If this is your first time using Oxen, check out the CLI docs at:
+            https://docs.oxen.ai/getting-started/cli
+
+    💬 For more support, or to chat with the Oxen team, join our Discord:
+            https://discord.gg/s3tBEn7Ptg
+";
+
 #[tokio::main]
 async fn main() -> ExitCode {
     util::logging::init_logging();
@@ -52,7 +64,8 @@ async fn main() -> ExitCode {
 
     let mut command = Command::new("oxen")
         .version(liboxen::constants::OXEN_VERSION)
-        .about("🐂 is a machine learning dataset management toolchain")
+        .about(SHORT_ABOUT)
+        .long_about(LONG_ABOUT)
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true);
