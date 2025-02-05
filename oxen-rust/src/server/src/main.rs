@@ -36,6 +36,16 @@ const START_SERVER_USAGE: &str = "Usage: `oxen-server start -i 0.0.0.0 -p 3000`"
 
 const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
+const ABOUT: &str = "Oxen Server is the storage backend for Oxen, the AI and machine learning data management toolchain";
+
+const SUPPORT: &str = "
+    📖 Documentation on running oxen-server can be found at:
+            https://docs.oxen.ai/getting-started/oxen-server
+
+    💬 For more support, or to chat with the Oxen team, join our Discord:
+            https://discord.gg/s3tBEn7Ptg
+";
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -54,13 +64,14 @@ async fn main() -> std::io::Result<()> {
 
     let command = Command::new("oxen-server")
         .version(VERSION)
-        .about("Oxen Server")
+        .about(ABOUT)
+        .long_about(format!("{ABOUT}\n{SUPPORT}"))
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .subcommand(
             Command::new("start")
-                .about(START_SERVER_USAGE)
+                .about("Starts the server on the given host and port")
                 .arg(
                     Arg::new("ip")
                         .long("ip")
@@ -89,12 +100,12 @@ async fn main() -> std::io::Result<()> {
         )
         .subcommand(
             Command::new("add-user")
-                .about(ADD_USER_USAGE)
+                .about("Create a new user in the server and output the config file for that user")
                 .arg(
                     Arg::new("email")
                         .long("email")
                         .short('e')
-                        .help("Users email address")
+                        .help("User's email address")
                         .required(true)
                         .action(clap::ArgAction::Set),
                 )
@@ -102,7 +113,7 @@ async fn main() -> std::io::Result<()> {
                     Arg::new("name")
                         .long("name")
                         .short('n')
-                        .help("Users name that will show up in the commits")
+                        .help("User's name that will show up in the commits")
                         .required(true)
                         .action(clap::ArgAction::Set),
                 )
@@ -127,6 +138,7 @@ async fn main() -> std::io::Result<()> {
                 (Some(host), Some(port)) => {
                     let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
                     println!("🐂 v{VERSION}");
+                    println!("{SUPPORT}");
                     println!("Running on {host}:{port}");
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
