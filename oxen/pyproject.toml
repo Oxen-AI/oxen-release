@@ -12,12 +12,13 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+    "fsspec",
     "pandas",
     "polars",
     "pyarrow",
     "requests",
     "toml",
-    "tqdm"
+    "tqdm",
 ]
 
 [project.entry-points."fsspec.specs"]
@@ -26,4 +27,3 @@ oxen = "oxen.oxen_fs:OxenFS"
 [tool.maturin]
 python-source = "python"
 features = ["pyo3/extension-module"]
-
