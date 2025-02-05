@@ -29,7 +29,16 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
     log::debug!("workspace::get workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
 
     let workspace_dir = Workspace::workspace_dir(repo, &workspace_id_hash);
-    get_by_dir(repo, workspace_dir)
+    let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+
+    if config_path.exists() {
+        get_by_dir(repo, workspace_dir)
+    } else {
+        let workspace = get_by_name(repo, workspace_id)?;
+        let workspace_id = util::hasher::hash_str_sha256(&workspace.id);
+        let workspace_dir = Workspace::workspace_dir(repo, &workspace_id);
+        get_by_dir(repo, workspace_dir)
+    }
 }
 
 pub fn get_by_dir(
@@ -37,8 +46,8 @@ pub fn get_by_dir(
     workspace_dir: impl AsRef<Path>,
 ) -> Result<Workspace, OxenError> {
     let workspace_dir = workspace_dir.as_ref();
-    let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
     let workspace_id = workspace_dir.file_name().unwrap().to_str().unwrap();
+    let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
 
     if !config_path.exists() {
         log::debug!("workspace::get workspace not found: {:?}", workspace_dir);
@@ -66,6 +75,22 @@ pub fn get_by_dir(
     })
 }
 
+pub fn get_by_name(
+    repo: &LocalRepository,
+    workspace_name: impl AsRef<str>,
+) -> Result<Workspace, OxenError> {
+    let workspace_name = workspace_name.as_ref();
+    let workspaces = list(repo)?;
+    for workspace in workspaces {
+        if workspace.name == Some(workspace_name.to_string()) {
+            return Ok(workspace);
+        }
+    }
+    Err(OxenError::basic_str(format!(
+        "Workspace {} not found",
+        workspace_name
+    )))
+}
 /// Creates a new workspace and saves it to the filesystem
 pub fn create(
     base_repo: &LocalRepository,
@@ -101,19 +126,14 @@ pub fn create_with_name(
             workspace_id
         )));
     }
+    let workspaces = list(base_repo)?;
 
     // Check for existing non-editable workspaces on the same commit
-    if !is_editable {
-        let workspaces = list(base_repo)?;
-        for workspace in workspaces {
-            if workspace.commit.id == commit.id && !workspace.is_editable {
-                // Found another non-editable workspace with the same commit
-                return Err(OxenError::basic_str(format!(
-                    "A non-editable workspace already exists for commit {}",
-                    commit.id
-                )));
-            }
+    for workspace in workspaces {
+        if !is_editable {
+            check_non_editable_workspace(&workspace, &commit)?;
         }
+        check_existing_workspace_name(&workspace, &workspace_name)?;
     }
 
     log::debug!("index::workspaces::create Initializing oxen repo! 🐂");
@@ -159,6 +179,31 @@ pub fn create_with_name(
     })
 }
 
+fn check_non_editable_workspace(workspace: &Workspace, commit: &Commit) -> Result<(), OxenError> {
+    if workspace.commit.id == commit.id && !workspace.is_editable {
+        return Err(OxenError::basic_str(format!(
+            "A non-editable workspace already exists for commit {}",
+            commit.id
+        )));
+    }
+    Ok(())
+}
+
+fn check_existing_workspace_name(
+    workspace: &Workspace,
+    workspace_name: &str,
+) -> Result<(), OxenError> {
+    if workspace.name == Some(workspace_name.to_string())
+        || workspace_name.to_string() == workspace.id
+    {
+        return Err(OxenError::basic_str(format!(
+            "A workspace with the name {} already exists",
+            workspace_name
+        )));
+    }
+    Ok(())
+}
+
 pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
     let workspaces_dir = Workspace::workspaces_dir(repo);
     log::debug!("workspace::list got workspaces_dir: {:?}", workspaces_dir);
@@ -169,6 +214,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
 
     let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)
         .map_err(|e| OxenError::basic_str(format!("Error listing workspace directories: {}", e)))?;
+
     log::debug!(
         "workspace::list got workspaces_hashes: {:?}",
         workspaces_hashes
