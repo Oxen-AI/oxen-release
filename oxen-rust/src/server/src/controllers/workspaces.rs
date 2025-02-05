@@ -33,7 +33,12 @@ pub async fn get_or_create(
     };
 
     let Some(branch) = repositories::branches::get_by_name(&repo, &data.branch_name)? else {
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Branch not found: {}", data.branch_name))));
+        return Ok(
+            HttpResponse::BadRequest().json(StatusMessage::error(format!(
+                "Branch not found: {}",
+                data.branch_name
+            ))),
+        );
     };
 
     // Return workspace if it already exists
@@ -109,7 +114,12 @@ pub async fn create(
     };
 
     let Some(branch) = repositories::branches::get_by_name(&repo, &data.branch_name)? else {
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Branch not found: {}", data.branch_name))));
+        return Ok(
+            HttpResponse::BadRequest().json(StatusMessage::error(format!(
+                "Branch not found: {}",
+                data.branch_name
+            ))),
+        );
     };
 
     let workspace_id = &data.workspace_id;
