@@ -101,6 +101,15 @@ pub fn commit(
 
     // Cleanup workspace on commit
     repositories::workspaces::delete(workspace)?;
+    if let Some(workspace_name) = &workspace.name {
+        repositories::workspaces::create_with_name(
+            &workspace.base_repo,
+            &commit,
+            workspace.id.clone(),
+            Some(workspace_name.clone()),
+            true,
+        )?;
+    }
 
     Ok(commit)
 }

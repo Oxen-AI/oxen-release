@@ -11,7 +11,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::workspaces::ListWorkspaceResponseView;
+use crate::view::workspaces::{ListWorkspaceResponseView, WorkspaceResponseWithStatus};
 use crate::view::workspaces::{NewWorkspace, WorkspaceResponse};
 use crate::view::{StatusMessage, WorkspaceResponseView};
 
@@ -82,7 +82,7 @@ pub async fn create(
     remote_repo: &RemoteRepository,
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     create_with_path(remote_repo, branch_name, workspace_id, Path::new("/"), None).await
 }
 
@@ -91,7 +91,7 @@ pub async fn create_with_name(
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
     workspace_name: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     let workspace_name = workspace_name.as_ref().to_string();
     create_with_path(
         remote_repo,
@@ -109,7 +109,7 @@ pub async fn create_with_path(
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
     workspace_name: Option<String>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     let branch_name = branch_name.as_ref();
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
@@ -133,7 +133,12 @@ pub async fn create_with_path(
     log::debug!("create workspace got body: {}", body);
     let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
     match response {
-        Ok(val) => Ok(val.workspace),
+        Ok(val) => Ok(WorkspaceResponseWithStatus {
+            id: val.workspace.id,
+            name: val.workspace.name,
+            commit: val.workspace.commit,
+            status: val.status.status_message,
+        }),
         Err(err) => Err(OxenError::basic_str(format!(
             "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
         ))),

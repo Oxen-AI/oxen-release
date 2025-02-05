@@ -33,13 +33,25 @@ pub async fn get_or_create(
     };
 
     let Some(branch) = repositories::branches::get_by_name(&repo, &data.branch_name)? else {
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Branch not found: {}", data.branch_name))));
+        return Ok(
+            HttpResponse::BadRequest().json(StatusMessage::error(format!(
+                "Branch not found: {}",
+                data.branch_name
+            ))),
+        );
     };
 
     // Return workspace if it already exists
     let workspace_id = data.workspace_id.clone();
+    let workspace_name = data.name.clone();
+    let workspace_identifier;
+    if let Some(workspace_name) = workspace_name {
+        workspace_identifier = workspace_name;
+    } else {
+        workspace_identifier = workspace_id.clone();
+    }
     log::debug!("get_or_create workspace_id {:?}", workspace_id);
-    if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_id) {
+    if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_identifier) {
         return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
             status: StatusMessage::resource_created(),
             workspace: WorkspaceResponse {
@@ -109,7 +121,12 @@ pub async fn create(
     };
 
     let Some(branch) = repositories::branches::get_by_name(&repo, &data.branch_name)? else {
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Branch not found: {}", data.branch_name))));
+        return Ok(
+            HttpResponse::BadRequest().json(StatusMessage::error(format!(
+                "Branch not found: {}",
+                data.branch_name
+            ))),
+        );
     };
 
     let workspace_id = &data.workspace_id;

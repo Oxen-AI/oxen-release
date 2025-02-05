@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
+use colored::Colorize;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::{api, repositories};
@@ -62,8 +63,21 @@ impl RunCmd for WorkspaceCreateCmd {
             &name,
         )
         .await?;
-
-        println!("{}", workspace.id);
+        match workspace.status.as_str() {
+            "resource_created" => {
+                println!("{}", "Workspace created successfully!".green().bold());
+            }
+            "resource_found" => {
+                println!("{}", "Workspace already exists".yellow().bold());
+            }
+            other => {
+                println!(
+                    "{}",
+                    format!("Unexpected workspace status: {}", other).red()
+                );
+            }
+        }
+        println!("{} {}", "Workspace ID:".green().bold(), workspace.id.bold());
 
         Ok(())
     }
