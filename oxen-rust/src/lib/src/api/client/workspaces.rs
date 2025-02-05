@@ -33,19 +33,18 @@ pub async fn list(remote_repo: &RemoteRepository) -> Result<Vec<WorkspaceRespons
 pub async fn get(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<Option<WorkspaceResponse>, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let url = api::endpoint::url_from_repo(remote_repo, &format!("/workspaces/{workspace_id}"))?;
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
-    let body = client::parse_json_body(&url, res).await?;
-    let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(val) => Ok(val.workspace),
-        Err(err) => Err(OxenError::basic_str(format!(
-            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-        ))),
-    }
+    let body_result = client::parse_json_body(&url, res).await;
+    
+    let workspace = body_result.ok()
+        .and_then(|body| serde_json::from_str::<WorkspaceResponseView>(&body).ok())
+        .map(|val| val.workspace);
+        
+    Ok(workspace)
 }
 
 pub async fn get_by_name(
@@ -227,8 +226,9 @@ mod tests {
             assert_eq!(workspace.name, Some(workspace_name.to_string()));
 
             let workspace = get(&remote_repo, &workspace_id).await?;
-            assert_eq!(workspace.name, Some(workspace_name.to_string()));
-            assert_eq!(workspace.id, workspace_id);
+            assert!(workspace.is_some());
+            assert_eq!(workspace.as_ref().unwrap().name, Some(workspace_name.to_string()));
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
 
             let workspace = get_by_name(&remote_repo, &workspace_name).await?;
             assert!(workspace.is_some());
@@ -544,25 +544,9 @@ mod tests {
                 &body,
             )
             .await?;
-            let get_result = api::client::workspaces::get(&remote_repo, &workspace_id).await;
+            let get_result = api::client::workspaces::get(&remote_repo, &workspace_id).await?;
 
-            match get_result {
-                Err(OxenError::Basic(err_msg)) => {
-                    assert_eq!(
-                        err_msg.to_string(),
-                        format!("Workspace {} not found\n", workspace_id)
-                    );
-                }
-                Ok(ws) => {
-                    panic!(
-                        "Expected error 'Workspace {} not found' but got workspace: {:?}",
-                        workspace_id, ws
-                    );
-                }
-                Err(e) => {
-                    panic!("Unexpected error type: {:?}", e);
-                }
-            }
+            assert!(get_result.is_none());
 
             Ok(remote_repo)
         })
@@ -600,7 +584,8 @@ mod tests {
             )
             .await?;
             let workspace = api::client::workspaces::get(&remote_repo, &workspace_name).await?;
-            assert!(workspace.id != "");
+            assert!(workspace.is_some());
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
             Ok(remote_repo)
         })
         .await
