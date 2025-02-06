@@ -6,6 +6,7 @@ use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::MetadataEntryResponse;
+use reqwest::StatusCode;
 
 use std::path::Path;
 
@@ -14,7 +15,7 @@ pub async fn get_file(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<MetadataEntryResponse, OxenError> {
+) -> Result<Option<MetadataEntryResponse>, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let uri = format!("/meta/{}/{}", revision, path);
@@ -22,8 +23,12 @@ pub async fn get_file(
 
     let client = client::new_for_url(&url)?;
     let response = client.get(&url).send().await?;
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
     let body = client::parse_json_body(&url, response).await?;
-    Ok(serde_json::from_str(&body)?)
+    Ok(Some(serde_json::from_str(&body)?))
 }
 
 #[cfg(test)]
@@ -53,6 +58,7 @@ mod tests {
 
             let entry = api::client::metadata::get_file(&remote_repo, revision, path)
                 .await?
+                .unwrap()
                 .entry;
 
             assert_eq!(entry.filename, "README.md");
@@ -84,6 +90,7 @@ mod tests {
             let revision = DEFAULT_BRANCH_NAME;
             let entry = api::client::metadata::get_file(&remote_repo, revision, path)
                 .await?
+                .unwrap()
                 .entry;
 
             assert_eq!(entry.filename, path);
@@ -103,7 +110,9 @@ mod tests {
             let directory = Path::new("train");
 
             let meta: MetadataEntryResponse =
-                api::client::metadata::get_file(&remote_repo, branch, directory).await?;
+                api::client::metadata::get_file(&remote_repo, branch, directory)
+                    .await?
+                    .unwrap();
             println!("meta: {:?}", meta);
 
             assert_eq!(meta.entry.mime_type, "inode/directory");
@@ -143,10 +152,14 @@ mod tests {
             repositories::push(&local_repo).await?;
 
             let meta: MetadataEntryResponse =
-                api::client::metadata::get_file(&remote_repo, main_branch, &path).await?;
+                api::client::metadata::get_file(&remote_repo, main_branch, &path)
+                    .await?
+                    .unwrap();
 
             let second_meta: MetadataEntryResponse =
-                api::client::metadata::get_file(&remote_repo, second_branch, &path).await?;
+                api::client::metadata::get_file(&remote_repo, second_branch, &path)
+                    .await?
+                    .unwrap();
 
             assert_eq!(meta.entry.latest_commit.unwrap().id, first_commit.id);
             assert_eq!(

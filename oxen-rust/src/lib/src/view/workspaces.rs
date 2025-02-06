@@ -47,6 +47,14 @@ pub struct WorkspaceResponse {
     pub commit: WorkspaceCommit,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct WorkspaceResponseWithStatus {
+    pub id: String,
+    pub name: Option<String>,
+    pub commit: WorkspaceCommit,
+    pub status: String,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct WorkspaceResponseView {
     #[serde(flatten)]

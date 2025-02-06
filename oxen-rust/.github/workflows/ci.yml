@@ -219,7 +219,6 @@ jobs:
           brew install pkg-config || brew upgrade pkg-config
           brew install ffmpeg imagemagick ruby
 
-
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:

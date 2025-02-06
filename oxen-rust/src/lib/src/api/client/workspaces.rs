@@ -11,7 +11,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::workspaces::ListWorkspaceResponseView;
+use crate::view::workspaces::{ListWorkspaceResponseView, WorkspaceResponseWithStatus};
 use crate::view::workspaces::{NewWorkspace, WorkspaceResponse};
 use crate::view::{StatusMessage, WorkspaceResponseView};
 
@@ -33,19 +33,19 @@ pub async fn list(remote_repo: &RemoteRepository) -> Result<Vec<WorkspaceRespons
 pub async fn get(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<Option<WorkspaceResponse>, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let url = api::endpoint::url_from_repo(remote_repo, &format!("/workspaces/{workspace_id}"))?;
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
-    let body = client::parse_json_body(&url, res).await?;
-    let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(val) => Ok(val.workspace),
-        Err(err) => Err(OxenError::basic_str(format!(
-            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-        ))),
-    }
+    let body_result = client::parse_json_body(&url, res).await;
+
+    let workspace = body_result
+        .ok()
+        .and_then(|body| serde_json::from_str::<WorkspaceResponseView>(&body).ok())
+        .map(|val| val.workspace);
+
+    Ok(workspace)
 }
 
 pub async fn get_by_name(
@@ -82,7 +82,7 @@ pub async fn create(
     remote_repo: &RemoteRepository,
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     create_with_path(remote_repo, branch_name, workspace_id, Path::new("/"), None).await
 }
 
@@ -91,7 +91,7 @@ pub async fn create_with_name(
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
     workspace_name: impl AsRef<str>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     let workspace_name = workspace_name.as_ref().to_string();
     create_with_path(
         remote_repo,
@@ -109,7 +109,7 @@ pub async fn create_with_path(
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
     workspace_name: Option<String>,
-) -> Result<WorkspaceResponse, OxenError> {
+) -> Result<WorkspaceResponseWithStatus, OxenError> {
     let branch_name = branch_name.as_ref();
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
@@ -133,7 +133,12 @@ pub async fn create_with_path(
     log::debug!("create workspace got body: {}", body);
     let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
     match response {
-        Ok(val) => Ok(val.workspace),
+        Ok(val) => Ok(WorkspaceResponseWithStatus {
+            id: val.workspace.id,
+            name: val.workspace.name,
+            commit: val.workspace.commit,
+            status: val.status.status_message,
+        }),
         Err(err) => Err(OxenError::basic_str(format!(
             "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
         ))),
@@ -222,8 +227,12 @@ mod tests {
             assert_eq!(workspace.name, Some(workspace_name.to_string()));
 
             let workspace = get(&remote_repo, &workspace_id).await?;
-            assert_eq!(workspace.name, Some(workspace_name.to_string()));
-            assert_eq!(workspace.id, workspace_id);
+            assert!(workspace.is_some());
+            assert_eq!(
+                workspace.as_ref().unwrap().name,
+                Some(workspace_name.to_string())
+            );
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
 
             let workspace = get_by_name(&remote_repo, &workspace_name).await?;
             assert!(workspace.is_some());
@@ -510,6 +519,72 @@ mod tests {
             assert_eq!(remote_status.added_files.entries.len(), 1);
             assert_eq!(remote_status.added_files.total_entries, 1);
 
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_not_named_workspaces_closing_after_commit() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let workspace_id = "test_workspace_id";
+            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                .await?;
+            let path = test::test_img_file();
+            let result =
+                api::client::workspaces::files::post_file(&remote_repo, &&workspace_id, "", path)
+                    .await;
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add to main".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &body)
+                .await?;
+            let get_result = api::client::workspaces::get(&remote_repo, &workspace_id).await?;
+
+            assert!(get_result.is_none());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_named_workspaces_not_closing_after_commit() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let workspace_name = "test_workspace_name";
+            let workspace_id = "test_workspace_id";
+            api::client::workspaces::create_with_name(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                workspace_id,
+                workspace_name,
+            )
+            .await?;
+            let path = test::test_img_file();
+            let result =
+                api::client::workspaces::files::post_file(&remote_repo, &workspace_name, "", path)
+                    .await;
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add to main".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                workspace_name,
+                &body,
+            )
+            .await?;
+            let workspace = api::client::workspaces::get(&remote_repo, &workspace_name).await?;
+            assert!(workspace.is_some());
+            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
             Ok(remote_repo)
         })
         .await

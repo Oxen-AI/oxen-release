@@ -27,8 +27,17 @@ impl RunCmd for WorkspaceCommitCmd {
                 Arg::new("workspace-id")
                     .long("workspace-id")
                     .short('w')
-                    .required(true)
+                    .required_unless_present("workspace-name")
+                    .required(false)
                     .help("The workspace_id of the workspace"),
+            )
+            .arg(
+                Arg::new("workspace-name")
+                    .long("workspace-name")
+                    .short('n')
+                    .required_unless_present("workspace-id")
+                    .required(false)
+                    .help("The name of the workspace"),
             )
             .arg(
                 Arg::new("message")
@@ -48,10 +57,21 @@ impl RunCmd for WorkspaceCommitCmd {
             ));
         };
 
-        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
-            return Err(OxenError::basic_str(
-                "Err: Usage `oxen workspace commit -w <workspace_id> -m <message>`",
-            ));
+        let workspace_name = args.get_one::<String>("workspace-name");
+        let workspace_id = args.get_one::<String>("workspace-id");
+
+        let workspace_identifier = match workspace_id {
+            Some(id) => id,
+            None => {
+                // If no ID is provided, try to get the workspace by name
+                if let Some(name) = workspace_name {
+                    name
+                } else {
+                    return Err(OxenError::basic_str(
+                        "Either workspace-id or workspace-name must be provided.",
+                    ));
+                }
+            }
         };
 
         let repo = LocalRepository::from_current_dir()?;
@@ -72,7 +92,8 @@ impl RunCmd for WorkspaceCommitCmd {
             author: cfg.name,
             email: cfg.email,
         };
-        api::client::workspaces::commit(&remote_repo, &branch.name, workspace_id, &body).await?;
+        api::client::workspaces::commit(&remote_repo, &branch.name, workspace_identifier, &body)
+            .await?;
 
         Ok(())
     }

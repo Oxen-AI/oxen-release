@@ -43,10 +43,17 @@ pub async fn get_or_create(
 
     // Return workspace if it already exists
     let workspace_id = data.workspace_id.clone();
+    let workspace_name = data.name.clone();
+    let workspace_identifier;
+    if let Some(workspace_name) = workspace_name {
+        workspace_identifier = workspace_name;
+    } else {
+        workspace_identifier = workspace_id.clone();
+    }
     log::debug!("get_or_create workspace_id {:?}", workspace_id);
-    if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_id) {
+    if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_identifier) {
         return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
-            status: StatusMessage::resource_created(),
+            status: StatusMessage::resource_found(),
             workspace: WorkspaceResponse {
                 id: workspace_id,
                 name: workspace.name.clone(),
@@ -86,9 +93,9 @@ pub async fn get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
-        status: StatusMessage::resource_created(),
+        status: StatusMessage::resource_found(),
         workspace: WorkspaceResponse {
-            id: workspace_id,
+            id: workspace.id,
             name: workspace.name,
             commit: workspace.commit.into(),
         },
