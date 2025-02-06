@@ -232,12 +232,12 @@ impl PyRemoteRepo {
         Ok(PyPaginatedDirEntries::from(result))
     }
 
-    fn metadata(&self, path: PathBuf) -> Result<PyEntry, PyOxenError> {
+    fn metadata(&self, path: PathBuf) -> Result<Option<PyEntry>, PyOxenError> {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::metadata::get_file(&self.repo, &self.revision, &path).await
         })?;
 
-        Ok(PyEntry::from(result.entry))
+        Ok(result.map(|e| PyEntry::from(e.entry)))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {

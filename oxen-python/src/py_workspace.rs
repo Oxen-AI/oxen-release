@@ -16,6 +16,7 @@ pub struct PyWorkspace {
     pub repo: PyRemoteRepo,
     pub branch_name: String,
     pub id: String,
+    pub name: Option<String>,
 }
 
 #[pyclass]
@@ -44,24 +45,28 @@ impl PyWorkspaceResponse {
 #[pymethods]
 impl PyWorkspace {
     #[new]
-    #[pyo3(signature = (repo, branch_name, name, path))]
+    #[pyo3(signature = (repo, branch_name, workspace_id, workspace_name, path))]
     fn new(
         repo: PyRemoteRepo,
         branch_name: String,
-        name: Option<String>,
+        workspace_id: Option<String>,
+        workspace_name: Option<String>,
         path: Option<String>,
     ) -> Result<Self, PyOxenError> {
-        let name = name.unwrap_or_else(|| format!("workspace-{}", Uuid::new_v4()));
+        let workspace_id = workspace_id.unwrap_or_else(|| format!("workspace-{}", Uuid::new_v4()));
+        let workspace_identifier = workspace_name.clone().unwrap_or(workspace_id.clone());
 
         // Get the workspace by name
-        let workspace = pyo3_async_runtimes::tokio::get_runtime()
-            .block_on(async { api::client::workspaces::get_by_name(&repo.repo, &name).await })?;
+        let workspace = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::workspaces::get(&repo.repo, &workspace_identifier).await
+        })?;
 
         if let Some(workspace) = workspace {
             return Ok(Self {
                 repo,
                 branch_name: branch_name.clone(),
                 id: workspace.id,
+                name: workspace.name,
             });
         }
 
@@ -69,9 +74,9 @@ impl PyWorkspace {
             api::client::workspaces::create_with_path(
                 &repo.repo,
                 &branch_name,
-                &name,
+                &workspace_id,
                 Path::new(&path.unwrap_or("/".to_string())),
-                Some(name.clone()),
+                workspace_name,
             )
             .await
         })?;
@@ -80,11 +85,16 @@ impl PyWorkspace {
             repo,
             branch_name,
             id: workspace.id,
+            name: workspace.name,
         })
     }
 
     fn id(&self) -> String {
         self.id.clone()
+    }
+
+    fn name(&self) -> Option<String> {
+        self.name.clone()
     }
 
     fn branch(&self) -> String {
@@ -118,6 +128,12 @@ impl PyWorkspace {
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::files::rm(&self.repo.repo, &self.id, path).await
         })?;
+        Ok(())
+    }
+
+    fn delete(&self) -> Result<(), PyOxenError> {
+        pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::workspaces::delete(&self.repo.repo, &self.id).await })?;
         Ok(())
     }
 
