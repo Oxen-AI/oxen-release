@@ -262,7 +262,7 @@ class RemoteRepo:
         """
         if self._workspace is None:
             if branch is None or branch == "":
-                branch = "main"
+                branch = self.revision
             print(f"Creating workspace for branch {branch}")
             self._workspace = Workspace(self, branch)
 
@@ -321,7 +321,25 @@ class RemoteRepo:
         """
         return self._repo.metadata(path)
 
-    def file_has_changes(self, local_path: str, remote_path: str = None, revision: str = "main"):
+    def file_exists(self, path: str, revision: str = None):
+        """
+        Check if a file exists in the remote repo.
+
+        Args:
+            path: `str`
+                The path to the file to check
+            revision: `str`
+                The revision to check against, defaults to `self.revision`
+        """
+
+        if revision is None:
+            revision = self.revision
+
+        return self._repo.file_exists(path, revision)
+
+    def file_has_changes(
+        self, local_path: str, remote_path: str = None, revision: str = None
+    ):
         """
         Check if a local file has changed compared to a remote revision
 
@@ -336,6 +354,9 @@ class RemoteRepo:
 
         if remote_path is None:
             remote_path = local_path
+
+        if revision is None:
+            revision = self.revision
 
         return self._repo.file_has_changes(local_path, remote_path, revision)
 
