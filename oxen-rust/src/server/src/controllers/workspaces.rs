@@ -53,7 +53,7 @@ pub async fn get_or_create(
     log::debug!("get_or_create workspace_id {:?}", workspace_id);
     if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_identifier) {
         return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
-            status: StatusMessage::resource_created(),
+            status: StatusMessage::resource_found(),
             workspace: WorkspaceResponse {
                 id: workspace_id,
                 name: workspace.name.clone(),
