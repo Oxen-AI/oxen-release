@@ -194,9 +194,7 @@ fn check_existing_workspace_name(
     workspace: &Workspace,
     workspace_name: &str,
 ) -> Result<(), OxenError> {
-    if workspace.name == Some(workspace_name.to_string())
-        || *workspace_name == workspace.id
-    {
+    if workspace.name == Some(workspace_name.to_string()) || *workspace_name == workspace.id {
         return Err(OxenError::basic_str(format!(
             "A workspace with the name {} already exists",
             workspace_name
