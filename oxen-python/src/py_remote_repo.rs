@@ -288,18 +288,18 @@ impl PyRemoteRepo {
         }
     }
 
-    fn checkout(&mut self, revision: String) -> PyResult<()> {
+    fn checkout(&mut self, revision: String) -> PyResult<String> {
         let branch = self.get_branch(revision.clone());
         if let Ok(branch) = branch {
             self.set_revision(branch.name().to_string());
-            return Ok(());
+            return Ok(branch.name().to_string());
         }
 
         let commit = self.get_commit(revision.clone());
         match commit {
             Ok(commit) => {
-                self.set_revision(commit.commit.id);
-                Ok(())
+                self.set_revision(commit.commit.id.clone());
+                Ok(commit.commit.id.clone())
             },
             _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision)))
         }
