@@ -16,79 +16,79 @@ logger = logging.getLogger(__name__)
 
 class OxenFS(fsspec.AbstractFileSystem):
     """
-        OxenFS is a filesystem interface for Oxen repositories that implements the
-        [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) protocol. This
-        allows you to interact with Oxen repositories using familiar filesystem
-        operations and integrate with other compatible libraries like Pandas.
+    OxenFS is a filesystem interface for Oxen repositories that implements the
+    [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) protocol. This
+    allows you to interact with Oxen repositories using familiar filesystem
+    operations and integrate with other compatible libraries like Pandas.
 
-        ## Basic Usage
+    ## Basic Usage
 
-        ### Creating a Filesystem Instance
+    ### Creating a Filesystem Instance
 
-        ```python
-        import oxen
+    ```python
+    import oxen
 
-        # For Oxen Hub repositories
-        fs = oxen.OxenFS("ox", "Flowers")
+    # For Oxen Hub repositories
+    fs = oxen.OxenFS("ox", "Flowers")
 
-        # For local oxen-server
-        fs = oxen.OxenFS("ox", "test-repo", host="localhost:3000", scheme="http")
-        ```
-
-        ### Reading Files
-
-        ```python
-        with fs.open("data/train.csv") as f:
-            content = f.read()
-        ```
-
-        ### Writing Files
-
-        You must have write access to the repository to write files. See:
-        https://docs.oxen.ai/getting-started/python#private-repositories
-
-        OxenFS will automatically commit the file to the repository when the
-        context is exited (or the file is closed some other way). New
-        directories are automatically created as needed.
-
-        ```python
-        # Write with custom commit message
-        with fs.open("data/test.txt", mode="wb", commit_message="Added test.txt") as f:
-            f.write("Hello, world!")
-
-        # You can also set/update the commit message inside the context
-        with fs.open("data/test.txt", mode="wb") as f:
-            f.commit_message = "Updated test.txt"
-            f.write("Hello, world again!")
-        ```
-
-        ## Integration with Third Party Libraries (Pandas, etc.)
-
-        OxenFS works seamlessly with Pandas and other fsspec-compatible libraries using
-        the URL format: `oxen://namespace:repo@revision/path/to/file`
-
-        ### Reading Data
-
-        These will work with Pandas `{to,from}_{csv,parquet,json,etc.}` functions.
-
-        ```python
-        import pandas as pd
-
-        # Read parquet directly from Oxen repository
-        df = pd.read_parquet("oxen://openai:gsm8k@main/gsm8k_test.parquet")
-        ```
-
-        ### Writing Data
-
-        ```python
-        # Write DataFrame directly to Oxen repository
-        df.to_csv("oxen://ox:my-repo@main/data/test.csv", index=False)
-
-        ## Notes
-        - Only binary read ("rb") and write ("wb") modes are currently supported
-            - But writing will automatically encode strings to bytes
-        - Does not yet support streaming files. All operations use temporary local files.
+    # For local oxen-server
+    fs = oxen.OxenFS("ox", "test-repo", host="localhost:3000", scheme="http")
     ```
+
+    ### Reading Files
+
+    ```python
+    with fs.open("data/train.csv") as f:
+        content = f.read()
+    ```
+
+    ### Writing Files
+
+    You must have write access to the repository to write files. See:
+    https://docs.oxen.ai/getting-started/python#private-repositories
+
+    OxenFS will automatically commit the file to the repository when the
+    context is exited (or the file is closed some other way). New
+    directories are automatically created as needed.
+
+    ```python
+    # Write with custom commit message
+    with fs.open("data/test.txt", mode="wb", commit_message="Added test.txt") as f:
+        f.write("Hello, world!")
+
+    # You can also set/update the commit message inside the context
+    with fs.open("data/test.txt", mode="wb") as f:
+        f.commit_message = "Updated test.txt"
+        f.write("Hello, world again!")
+    ```
+
+    ## Integration with Third Party Libraries (Pandas, etc.)
+
+    OxenFS works seamlessly with Pandas and other fsspec-compatible libraries using
+    the URL format: `oxen://namespace:repo@revision/path/to/file`
+
+    ### Reading Data
+
+    These will work with Pandas `{to,from}_{csv,parquet,json,etc.}` functions.
+
+    ```python
+    import pandas as pd
+
+    # Read parquet directly from Oxen repository
+    df = pd.read_parquet("oxen://openai:gsm8k@main/gsm8k_test.parquet")
+    ```
+
+    ### Writing Data
+
+    ```python
+    # Write DataFrame directly to Oxen repository
+    df.to_csv("oxen://ox:my-repo@main/data/test.csv", index=False)
+    ```
+
+    ## Notes
+    - Only binary read ("rb") and write ("wb") modes are currently supported
+        - But writing will automatically encode strings to bytes
+    - Does not yet support streaming files. All operations use temporary local files.
     """
 
     def __init__(
