@@ -1,6 +1,6 @@
 [package]
 name = "oxen"
-version = "0.24.2"
+version = "0.26.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -35,7 +35,7 @@ reqwest = { version = "0.12.2", features = [
 ] }
 serde_json = "1.0.106"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
-liboxen = "0.25.3"
+liboxen = "0.26.0"
 # liboxen = { path = "../../Oxen/src/lib" }
 
 [build-dependencies]
