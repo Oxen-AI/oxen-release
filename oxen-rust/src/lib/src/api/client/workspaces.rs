@@ -544,7 +544,7 @@ mod tests {
             api::client::workspaces::commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &workspace_id,
+                workspace_id,
                 &body,
             )
             .await?;
@@ -583,7 +583,7 @@ mod tests {
             api::client::workspaces::commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &workspace_name,
+                workspace_name,
                 &body,
             )
             .await?;
