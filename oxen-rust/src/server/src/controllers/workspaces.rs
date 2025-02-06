@@ -93,7 +93,7 @@ pub async fn get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
-        status: StatusMessage::resource_created(),
+        status: StatusMessage::resource_found(),
         workspace: WorkspaceResponse {
             id: workspace.id,
             name: workspace.name,
