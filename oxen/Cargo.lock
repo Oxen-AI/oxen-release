@@ -3027,9 +3027,9 @@ checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "liboxen"
-version = "0.25.3"
+version = "0.25.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a9cf345c646811af706c35fc9f41dbc9a82e2e43937b54123266d6ab97af35"
+checksum = "a83219f579ae0b590a7a9121c32b1c8c8b7ddba5f6d68e96e0ec248b57dca66d"
 dependencies = [
  "actix-files",
  "actix-web",
