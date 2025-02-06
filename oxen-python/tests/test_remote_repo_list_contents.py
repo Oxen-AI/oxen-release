@@ -1,6 +1,6 @@
 def test_remote_repo_list_contents(celeba_remote_repo_fully_pushed):
     """
-    Tests both `ls()` (paginated) and `scan()` (generator) 
+    Tests both `ls()` (paginated) and `scan()` (generator)
     by pushing actual data from a local repo to a remote repo.
     """
 
@@ -16,7 +16,7 @@ def test_remote_repo_list_contents(celeba_remote_repo_fully_pushed):
 
     all_files_paginated = []
     page_num = 1
-    
+
     while True:
         page = remote_repo.ls(directory="images", page_num=page_num, page_size=10)
 
