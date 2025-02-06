@@ -5,6 +5,10 @@ def test_remote_repo_exists(empty_remote_repo):
     exists = True
     assert empty_remote_repo.exists() == exists
 
+def test_remote_create_checkout_branch(celeba_remote_repo_one_image_pushed):
+    _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
+    remote_repo.create_checkout_branch("test-branch")
+    assert remote_repo.revision == "test-branch"
 
 def test_remote_repo_add(celeba_remote_repo_one_image_pushed, shared_datadir):
     _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
