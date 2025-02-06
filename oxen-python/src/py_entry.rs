@@ -18,6 +18,11 @@ impl PyEntry {
     }
 
     #[getter]
+    pub fn hash(&self) -> &str {
+        &self._entry.hash
+    }
+
+    #[getter]
     pub fn filename(&self) -> &str {
         &self._entry.filename
     }
@@ -40,11 +45,6 @@ impl PyEntry {
     #[getter]
     pub fn is_dir(&self) -> bool {
         self._entry.is_dir
-    }
-
-    #[getter]
-    pub fn hash(&self) -> &str {
-        &self._entry.hash
     }
 }
 

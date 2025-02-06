@@ -167,7 +167,7 @@ class RemoteRepo:
         if create:
             return self._repo.create_branch(revision)
 
-        self._repo.checkout(revision)
+        return self._repo.checkout(revision)
 
     def ls(
         self, directory: Optional[str] = None, page_num: int = 1, page_size: int = 100
@@ -320,6 +320,24 @@ class RemoteRepo:
         Get the metadata for a file in the remote repo.
         """
         return self._repo.metadata(path)
+
+    def file_has_changes(self, local_path: str, remote_path: str = None, revision: str = "main"):
+        """
+        Check if a local file has changed compared to a remote revision
+
+        Args:
+            local_path: `str`
+                The local path to the file to check
+            remote_path: `str`
+                The remote path to the file to check, will default to `local_path` if not provided
+            revision: `str`
+                The revision to check against, defaults to `self.revision`
+        """
+
+        if remote_path is None:
+            remote_path = local_path
+
+        return self._repo.file_has_changes(local_path, remote_path, revision)
 
     def log(self):
         """
