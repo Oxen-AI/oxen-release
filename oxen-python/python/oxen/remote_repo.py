@@ -188,9 +188,7 @@ class RemoteRepo:
 
         return self._repo.ls(directory, page_num, page_size)
 
-    def scan(
-        self, directory: Optional[str] = None, page_size: int = 100
-    ):
+    def scan(self, directory: Optional[str] = None, page_size: int = 100):
         """
         Generator over the contents of a directory in the remote repo
 
@@ -206,7 +204,9 @@ class RemoteRepo:
         current_page = 1
 
         while True:
-            contents = self._repo.ls(directory, page_num=current_page, page_size=page_size)
+            contents = self._repo.ls(
+                directory, page_num=current_page, page_size=page_size
+            )
 
             if not contents.entries:
                 return
