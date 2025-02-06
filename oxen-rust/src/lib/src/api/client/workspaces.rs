@@ -39,11 +39,12 @@ pub async fn get(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body_result = client::parse_json_body(&url, res).await;
-    
-    let workspace = body_result.ok()
+
+    let workspace = body_result
+        .ok()
         .and_then(|body| serde_json::from_str::<WorkspaceResponseView>(&body).ok())
         .map(|val| val.workspace);
-        
+
     Ok(workspace)
 }
 
@@ -227,7 +228,10 @@ mod tests {
 
             let workspace = get(&remote_repo, &workspace_id).await?;
             assert!(workspace.is_some());
-            assert_eq!(workspace.as_ref().unwrap().name, Some(workspace_name.to_string()));
+            assert_eq!(
+                workspace.as_ref().unwrap().name,
+                Some(workspace_name.to_string())
+            );
             assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
 
             let workspace = get_by_name(&remote_repo, &workspace_name).await?;
