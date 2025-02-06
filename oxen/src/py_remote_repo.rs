@@ -234,33 +234,36 @@ impl PyRemoteRepo {
 
     fn file_exists(&self, path: PathBuf, revision: &str) -> Result<bool, PyOxenError> {
         let exists = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            // TODO: we should have a more proper way to check if a file exists,
-            // this could error for a number of reasons
             match api::client::metadata::get_file(&self.repo, &revision, &path).await {
-                Ok(_) => true,
-                Err(_) => false,
+                Ok(Some(_)) => Ok(true),
+                Ok(None) => Ok(false),
+                Err(e) => Err(e),
             }
-        });
+        })?;
 
         Ok(exists)
     }
 
-    fn file_has_changes(&self, local_path: PathBuf, remote_path: PathBuf, revision: &str) -> Result<bool, PyOxenError> {
-        let remote_metadata = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+    fn file_has_changes(&self, local_path: PathBuf, remote_path: PathBuf, revision: &str) -> PyResult<bool> {
+        match pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::metadata::get_file(&self.repo, &revision, &remote_path).await
-        })?;
-
-        let remote_hash = remote_metadata.entry.hash;
-        let local_hash = liboxen::util::hasher::hash_file_contents(&local_path)?;
-        Ok(remote_hash != local_hash)
+        }) {
+            Ok(Some(remote_metadata)) => {
+                let remote_hash = remote_metadata.entry.hash;
+                let local_hash = liboxen::util::hasher::hash_file_contents(&local_path).map_err(|e| PyValueError::new_err(format!("Error hashing local file: {}", e)))?;
+                Ok(remote_hash != local_hash)
+            }
+            Ok(None) => Err(PyValueError::new_err(format!("File does not exist: {}", remote_path.display()))),
+            Err(e) => Err(PyValueError::new_err(format!("Error getting file metadata: {}", e))),
+        }
     }
 
-    fn metadata(&self, path: PathBuf) -> Result<PyEntry, PyOxenError> {
+    fn metadata(&self, path: PathBuf) -> Result<Option<PyEntry>, PyOxenError> {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::metadata::get_file(&self.repo, &self.revision, &path).await
         })?;
 
-        Ok(PyEntry::from(result.entry))
+        Ok(result.map(|e| PyEntry::from(e.entry)))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
