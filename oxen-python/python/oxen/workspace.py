@@ -51,6 +51,7 @@ class Workspace:
         repo: "RemoteRepo",
         branch: str,
         workspace_id: Optional[str] = None,
+        workspace_name: Optional[str] = None,
         path: Optional[str] = None,
     ):
         """
@@ -65,16 +66,25 @@ class Workspace:
             workspace_id: `Optional[str]`
                 The workspace id to create the workspace from.
                 If left empty, will create a unique workspace id.
+            workspace_name: `Optional[str]`
+                The name of the workspace. If left empty, the workspace will have no name.
+            path: `Optional[str]`
+                The path to the workspace. If left empty, the workspace will be created in the root of the remote repo.
         """
         self._repo = repo
-        self._workspace = PyWorkspace(repo._repo, branch, workspace_id, path)
-        print(f"Created workspace with id: {self._workspace.id()}")
+        self._workspace = PyWorkspace(
+            repo._repo, branch, workspace_id, workspace_name, path
+        )
+        print(f"Returned workspace with id: {self._workspace.id()}")
 
     def __repr__(self):
         return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
 
     def id(self):
         return self._workspace.id()
+
+    def name(self):
+        return self._workspace.name()
 
     def branch(self):
         return self._workspace.branch()
@@ -132,3 +142,9 @@ class Workspace:
         if branch_name is None:
             branch_name = self._workspace.branch()
         return self._workspace.commit(message, should_delete, branch_name)
+
+    def delete(self):
+        """
+        Delete the workspace
+        """
+        self._workspace.delete()
