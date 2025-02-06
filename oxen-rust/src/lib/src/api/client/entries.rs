@@ -24,13 +24,15 @@ pub async fn get_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-) -> Result<MetadataEntry, OxenError> {
+) -> Result<Option<MetadataEntry>, OxenError> {
     let remote_path = remote_path.as_ref();
 
-    let response = api::client::metadata::get_file(remote_repo, &revision, &remote_path).await?;
-    let entry = response.entry;
-
-    Ok(entry)
+    let Some(response) =
+        api::client::metadata::get_file(remote_repo, &revision, &remote_path).await?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(response.entry))
 }
 
 pub async fn list_entries_with_type(
@@ -123,7 +125,9 @@ pub async fn download_entry(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let remote_path = remote_path.as_ref();
-    let entry = get_entry(remote_repo, remote_path, &revision).await?;
+    let Some(entry) = get_entry(remote_repo, remote_path, &revision).await? else {
+        return Err(OxenError::path_does_not_exist(remote_path));
+    };
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
 

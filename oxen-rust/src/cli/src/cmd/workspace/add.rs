@@ -16,13 +16,24 @@ impl RunCmd for WorkspaceAddCmd {
     }
 
     fn args(&self) -> Command {
-        add_args().arg(
-            Arg::new("workspace-id")
-                .long("workspace-id")
-                .short('w')
-                .required(true)
-                .help("The workspace_id of the workspace"),
-        )
+        add_args()
+            .arg(
+                Arg::new("workspace-id")
+                    .long("workspace-id")
+                    .short('w')
+                    .required_unless_present("workspace-name")
+                    .help("The workspace ID of the workspace")
+                    .conflicts_with("workspace-name"),
+            )
+            .arg(
+                Arg::new("workspace-name")
+                    .long("workspace-name")
+                    .short('n')
+                    .required_unless_present("workspace-id")
+                    .help("The name of the workspace")
+                    .conflicts_with("workspace-id"),
+            )
+            .arg_required_else_help(true)
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
@@ -33,8 +44,21 @@ impl RunCmd for WorkspaceAddCmd {
             .map(PathBuf::from)
             .collect();
 
-        let Some(workspace_id) = args.get_one::<String>("workspace-id") else {
-            return Err(OxenError::basic_str("Must supply a workspace id"));
+        let workspace_name = args.get_one::<String>("workspace-name");
+        let workspace_id = args.get_one::<String>("workspace-id");
+
+        let workspace_identifier = match workspace_id {
+            Some(id) => id,
+            None => {
+                // If no ID is provided, try to get the workspace by name
+                if let Some(name) = workspace_name {
+                    name
+                } else {
+                    return Err(OxenError::basic_str(
+                        "Either workspace-id or workspace-name must be provided.",
+                    ));
+                }
+            }
         };
 
         let opts = AddOpts {
@@ -49,7 +73,7 @@ impl RunCmd for WorkspaceAddCmd {
             api::client::workspaces::files::add(
                 &repository,
                 &remote_repo,
-                workspace_id,
+                workspace_identifier,
                 path,
                 &opts,
             )

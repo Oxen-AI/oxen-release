@@ -531,6 +531,8 @@ jobs:
     uses: oxen-ai/homebrew-oxen/.github/workflows/update-formula.yml@main
     with:
       version: ${{ github.ref_name != '' && startsWith(github.ref_name, 'v') }}
+    secrets:
+      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
 
   release_homebrew_oxen_server:
     permissions:
@@ -540,6 +542,8 @@ jobs:
     uses: oxen-ai/homebrew-oxen-server/.github/workflows/update-formula.yml@main
     with:
       version: ${{ github.ref_name != '' && startsWith(github.ref_name, 'v') }}
+    secrets:
+      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
 
   stop-self-hosted-runner:
     name: Stop self-hosted EC2 runner

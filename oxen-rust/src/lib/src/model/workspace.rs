@@ -10,7 +10,7 @@ use crate::util;
 pub struct WorkspaceConfig {
     pub workspace_commit_id: String,
     pub is_editable: bool,
-    pub workspace_name: String,
+    pub workspace_name: Option<String>,
     pub workspace_id: Option<String>,
 }
 
