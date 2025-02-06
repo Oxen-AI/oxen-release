@@ -130,7 +130,7 @@ pub fn create_with_name(
     // Check for existing non-editable workspaces on the same commit
     for workspace in workspaces {
         if !is_editable {
-            check_non_editable_workspace(&workspace, &commit)?;
+            check_non_editable_workspace(&workspace, commit)?;
         }
         if let Some(workspace_name) = workspace_name.clone() {
             check_existing_workspace_name(&workspace, &workspace_name)?;
@@ -195,7 +195,7 @@ fn check_existing_workspace_name(
     workspace_name: &str,
 ) -> Result<(), OxenError> {
     if workspace.name == Some(workspace_name.to_string())
-        || workspace_name.to_string() == workspace.id
+        || *workspace_name == workspace.id
     {
         return Err(OxenError::basic_str(format!(
             "A workspace with the name {} already exists",
