@@ -1,13 +1,11 @@
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats
+        Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry,
+        StagedEntryStatus, SummarizedStagedDirStats,
     },
     util,
 };
@@ -109,10 +107,11 @@ impl RemoteStagedStatus {
         repo: &LocalRepository,
         entries: &HashMap<PathBuf, StagedEntry>,
     ) -> Vec<MetadataEntry> {
-        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries.iter()
+        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries
+            .iter()
             .filter(|(_, entry)| entry.status == StagedEntryStatus::Added)
             .map(|(path, entry)| (path.clone(), entry.clone()))
-            .collect();        
+            .collect();
         RemoteStagedStatus::iter_to_meta_entry(repo, filtered_entries.keys())
     }
 
@@ -120,7 +119,8 @@ impl RemoteStagedStatus {
         repo: &LocalRepository,
         entries: &HashMap<PathBuf, StagedEntry>,
     ) -> Vec<MetadataEntry> {
-        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries.iter()
+        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries
+            .iter()
             .filter(|(_, entry)| entry.status == StagedEntryStatus::Modified)
             .map(|(path, entry)| (path.clone(), entry.clone()))
             .collect();
