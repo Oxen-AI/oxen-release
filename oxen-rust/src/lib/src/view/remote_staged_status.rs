@@ -1,14 +1,11 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
         Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry,
-        SummarizedStagedDirStats,
+        StagedEntryStatus, SummarizedStagedDirStats,
     },
     util,
 };
@@ -92,7 +89,7 @@ impl RemoteStagedStatus {
         let added_entries: Vec<MetadataEntry> =
             RemoteStagedStatus::added_to_meta_entry(repo, &staged.staged_files);
         let modified_entries: Vec<MetadataEntry> =
-            RemoteStagedStatus::modified_to_meta_entry(repo, &staged.modified_files);
+            RemoteStagedStatus::modified_to_meta_entry(repo, &staged.staged_files);
 
         let added_paginated =
             RemoteStagedStatus::paginate_entries(added_entries, page_num, page_size);
@@ -110,14 +107,24 @@ impl RemoteStagedStatus {
         repo: &LocalRepository,
         entries: &HashMap<PathBuf, StagedEntry>,
     ) -> Vec<MetadataEntry> {
-        RemoteStagedStatus::iter_to_meta_entry(repo, entries.keys())
+        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries
+            .iter()
+            .filter(|(_, entry)| entry.status == StagedEntryStatus::Added)
+            .map(|(path, entry)| (path.clone(), entry.clone()))
+            .collect();
+        RemoteStagedStatus::iter_to_meta_entry(repo, filtered_entries.keys())
     }
 
     fn modified_to_meta_entry(
         repo: &LocalRepository,
-        entries: &HashSet<PathBuf>,
+        entries: &HashMap<PathBuf, StagedEntry>,
     ) -> Vec<MetadataEntry> {
-        RemoteStagedStatus::iter_to_meta_entry(repo, entries.iter())
+        let filtered_entries: HashMap<PathBuf, StagedEntry> = entries
+            .iter()
+            .filter(|(_, entry)| entry.status == StagedEntryStatus::Modified)
+            .map(|(path, entry)| (path.clone(), entry.clone()))
+            .collect();
+        RemoteStagedStatus::iter_to_meta_entry(repo, filtered_entries.keys())
     }
 
     fn iter_to_meta_entry<'a, I: Iterator<Item = &'a PathBuf>>(
