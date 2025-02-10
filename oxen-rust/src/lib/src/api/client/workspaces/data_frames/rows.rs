@@ -367,8 +367,8 @@ mod tests {
                 page_size,
             )
             .await?;
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
+            assert_eq!(entries.modified_files.entries.len(), 1);
+            assert_eq!(entries.modified_files.total_entries, 1);
 
             Ok(remote_repo)
         })
@@ -648,7 +648,7 @@ mod tests {
                     constants::DEFAULT_PAGE_SIZE,
                 )
                 .await?;
-                assert_eq!(status.added_files.entries.len(), 1);
+                assert_eq!(status.modified_files.entries.len(), 1);
 
                 // Delete it
                 let mut delete_opts = DFOpts::empty();
@@ -665,7 +665,7 @@ mod tests {
                     constants::DEFAULT_PAGE_SIZE,
                 )
                 .await?;
-                assert_eq!(status.added_files.entries.len(), 0);
+                assert_eq!(status.modified_files.entries.len(), 0);
 
                 Ok(repo_dir)
             })
