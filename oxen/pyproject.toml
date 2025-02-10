@@ -3,6 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
+version = "0.26.0"
 name = "oxenai"
 description = "Data version control for machine learning"
 version = "0.25.3"
@@ -13,12 +14,13 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
+    "fsspec",
     "pandas",
     "polars",
     "pyarrow",
     "requests",
     "toml",
-    "tqdm"
+    "tqdm",
 ]
 
 [project.entry-points."fsspec.specs"]
@@ -27,4 +29,3 @@ oxen = "oxen.oxen_fs:OxenFS"
 [tool.maturin]
 python-source = "python"
 features = ["pyo3/extension-module"]
-

@@ -372,6 +372,18 @@ class RemoteRepo:
         self.create_branch(branch)
         return self.checkout(branch)
 
+    def merge(self, base_branch: str, head_branch: str):
+        """
+        Merge the head branch into the base branch on the remote repo.
+
+        Args:
+            base_branch: `str`
+                The base branch to merge into
+            head_branch: `str`
+                The head branch to merge
+        """
+        self._repo.merge(base_branch, head_branch)
+
     @property
     def namespace(self) -> str:
         """
