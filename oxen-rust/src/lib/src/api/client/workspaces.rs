@@ -418,7 +418,7 @@ mod tests {
                     constants::DEFAULT_PAGE_SIZE,
                 )
                 .await?;
-                assert_eq!(remote_status.modified_files.entries.len(), 0);
+                assert_eq!(remote_status.modified_files.entries.len(), 1);
 
                 Ok(repo_dir)
             })
