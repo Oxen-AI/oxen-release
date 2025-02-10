@@ -137,11 +137,10 @@ impl PyWorkspace {
         Ok(())
     }
 
-    #[pyo3(signature = (message, should_delete, branch_name=None))]
+    #[pyo3(signature = (message, branch_name=None))]
     fn commit(
         &self,
         message: String,
-        should_delete: bool,
         branch_name: Option<String>,
     ) -> Result<PyCommit, PyOxenError> {
         let branch_name = branch_name.unwrap_or(self.branch_name.clone());
@@ -158,14 +157,7 @@ impl PyWorkspace {
             Ok(PyCommit { commit })
         });
 
-        if !should_delete {
-            // Commit will delete the workspace, since they are tied to commits
-            // so we create a new one off the branch if success
-            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-                api::client::workspaces::create(&self.repo.repo, &branch_name, &self.id).await
-            })?;
-        }
-
+  
         commit
     }
 }
