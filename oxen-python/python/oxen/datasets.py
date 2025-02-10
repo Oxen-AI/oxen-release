@@ -1,11 +1,14 @@
+import logging
+from typing import Optional
+
 from oxen import RemoteRepo
 
-from typing import Optional
+logger = logging.getLogger(__name__)
 
 
 def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=None):
     """
-    Load a dataset from a repo into memory.
+    Load a dataset from an Oxen repository into memory using the HuggingFace datasets library.
 
     Args:
         repo_id: `str`
@@ -16,7 +19,18 @@ def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=No
             The format of the data files. Currently only "hugging_face" is supported.
         revision: `str` | None
             The commit id or branch name of the version of the data to download
+
+    Example:
+    ```python
+    from oxen.datasets import load_dataset
+    dataset = load_dataset("datasets/gsm8k", "train.jsonl")
+    # use datasets functions as you normally would
+    dataset.shuffle()[:10]
+    ```
     """
+    logger.info(
+        f"Loading dataset {repo_id} from {path} with format {fmt} and revision {revision}"
+    )
 
     if fmt == "hugging_face":
         # Download the data from Oxen.ai
@@ -32,7 +46,7 @@ def _load_hf(path: str):
 
     if path.endswith(".csv"):
         return hf_load_dataset("csv", data_files=path)
-    elif path.endswith(".json"):
+    elif path.endswith(".json") or path.endswith(".jsonl"):
         return hf_load_dataset("json", data_files=path)
     elif path.endswith(".parquet"):
         return hf_load_dataset("parquet", data_files=path)
