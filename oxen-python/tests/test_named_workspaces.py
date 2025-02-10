@@ -35,7 +35,7 @@ def test_named_workspace_naming_collision(
     assert len(remote_repo.list_workspaces()) == 1
 
 
-def test_named_workspace_naming_collision(
+def test_named_workspace_iterating_commits(
     celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
 ):
     _, remote_repo = celeba_remote_repo_one_image_pushed
