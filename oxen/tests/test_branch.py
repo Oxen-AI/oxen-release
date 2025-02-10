@@ -13,7 +13,7 @@ def test_branch_exists(celeba_local_repo_no_commits):
     repo.commit("Add first image")
 
     # oxen branch_exists
-    assert repo.branch_exists("main") == True
-    assert repo.branch_exists("false") == False
+    assert repo.branch_exists("main") 
+    assert not repo.branch_exists("false") 
 
 
