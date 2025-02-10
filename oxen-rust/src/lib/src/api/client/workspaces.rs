@@ -409,7 +409,7 @@ mod tests {
                 println!("{:?}", result);
                 assert!(result.is_err());
 
-                // Now status should be empty
+                // Status should have one modified file
                 let remote_status = api::client::workspaces::changes::list(
                     &remote_repo,
                     &workspace_id,
