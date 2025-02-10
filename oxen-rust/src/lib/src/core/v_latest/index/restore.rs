@@ -8,7 +8,7 @@ use crate::core::db::{self};
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-use crate::model::{Commit, LocalRepository};
+use crate::model::{Commit, LocalRepository, MerkleHash};
 use crate::opts::RestoreOpts;
 use crate::repositories;
 use crate::util;
@@ -235,6 +235,33 @@ pub fn restore_file(
     if !parent.exists() {
         log::debug!("restore::restore_regular: creating parent directory");
         util::fs::create_dir_all(parent)?;
+    }
+
+    // Check to see if the file has been modified if it exists
+    if working_path.exists() {
+        log::debug!("restore::restore_regular: working path exists");
+        // If there are modifications that are newer than the version in the tree,
+        // we should not restore the file
+        let hash = MerkleHash::new(util::hasher::u128_hash_file_contents(&working_path)?);
+        // Get the last modified time of the file
+        let metadata = fs::metadata(&working_path)?;
+        let mtime = filetime::FileTime::from_last_modification_time(&metadata);
+        let last_modified_mtime =
+            filetime::FileTime::from_unix_time(last_modified_seconds, last_modified_nanoseconds);
+
+        log::debug!("restore::restore_regular: hash {:?}", hash);
+        log::debug!("restore::restore_regular: file_hash {:?}", file_hash);
+        log::debug!("restore::restore_regular: mtime {:?}", mtime);
+        log::debug!(
+            "restore::restore_regular: last_modified_mtime {:?}",
+            last_modified_mtime
+        );
+        if hash != *file_hash && mtime > last_modified_mtime {
+            return Err(OxenError::basic_str(format!(
+                "File has been modified, commit the changes before continuing\n  {:?}",
+                path
+            )));
+        }
     }
 
     log::debug!("restore::restore_regular: copying file");
