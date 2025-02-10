@@ -27,5 +27,4 @@ def test_commit_to_new_workspace(
     workspace2.add(image_path_2)
     workspace2.commit("Adding a new image to the feature branch")
     workspaces = remote_repo.list_workspaces()
-    print(workspaces)
     assert len(workspaces) == 0
