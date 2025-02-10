@@ -329,6 +329,120 @@ mod tests {
         .await
     }
 
+    /*
+     * Modify the file on a branch
+     * Commit file on branch
+     * Checkout main
+     * Modify the file on main
+     * Merge branch into main
+     * Assert that the file on main is not overwritten
+     */
+    #[tokio::test]
+    async fn test_command_merge_does_not_overwrite_modified_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Write the first file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello")?;
+
+            // Track & commit the file
+            repositories::add(&repo, &hello_file)?;
+            repositories::commit(&repo, "Added hello.txt")?;
+
+            // Get the original branch name
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
+
+            // Create and checkout branch
+            let branch_name = "feature/world-explorer";
+            repositories::branches::create_checkout(&repo, branch_name)?;
+
+            // Write a second file
+            let world_file = repo.path.join("world.txt");
+            util::fs::write_to_path(&world_file, "World")?;
+
+            // Track & commit the second file in the branch
+            repositories::add(&repo, &world_file)?;
+            repositories::commit(&repo, "Added world.txt")?;
+
+            // Modify the hello file on the branch
+            let hello_file = test::modify_txt_file(hello_file, "Hello from branch")?;
+            repositories::add(&repo, &hello_file)?;
+            repositories::commit(&repo, "Changed hello.txt on branch")?;
+
+            // Checkout the main branch
+            repositories::checkout(&repo, orig_branch.name).await?;
+
+            // Modify the hello file on the main branch
+            let hello_file = test::modify_txt_file(hello_file, "Hello from main")?;
+
+            // Merge the branch into main while there are conflicts
+            let result = repositories::merge::merge(&repo, branch_name);
+            assert!(result.is_err());
+
+            // Assert that the hello file on main is not overwritten
+            assert_eq!(util::fs::read_from_path(&hello_file)?, "Hello from main");
+
+            Ok(())
+        })
+        .await
+    }
+
+    /*
+     * Modify the file on a branch
+     * Commit file on branch
+     * Checkout main
+     * Add a new file on main
+     * Merge branch into main
+     * Assert that the new file on main is not overwritten
+     */
+    #[tokio::test]
+    async fn test_command_merge_does_not_overwrite_new_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Write the first file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello")?;
+
+            // Track & commit the file
+            repositories::add(&repo, &hello_file)?;
+            repositories::commit(&repo, "Added hello.txt")?;
+
+            // Get the original branch name
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
+
+            // Create and checkout branch
+            let branch_name = "feature/world-explorer";
+            repositories::branches::create_checkout(&repo, branch_name)?;
+
+            // Write a second file
+            let world_file = repo.path.join("world.txt");
+            util::fs::write_to_path(&world_file, "World")?;
+
+            // Track & commit the second file in the branch
+            repositories::add(&repo, &world_file)?;
+            repositories::commit(&repo, "Added world.txt")?;
+
+            // Modify the hello file on the branch
+            let hello_file = test::modify_txt_file(hello_file, "Hello from branch")?;
+            repositories::add(&repo, &hello_file)?;
+            repositories::commit(&repo, "Changed hello.txt on branch")?;
+
+            // Checkout the main branch
+            repositories::checkout(&repo, orig_branch.name).await?;
+
+            // Add a new file on main
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write_to_path(&new_file, "New file")?;
+
+            // Merge the branch should not have conflicts
+            repositories::merge::merge(&repo, branch_name)?;
+
+            // Assert that the new file on main is not overwritten
+            assert_eq!(util::fs::read_from_path(&new_file)?, "New file");
+
+            Ok(())
+        })
+        .await
+    }
+
     #[tokio::test]
     async fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
