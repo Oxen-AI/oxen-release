@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource};
+use crate::model::{
+    Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource, StagedEntryStatus,
+};
 use crate::repositories;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -40,6 +42,8 @@ pub struct MetadataEntry {
     pub metadata: Option<GenericMetadata>,
     // If it's a tabular file, is it indexed for querying?
     pub is_queryable: Option<bool>,
+    // Workspace changes if the entry is part of a workspace
+    pub status: Option<StagedEntryStatus>,
 }
 
 impl MetadataEntry {

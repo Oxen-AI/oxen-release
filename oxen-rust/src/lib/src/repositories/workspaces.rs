@@ -2,6 +2,7 @@ use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACE_CONFIG};
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::{MetadataEntry, StagedData, StagedEntryStatus};
 use crate::repositories;
 use crate::util;
 
@@ -18,6 +19,7 @@ pub use df::df;
 pub use diff::diff;
 pub use upload::upload;
 
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Loads a workspace from the filesystem. Must call create() first to create the workspace.
@@ -301,4 +303,34 @@ fn init_workspace_repo(
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::workspaces::init_workspace_repo(repo, workspace_dir),
     }
+}
+
+pub fn populate_entries_with_workspace_data(
+    directory: &Path,
+    workspace: &Workspace,
+    entries: &mut Vec<MetadataEntry>,
+) -> Result<(), OxenError> {
+    let workspace_changes =
+        repositories::workspaces::status::status_from_dir(&workspace, directory)?;
+
+    let file_status_map = build_file_status_map(&workspace_changes);
+    for entry in entries {
+        entry.status = file_status_map.get(&entry.filename).cloned();
+    }
+
+    Ok(())
+}
+
+/// Build a hashmap mapping file paths to their status from workspace_changes.staged_files.
+fn build_file_status_map(workspace_changes: &StagedData) -> HashMap<String, StagedEntryStatus> {
+    workspace_changes
+        .staged_files
+        .iter()
+        .map(|(file_path, entry)| {
+            (
+                file_path.to_str().unwrap().to_string(),
+                entry.status.clone(),
+            )
+        })
+        .collect()
 }
