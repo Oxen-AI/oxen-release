@@ -32,6 +32,7 @@ pub async fn get(
         &repo,
         &resource.path,
         resource.version.to_str().unwrap_or_default(),
+        resource.workspace.clone(),
         &PaginateOpts {
             page_num: page,
             page_size,

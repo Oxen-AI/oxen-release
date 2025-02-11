@@ -11,7 +11,9 @@ use crate::repositories;
 use rayon::prelude::*;
 
 use crate::constants::ROOT_PATH;
-use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource};
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource, Workspace,
+};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -47,7 +49,14 @@ pub fn list_commit_entries(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(repo, ROOT_PATH, revision, paginate_opts, repo.min_version())
+    list_directory_w_version(
+        repo,
+        ROOT_PATH,
+        revision,
+        None,
+        paginate_opts,
+        repo.min_version(),
+    )
 }
 
 /// List all the entries within a directory given a specific commit
@@ -57,7 +66,14 @@ pub fn list_directory(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(repo, directory, revision, paginate_opts, repo.min_version())
+    list_directory_w_version(
+        repo,
+        directory,
+        revision,
+        None,
+        paginate_opts,
+        repo.min_version(),
+    )
 }
 
 /// Force a version when listing a repo
@@ -65,6 +81,7 @@ pub fn list_directory_w_version(
     repo: &LocalRepository,
     directory: impl AsRef<Path>,
     revision: impl AsRef<str>,
+    workspace: Option<Workspace>,
     paginate_opts: &PaginateOpts,
     version: MinOxenVersion,
 ) -> Result<PaginatedDirEntries, OxenError> {
@@ -77,6 +94,7 @@ pub fn list_directory_w_version(
             let parsed_resource = ParsedResource {
                 path: directory.as_ref().to_path_buf(),
                 commit,
+                workspace,
                 branch,
                 version: PathBuf::from(&revision),
                 resource: PathBuf::from(&revision).join(&directory),
@@ -113,6 +131,7 @@ pub fn get_meta_entry(
         path: path.to_path_buf(),
         commit: Some(commit.clone()),
         branch: None,
+        workspace: None,
         version: PathBuf::from(&commit.id),
         resource: PathBuf::from(&commit.id).join(path),
     };
