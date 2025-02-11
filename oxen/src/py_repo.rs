@@ -12,6 +12,8 @@ use liboxen::api;
 use liboxen::opts::FetchOpts;
 use liboxen::repositories;
 
+use liboxen::core::refs::RefReader; 
+
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
@@ -136,6 +138,13 @@ impl PyRepo {
                 .ok_or(OxenError::local_branch_not_found(name))
         };
         Ok(PyBranch::from(branch?))
+    }
+
+    pub fn branch_exists(&self, name: &str) -> Result<bool, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let ref_reader = RefReader::new(&repo)?;
+
+        Ok(ref_reader.has_branch(name))
     }
 
     pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {
