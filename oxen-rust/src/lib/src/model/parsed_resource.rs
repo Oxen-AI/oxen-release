@@ -1,17 +1,17 @@
-/// Simple object to serialize and deserialize an object id
 use serde::{Deserialize, Serialize};
-
-use super::{Branch, Commit, Workspace};
 use std::path::PathBuf;
 
+use super::{Branch, Commit, Workspace};
+
+/// Internal model (perhaps used for processing and business logic)
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ParsedResource {
-    pub commit: Option<Commit>,       // Maybe resolves to a commit
-    pub branch: Option<Branch>,       // Maybe resolves to a branch
-    pub workspace: Option<Workspace>, // Maybe resolves to a workspace
-    pub path: PathBuf,                // File path that was past the commit or branch
-    pub version: PathBuf,             // This is the split out branch / commit id
-    pub resource: PathBuf,            // full resource we parsed
+    pub commit: Option<Commit>,
+    pub branch: Option<Branch>,
+    pub workspace: Option<Workspace>,
+    pub path: PathBuf,
+    pub version: PathBuf,
+    pub resource: PathBuf,
 }
 
 impl std::fmt::Display for ParsedResource {
@@ -22,5 +22,48 @@ impl std::fmt::Display for ParsedResource {
             self.version.to_string_lossy(),
             self.path.to_string_lossy()
         )
+    }
+}
+
+/// External (view) model that is returned to the client with fewer fields.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ParsedResourceView {
+    pub workspace: Option<WorkspaceView>, 
+    pub commit: Option<Commit>,
+    pub branch: Option<Branch>,
+    pub path: PathBuf,
+    pub version: PathBuf,
+    pub resource: PathBuf,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct WorkspaceView {
+    pub name: Option<String>,
+    pub id: String,
+    pub commit: Commit,
+}
+
+/// Conversion from the internal `ParsedResource` to the external `ParsedResourceView`.
+impl From<ParsedResource> for ParsedResourceView {
+    fn from(pr: ParsedResource) -> Self {
+        Self {
+            workspace: pr.workspace.map(WorkspaceView::from),
+            commit: pr.commit,
+            branch: pr.branch,
+            path: pr.path,
+            version: pr.version,
+            resource: pr.resource,
+        }
+    }
+}
+
+/// Conversion from the internal `Workspace` to a `WorkspaceView`
+impl From<Workspace> for WorkspaceView {
+    fn from(workspace: Workspace) -> Self {
+        Self {
+            name: workspace.name, 
+            id: workspace.id,
+            commit: workspace.commit,
+        }
     }
 }
