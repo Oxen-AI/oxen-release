@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use super::{Branch, Commit, Workspace};
+use super::{workspace::WorkspaceView, Branch, Commit, Workspace};
 
 /// Internal model (perhaps used for processing and business logic)
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -36,13 +36,6 @@ pub struct ParsedResourceView {
     pub resource: PathBuf,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct WorkspaceView {
-    pub name: Option<String>,
-    pub id: String,
-    pub commit: Commit,
-}
-
 /// Conversion from the internal `ParsedResource` to the external `ParsedResourceView`.
 impl From<ParsedResource> for ParsedResourceView {
     fn from(pr: ParsedResource) -> Self {
@@ -57,13 +50,3 @@ impl From<ParsedResource> for ParsedResourceView {
     }
 }
 
-/// Conversion from the internal `Workspace` to a `WorkspaceView`
-impl From<Workspace> for WorkspaceView {
-    fn from(workspace: Workspace) -> Self {
-        Self {
-            name: workspace.name, 
-            id: workspace.id,
-            commit: workspace.commit,
-        }
-    }
-}
