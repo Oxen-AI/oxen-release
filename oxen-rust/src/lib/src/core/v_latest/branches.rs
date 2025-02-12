@@ -1,6 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::core::v_latest::fetch;
+use crate::core::v_latest::index::restore::{self, FileToRestore};
+use crate::core::v_latest::{fetch, index};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository};
@@ -148,13 +149,25 @@ pub async fn checkout_subtrees(
         let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
         let from_tree = None;
         let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
+        let mut files_to_restore: Vec<FileToRestore> = vec![];
+        let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
         r_restore_missing_or_modified_files(
             repo,
             &target_root,
             &from_tree,
             parent_path,
+            &mut files_to_restore,
+            &mut cannot_overwrite_entries,
             &mut progress,
         )?;
+
+        if !cannot_overwrite_entries.is_empty() {
+            return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+        }
+
+        for file_to_restore in files_to_restore {
+            restore::restore_file(repo, &file_to_restore.file_node, &file_to_restore.path)?;
+        }
     }
 
     Ok(())
@@ -224,13 +237,44 @@ pub async fn set_working_repo_to_commit(
 
     // If we did it in one pass, we would not know if we should remove the file
     // or restore it.
+    let mut files_to_restore: Vec<FileToRestore> = vec![];
+    let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
     r_restore_missing_or_modified_files(
         repo,
         &target_node,
         &from_node,
         Path::new(""),
+        &mut files_to_restore,
+        &mut cannot_overwrite_entries,
         &mut progress,
     )?;
+
+    // If there are conflicts, return an error without restoring anything
+    log::debug!(
+        "set_working_repo_to_commit {} cannot_overwrite_entries {}",
+        to_commit,
+        cannot_overwrite_entries.len()
+    );
+    if !cannot_overwrite_entries.is_empty() {
+        log::debug!(
+            "set_working_repo_to_commit cannot_overwrite_entries {:?}",
+            cannot_overwrite_entries
+        );
+        return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+    }
+
+    log::debug!(
+        "set_working_repo_to_commit {} restoring {} entries!",
+        to_commit,
+        files_to_restore.len()
+    );
+    for file_to_restore in files_to_restore {
+        log::debug!(
+            "set_working_repo_to_commit: file_to_restore.path {:?}",
+            file_to_restore.path
+        );
+        restore::restore_file(repo, &file_to_restore.file_node, &file_to_restore.path)?;
+    }
 
     Ok(())
 }
@@ -246,14 +290,39 @@ fn cleanup_removed_files(
     let from_root_dir_node = repositories::tree::get_root_dir(from_node)?;
     log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
 
+    let mut files_to_remove: Vec<PathBuf> = vec![];
+    let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
     r_remove_if_not_in_target(
         repo,
         from_root_dir_node,
         from_node,
         target_node,
         Path::new(""),
-        progress,
+        &mut files_to_remove,
+        &mut cannot_overwrite_entries
     )?;
+
+    log::debug!(
+        "cleanup_removed_files cannot_overwrite_entries {}",
+        cannot_overwrite_entries.len()
+    );
+    if !cannot_overwrite_entries.is_empty() {
+        log::debug!(
+            "cleanup_removed_files cannot_overwrite_entries {:?}",
+            cannot_overwrite_entries
+        );
+        return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+    }
+
+    log::debug!(
+        "cleanup_removed_files removing {} files!",
+        files_to_remove.len()
+    );
+    for file_path in files_to_remove {
+        log::debug!("Removing file: {:?}", file_path);
+        util::fs::remove_file(&file_path)?;
+        progress.increment_removed();
+    }
 
     Ok(())
 }
@@ -264,7 +333,8 @@ fn r_remove_if_not_in_target(
     from_tree_root: &MerkleTreeNode,
     target_tree_root: &MerkleTreeNode,
     current_path: &Path,
-    progress: &mut CheckoutProgressBar,
+    files_to_remove: &mut Vec<PathBuf>,
+    cannot_overwrite_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
     log::debug!(
         "r_remove_if_not_in_target current_path: {:?} head_node: {}",
@@ -288,12 +358,35 @@ fn r_remove_if_not_in_target(
             );
 
             if target_node.is_none() && from_node.is_some() {
-                log::debug!("r_remove_if_not_in_target removing file: {:?}", file_path);
+                log::debug!(
+                    "r_remove_if_not_in_target checking if can remove file: {:?}",
+                    file_path
+                );
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
-                    log::debug!("Removing file: {:?}", file_path);
-                    util::fs::remove_file(&full_path)?;
-                    progress.increment_removed();
+                    // Verify that the file is not in a modified state
+                    let current_hash = util::hasher::hash_file_contents(&full_path)?;
+                    log::debug!(
+                        "r_remove_if_not_in_target comparing {:?} current {:?} to {:?}",
+                        file_path,
+                        current_hash,
+                        head_node.node.hash()
+                    );
+                    if current_hash != head_node.node.hash().to_string() {
+                        log::debug!(
+                            "r_remove_if_not_in_target file is modified, skipping removal: {:?}",
+                            file_path
+                        );
+                        cannot_overwrite_entries.push(file_path.clone());
+                    } else {
+                        log::debug!("Removing file: {:?}", full_path);
+                        files_to_remove.push(full_path.clone());
+                    }
+                } else {
+                    log::debug!(
+                        "r_remove_if_not_in_target full path does not exist: {:?}",
+                        full_path
+                    );
                 }
             }
         }
@@ -342,7 +435,8 @@ fn r_remove_if_not_in_target(
                     from_tree_root,
                     target_tree_root,
                     &dir_path,
-                    progress,
+                    files_to_remove,
+                    cannot_overwrite_entries
                 )?;
             }
             // Remove directory if it's empty
@@ -362,6 +456,8 @@ fn r_restore_missing_or_modified_files(
     node: &MerkleTreeNode,
     from_tree: &Option<MerkleTreeNode>,
     path: &Path, // relative path
+    files_to_restore: &mut Vec<FileToRestore>,
+    cannot_overwrite_entries: &mut Vec<PathBuf>,
     progress: &mut CheckoutProgressBar,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
@@ -376,14 +472,37 @@ fn r_restore_missing_or_modified_files(
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
-                restore_file(repo, file_node, &full_path)?;
+                if index::restore::should_restore_file(repo, None, file_node, &rel_path)? {
+                    files_to_restore.push(FileToRestore {
+                        file_node: file_node.clone(),
+                        path: rel_path.clone(),
+                    });
+                } else {
+                    cannot_overwrite_entries.push(rel_path.clone());
+                }
                 progress.increment_restored();
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
                 if current_hash != file_node.hash().to_string() {
-                    log::debug!("Updating modified file: {:?}", rel_path);
-                    restore_file(repo, file_node, &full_path)?;
+                    let mut from_node: Option<FileNode> = None;
+                    if let Some(from_tree) = from_tree {
+                        if let Some(node_from_tree) = from_tree.get_by_path(&rel_path)? {
+                            if let EMerkleTreeNode::File(file_node) = &node_from_tree.node {
+                                from_node = Some(file_node.clone());
+                            }
+                        }
+                    }
+
+                    if index::restore::should_restore_file(repo, from_node, file_node, &rel_path)? {
+                        log::debug!("Updating modified file: {:?}", rel_path);
+                        files_to_restore.push(FileToRestore {
+                            file_node: file_node.clone(),
+                            path: rel_path.clone(),
+                        });
+                    } else {
+                        cannot_overwrite_entries.push(rel_path.clone());
+                    }
                     progress.increment_modified();
                 }
             }
@@ -408,6 +527,8 @@ fn r_restore_missing_or_modified_files(
                     &child_node,
                     from_tree,
                     &dir_path,
+                    files_to_restore,
+                    cannot_overwrite_entries,
                     progress,
                 )?;
             }
@@ -415,7 +536,15 @@ fn r_restore_missing_or_modified_files(
         EMerkleTreeNode::Commit(_) => {
             // If we get a commit node, we need to skip to the root directory
             let root_dir = repositories::tree::get_root_dir(node)?;
-            r_restore_missing_or_modified_files(repo, root_dir, from_tree, path, progress)?;
+            r_restore_missing_or_modified_files(
+                repo,
+                root_dir,
+                from_tree,
+                path,
+                files_to_restore,
+                cannot_overwrite_entries,
+                progress,
+            )?;
         }
         _ => {
             return Err(OxenError::basic_str(
@@ -423,41 +552,5 @@ fn r_restore_missing_or_modified_files(
             ));
         }
     }
-    Ok(())
-}
-
-pub fn restore_file(
-    repo: &LocalRepository,
-    file_node: &FileNode,
-    dst_path: &Path, // absolute path
-) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-    if !version_path.exists() {
-        return Err(OxenError::basic_str(format!(
-            "Restoring file, source file {} not found in versions directory: {:?} when restoring to {:?}",
-            file_node.name(),
-            version_path,
-            dst_path
-        )));
-    }
-
-    if let Some(parent) = dst_path.parent() {
-        if !parent.exists() {
-            util::fs::create_dir_all(parent)?;
-        }
-    }
-
-    util::fs::copy(version_path, dst_path)?;
-
-    let last_modified_seconds = file_node.last_modified_seconds();
-    let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
-    let last_modified = std::time::SystemTime::UNIX_EPOCH
-        + std::time::Duration::from_secs(last_modified_seconds as u64)
-        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
-    filetime::set_file_mtime(
-        dst_path,
-        filetime::FileTime::from_system_time(last_modified),
-    )?;
-
     Ok(())
 }

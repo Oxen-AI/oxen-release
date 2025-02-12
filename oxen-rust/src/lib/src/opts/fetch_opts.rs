@@ -15,6 +15,8 @@ pub struct FetchOpts {
     // If true, recursively clones the whole repository history
     // by default, only the head commit is cloned to save time and disk space
     pub all: bool,
+    // Defaults to true, but on pull we want to only update the branch head if there are no conflicts
+    pub should_update_branch_head: bool,
 }
 
 impl Default for FetchOpts {
@@ -32,6 +34,7 @@ impl FetchOpts {
             subtree_paths: None,
             depth: None,
             all: false,
+            should_update_branch_head: true,
         }
     }
 

@@ -45,6 +45,7 @@ pub async fn checkout(
         let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
         repositories::branches::checkout_commit_from_commit(repo, &commit, &previous_head_commit)
             .await?;
+        repositories::branches::update(repo, value, &commit.id)?;
         repositories::branches::set_head(repo, value)?;
         Ok(None)
     }

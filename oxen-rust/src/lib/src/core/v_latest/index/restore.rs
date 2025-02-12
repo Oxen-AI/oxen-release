@@ -13,6 +13,11 @@ use crate::opts::RestoreOpts;
 use crate::repositories;
 use crate::util;
 
+pub struct FileToRestore {
+    pub file_node: FileNode,
+    pub path: PathBuf,
+}
+
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     log::debug!("restore::restore: start");
     if opts.staged {
@@ -214,59 +219,75 @@ fn restore_dir(
     Ok(())
 }
 
+pub fn should_restore_file(
+    repo: &LocalRepository,
+    base_node: Option<FileNode>,
+    file_node: &FileNode,
+    path: impl AsRef<Path>,
+) -> Result<bool, OxenError> {
+    let path = path.as_ref();
+    let working_path = repo.path.join(path);
+
+    // Check to see if the file has been modified if it exists
+    if working_path.exists() {
+        log::debug!(
+            "restore::should_restore_file: working path exists based on base_node? {:?}",
+            base_node.is_some()
+        );
+        let hash = MerkleHash::new(util::hasher::u128_hash_file_contents(&working_path)?);
+        // If there are modifications compared to the base node, we should not restore the file
+        if let Some(base_node) = base_node {
+            let base_node_hash = base_node.hash();
+            log::debug!(
+                "restore::should_restore_file: comparing hash to base_node {:?} == {:?}",
+                base_node_hash,
+                hash
+            );
+            if hash != *base_node_hash {
+                // Hmm this is weird...think about what this check should be on ff merge
+                log::debug!("restore::should_restore_file: false hash != base_node_hash");
+                return Ok(false);
+            }
+        } else {
+            // Untracked file, check if we are overwriting it
+            log::debug!("restore::should_restore_file: working path exists but no base_node");
+            if hash != *file_node.hash() {
+                log::debug!("restore::should_restore_file: false hash != file_node_hash");
+                return Ok(false);
+            }
+        }
+    }
+    log::debug!("restore::should_restore_file: true");
+    Ok(true)
+}
+
 pub fn restore_file(
     repo: &LocalRepository,
     file_node: &FileNode,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
-    log::debug!("restore::restore_regular: start for {:?}", file_node.name());
-    log::debug!("restore::restore_regular: got entry resource");
+    let path = path.as_ref();
+    log::debug!("restore::restore_file: start for {:?}", file_node.name());
+    log::debug!("restore::restore_file: got entry resource");
 
     let file_hash = file_node.hash();
     let last_modified_seconds = file_node.last_modified_seconds();
     let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
-    log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
+    log::debug!("restore::restore_file: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
-    log::debug!("restore::restore_regular: calculated version path");
+    log::debug!("restore::restore_file: calculated version path");
 
     let working_path = repo.path.join(path);
     let parent = working_path.parent().unwrap();
     if !parent.exists() {
-        log::debug!("restore::restore_regular: creating parent directory");
+        log::debug!("restore::restore_file: creating parent directory");
         util::fs::create_dir_all(parent)?;
     }
 
-    // Check to see if the file has been modified if it exists
-    if working_path.exists() {
-        log::debug!("restore::restore_regular: working path exists");
-        // If there are modifications that are newer than the version in the tree,
-        // we should not restore the file
-        let hash = MerkleHash::new(util::hasher::u128_hash_file_contents(&working_path)?);
-        // Get the last modified time of the file
-        let metadata = fs::metadata(&working_path)?;
-        let mtime = filetime::FileTime::from_last_modification_time(&metadata);
-        let last_modified_mtime =
-            filetime::FileTime::from_unix_time(last_modified_seconds, last_modified_nanoseconds);
-
-        log::debug!("restore::restore_regular: hash {:?}", hash);
-        log::debug!("restore::restore_regular: file_hash {:?}", file_hash);
-        log::debug!("restore::restore_regular: mtime {:?}", mtime);
-        log::debug!(
-            "restore::restore_regular: last_modified_mtime {:?}",
-            last_modified_mtime
-        );
-        if hash != *file_hash && mtime > last_modified_mtime {
-            return Err(OxenError::basic_str(format!(
-                "File has been modified, commit the changes before continuing\n  {:?}",
-                path
-            )));
-        }
-    }
-
-    log::debug!("restore::restore_regular: copying file");
-    log::debug!("restore::restore_regular: version_path {:?}", version_path);
-    log::debug!("restore::restore_regular: working_path {:?}", working_path);
+    log::debug!("restore::restore_file: copying file");
+    log::debug!("restore::restore_file: version_path {:?}", version_path);
+    log::debug!("restore::restore_file: working_path {:?}", working_path);
     util::fs::copy(version_path, working_path.clone())?;
     let last_modified = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
@@ -276,7 +297,7 @@ pub fn restore_file(
         filetime::FileTime::from_system_time(last_modified),
     )?;
 
-    log::debug!("restore::restore_regular: set updated time from tree");
-    log::debug!("restore::restore_regular: end");
+    log::debug!("restore::restore_file: set updated time from tree");
+    log::debug!("restore::restore_file: end");
     Ok(())
 }

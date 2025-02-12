@@ -8,7 +8,7 @@ use crate::core::v_latest::commits::{get_commit_or_head, list_between};
 use crate::core::v_latest::{add, rm};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use crate::model::{Branch, Commit, LocalRepository};
 use crate::opts::RmOpts;
 use crate::repositories;
@@ -21,7 +21,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use super::index;
+use super::index::restore;
+use super::index::restore::FileToRestore;
 
 pub fn has_conflicts(
     repo: &LocalRepository,
@@ -304,7 +305,7 @@ fn merge_commits_on_branch(
 ) -> Result<Option<Commit>, OxenError> {
     // User output
     println!(
-        "Updating {} -> {}",
+        "merge_commits_on_branch {} -> {}",
         merge_commits.base.id, merge_commits.merge.id
     );
 
@@ -402,9 +403,71 @@ fn fast_forward_merge(
     let base_dir_node = repositories::tree::get_root_dir(&base_tree)?;
     let merge_dir_node = repositories::tree::get_root_dir(&merge_tree)?;
 
-    // Same logic here as restore, where we don't need to traverse if the hashes match
-    r_ff_merge_commit(repo, &base_tree, merge_dir_node, PathBuf::from(""))?;
-    r_ff_base_dir(repo, &merge_tree, base_dir_node, PathBuf::from(""))?;
+    // Stop early if there are conflicts
+    let mut entries_to_restore: Vec<FileToRestore> = vec![];
+    let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
+    r_ff_merge_commit(
+        repo,
+        &base_tree,
+        merge_dir_node,
+        PathBuf::from(""),
+        &mut entries_to_restore,
+        &mut cannot_overwrite_entries,
+    )?;
+    // If there are no conflicts, restore the entries
+    log::debug!(
+        "r_ff_merge_commit cannot_overwrite_entries {:?}",
+        cannot_overwrite_entries.len()
+    );
+    if cannot_overwrite_entries.is_empty() {
+        log::debug!(
+            "r_ff_merge_commit restoring {} entries!",
+            entries_to_restore.len()
+        );
+        for entry in entries_to_restore.iter() {
+            restore::restore_file(repo, &entry.file_node, &entry.path)?;
+        }
+    } else {
+        log::debug!(
+            "r_ff_merge_commit cannot_overwrite_entries {:?}",
+            cannot_overwrite_entries
+        );
+        // If there are conflicts, return an error without restoring anything
+        return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+    }
+
+    let mut entries_to_remove: Vec<FileToRestore> = vec![];
+    let mut cannot_remove_entries: Vec<PathBuf> = vec![];
+    r_ff_base_dir(
+        repo,
+        &merge_tree,
+        base_dir_node,
+        PathBuf::from(""),
+        &mut entries_to_remove,
+        &mut cannot_remove_entries,
+    )?;
+
+    // If there are no conflicts, remove the entries
+    log::debug!(
+        "r_ff_merge_commit cannot_remove_entries {:?}",
+        cannot_remove_entries.len()
+    );
+    if cannot_remove_entries.is_empty() {
+        log::debug!(
+            "r_ff_merge_commit removing {} entries!",
+            entries_to_remove.len()
+        );
+        for entry in entries_to_remove.iter() {
+            util::fs::remove_file(&entry.path)?;
+        }
+    } else {
+        log::debug!(
+            "r_ff_merge_commit cannot_remove_entries {:?}",
+            cannot_remove_entries
+        );
+        // If there are conflicts, return an error without removing anything
+        return Err(OxenError::cannot_overwrite_files(&cannot_remove_entries));
+    }
 
     // Move the HEAD forward to this commit
     let ref_writer = RefWriter::new(repo)?;
@@ -418,9 +481,12 @@ fn r_ff_merge_commit(
     base_tree: &MerkleTreeNode,
     merge_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
+    entries_to_restore: &mut Vec<FileToRestore>,
+    cannot_overwrite_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
-    log::debug!("r_ff_merge_commit!");
     let path = path.as_ref();
+    log::debug!("r_ff_merge_commit! path {:?}", path);
+
     match &merge_node.node {
         EMerkleTreeNode::File(merge_file_node) => {
             let file_path = path.join(merge_file_node.name());
@@ -430,13 +496,41 @@ fn r_ff_merge_commit(
 
             if let Some(base_file_node) = base_tree.get_by_path(&file_path)? {
                 log::debug!("base_file_node {}", base_file_node);
+                let should_restore = restore::should_restore_file(
+                    repo,
+                    Some(base_file_node.file()?.clone()),
+                    merge_file_node,
+                    &file_path,
+                )?;
                 if merge_node.hash != base_file_node.hash {
                     log::debug!("Merge entry has changed, restore: {:?}", file_path);
-                    update_entry(repo, &(merge_file_node.clone(), file_path))?;
+                    if should_restore {
+                        entries_to_restore.push(FileToRestore {
+                            file_node: merge_file_node.clone(),
+                            path: file_path.clone(),
+                        });
+                    } else {
+                        cannot_overwrite_entries.push(file_path.clone());
+                    }
+                } else {
+                    log::debug!(
+                        "Merge entry has not changed, but still !restore: {:?}",
+                        file_path
+                    );
+                    if !should_restore {
+                        cannot_overwrite_entries.push(file_path.clone());
+                    }
                 }
             } else {
                 log::debug!("Merge entry is new, restore: {:?}", file_path);
-                update_entry(repo, &(merge_file_node.clone(), file_path))?;
+                if restore::should_restore_file(repo, None, merge_file_node, &file_path)? {
+                    entries_to_restore.push(FileToRestore {
+                        file_node: merge_file_node.clone(),
+                        path: file_path.clone(),
+                    });
+                } else {
+                    cannot_overwrite_entries.push(file_path.clone());
+                }
             }
         }
         EMerkleTreeNode::Directory(dir_node) => {
@@ -455,13 +549,21 @@ fn r_ff_merge_commit(
 
             for child in merge_children.iter() {
                 log::debug!("r_ff_merge_commit child_path {}", child);
-                r_ff_merge_commit(repo, base_tree, child, &dir_path)?;
+                r_ff_merge_commit(
+                    repo,
+                    base_tree,
+                    child,
+                    &dir_path,
+                    entries_to_restore,
+                    cannot_overwrite_entries,
+                )?;
             }
         }
         _ => {
             log::debug!("r_ff_merge_commit unknown node type");
         }
     }
+
     Ok(())
 }
 
@@ -470,6 +572,8 @@ fn r_ff_base_dir(
     merge_tree: &MerkleTreeNode,
     base_node: &MerkleTreeNode,
     path: impl AsRef<Path>,
+    entries_to_remove: &mut Vec<FileToRestore>,
+    cannot_remove_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
     log::debug!("r_ff_base_dir!");
     let path = path.as_ref();
@@ -479,12 +583,18 @@ fn r_ff_base_dir(
             log::debug!("r_ff_base_dir file_path {:?}", file_path);
 
             // Remove all entries that are in HEAD but not in merge entries
-            let has_path = merge_tree.get_by_path(&file_path)?.is_some();
-            if !has_path {
-                log::debug!("Removing Base Entry: {:?}", file_path);
-                let path = repo.path.join(file_path);
+            if merge_tree.get_by_path(&file_path)?.is_none() {
+                log::debug!("Checking if Can Remove Base Entry: {:?}", file_path);
+                let path = repo.path.join(file_path.clone());
                 if path.exists() {
-                    util::fs::remove_file(path)?;
+                    if restore::should_restore_file(repo, None, base_file_node, &file_path)? {
+                        entries_to_remove.push(FileToRestore {
+                            file_node: base_file_node.clone(),
+                            path: path.clone(),
+                        });
+                    } else {
+                        cannot_remove_entries.push(file_path);
+                    }
                 }
             }
         }
@@ -504,7 +614,14 @@ fn r_ff_base_dir(
 
             for child in base_children.iter() {
                 log::debug!("r_ff_base_dir child_path {}", child);
-                r_ff_base_dir(repo, merge_tree, child, &dir_path)?;
+                r_ff_base_dir(
+                    repo,
+                    merge_tree,
+                    child,
+                    &dir_path,
+                    entries_to_remove,
+                    cannot_remove_entries,
+                )?;
             }
         }
         _ => {
@@ -520,7 +637,7 @@ fn merge_commits(
 ) -> Result<Option<Commit>, OxenError> {
     // User output
     println!(
-        "Updating {} -> {}",
+        "merge_commits {} -> {}",
         merge_commits.base.id, merge_commits.merge.id
     );
 
@@ -713,6 +830,8 @@ pub fn find_merge_conflicts(
 
     // We will return conflicts if there are any
     let mut conflicts: Vec<NodeMergeConflict> = vec![];
+    let mut entries_to_restore: Vec<FileToRestore> = vec![];
+    let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
 
     // Read all the entries from each commit into sets we can compare to one another
     let lca_commit_tree =
@@ -766,7 +885,19 @@ pub fn find_merge_conflicts(
                     && write_to_disk
                 {
                     log::debug!("top update entry");
-                    update_entry(repo, merge_entry)?;
+                    if restore::should_restore_file(
+                        repo,
+                        Some(base_file_node.clone()),
+                        &merge_entry.0,
+                        &merge_entry.1,
+                    )? {
+                        entries_to_restore.push(FileToRestore {
+                            file_node: merge_entry.0.clone(),
+                            path: merge_entry.1.clone(),
+                        });
+                    } else {
+                        cannot_overwrite_entries.push(merge_entry.1.clone());
+                    }
                 }
 
                 // If all three are different, mark as conflict
@@ -793,19 +924,36 @@ pub fn find_merge_conflicts(
         } else if write_to_disk {
             // merge entry does not exist in base, so create it
             log::debug!("bottom update entry");
-            update_entry(repo, merge_entry)?;
+            if restore::should_restore_file(repo, None, &merge_entry.0, &merge_entry.1)? {
+                entries_to_restore.push(FileToRestore {
+                    file_node: merge_entry.0.clone(),
+                    path: merge_entry.1.clone(),
+                });
+            } else {
+                cannot_overwrite_entries.push(merge_entry.1.clone());
+            }
         }
     }
     log::debug!("three_way_merge conflicts.len() {}", conflicts.len());
 
-    Ok(conflicts)
-}
+    // If there are no conflicts, restore the entries
+    log::debug!(
+        "three_way_merge cannot_overwrite_entries {:?}",
+        cannot_overwrite_entries.len()
+    );
+    if cannot_overwrite_entries.is_empty() {
+        log::debug!("three_way_merge restoring entries!");
+        for entry in entries_to_restore.iter() {
+            restore::restore_file(repo, &entry.file_node, &entry.path)?;
+        }
+    } else {
+        log::debug!(
+            "three_way_merge cannot_overwrite_entries {:?}",
+            cannot_overwrite_entries
+        );
+        // If there are conflicts, return an error without restoring anything
+        return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+    }
 
-fn update_entry(
-    repo: &LocalRepository,
-    merge_entry: &(FileNode, PathBuf),
-) -> Result<(), OxenError> {
-    let (file_node, path) = merge_entry;
-    index::restore::restore_file(repo, file_node, path)?;
-    Ok(())
+    Ok(conflicts)
 }
