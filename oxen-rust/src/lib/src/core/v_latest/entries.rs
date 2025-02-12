@@ -94,7 +94,7 @@ pub fn list_directory(
     if parsed_resource.workspace.is_some() {
         repositories::workspaces::populate_entries_with_workspace_data(
             directory,
-            &parsed_resource.workspace.as_ref().unwrap(),
+            parsed_resource.workspace.as_ref().unwrap(),
             &mut entries,
         )?;
     }

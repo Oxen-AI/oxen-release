@@ -311,7 +311,7 @@ pub fn populate_entries_with_workspace_data(
     entries: &mut Vec<MetadataEntry>,
 ) -> Result<(), OxenError> {
     let workspace_changes =
-        repositories::workspaces::status::status_from_dir(&workspace, directory)?;
+        repositories::workspaces::status::status_from_dir(workspace, directory)?;
 
     let (additions_map, other_changes_map) = build_file_status_maps(&workspace_changes);
     for entry in entries.iter_mut() {
@@ -336,7 +336,7 @@ pub fn populate_entry_with_workspace_data(
     workspace: &Workspace,
 ) -> Result<(), OxenError> {
     let workspace_changes =
-        repositories::workspaces::status::status_from_dir(&workspace, file_path)?;
+        repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (_additions_map, other_changes_map) = build_file_status_maps(&workspace_changes);
     entry.status = other_changes_map
         .get(&file_path.to_str().unwrap().to_string())
@@ -350,7 +350,7 @@ pub fn get_added_entry(
     resource: &ParsedResource,
 ) -> Result<MetadataEntry, OxenError> {
     let workspace_changes =
-        repositories::workspaces::status::status_from_dir(&workspace, file_path)?;
+        repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (additions_map, _other_changes_map) = build_file_status_maps(&workspace_changes);
     let status = additions_map
         .get(&file_path.to_str().unwrap().to_string())
