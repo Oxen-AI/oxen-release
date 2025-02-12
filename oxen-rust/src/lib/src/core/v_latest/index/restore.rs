@@ -230,34 +230,20 @@ pub fn should_restore_file(
 
     // Check to see if the file has been modified if it exists
     if working_path.exists() {
-        log::debug!(
-            "restore::should_restore_file: working path exists based on base_node? {:?}",
-            base_node.is_some()
-        );
         let hash = MerkleHash::new(util::hasher::u128_hash_file_contents(&working_path)?);
         // If there are modifications compared to the base node, we should not restore the file
         if let Some(base_node) = base_node {
             let base_node_hash = base_node.hash();
-            log::debug!(
-                "restore::should_restore_file: comparing hash to base_node {:?} == {:?}",
-                base_node_hash,
-                hash
-            );
             if hash != *base_node_hash {
-                // Hmm this is weird...think about what this check should be on ff merge
-                log::debug!("restore::should_restore_file: false hash != base_node_hash");
                 return Ok(false);
             }
         } else {
             // Untracked file, check if we are overwriting it
-            log::debug!("restore::should_restore_file: working path exists but no base_node");
             if hash != *file_node.hash() {
-                log::debug!("restore::should_restore_file: false hash != file_node_hash");
                 return Ok(false);
             }
         }
     }
-    log::debug!("restore::should_restore_file: true");
     Ok(true)
 }
 
@@ -267,27 +253,18 @@ pub fn restore_file(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    log::debug!("restore::restore_file: start for {:?}", file_node.name());
-    log::debug!("restore::restore_file: got entry resource");
-
     let file_hash = file_node.hash();
     let last_modified_seconds = file_node.last_modified_seconds();
     let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
-    log::debug!("restore::restore_file: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
-    log::debug!("restore::restore_file: calculated version path");
 
     let working_path = repo.path.join(path);
     let parent = working_path.parent().unwrap();
     if !parent.exists() {
-        log::debug!("restore::restore_file: creating parent directory");
         util::fs::create_dir_all(parent)?;
     }
 
-    log::debug!("restore::restore_file: copying file");
-    log::debug!("restore::restore_file: version_path {:?}", version_path);
-    log::debug!("restore::restore_file: working_path {:?}", working_path);
     util::fs::copy(version_path, working_path.clone())?;
     let last_modified = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
@@ -296,8 +273,5 @@ pub fn restore_file(
         &working_path,
         filetime::FileTime::from_system_time(last_modified),
     )?;
-
-    log::debug!("restore::restore_file: set updated time from tree");
-    log::debug!("restore::restore_file: end");
     Ok(())
 }

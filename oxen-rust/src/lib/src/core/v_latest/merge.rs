@@ -415,23 +415,11 @@ fn fast_forward_merge(
         &mut cannot_overwrite_entries,
     )?;
     // If there are no conflicts, restore the entries
-    log::debug!(
-        "r_ff_merge_commit cannot_overwrite_entries {:?}",
-        cannot_overwrite_entries.len()
-    );
     if cannot_overwrite_entries.is_empty() {
-        log::debug!(
-            "r_ff_merge_commit restoring {} entries!",
-            entries_to_restore.len()
-        );
         for entry in entries_to_restore.iter() {
             restore::restore_file(repo, &entry.file_node, &entry.path)?;
         }
     } else {
-        log::debug!(
-            "r_ff_merge_commit cannot_overwrite_entries {:?}",
-            cannot_overwrite_entries
-        );
         // If there are conflicts, return an error without restoring anything
         return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
     }
@@ -448,23 +436,11 @@ fn fast_forward_merge(
     )?;
 
     // If there are no conflicts, remove the entries
-    log::debug!(
-        "r_ff_merge_commit cannot_remove_entries {:?}",
-        cannot_remove_entries.len()
-    );
     if cannot_remove_entries.is_empty() {
-        log::debug!(
-            "r_ff_merge_commit removing {} entries!",
-            entries_to_remove.len()
-        );
         for entry in entries_to_remove.iter() {
             util::fs::remove_file(&entry.path)?;
         }
     } else {
-        log::debug!(
-            "r_ff_merge_commit cannot_remove_entries {:?}",
-            cannot_remove_entries
-        );
         // If there are conflicts, return an error without removing anything
         return Err(OxenError::cannot_overwrite_files(&cannot_remove_entries));
     }
@@ -937,20 +913,11 @@ pub fn find_merge_conflicts(
     log::debug!("three_way_merge conflicts.len() {}", conflicts.len());
 
     // If there are no conflicts, restore the entries
-    log::debug!(
-        "three_way_merge cannot_overwrite_entries {:?}",
-        cannot_overwrite_entries.len()
-    );
     if cannot_overwrite_entries.is_empty() {
-        log::debug!("three_way_merge restoring entries!");
         for entry in entries_to_restore.iter() {
             restore::restore_file(repo, &entry.file_node, &entry.path)?;
         }
     } else {
-        log::debug!(
-            "three_way_merge cannot_overwrite_entries {:?}",
-            cannot_overwrite_entries
-        );
         // If there are conflicts, return an error without restoring anything
         return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
     }
