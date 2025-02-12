@@ -202,11 +202,6 @@ pub async fn set_working_repo_to_commit(
 ) -> Result<(), OxenError> {
     let mut progress = CheckoutProgressBar::new(to_commit.id.clone());
 
-    log::debug!(
-        "set_working_repo_to_commit to_commit {} from_commit {:?}",
-        to_commit,
-        maybe_from_commit
-    );
     let Some(target_node) = repositories::tree::get_root_with_children(repo, to_commit)? else {
         return Err(OxenError::basic_str(
             "Cannot get root node for target commit",
@@ -214,10 +209,6 @@ pub async fn set_working_repo_to_commit(
     };
     let from_node = if let Some(from_commit) = maybe_from_commit {
         if from_commit.id == to_commit.id {
-            log::debug!(
-                "set_working_repo_to_commit, do nothing... to_commit == from_commit {}",
-                to_commit
-            );
             return Ok(());
         }
 
@@ -250,29 +241,11 @@ pub async fn set_working_repo_to_commit(
     )?;
 
     // If there are conflicts, return an error without restoring anything
-    log::debug!(
-        "set_working_repo_to_commit {} cannot_overwrite_entries {}",
-        to_commit,
-        cannot_overwrite_entries.len()
-    );
     if !cannot_overwrite_entries.is_empty() {
-        log::debug!(
-            "set_working_repo_to_commit cannot_overwrite_entries {:?}",
-            cannot_overwrite_entries
-        );
         return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
     }
 
-    log::debug!(
-        "set_working_repo_to_commit {} restoring {} entries!",
-        to_commit,
-        files_to_restore.len()
-    );
     for file_to_restore in files_to_restore {
-        log::debug!(
-            "set_working_repo_to_commit: file_to_restore.path {:?}",
-            file_to_restore.path
-        );
         restore::restore_file(repo, &file_to_restore.file_node, &file_to_restore.path)?;
     }
 
@@ -302,22 +275,10 @@ fn cleanup_removed_files(
         &mut cannot_overwrite_entries,
     )?;
 
-    log::debug!(
-        "cleanup_removed_files cannot_overwrite_entries {}",
-        cannot_overwrite_entries.len()
-    );
     if !cannot_overwrite_entries.is_empty() {
-        log::debug!(
-            "cleanup_removed_files cannot_overwrite_entries {:?}",
-            cannot_overwrite_entries
-        );
         return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
     }
 
-    log::debug!(
-        "cleanup_removed_files removing {} files!",
-        paths_to_remove.len()
-    );
     for full_path in paths_to_remove {
         // If it's a directory, and it's empty, remove it
         if full_path.is_dir() && full_path.read_dir()?.next().is_none() {
@@ -342,57 +303,23 @@ fn r_remove_if_not_in_target(
     paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
-    log::debug!(
-        "r_remove_if_not_in_target current_path: {:?} head_node: {}",
-        current_path,
-        head_node
-    );
     match &head_node.node {
         EMerkleTreeNode::File(file_node) => {
             let file_path = current_path.join(file_node.name());
-            log::debug!(
-                "r_remove_if_not_in_target looking up file_path {:?} from current_path {:?}",
-                file_path,
-                current_path
-            );
             let target_node = target_tree_root.get_by_path(&file_path)?;
             let from_node = from_tree_root.get_by_path(&file_path)?;
-            log::debug!(
-                "r_remove_if_not_in_target target_node.is_none() {} from_node.is_some() {}",
-                target_node.is_none(),
-                from_node.is_some()
-            );
 
             if target_node.is_none() && from_node.is_some() {
-                log::debug!(
-                    "r_remove_if_not_in_target checking if can remove file: {:?}",
-                    file_path
-                );
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
                     // Verify that the file is not in a modified state
                     let current_hash = util::hasher::hash_file_contents(&full_path)?;
-                    log::debug!(
-                        "r_remove_if_not_in_target comparing {:?} current {:?} to {:?}",
-                        file_path,
-                        current_hash,
-                        head_node.node.hash()
-                    );
                     if current_hash != head_node.node.hash().to_string() {
-                        log::debug!(
-                            "r_remove_if_not_in_target file is modified, skipping removal: {:?}",
-                            file_path
-                        );
                         cannot_overwrite_entries.push(file_path.clone());
                     } else {
                         log::debug!("Removing file: {:?}", full_path);
                         paths_to_remove.push(full_path.clone());
                     }
-                } else {
-                    log::debug!(
-                        "r_remove_if_not_in_target full path does not exist: {:?}",
-                        full_path
-                    );
                 }
             }
         }
@@ -404,17 +331,7 @@ fn r_remove_if_not_in_target(
             // Check if the directory is the same in the from and target trees
             // If it is, we don't need to do anything
             if let Some(target_node) = target_tree_root.get_by_path(&dir_path)? {
-                log::debug!(
-                    "r_remove_if_not_in_target dir_path {:?} from_node {} === target_node {}",
-                    dir_path,
-                    target_node,
-                    dir_node
-                );
                 if target_node.node.hash() == dir_node.hash() {
-                    log::debug!(
-                        "r_remove_if_not_in_target dir_path {:?} is the same as target_tree",
-                        dir_path
-                    );
                     return Ok(());
                 }
             }
@@ -429,12 +346,6 @@ fn r_remove_if_not_in_target(
             for child in from_children {
                 // If the hashes match, we don't need to check if we need to remove any children
                 // because the subdirectory will be the same content-wise
-                log::debug!(
-                    "r_remove_if_not_in_target dir_path {:?} child {} dir_node {}",
-                    dir_path,
-                    dir_node,
-                    child,
-                );
                 r_remove_if_not_in_target(
                     repo,
                     &child,
@@ -449,7 +360,6 @@ fn r_remove_if_not_in_target(
             // Remove directory if it's empty
             let full_dir_path = repo.path.join(&dir_path);
             if full_dir_path.exists() {
-                log::debug!("add empty directory to be removed: {:?}", dir_path);
                 paths_to_remove.push(full_dir_path.clone());
             }
         }
