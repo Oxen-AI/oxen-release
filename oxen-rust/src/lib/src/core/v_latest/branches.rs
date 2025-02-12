@@ -290,7 +290,7 @@ fn cleanup_removed_files(
     let from_root_dir_node = repositories::tree::get_root_dir(from_node)?;
     log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
 
-    let mut files_to_remove: Vec<PathBuf> = vec![];
+    let mut paths_to_remove: Vec<PathBuf> = vec![];
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
     r_remove_if_not_in_target(
         repo,
@@ -298,8 +298,8 @@ fn cleanup_removed_files(
         from_node,
         target_node,
         Path::new(""),
-        &mut files_to_remove,
-        &mut cannot_overwrite_entries
+        &mut paths_to_remove,
+        &mut cannot_overwrite_entries,
     )?;
 
     log::debug!(
@@ -316,11 +316,17 @@ fn cleanup_removed_files(
 
     log::debug!(
         "cleanup_removed_files removing {} files!",
-        files_to_remove.len()
+        paths_to_remove.len()
     );
-    for file_path in files_to_remove {
-        log::debug!("Removing file: {:?}", file_path);
-        util::fs::remove_file(&file_path)?;
+    for full_path in paths_to_remove {
+        // If it's a directory, and it's empty, remove it
+        if full_path.is_dir() && full_path.read_dir()?.next().is_none() {
+            log::debug!("Removing dir: {:?}", full_path);
+            util::fs::remove_dir_all(&full_path)?;
+        } else if full_path.is_file() {
+            log::debug!("Removing file: {:?}", full_path);
+            util::fs::remove_file(&full_path)?;
+        }
         progress.increment_removed();
     }
 
@@ -333,7 +339,7 @@ fn r_remove_if_not_in_target(
     from_tree_root: &MerkleTreeNode,
     target_tree_root: &MerkleTreeNode,
     current_path: &Path,
-    files_to_remove: &mut Vec<PathBuf>,
+    paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
     log::debug!(
@@ -380,7 +386,7 @@ fn r_remove_if_not_in_target(
                         cannot_overwrite_entries.push(file_path.clone());
                     } else {
                         log::debug!("Removing file: {:?}", full_path);
-                        files_to_remove.push(full_path.clone());
+                        paths_to_remove.push(full_path.clone());
                     }
                 } else {
                     log::debug!(
@@ -435,15 +441,16 @@ fn r_remove_if_not_in_target(
                     from_tree_root,
                     target_tree_root,
                     &dir_path,
-                    files_to_remove,
-                    cannot_overwrite_entries
+                    paths_to_remove,
+                    cannot_overwrite_entries,
                 )?;
             }
+
             // Remove directory if it's empty
             let full_dir_path = repo.path.join(&dir_path);
-            if full_dir_path.exists() && full_dir_path.read_dir()?.next().is_none() {
-                log::debug!("Removing empty directory: {:?}", dir_path);
-                util::fs::remove_dir_all(&full_dir_path)?;
+            if full_dir_path.exists() {
+                log::debug!("add empty directory to be removed: {:?}", dir_path);
+                paths_to_remove.push(full_dir_path.clone());
             }
         }
         _ => {}
