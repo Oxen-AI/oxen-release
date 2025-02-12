@@ -88,16 +88,22 @@ pub fn list_directory_w_version(
     match version {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
-            let revision = revision.as_ref().to_string();
-            let branch = repositories::branches::get_by_name(repo, &revision)?;
-            let commit = repositories::revisions::get(repo, &revision)?;
+            let revision_str = revision.as_ref().to_string();
+            let version_str = if let Some(workspace) = workspace.clone() {
+                workspace.id.clone()
+            } else {
+                revision_str.clone()
+            };
+
+            let branch = repositories::branches::get_by_name(repo, &revision_str)?;
+            let commit = repositories::revisions::get(repo, &revision_str)?;
             let parsed_resource = ParsedResource {
                 path: directory.as_ref().to_path_buf(),
                 commit,
                 workspace,
                 branch,
-                version: PathBuf::from(&revision),
-                resource: PathBuf::from(&revision).join(&directory),
+                version: PathBuf::from(&version_str),
+                resource: PathBuf::from(&version_str).join(directory.as_ref()),
             };
             core::v_latest::entries::list_directory(
                 repo,
