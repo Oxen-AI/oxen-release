@@ -15,7 +15,13 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+    let workspace_ref = resource.workspace.as_ref();
+
+    let commit = if let Some(workspace) = workspace_ref {
+        workspace.commit.clone()
+    } else {
+        resource.clone().commit.unwrap()
+    };
 
     log::debug!(
         "{} resource {}/{}",
@@ -34,12 +40,41 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         latest_commit.message
     );
 
-    let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
-    entry.resource = Some(resource.clone());
-    let meta = MetadataEntryResponse {
-        status: StatusMessage::resource_found(),
-        entry,
+    let meta = if let Some(workspace) = resource.workspace.as_ref() {
+        match repositories::entries::get_meta_entry(&repo, &commit, &resource.path) {
+            Ok(mut entry) => {
+                repositories::workspaces::populate_entry_with_workspace_data(
+                    resource.path.as_ref(),
+                    &mut entry,
+                    workspace,
+                )?;
+                entry.resource = Some(resource.clone());
+                MetadataEntryResponse {
+                    status: StatusMessage::resource_found(),
+                    entry,
+                }
+            }
+            Err(_) => {
+                let added_entry = repositories::workspaces::get_added_entry(
+                    &resource.path,
+                    workspace,
+                    &resource,
+                )?;
+                MetadataEntryResponse {
+                    status: StatusMessage::resource_found(),
+                    entry: added_entry,
+                }
+            }
+        }
+    } else {
+        let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+        entry.resource = Some(resource.clone());
+        MetadataEntryResponse {
+            status: StatusMessage::resource_found(),
+            entry,
+        }
     };
+
     Ok(HttpResponse::Ok().json(meta))
 }
 

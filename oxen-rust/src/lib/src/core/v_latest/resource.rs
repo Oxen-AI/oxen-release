@@ -62,7 +62,7 @@ pub fn parse_resource_from_path(
                     branch: None,
                     workspace: Some(workspace.clone()),
                     path: file_path,
-                    version: PathBuf::from(workspace.commit.id),
+                    version: PathBuf::from(workspace.id),
                     resource: path.to_owned(),
                 }));
             }
