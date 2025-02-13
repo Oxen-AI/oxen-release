@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use super::{workspace::WorkspaceView, Branch, Commit, Workspace};
 
-/// Internal model (perhaps used for processing and business logic)
+/// Internal model
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ParsedResource {
     pub commit: Option<Commit>,
