@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::model::merkle_tree::node::{DirNode, FileNode};
-use crate::model::parsed_resource::ParsedResourceView;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::parsed_resource::ParsedResourceView;
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource, StagedEntryStatus,
 };
