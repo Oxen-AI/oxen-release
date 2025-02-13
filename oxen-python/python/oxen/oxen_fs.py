@@ -216,7 +216,7 @@ class OxenFS(fsspec.AbstractFileSystem):
             raise ValueError("File name cannot be empty")
         try:
             metadata = self.repo.metadata(target_dir)
-            if not metadata.is_dir:
+            if metadata and not metadata.is_dir:
                 raise ValueError("target_dir cannot be an existing file")
         except ValueError as e:
             if "not found" in str(e):
