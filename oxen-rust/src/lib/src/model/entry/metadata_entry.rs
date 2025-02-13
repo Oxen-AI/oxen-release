@@ -108,25 +108,6 @@ impl MetadataEntry {
     }
 }
 
-impl MetadataEntryView {
-    pub fn from_metadata_entry(metadata_entry: MetadataEntry) -> MetadataEntryView {
-        MetadataEntryView {
-            filename: metadata_entry.filename,
-            hash: metadata_entry.hash,
-            is_dir: metadata_entry.is_dir,
-            latest_commit: metadata_entry.latest_commit,
-            resource: metadata_entry.resource.map(|r| r.into()),
-            size: metadata_entry.size,
-            data_type: metadata_entry.data_type,
-            mime_type: metadata_entry.mime_type,
-            extension: metadata_entry.extension,
-            metadata: metadata_entry.metadata,
-            is_queryable: metadata_entry.is_queryable,
-            status: metadata_entry.status,
-        }
-    }
-}
-
 impl From<MetadataEntry> for MetadataEntryView {
     fn from(metadata_entry: MetadataEntry) -> Self {
         MetadataEntryView {
