@@ -148,6 +148,7 @@ pub async fn update(
         branch,
     }))
 }
+
 pub async fn maybe_create_merge(
     req: HttpRequest,
     body: String,

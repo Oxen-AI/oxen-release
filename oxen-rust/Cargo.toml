@@ -80,7 +80,7 @@ lazy_static = "1.4.0"
 lofty = "0.21.0"
 log = "0.4.20"
 lru = "0.12.0"
-# magick_rust = "0.18.0"
+mockito = "1.1.0"
 mp4 = "0.14.0"
 mime = "0.3.17"
 minus = { version = "5.4.0", features = ["static_output", "search"] }
@@ -142,7 +142,6 @@ uuid = { version = "1.4.1", features = ["serde", "v4"] }
 walkdir = "2.5.0"
 words-count = "0.1.6"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
-mockito = "1.1.0"
 zip = "2.2.0"
 
 

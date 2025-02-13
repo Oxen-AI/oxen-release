@@ -137,7 +137,7 @@ pub fn diff(
         let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
         // log::debug!("committed file: {:?}", committed_file);
         let result =
-            repositories::diffs::diff_files(path_1, committed_file, keys, targets, vec![])?;
+            repositories::diffs::diff_files(committed_file, path_1, keys, targets, vec![])?;
 
         return Ok(result);
     };

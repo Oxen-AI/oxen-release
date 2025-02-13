@@ -3426,6 +3426,7 @@ dependencies = [
  "walkdir",
  "words-count",
  "xxhash-rust",
+ "zip",
 ]
 
 [[package]]
