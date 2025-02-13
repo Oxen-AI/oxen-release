@@ -95,6 +95,7 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::model::StagedEntryStatus;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -369,6 +370,69 @@ mod tests {
                     assert!(!file.is_dir);
                 }
                 None => panic!("File 'file example.txt' not found"),
+            }
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_dir_with_workspace() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let file_path = "annotations/train/file.txt";
+            let workspace_id = "test_workspace_id";
+            let directory_name = "annotations/train";
+
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let full_path = local_repo.path.join(file_path);
+            util::fs::file_create(&full_path)?;
+            util::fs::write(&full_path, b"test content")?;
+
+            let _result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                &full_path,
+            )
+            .await;
+
+            let file_path = test::test_bounding_box_csv();
+            let full_path = local_repo.path.join(file_path);
+            util::fs::write(&full_path, "name,age\nAlice,30\nBob,25\n")?;
+
+            let _result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                &full_path,
+            )
+            .await;
+
+            let response =
+                api::client::dir::get_dir(&remote_repo, workspace_id, "annotations/train").await?;
+
+            for entry in response.entries.entries.iter() {
+                match entry.filename.as_str() {
+                    "bounding_box.csv" => {
+                        assert_eq!(
+                            entry.status,
+                            Some(StagedEntryStatus::Modified),
+                            "Expected bounding_box.csv to be Modified"
+                        );
+                    }
+                    "file.txt" => {
+                        assert_eq!(
+                            entry.status,
+                            Some(StagedEntryStatus::Added),
+                            "Expected file.txt to be Added"
+                        );
+                    }
+                    _ => {}
+                }
             }
             Ok(remote_repo)
         })
