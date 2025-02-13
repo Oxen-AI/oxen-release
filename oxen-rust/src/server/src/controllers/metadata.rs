@@ -68,7 +68,8 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
             }
         }
     } else {
-        let entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+        let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+        entry.resource = Some(resource.clone());
         MetadataEntryResponseView {
             status: StatusMessage::resource_found(),
             entry: entry.into(),
