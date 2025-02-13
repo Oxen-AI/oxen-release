@@ -5,7 +5,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::MetadataEntryResponse;
+use crate::view::entry_metadata::MetadataEntryResponseView;
 
 use std::path::Path;
 
@@ -14,7 +14,7 @@ pub async fn get_file(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<MetadataEntryResponse, OxenError> {
+) -> Result<MetadataEntryResponseView, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let uri = format!("/meta/{}/{}", revision, path);
@@ -31,10 +31,10 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::EntryDataType;
-    use crate::test;
-    use crate::view::MetadataEntryResponse;
+    use crate::model::{EntryDataType, StagedEntryStatus};
+    use crate::view::entry_metadata::MetadataEntryResponseView;
     use crate::{api, repositories};
+    use crate::{test, util};
 
     use std::path::Path;
 
@@ -102,9 +102,8 @@ mod tests {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
 
-            let meta: MetadataEntryResponse =
+            let meta: MetadataEntryResponseView =
                 api::client::metadata::get_file(&remote_repo, branch, directory).await?;
-            println!("meta: {:?}", meta);
 
             assert_eq!(meta.entry.mime_type, "inode/directory");
             assert_eq!(meta.entry.data_type, EntryDataType::Dir);
@@ -142,10 +141,10 @@ mod tests {
 
             repositories::push(&local_repo).await?;
 
-            let meta: MetadataEntryResponse =
+            let meta: MetadataEntryResponseView =
                 api::client::metadata::get_file(&remote_repo, main_branch, &path).await?;
 
-            let second_meta: MetadataEntryResponse =
+            let second_meta: MetadataEntryResponseView =
                 api::client::metadata::get_file(&remote_repo, second_branch, &path).await?;
 
             assert_eq!(meta.entry.latest_commit.unwrap().id, first_commit.id);
@@ -153,6 +152,58 @@ mod tests {
                 second_meta.entry.latest_commit.unwrap().id,
                 second_commit.id
             );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_file_with_workspace() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let file_path = "annotations/train/file.txt";
+            let workspace_id = "test_workspace_id";
+            let directory_name = "annotations/train";
+
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let full_path = local_repo.path.join(file_path);
+            util::fs::file_create(&full_path)?;
+            util::fs::write(&full_path, b"test content")?;
+
+            let _result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                &full_path,
+            )
+            .await;
+
+            let meta: MetadataEntryResponseView =
+                api::client::metadata::get_file(&remote_repo, workspace_id, file_path).await?;
+
+            assert_eq!(meta.entry.status, Some(StagedEntryStatus::Added));
+
+            let file_path = test::test_bounding_box_csv();
+            let full_path = local_repo.path.join(file_path.clone());
+            util::fs::write(&full_path, "name,age\nAlice,30\nBob,25\n")?;
+
+            let _result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                &full_path,
+            )
+            .await;
+
+            let meta: MetadataEntryResponseView =
+                api::client::metadata::get_file(&remote_repo, workspace_id, file_path.clone())
+                    .await?;
+
+            assert_eq!(meta.entry.status, Some(StagedEntryStatus::Modified));
 
             Ok(remote_repo)
         })

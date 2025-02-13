@@ -313,11 +313,9 @@ pub fn populate_entries_with_workspace_data(
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, directory)?;
 
-    let (additions_map, other_changes_map) = build_file_status_maps(&workspace_changes);
-    println!("additions_map: {:?}", additions_map);
-    println!("other_changes_map: {:?}", other_changes_map);
+    let (additions_map, other_changes_map) =
+        build_file_status_maps_for_directory(&workspace_changes);
     for entry in entries.iter_mut() {
-        println!("entry: {:?}", entry.filename);
         entry.status = other_changes_map.get(&entry.filename).cloned();
     }
     for (file_path, status) in additions_map.iter() {
@@ -342,7 +340,20 @@ pub fn populate_entry_with_workspace_data(
 ) -> Result<(), OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
-    let (_additions_map, other_changes_map) = build_file_status_maps(&workspace_changes);
+    let (_additions_map, other_changes_map) = build_file_status_maps_for_file(&workspace_changes);
+    println!(
+        "
+    
+    other_changes_map: {:?}",
+        other_changes_map
+    );
+    println!(
+        "file_path: {:?}
+    
+    
+    ",
+        file_path
+    );
     entry.status = other_changes_map.get(file_path.to_str().unwrap()).cloned();
     Ok(())
 }
@@ -354,7 +365,7 @@ pub fn get_added_entry(
 ) -> Result<MetadataEntry, OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
-    let (additions_map, _other_changes_map) = build_file_status_maps(&workspace_changes);
+    let (additions_map, _other_changes_map) = build_file_status_maps_for_file(&workspace_changes);
     let status = additions_map.get(file_path.to_str().unwrap()).cloned();
     let file_path_from_workspace = workspace.dir().join(file_path);
     if status == Some(StagedEntryStatus::Added) {
@@ -377,7 +388,7 @@ pub fn get_added_entry(
 /// - The second hashmap contains file paths mapped to their status if they are modified or removed.
 ///
 /// This allows us to track files that were added to the workspace efficiently.
-fn build_file_status_maps(
+fn build_file_status_maps_for_directory(
     workspace_changes: &StagedData,
 ) -> (
     HashMap<String, StagedEntryStatus>,
@@ -389,15 +400,34 @@ fn build_file_status_maps(
     for (file_path, entry) in workspace_changes.staged_files.iter() {
         let status = entry.status.clone();
         if status == StagedEntryStatus::Added {
-            // For added files, we use the full path as the key
+            // For added files, we use the full path as the key. As the staged files are
             let key = file_path.to_str().unwrap().to_string();
             additions_map.insert(key, status);
         } else {
-            // For modified or removed files, we use the file name as the key
+            // For modified or removed files, we use the file name as the key, as the file path is relative to the directory
             let key = file_path.file_name().unwrap().to_string_lossy().to_string();
             other_changes_map.insert(key, status);
         }
     }
 
+    (additions_map, other_changes_map)
+}
+
+fn build_file_status_maps_for_file(
+    workspace_changes: &StagedData,
+) -> (
+    HashMap<String, StagedEntryStatus>,
+    HashMap<String, StagedEntryStatus>,
+) {
+    let mut additions_map = HashMap::new();
+    let mut other_changes_map = HashMap::new();
+    for (file_path, entry) in workspace_changes.staged_files.iter() {
+        let status = entry.status.clone();
+        if status == StagedEntryStatus::Added {
+            additions_map.insert(file_path.to_str().unwrap().to_string(), status);
+        } else {
+            other_changes_map.insert(file_path.to_str().unwrap().to_string(), status);
+        }
+    }
     (additions_map, other_changes_map)
 }
