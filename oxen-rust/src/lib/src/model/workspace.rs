@@ -48,7 +48,7 @@ impl Workspace {
 impl From<Workspace> for WorkspaceView {
     fn from(workspace: Workspace) -> Self {
         Self {
-            name: workspace.name, 
+            name: workspace.name,
             id: workspace.id,
             commit: workspace.commit,
         }

@@ -28,7 +28,7 @@ impl std::fmt::Display for ParsedResource {
 /// External (view) model that is returned to the client with fewer fields.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ParsedResourceView {
-    pub workspace: Option<WorkspaceView>, 
+    pub workspace: Option<WorkspaceView>,
     pub commit: Option<Commit>,
     pub branch: Option<Branch>,
     pub path: PathBuf,
@@ -49,4 +49,3 @@ impl From<ParsedResource> for ParsedResourceView {
         }
     }
 }
-
