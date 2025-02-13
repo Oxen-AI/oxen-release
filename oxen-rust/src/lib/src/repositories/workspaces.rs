@@ -400,11 +400,11 @@ fn build_file_status_maps_for_directory(
     for (file_path, entry) in workspace_changes.staged_files.iter() {
         let status = entry.status.clone();
         if status == StagedEntryStatus::Added {
-            // For added files, we use the full path as the key. As the staged files are
+            // For added files, we use the full path as the key. As the staged files are relative to the repository root
             let key = file_path.to_str().unwrap().to_string();
             additions_map.insert(key, status);
         } else {
-            // For modified or removed files, we use the file name as the key, as the file path is relative to the directory
+            // For modified or removed files, we use the file name as the key, as the file path is relative to the directory passed in.
             let key = file_path.file_name().unwrap().to_string_lossy().to_string();
             other_changes_map.insert(key, status);
         }
@@ -413,6 +413,7 @@ fn build_file_status_maps_for_directory(
     (additions_map, other_changes_map)
 }
 
+// For files, we always use the full path as the key, as results are relative to the repository root
 fn build_file_status_maps_for_file(
     workspace_changes: &StagedData,
 ) -> (
