@@ -123,7 +123,6 @@ pub async fn create_with_path(
         resource_path: Some(path.to_str().unwrap().to_string()),
         entity_type: Some("user".to_string()),
         name: workspace_name,
-        force: Some(true),
     };
 
     let client = client::new_for_url(&url)?;
@@ -410,7 +409,7 @@ mod tests {
                 println!("{:?}", result);
                 assert!(result.is_err());
 
-                // Now status should be empty
+                // Status should have one modified file
                 let remote_status = api::client::workspaces::changes::list(
                     &remote_repo,
                     &workspace_id,
@@ -419,7 +418,7 @@ mod tests {
                     constants::DEFAULT_PAGE_SIZE,
                 )
                 .await?;
-                assert_eq!(remote_status.modified_files.entries.len(), 0);
+                assert_eq!(remote_status.modified_files.entries.len(), 1);
 
                 Ok(repo_dir)
             })

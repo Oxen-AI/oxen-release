@@ -9,6 +9,7 @@ use std::fmt;
 use std::io;
 use std::num::ParseIntError;
 use std::path::Path;
+use std::path::PathBuf;
 use std::path::StripPrefixError;
 
 use crate::model::Branch;
@@ -445,6 +446,19 @@ impl OxenError {
             path.as_ref()
         );
         OxenError::basic_str(err)
+    }
+
+    pub fn cannot_overwrite_files(paths: &[PathBuf]) -> OxenError {
+        let paths_str = paths
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect::<Vec<String>>()
+            .join("\n  ");
+
+        OxenError::basic_str(format!(
+            "\nError: your local changes to the following files would be overwritten. Please commit the following changes before continuing:\n\n  {}\n",
+            paths_str
+        ))
     }
 
     pub fn entry_does_not_exist_in_commit(

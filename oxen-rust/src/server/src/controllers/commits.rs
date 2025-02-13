@@ -241,36 +241,6 @@ fn compress_commits_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     Ok(buffer)
 }
 
-fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
-    let object_dir = util::fs::oxen_hidden_dir(&repository.path).join(OBJECTS_DIR);
-
-    let tar_subdir = Path::new(OBJECTS_DIR);
-
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    tar.append_dir_all(tar_subdir, object_dir)?;
-
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-    log::debug!("Compressed objects dir size is {}", ByteSize::b(total_size));
-    Ok(buffer)
-}
-
-pub async fn download_objects_db(
-    req: HttpRequest,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let repository = get_repo(&app_data.path, namespace, name)?;
-    let buffer = compress_objects_db(&repository)?;
-    Ok(HttpResponse::Ok().body(buffer))
-}
-
 /// Download the database of all entries given a specific commit
 pub async fn download_dir_hashes_db(
     req: HttpRequest,
