@@ -126,3 +126,23 @@ impl From<MetadataEntry> for MetadataEntryView {
         }
     }
 }
+
+impl From<MetadataEntryView> for MetadataEntry {
+    fn from(view: MetadataEntryView) -> Self {
+        MetadataEntry {
+            filename: view.filename,
+            hash: view.hash,
+            is_dir: view.is_dir,
+            latest_commit: view.latest_commit,
+            // Converts the resource back from ParsedResourceView to ParsedResource
+            resource: view.resource.map(|r| r.into()),
+            size: view.size,
+            data_type: view.data_type,
+            mime_type: view.mime_type,
+            extension: view.extension,
+            metadata: view.metadata,
+            is_queryable: view.is_queryable,
+            status: view.status,
+        }
+    }
+}
