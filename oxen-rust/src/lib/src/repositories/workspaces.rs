@@ -339,7 +339,7 @@ pub fn populate_entry_with_workspace_data(
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (_additions_map, other_changes_map) = build_file_status_maps(&workspace_changes);
     entry.status = other_changes_map
-        .get(&file_path.to_str().unwrap().to_string())
+        .get(file_path.to_str().unwrap())
         .cloned();
     Ok(())
 }
@@ -353,7 +353,7 @@ pub fn get_added_entry(
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (additions_map, _other_changes_map) = build_file_status_maps(&workspace_changes);
     let status = additions_map
-        .get(&file_path.to_str().unwrap().to_string())
+        .get(file_path.to_str().unwrap())
         .cloned();
     let file_path_from_workspace = workspace.dir().join(file_path);
     if status == Some(StagedEntryStatus::Added) {
