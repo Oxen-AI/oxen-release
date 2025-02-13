@@ -8,10 +8,15 @@ use crate::core::db::{self};
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-use crate::model::{Commit, LocalRepository};
+use crate::model::{Commit, LocalRepository, MerkleHash};
 use crate::opts::RestoreOpts;
 use crate::repositories;
 use crate::util;
+
+pub struct FileToRestore {
+    pub file_node: FileNode,
+    pub path: PathBuf,
+}
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     log::debug!("restore::restore: start");
@@ -214,32 +219,52 @@ fn restore_dir(
     Ok(())
 }
 
+pub fn should_restore_file(
+    repo: &LocalRepository,
+    base_node: Option<FileNode>,
+    file_node: &FileNode,
+    path: impl AsRef<Path>,
+) -> Result<bool, OxenError> {
+    let path = path.as_ref();
+    let working_path = repo.path.join(path);
+
+    // Check to see if the file has been modified if it exists
+    if working_path.exists() {
+        let hash = MerkleHash::new(util::hasher::u128_hash_file_contents(&working_path)?);
+        // If there are modifications compared to the base node, we should not restore the file
+        if let Some(base_node) = base_node {
+            let base_node_hash = base_node.hash();
+            if hash != *base_node_hash {
+                return Ok(false);
+            }
+        } else {
+            // Untracked file, check if we are overwriting it
+            if hash != *file_node.hash() {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub fn restore_file(
     repo: &LocalRepository,
     file_node: &FileNode,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
-    log::debug!("restore::restore_regular: start for {:?}", file_node.name());
-    log::debug!("restore::restore_regular: got entry resource");
-
+    let path = path.as_ref();
     let file_hash = file_node.hash();
     let last_modified_seconds = file_node.last_modified_seconds();
     let last_modified_nanoseconds = file_node.last_modified_nanoseconds();
-    log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, file_hash.to_string(), path);
-    log::debug!("restore::restore_regular: calculated version path");
 
     let working_path = repo.path.join(path);
     let parent = working_path.parent().unwrap();
     if !parent.exists() {
-        log::debug!("restore::restore_regular: creating parent directory");
         util::fs::create_dir_all(parent)?;
     }
 
-    log::debug!("restore::restore_regular: copying file");
-    log::debug!("restore::restore_regular: version_path {:?}", version_path);
-    log::debug!("restore::restore_regular: working_path {:?}", working_path);
     util::fs::copy(version_path, working_path.clone())?;
     let last_modified = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
@@ -248,8 +273,5 @@ pub fn restore_file(
         &working_path,
         filetime::FileTime::from_system_time(last_modified),
     )?;
-
-    log::debug!("restore::restore_regular: set updated time from tree");
-    log::debug!("restore::restore_regular: end");
     Ok(())
 }

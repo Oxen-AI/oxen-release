@@ -22,7 +22,7 @@ pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     fetch_opts: &FetchOpts,
-) -> Result<(), OxenError> {
+) -> Result<Branch, OxenError> {
     log::debug!(
         "fetching remote branch {} --all {} --subtree {:?} --depth {:?}",
         fetch_opts.branch,
@@ -54,7 +54,7 @@ pub async fn fetch_remote_branch(
             println!("Repository is up to date.");
             let ref_writer = RefWriter::new(repo)?;
             ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
-            return Ok(());
+            return Ok(remote_branch);
         }
 
         // Download the nodes from the commits between the head and the remote head
@@ -115,13 +115,9 @@ pub async fn fetch_remote_branch(
     }
 
     // Write the new branch commit id to the local repo
-    log::debug!(
-        "Setting branch {} commit id to {}",
-        remote_branch.name,
-        remote_branch.commit_id
-    );
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
+    if fetch_opts.should_update_branch_head {
+        repositories::branches::update(repo, &fetch_opts.branch, &remote_branch.commit_id)?;
+    }
 
     pull_progress.finish();
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
@@ -133,7 +129,7 @@ pub async fn fetch_remote_branch(
         humantime::format_duration(duration)
     );
 
-    Ok(())
+    Ok(remote_branch)
 }
 
 async fn sync_from_head(

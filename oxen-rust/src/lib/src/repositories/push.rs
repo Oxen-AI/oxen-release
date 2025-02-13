@@ -844,12 +844,15 @@ mod tests {
                     log::debug!("first_push_result: {:?}", first_push_result);
                     assert!(first_push_result.is_err());
 
-                    // Pull should succeed
-                    repositories::pull(&user_b_repo).await?;
+                    // Pull should error because there are conflicts
+                    let result = repositories::pull(&user_b_repo).await;
+                    assert!(result.is_err());
 
                     // There should be conflicts
                     let status = repositories::status(&user_b_repo)?;
                     assert!(status.has_merge_conflicts());
+                    println!("passed has_merge_conflicts");
+                    status.print();
 
                     // User B resolves conflicts
                     let b_mod_file_path = user_b_repo.path.join(mod_file);
@@ -857,8 +860,11 @@ mod tests {
                         b_mod_file_path,
                         "No for real. I be the README now.",
                     )?;
+                    println!("passed write_txt_file_to_path");
                     repositories::add(&user_b_repo, &b_mod_file_path)?;
+                    println!("passed add");
                     repositories::commit(&user_b_repo, "User B resolving conflicts.")?;
+                    println!("passed commit");
 
                     // Push should now succeed
                     let third_push_result = repositories::push(&user_b_repo).await;

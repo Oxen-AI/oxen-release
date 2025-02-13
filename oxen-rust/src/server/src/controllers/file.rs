@@ -74,6 +74,7 @@ pub async fn get(
 
     let last_commit_id = entry.last_commit_id().to_string();
     let meta_entry = repositories::entries::get_meta_entry(&repo, &commit, &path)?;
+    let content_length = meta_entry.size.to_string();
 
     response.headers_mut().insert(
         header::HeaderName::from_static("oxen-revision-id"),
@@ -83,6 +84,11 @@ pub async fn get(
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         header::HeaderValue::from_str(&meta_entry.mime_type).unwrap(),
+    );
+
+    response.headers_mut().insert(
+        header::CONTENT_LENGTH,
+        header::HeaderValue::from_str(&content_length).unwrap(),
     );
 
     Ok(response)
