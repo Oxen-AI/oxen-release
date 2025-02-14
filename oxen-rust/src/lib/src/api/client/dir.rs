@@ -8,6 +8,7 @@ use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::RemoteRepository;
 use crate::view::{PaginatedDirEntries, PaginatedDirEntriesResponse};
+use crate::view::entries::GenericMetadataEntry;
 
 pub async fn list_root(remote_repo: &RemoteRepository) -> Result<PaginatedDirEntries, OxenError> {
     list(
@@ -52,12 +53,21 @@ pub async fn file_counts(
     let path_str = path.as_ref().to_string_lossy();
     let response = list(remote_repo, revision, &path, 1, 1).await?;
     match response.dir {
-        Some(dir) => match dir.metadata {
-            Some(GenericMetadata::MetadataDir(metadata)) => Ok(metadata),
-            _ => Err(OxenError::basic_str(format!(
-                "No metadata on directory found at {path_str}"
-            ))),
-        },
+        Some(dir_entry) => {
+            match dir_entry {
+                GenericMetadataEntry::MetadataEntry(metadata_entry) => {
+                    match metadata_entry.metadata {
+                        Some(GenericMetadata::MetadataDir(metadata)) => Ok(metadata),
+                        _ => Err(OxenError::basic_str(format!(
+                            "No metadata on directory found at {path_str}"
+                        ))),
+                    }
+                }
+                GenericMetadataEntry::WorkspaceMetadataEntry(_) => Err(OxenError::basic_str(
+                    "Workspace metadata entry is not implemented",
+                )),
+            }
+        }
         None => Err(OxenError::basic_str(format!(
             "No directory found at {path_str}"
         ))),
@@ -99,6 +109,7 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
+    use crate::view::entries::GenericMetadataEntry;
 
     use std::path::Path;
 
@@ -172,25 +183,39 @@ mod tests {
             }
             println!("----------------------");
 
-            // Make sure the commit hashes are correct
-            let data_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "data")
-                .unwrap();
-            assert_eq!(
-                data_entry.latest_commit.as_ref().unwrap().id,
-                second_commit.id
-            );
-            let file_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "file.txt")
-                .unwrap();
-            assert_eq!(
-                file_entry.latest_commit.as_ref().unwrap().id,
-                first_commit.id
-            );
+            // Make sure the commit hashes are correct for "data"
+            let data_entry = root_entries.entries.iter()
+                .find(|entry| match entry {
+                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "data",
+                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "data",
+                })
+                .expect("data entry not found");
+            if let GenericMetadataEntry::MetadataEntry(data) = data_entry {
+                assert_eq!(
+                    data.latest_commit.as_ref().unwrap().id,
+                    second_commit.id,
+                    "data commit id mismatch"
+                );
+            } else {
+                panic!("Expected 'data' entry to be a MetadataEntry");
+            }
+
+            // Make sure the commit hashes are correct for "file.txt"
+            let file_entry = root_entries.entries.iter()
+                .find(|entry| match entry {
+                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "file.txt",
+                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "file.txt",
+                })
+                .expect("file.txt entry not found");
+            if let GenericMetadataEntry::MetadataEntry(file) = file_entry {
+                assert_eq!(
+                    file.latest_commit.as_ref().unwrap().id,
+                    first_commit.id,
+                    "file.txt commit id mismatch"
+                );
+            } else {
+                panic!("Expected 'file.txt' entry to be a MetadataEntry");
+            }
 
             // Add a second dir
             let dir2_name = Path::new("a_data");
@@ -221,34 +246,22 @@ mod tests {
                 println!("entry: {:?}", entry);
             }
 
-            // Make sure the commit hashes are correct
-            let a_data_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "a_data")
-                .unwrap();
-            assert_eq!(
-                a_data_entry.latest_commit.as_ref().unwrap().id,
-                third_commit.id
-            );
-            let data_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "data")
-                .unwrap();
-            assert_eq!(
-                data_entry.latest_commit.as_ref().unwrap().id,
-                second_commit.id
-            );
-            let file_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "file.txt")
-                .unwrap();
-            assert_eq!(
-                file_entry.latest_commit.as_ref().unwrap().id,
-                first_commit.id
-            );
+            // Make sure the commit hash for "a_data" is correct.
+            let a_data_entry = root_entries.entries.iter()
+                .find(|entry| match entry {
+                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "a_data",
+                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "a_data",
+                })
+                .expect("a_data entry not found");
+            if let GenericMetadataEntry::MetadataEntry(a_data) = a_data_entry {
+                assert_eq!(
+                    a_data.latest_commit.as_ref().unwrap().id,
+                    third_commit.id,
+                    "a_data commit id mismatch"
+                );
+            } else {
+                panic!("Expected 'a_data' entry to be a MetadataEntry");
+            }
 
             // Add a sub directory to the second dir
             let dir3_name = Path::new("sub_data");
@@ -275,17 +288,26 @@ mod tests {
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, dir2_name, 1, 10).await?;
             println!("sub_entries: {:?}", sub_entries.entries.len());
             for entry in &sub_entries.entries {
-                println!("entry: {:?}", entry.filename);
+                match entry {
+                    GenericMetadataEntry::MetadataEntry(meta) => println!("entry: {:?}", meta.filename),
+                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => println!("entry: {:?}", ws.filename),
+                }
             }
-            let sub_data_entry = sub_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "sub_data")
-                .unwrap();
-            assert_eq!(
-                sub_data_entry.latest_commit.as_ref().unwrap().id,
-                fourth_commit.id
-            );
+            let sub_data_entry = sub_entries.entries.iter()
+                .find(|entry| match entry {
+                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "sub_data",
+                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "sub_data",
+                })
+                .expect("sub_data entry not found");
+            if let GenericMetadataEntry::MetadataEntry(sub_data) = sub_data_entry {
+                assert_eq!(
+                    sub_data.latest_commit.as_ref().unwrap().id,
+                    fourth_commit.id,
+                    "sub_data commit id mismatch"
+                );
+            } else {
+                panic!("Expected 'sub_data' entry to be a MetadataEntry");
+            }
 
             Ok(())
         })
@@ -307,21 +329,30 @@ mod tests {
                 println!("entry: {:?}", entry);
             }
 
-            let readme_entry = root_entries
-                .entries
-                .iter()
-                .find(|e| e.filename == "README.md")
-                .unwrap();
-            assert_eq!(
-                readme_entry.latest_commit.as_ref().unwrap().id,
-                first_commit.id
-            );
+            // Find the README.md entry among the metadata entries.
+            let readme_entry = root_entries.entries.iter()
+                .find(|entry| {
+                    if let GenericMetadataEntry::MetadataEntry(meta) = entry {
+                        meta.filename == "README.md"
+                    } else {
+                        false
+                    }
+                })
+                .expect("README.md entry not found");
 
-            assert!(readme_entry.resource.as_ref().unwrap().branch.is_some());
-            assert_eq!(
-                readme_entry.resource.as_ref().unwrap().path,
-                Path::new("README.md")
-            );
+            if let GenericMetadataEntry::MetadataEntry(entry) = readme_entry {
+                assert_eq!(
+                    entry.latest_commit.as_ref().unwrap().id,
+                    first_commit.id
+                );
+                assert!(entry.resource.as_ref().unwrap().branch.is_some());
+                assert_eq!(
+                    entry.resource.as_ref().unwrap().path,
+                    Path::new("README.md")
+                );
+            } else {
+                panic!("README.md entry is not a MetadataEntry");
+            }
 
             Ok(remote_repo)
         })
@@ -351,25 +382,27 @@ mod tests {
             assert_eq!(dir_response.status.status, "success");
 
             // Assert the directory is present and named "dir=dir"
-            if let Some(ref dir) = dir_response.entries.dir {
+            if let Some(GenericMetadataEntry::MetadataEntry(ref dir)) = dir_response.entries.dir {
                 assert_eq!(dir.filename, "dir=dir");
                 assert!(dir.is_dir);
             } else {
-                panic!("Directory 'dir=dir' not found");
+                panic!("Directory 'dir=dir' not found, or is not a MetadataEntry");
             }
 
             // Assert the file "file example.txt" is present in the entries
-            let file_entry = dir_response
-                .entries
-                .entries
-                .iter()
-                .find(|entry| entry.filename == "file example.txt");
+            let file_entry = dir_response.entries.entries.iter().find(|entry| {
+                if let GenericMetadataEntry::MetadataEntry(meta) = entry {
+                    meta.filename == "file example.txt"
+                } else {
+                    false
+                }
+            });
             match file_entry {
-                Some(file) => {
+                Some(GenericMetadataEntry::MetadataEntry(file)) => {
                     assert_eq!(file.filename, "file example.txt");
                     assert!(!file.is_dir);
                 }
-                None => panic!("File 'file example.txt' not found"),
+                _ => panic!("File 'file example.txt' not found, or is not a MetadataEntry"),
             }
             Ok(remote_repo)
         })
@@ -416,22 +449,24 @@ mod tests {
                 api::client::dir::get_dir(&remote_repo, workspace_id, "annotations/train").await?;
 
             for entry in response.entries.entries.iter() {
-                match entry.filename.as_str() {
-                    "bounding_box.csv" => {
-                        assert_eq!(
-                            entry.status,
-                            Some(StagedEntryStatus::Modified),
-                            "Expected bounding_box.csv to be Modified"
-                        );
+                if let GenericMetadataEntry::WorkspaceMetadataEntry(ws_entry) = entry {
+                    match ws_entry.filename.as_str() {
+                        "bounding_box.csv" => {
+                            assert_eq!(
+                                ws_entry.changes.as_ref().unwrap().status,
+                                StagedEntryStatus::Modified,
+                                "Expected bounding_box.csv to be Modified"
+                            );
+                        }
+                        "file.txt" => {
+                            assert_eq!(
+                                ws_entry.changes.as_ref().unwrap().status,
+                                StagedEntryStatus::Added,
+                                "Expected file.txt to be Added"
+                            );
+                        }
+                        _ => {}
                     }
-                    "file.txt" => {
-                        assert_eq!(
-                            entry.status,
-                            Some(StagedEntryStatus::Added),
-                            "Expected file.txt to be Added"
-                        );
-                    }
-                    _ => {}
                 }
             }
             Ok(remote_repo)

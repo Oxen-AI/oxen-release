@@ -53,7 +53,6 @@ pub fn list_commit_entries(
         repo,
         ROOT_PATH,
         revision,
-        None,
         paginate_opts,
         repo.min_version(),
     )
@@ -70,7 +69,6 @@ pub fn list_directory(
         repo,
         directory,
         revision,
-        None,
         paginate_opts,
         repo.min_version(),
     )
@@ -78,6 +76,37 @@ pub fn list_directory(
 
 /// Force a version when listing a repo
 pub fn list_directory_w_version(
+    repo: &LocalRepository,
+    directory: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    paginate_opts: &PaginateOpts,
+    version: MinOxenVersion,
+) -> Result<PaginatedDirEntries, OxenError> {
+    match version {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => {
+            let revision_str = revision.as_ref().to_string();
+            let branch = repositories::branches::get_by_name(repo, &revision_str)?;
+            let commit = repositories::revisions::get(repo, &revision_str)?;
+            let parsed_resource = ParsedResource {
+                path: directory.as_ref().to_path_buf(),
+                commit,
+                workspace: None,
+                branch,
+                version: PathBuf::from(&revision_str),
+                resource: PathBuf::from(&revision_str).join(directory.as_ref()),
+            };
+            core::v_latest::entries::list_directory(
+                repo,
+                directory,
+                &parsed_resource,
+                paginate_opts,
+            )
+        }
+    }
+}
+
+pub fn list_directory_w_workspace(
     repo: &LocalRepository,
     directory: impl AsRef<Path>,
     revision: impl AsRef<str>,
@@ -424,11 +453,11 @@ mod tests {
                 dir_entries
                     .clone()
                     .into_iter()
-                    .filter(|e| !e.is_dir)
+                    .filter(|e| !e.is_dir())
                     .count(),
                 4
             );
-            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 5);
+            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir()).count(), 5);
 
             Ok(())
         })
@@ -590,10 +619,10 @@ mod tests {
             )?;
 
             for entry in paginated.entries.iter() {
-                println!("{:?}", entry.filename);
+                println!("{:?}", entry.filename());
             }
 
-            assert_eq!(paginated.entries.first().unwrap().filename, "dir_010");
+            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_010");
 
             println!("{paginated:?}");
             assert_eq!(paginated.total_entries, 42);
@@ -635,10 +664,10 @@ mod tests {
             )?;
 
             for entry in paginated.entries.iter() {
-                println!("{:?}", entry.filename);
+                println!("{:?}", entry.filename());
             }
 
-            assert_eq!(paginated.entries.first().unwrap().filename, "dir_100");
+            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_100");
 
             println!("{paginated:?}");
             assert_eq!(paginated.total_entries, 101);

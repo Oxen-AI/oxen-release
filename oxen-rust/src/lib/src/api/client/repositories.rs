@@ -561,6 +561,7 @@ mod tests {
     use crate::model::RepoNew;
     use crate::repositories;
     use crate::test;
+    use crate::view::entries::GenericMetadataEntry;
 
     #[tokio::test]
     async fn test_repo_pre_and_post_clone() -> Result<(), OxenError> {
@@ -676,7 +677,10 @@ mod tests {
             // list the files in the repo
             let entries = api::client::dir::list_root(&repository).await?;
             assert_eq!(entries.entries.len(), 1);
-            assert_eq!(entries.entries[0].filename, "README");
+            match &entries.entries[0] {
+                GenericMetadataEntry::MetadataEntry(meta) => assert_eq!(meta.filename, "README"),
+                _ => panic!("Expected a MetadataEntry"),
+            }
 
             // cleanup
             api::client::repositories::delete(&repository).await?;
@@ -734,9 +738,9 @@ mod tests {
                 api::client::entries::get_entry(&repository, "image.png", DEFAULT_BRANCH_NAME)
                     .await?;
 
-            assert_eq!(readme.filename, "README");
-            assert_eq!(csv.filename, "data.csv");
-            assert_eq!(png.filename, "image.png");
+            assert_eq!(readme.filename(), "README");
+            assert_eq!(csv.filename(), "data.csv");
+            assert_eq!(png.filename(), "image.png");
 
             // // Cleanup
             api::client::repositories::delete(&repository).await?;

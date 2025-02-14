@@ -2,11 +2,13 @@ use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACE_CONFIG};
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::entry::metadata_entry::{WorkspaceChanges, WorkspaceMetadataEntry};
 use crate::model::{MetadataEntry, ParsedResource, StagedData, StagedEntryStatus};
 use crate::repositories;
 use crate::util;
 
 use crate::model::{workspace::WorkspaceConfig, Commit, LocalRepository, NewCommitBody, Workspace};
+use crate::view::entries::GenericMetadataEntry;
 
 pub mod data_frames;
 pub mod df;
@@ -308,72 +310,78 @@ fn init_workspace_repo(
 pub fn populate_entries_with_workspace_data(
     directory: &Path,
     workspace: &Workspace,
-    entries: &mut Vec<MetadataEntry>,
-) -> Result<(), OxenError> {
+    entries: &Vec<MetadataEntry>,
+) -> Result<Vec<GenericMetadataEntry>, OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, directory)?;
+    let mut dir_entries: Vec<GenericMetadataEntry> = Vec::new();
+
+
+    let mut entries :Vec<WorkspaceMetadataEntry> = entries.iter().map(|entry| WorkspaceMetadataEntry::from_metadata_entry(entry.clone())).collect();
 
     let (additions_map, other_changes_map) =
         build_file_status_maps_for_directory(&workspace_changes);
     for entry in entries.iter_mut() {
-        entry.status = other_changes_map.get(&entry.filename).cloned();
+        let status = other_changes_map.get(&entry.filename).cloned();
+        match status {
+            Some(status) => {
+                entry.changes = Some(WorkspaceChanges { status: status.clone() });
+                dir_entries.push(GenericMetadataEntry::WorkspaceMetadataEntry(entry.clone()));
+            }
+            _ => {
+                dir_entries.push(GenericMetadataEntry::WorkspaceMetadataEntry(entry.clone()));
+            }
+        }
     }
     for (file_path, status) in additions_map.iter() {
         if *status == StagedEntryStatus::Added {
             let file_path_from_workspace = workspace.dir().join(file_path);
-            let mut metadata_from_path =
+            let metadata_from_path =
                 repositories::metadata::from_path(&file_path_from_workspace)?;
-            metadata_from_path.status = Some(status.clone());
-            entries.push(metadata_from_path);
+            let mut ws_entry = WorkspaceMetadataEntry::from_metadata_entry(metadata_from_path);
+            ws_entry.changes = Some(WorkspaceChanges { status: status.clone() });
+            dir_entries.push(GenericMetadataEntry::WorkspaceMetadataEntry(ws_entry));
         }
     }
 
-    println!("entries: {:?}", entries);
-
-    Ok(())
+    Ok(dir_entries)
 }
 
 pub fn populate_entry_with_workspace_data(
     file_path: &Path,
-    entry: &mut MetadataEntry,
+    entry: MetadataEntry,
     workspace: &Workspace,
-) -> Result<(), OxenError> {
+) -> Result<GenericMetadataEntry, OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (_additions_map, other_changes_map) = build_file_status_maps_for_file(&workspace_changes);
-    println!(
-        "
-    
-    other_changes_map: {:?}",
-        other_changes_map
-    );
-    println!(
-        "file_path: {:?}
-    
-    
-    ",
-        file_path
-    );
-    entry.status = other_changes_map.get(file_path.to_str().unwrap()).cloned();
-    Ok(())
+    let mut entry = WorkspaceMetadataEntry::from_metadata_entry(entry.clone());
+    let changes = other_changes_map.get(file_path.to_str().unwrap()).cloned();
+    match changes {
+        Some(status) => {
+            entry.changes = Some(WorkspaceChanges { status: status.clone() });
+        }
+        None => {}
+    }
+    Ok(GenericMetadataEntry::WorkspaceMetadataEntry(entry))
 }
 
 pub fn get_added_entry(
     file_path: &Path,
     workspace: &Workspace,
     resource: &ParsedResource,
-) -> Result<MetadataEntry, OxenError> {
+) -> Result<GenericMetadataEntry, OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, file_path)?;
     let (additions_map, _other_changes_map) = build_file_status_maps_for_file(&workspace_changes);
     let status = additions_map.get(file_path.to_str().unwrap()).cloned();
     let file_path_from_workspace = workspace.dir().join(file_path);
     if status == Some(StagedEntryStatus::Added) {
-        let mut metadata_from_path = repositories::metadata::from_path(&file_path_from_workspace)?;
-
-        metadata_from_path.status = Some(StagedEntryStatus::Added);
-        metadata_from_path.resource = Some(resource.clone());
-        Ok(metadata_from_path)
+        let metadata_from_path = repositories::metadata::from_path(&file_path_from_workspace)?;
+        let mut ws_entry = WorkspaceMetadataEntry::from_metadata_entry(metadata_from_path);
+        ws_entry.changes = Some(WorkspaceChanges { status: StagedEntryStatus::Added });
+        ws_entry.resource = Some(resource.clone().into());
+        Ok(GenericMetadataEntry::WorkspaceMetadataEntry(ws_entry))
     } else {
         Err(OxenError::basic_str(
             "Entry is not in the workspace's staged database",

@@ -43,12 +43,10 @@ pub struct MetadataEntry {
     pub metadata: Option<GenericMetadata>,
     // If it's a tabular file, is it indexed for querying?
     pub is_queryable: Option<bool>,
-    // Workspace changes if the entry is part of a workspace
-    pub status: Option<StagedEntryStatus>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataEntryView {
+pub struct WorkspaceMetadataEntry {
     pub filename: String,
     pub hash: String,
     pub is_dir: bool,
@@ -67,7 +65,12 @@ pub struct MetadataEntryView {
     // If it's a tabular file, is it indexed for querying?
     pub is_queryable: Option<bool>,
     // Workspace changes if the entry is part of a workspace
-    pub status: Option<StagedEntryStatus>,
+    pub changes: Option<WorkspaceChanges>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct WorkspaceChanges {
+    pub status: StagedEntryStatus,
 }
 
 impl MetadataEntry {
@@ -108,41 +111,25 @@ impl MetadataEntry {
     }
 }
 
-impl From<MetadataEntry> for MetadataEntryView {
-    fn from(metadata_entry: MetadataEntry) -> Self {
-        MetadataEntryView {
-            filename: metadata_entry.filename,
-            hash: metadata_entry.hash,
-            is_dir: metadata_entry.is_dir,
-            latest_commit: metadata_entry.latest_commit,
-            resource: metadata_entry.resource.map(|r| r.into()),
-            size: metadata_entry.size,
-            data_type: metadata_entry.data_type,
-            mime_type: metadata_entry.mime_type,
-            extension: metadata_entry.extension,
-            metadata: metadata_entry.metadata,
-            is_queryable: metadata_entry.is_queryable,
-            status: metadata_entry.status,
+impl WorkspaceMetadataEntry {
+    /// Converts a `MetadataEntry` into a `WorkspaceMetadataEntry` with `changes` set to `None`.
+    pub fn from_metadata_entry(metadata: MetadataEntry) -> Self {
+        WorkspaceMetadataEntry {
+            filename: metadata.filename,
+            hash: metadata.hash,
+            is_dir: metadata.is_dir,
+            latest_commit: metadata.latest_commit,
+            // Convert ParsedResource to ParsedResourceView using the From trait.
+            resource: metadata.resource.map(ParsedResourceView::from),
+            size: metadata.size,
+            data_type: metadata.data_type,
+            mime_type: metadata.mime_type,
+            extension: metadata.extension,
+            metadata: metadata.metadata,
+            is_queryable: metadata.is_queryable,
+            changes: None,
         }
     }
 }
 
-impl From<MetadataEntryView> for MetadataEntry {
-    fn from(view: MetadataEntryView) -> Self {
-        MetadataEntry {
-            filename: view.filename,
-            hash: view.hash,
-            is_dir: view.is_dir,
-            latest_commit: view.latest_commit,
-            // Converts the resource back from ParsedResourceView to ParsedResource
-            resource: view.resource.map(|r| r.into()),
-            size: view.size,
-            data_type: view.data_type,
-            mime_type: view.mime_type,
-            extension: view.extension,
-            metadata: view.metadata,
-            is_queryable: view.is_queryable,
-            status: view.status,
-        }
-    }
-}
+

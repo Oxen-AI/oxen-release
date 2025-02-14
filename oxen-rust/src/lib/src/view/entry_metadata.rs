@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::{entry::metadata_entry::MetadataEntryView, MetadataEntry};
-
+use crate::model::entry::metadata_entry::MetadataEntry;
+use crate::view::entries::GenericMetadataEntry;
 use super::StatusMessage;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -12,8 +12,8 @@ pub struct MetadataEntryResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct MetadataEntryResponseView {
+pub struct GenericMetadataEntryResponseView {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entry: MetadataEntryView,
+    pub entry: GenericMetadataEntry,
 }
