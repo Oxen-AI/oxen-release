@@ -448,8 +448,6 @@ mod tests {
             let response =
                 api::client::dir::get_dir(&remote_repo, workspace_id, "annotations/train").await?;
 
-            println!("response: {:?}", response);
-
             for entry in response.entries.entries.iter() {
                 if let GenericMetadataEntry::WorkspaceMetadataEntry(ws_entry) = entry {
                     match ws_entry.filename.as_str() {
