@@ -170,7 +170,7 @@ impl RemoteStagedStatus {
             dir: None,
             entries: paginated
                 .into_iter()
-                .map(|e| EMetadataEntry::MetadataEntry(e))
+                .map(EMetadataEntry::MetadataEntry)
                 .collect(),
             page_number: pagination.page_number,
             page_size: pagination.page_size,

@@ -53,7 +53,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
                 entry.set_resource(Some(resource.clone()));
                 EMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
-                    entry: entry,
+                    entry,
                 }
             }
             Err(_) => {
@@ -64,7 +64,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
                 )?;
                 EMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
-                    entry: added_entry.into(),
+                    entry: added_entry,
                 }
             }
         }

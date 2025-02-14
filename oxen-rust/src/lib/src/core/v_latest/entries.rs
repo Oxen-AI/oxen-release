@@ -84,12 +84,11 @@ pub fn list_directory(
     let mut found_commits: HashMap<MerkleHash, Commit> = HashMap::new();
     let dir_entry =
         dir_node_to_metadata_entry(repo, &dir, parsed_resource, &mut found_commits, false)?;
-    let dir_entry = match dir_entry {
-        Some(dir_entry) => Some(EMetadataEntry::WorkspaceMetadataEntry(
-            WorkspaceMetadataEntry::from_metadata_entry(dir_entry),
-        )),
-        None => None,
-    };
+    let dir_entry = dir_entry.map(|dir_entry| {
+        EMetadataEntry::WorkspaceMetadataEntry(WorkspaceMetadataEntry::from_metadata_entry(
+            dir_entry,
+        ))
+    });
     log::debug!("list_directory dir_entry {:?}", dir_entry);
     let entries: Vec<MetadataEntry> =
         dir_entries(repo, &dir, directory, parsed_resource, &mut found_commits)?;
@@ -107,7 +106,7 @@ pub fn list_directory(
     } else {
         entries
             .into_iter()
-            .map(|entry| EMetadataEntry::MetadataEntry(entry))
+            .map(EMetadataEntry::MetadataEntry)
             .collect()
     };
 
