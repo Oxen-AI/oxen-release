@@ -1,6 +1,7 @@
 use crate::core;
 use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::error::OxenError;
+use crate::model::entry::metadata_entry::WorkspaceMetadataEntry;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
@@ -84,7 +85,9 @@ pub fn list_directory(
     let dir_entry =
         dir_node_to_metadata_entry(repo, &dir, parsed_resource, &mut found_commits, false)?;
     let dir_entry = match dir_entry {
-        Some(dir_entry) => Some(GenericMetadataEntry::MetadataEntry(dir_entry)),
+        Some(dir_entry) => Some(GenericMetadataEntry::WorkspaceMetadataEntry(
+            WorkspaceMetadataEntry::from_metadata_entry(dir_entry)
+        )),
         None => None,
     };
     log::debug!("list_directory dir_entry {:?}", dir_entry);
@@ -94,18 +97,19 @@ pub fn list_directory(
 
     let (entries, pagination) = util::paginate(entries, page, page_size);
     let metadata: Option<MetadataDir> = Some(MetadataDir::new(dir_node.data_types()));
-    
 
-    let entries: Vec<GenericMetadataEntry> =
-        if parsed_resource.workspace.is_some() {
-            repositories::workspaces::populate_entries_with_workspace_data(
-                directory,
-                parsed_resource.workspace.as_ref().unwrap(),
-                &entries,
-            )?
-        } else {
-            entries.into_iter().map(|entry| GenericMetadataEntry::MetadataEntry(entry)).collect()
-        };
+    let entries: Vec<GenericMetadataEntry> = if parsed_resource.workspace.is_some() {
+        repositories::workspaces::populate_entries_with_workspace_data(
+            directory,
+            parsed_resource.workspace.as_ref().unwrap(),
+            &entries,
+        )?
+    } else {
+        entries
+            .into_iter()
+            .map(|entry| GenericMetadataEntry::MetadataEntry(entry))
+            .collect()
+    };
 
     Ok(PaginatedDirEntries {
         dir: dir_entry,
