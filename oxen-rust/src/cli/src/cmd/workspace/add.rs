@@ -53,9 +53,7 @@ impl RunCmd for WorkspaceAddCmd {
 
         let workspace_name = args.get_one::<String>("workspace-name");
         let workspace_id = args.get_one::<String>("workspace-id");
-        let directory = args
-            .get_one::<String>("directory")
-            .map(PathBuf::from);
+        let directory = args.get_one::<String>("directory").map(PathBuf::from);
 
         let workspace_identifier = match workspace_id {
             Some(id) => id,
