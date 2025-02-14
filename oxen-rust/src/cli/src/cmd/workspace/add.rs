@@ -33,6 +33,13 @@ impl RunCmd for WorkspaceAddCmd {
                     .help("The name of the workspace")
                     .conflicts_with("workspace-id"),
             )
+            .arg(
+                Arg::new("directory")
+                    .long("directory")
+                    .short('d')
+                    .help("The destination directory to add the workspace to")
+                    .default_value("."),
+            )
             .arg_required_else_help(true)
     }
 
@@ -46,6 +53,9 @@ impl RunCmd for WorkspaceAddCmd {
 
         let workspace_name = args.get_one::<String>("workspace-name");
         let workspace_id = args.get_one::<String>("workspace-id");
+        let directory = args
+            .get_one::<String>("directory")
+            .map(PathBuf::from);
 
         let workspace_identifier = match workspace_id {
             Some(id) => id,
@@ -64,7 +74,7 @@ impl RunCmd for WorkspaceAddCmd {
         let opts = AddOpts {
             paths,
             is_remote: false,
-            directory: None,
+            directory,
         };
 
         let repository = LocalRepository::from_current_dir()?;
