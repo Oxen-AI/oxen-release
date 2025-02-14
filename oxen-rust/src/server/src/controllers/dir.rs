@@ -34,7 +34,7 @@ pub async fn get(
         resource.version.to_str().unwrap_or_default().to_string()
     };
 
-    let paginated_entries = repositories::entries::list_directory_w_version(
+    let paginated_entries = repositories::entries::list_directory_w_workspace(
         &repo,
         &resource.path,
         revision,

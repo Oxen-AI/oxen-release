@@ -4,7 +4,8 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::error::OxenError;
 
-use liboxen::view::entry_metadata::MetadataEntryResponseView;
+use liboxen::view::entries::GenericMetadataEntry;
+use liboxen::view::entry_metadata::GenericMetadataEntryResponseView;
 use liboxen::view::StatusMessage;
 use liboxen::{current_function, repositories};
 
@@ -43,16 +44,16 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     let meta = if let Some(workspace) = resource.workspace.as_ref() {
         match repositories::entries::get_meta_entry(&repo, &commit, &resource.path) {
-            Ok(mut entry) => {
-                repositories::workspaces::populate_entry_with_workspace_data(
+            Ok(entry) => {
+                let mut entry = repositories::workspaces::populate_entry_with_workspace_data(
                     resource.path.as_ref(),
-                    &mut entry,
+                    entry.clone(),
                     workspace,
                 )?;
-                entry.resource = Some(resource.clone());
-                MetadataEntryResponseView {
+                entry.set_resource(Some(resource.clone()));
+                GenericMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
-                    entry: entry.into(),
+                    entry: entry,
                 }
             }
             Err(_) => {
@@ -61,7 +62,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
                     workspace,
                     &resource,
                 )?;
-                MetadataEntryResponseView {
+                GenericMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
                     entry: added_entry.into(),
                 }
@@ -70,9 +71,9 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     } else {
         let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
         entry.resource = Some(resource.clone());
-        MetadataEntryResponseView {
+        GenericMetadataEntryResponseView {
             status: StatusMessage::resource_found(),
-            entry: entry.into(),
+            entry: GenericMetadataEntry::MetadataEntry(entry),
         }
     };
 

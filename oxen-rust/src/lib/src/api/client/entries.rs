@@ -1,12 +1,12 @@
-use crate::api::client;
+
 use crate::config::UserConfig;
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME};
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataEntryView;
 use crate::model::{EntryDataType, MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
+use crate::api::client;
 use crate::repositories;
-use crate::view::entries::PaginatedMetadataEntriesResponse;
+use crate::view::entries::{GenericMetadataEntry, PaginatedMetadataEntriesResponse};
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -25,7 +25,7 @@ pub async fn get_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-) -> Result<MetadataEntryView, OxenError> {
+) -> Result<GenericMetadataEntry, OxenError> {
     let remote_path = remote_path.as_ref();
 
     let response = api::client::metadata::get_file(remote_repo, &revision, &remote_path).await?;
@@ -125,6 +125,12 @@ pub async fn download_entry(
 ) -> Result<(), OxenError> {
     let remote_path = remote_path.as_ref();
     let entry = get_entry(remote_repo, remote_path, &revision).await?;
+
+    let entry = match entry {
+        GenericMetadataEntry::MetadataEntry(entry) => entry,
+        GenericMetadataEntry::WorkspaceMetadataEntry(_entry) => return Err(OxenError::basic_str("Workspace entries are not supported for download")),
+    };
+
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
 
@@ -157,12 +163,12 @@ pub async fn download_entry(
     }
 
     if entry.is_dir {
-        repositories::download::download_dir(remote_repo, &entry.into(), remote_path, &local_path)
+        repositories::download::download_dir(remote_repo, &entry, remote_path, &local_path)
             .await
     } else {
         download_file(
             remote_repo,
-            &entry.into(),
+            &entry,
             remote_path,
             local_path,
             revision,

@@ -136,7 +136,6 @@ fn dir_node_to_metadata_entry(
             dir_node.data_types(),
         ))),
         is_queryable: None,
-        status: None,
     }))
 }
 
@@ -194,6 +193,5 @@ fn file_node_to_metadata_entry(
         extension: file_node.extension().to_string(),
         metadata: file_node.metadata(),
         is_queryable: is_indexed,
-        status: None,
     }))
 }
