@@ -7,8 +7,8 @@ use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::RemoteRepository;
+use crate::view::entries::EMetadataEntry;
 use crate::view::{PaginatedDirEntries, PaginatedDirEntriesResponse};
-use crate::view::entries::GenericMetadataEntry;
 
 pub async fn list_root(remote_repo: &RemoteRepository) -> Result<PaginatedDirEntries, OxenError> {
     list(
@@ -53,21 +53,17 @@ pub async fn file_counts(
     let path_str = path.as_ref().to_string_lossy();
     let response = list(remote_repo, revision, &path, 1, 1).await?;
     match response.dir {
-        Some(dir_entry) => {
-            match dir_entry {
-                GenericMetadataEntry::MetadataEntry(metadata_entry) => {
-                    match metadata_entry.metadata {
-                        Some(GenericMetadata::MetadataDir(metadata)) => Ok(metadata),
-                        _ => Err(OxenError::basic_str(format!(
-                            "No metadata on directory found at {path_str}"
-                        ))),
-                    }
-                }
-                GenericMetadataEntry::WorkspaceMetadataEntry(_) => Err(OxenError::basic_str(
-                    "Workspace metadata entry is not implemented",
-                )),
-            }
-        }
+        Some(dir_entry) => match dir_entry {
+            EMetadataEntry::MetadataEntry(metadata_entry) => match metadata_entry.metadata {
+                Some(GenericMetadata::MetadataDir(metadata)) => Ok(metadata),
+                _ => Err(OxenError::basic_str(format!(
+                    "No metadata on directory found at {path_str}"
+                ))),
+            },
+            EMetadataEntry::WorkspaceMetadataEntry(_) => Err(OxenError::basic_str(
+                "Workspace metadata entry is not implemented",
+            )),
+        },
         None => Err(OxenError::basic_str(format!(
             "No directory found at {path_str}"
         ))),
@@ -109,7 +105,7 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use crate::view::entries::GenericMetadataEntry;
+    use crate::view::entries::EMetadataEntry;
 
     use std::path::Path;
 
@@ -184,13 +180,15 @@ mod tests {
             println!("----------------------");
 
             // Make sure the commit hashes are correct for "data"
-            let data_entry = root_entries.entries.iter()
+            let data_entry = root_entries
+                .entries
+                .iter()
                 .find(|entry| match entry {
-                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "data",
-                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "data",
+                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "data",
+                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "data",
                 })
                 .expect("data entry not found");
-            if let GenericMetadataEntry::MetadataEntry(data) = data_entry {
+            if let EMetadataEntry::MetadataEntry(data) = data_entry {
                 assert_eq!(
                     data.latest_commit.as_ref().unwrap().id,
                     second_commit.id,
@@ -201,13 +199,15 @@ mod tests {
             }
 
             // Make sure the commit hashes are correct for "file.txt"
-            let file_entry = root_entries.entries.iter()
+            let file_entry = root_entries
+                .entries
+                .iter()
                 .find(|entry| match entry {
-                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "file.txt",
-                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "file.txt",
+                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "file.txt",
+                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "file.txt",
                 })
                 .expect("file.txt entry not found");
-            if let GenericMetadataEntry::MetadataEntry(file) = file_entry {
+            if let EMetadataEntry::MetadataEntry(file) = file_entry {
                 assert_eq!(
                     file.latest_commit.as_ref().unwrap().id,
                     first_commit.id,
@@ -247,13 +247,15 @@ mod tests {
             }
 
             // Make sure the commit hash for "a_data" is correct.
-            let a_data_entry = root_entries.entries.iter()
+            let a_data_entry = root_entries
+                .entries
+                .iter()
                 .find(|entry| match entry {
-                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "a_data",
-                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "a_data",
+                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "a_data",
+                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "a_data",
                 })
                 .expect("a_data entry not found");
-            if let GenericMetadataEntry::MetadataEntry(a_data) = a_data_entry {
+            if let EMetadataEntry::MetadataEntry(a_data) = a_data_entry {
                 assert_eq!(
                     a_data.latest_commit.as_ref().unwrap().id,
                     third_commit.id,
@@ -289,17 +291,21 @@ mod tests {
             println!("sub_entries: {:?}", sub_entries.entries.len());
             for entry in &sub_entries.entries {
                 match entry {
-                    GenericMetadataEntry::MetadataEntry(meta) => println!("entry: {:?}", meta.filename),
-                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => println!("entry: {:?}", ws.filename),
+                    EMetadataEntry::MetadataEntry(meta) => println!("entry: {:?}", meta.filename),
+                    EMetadataEntry::WorkspaceMetadataEntry(ws) => {
+                        println!("entry: {:?}", ws.filename)
+                    }
                 }
             }
-            let sub_data_entry = sub_entries.entries.iter()
+            let sub_data_entry = sub_entries
+                .entries
+                .iter()
                 .find(|entry| match entry {
-                    GenericMetadataEntry::MetadataEntry(meta) => meta.filename == "sub_data",
-                    GenericMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "sub_data",
+                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "sub_data",
+                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "sub_data",
                 })
                 .expect("sub_data entry not found");
-            if let GenericMetadataEntry::MetadataEntry(sub_data) = sub_data_entry {
+            if let EMetadataEntry::MetadataEntry(sub_data) = sub_data_entry {
                 assert_eq!(
                     sub_data.latest_commit.as_ref().unwrap().id,
                     fourth_commit.id,
@@ -330,9 +336,11 @@ mod tests {
             }
 
             // Find the README.md entry among the metadata entries.
-            let readme_entry = root_entries.entries.iter()
+            let readme_entry = root_entries
+                .entries
+                .iter()
                 .find(|entry| {
-                    if let GenericMetadataEntry::MetadataEntry(meta) = entry {
+                    if let EMetadataEntry::MetadataEntry(meta) = entry {
                         meta.filename == "README.md"
                     } else {
                         false
@@ -340,11 +348,8 @@ mod tests {
                 })
                 .expect("README.md entry not found");
 
-            if let GenericMetadataEntry::MetadataEntry(entry) = readme_entry {
-                assert_eq!(
-                    entry.latest_commit.as_ref().unwrap().id,
-                    first_commit.id
-                );
+            if let EMetadataEntry::MetadataEntry(entry) = readme_entry {
+                assert_eq!(entry.latest_commit.as_ref().unwrap().id, first_commit.id);
                 assert!(entry.resource.as_ref().unwrap().branch.is_some());
                 assert_eq!(
                     entry.resource.as_ref().unwrap().path,
@@ -382,7 +387,7 @@ mod tests {
             assert_eq!(dir_response.status.status, "success");
 
             // Assert the directory is present and named "dir=dir"
-            if let Some(GenericMetadataEntry::MetadataEntry(ref dir)) = dir_response.entries.dir {
+            if let Some(EMetadataEntry::MetadataEntry(ref dir)) = dir_response.entries.dir {
                 assert_eq!(dir.filename, "dir=dir");
                 assert!(dir.is_dir);
             } else {
@@ -391,14 +396,14 @@ mod tests {
 
             // Assert the file "file example.txt" is present in the entries
             let file_entry = dir_response.entries.entries.iter().find(|entry| {
-                if let GenericMetadataEntry::MetadataEntry(meta) = entry {
+                if let EMetadataEntry::MetadataEntry(meta) = entry {
                     meta.filename == "file example.txt"
                 } else {
                     false
                 }
             });
             match file_entry {
-                Some(GenericMetadataEntry::MetadataEntry(file)) => {
+                Some(EMetadataEntry::MetadataEntry(file)) => {
                     assert_eq!(file.filename, "file example.txt");
                     assert!(!file.is_dir);
                 }
@@ -449,7 +454,7 @@ mod tests {
                 api::client::dir::get_dir(&remote_repo, workspace_id, "annotations/train").await?;
 
             for entry in response.entries.entries.iter() {
-                if let GenericMetadataEntry::WorkspaceMetadataEntry(ws_entry) = entry {
+                if let EMetadataEntry::WorkspaceMetadataEntry(ws_entry) = entry {
                     match ws_entry.filename.as_str() {
                         "bounding_box.csv" => {
                             assert_eq!(

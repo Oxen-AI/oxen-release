@@ -561,7 +561,7 @@ mod tests {
     use crate::model::RepoNew;
     use crate::repositories;
     use crate::test;
-    use crate::view::entries::GenericMetadataEntry;
+    use crate::view::entries::EMetadataEntry;
 
     #[tokio::test]
     async fn test_repo_pre_and_post_clone() -> Result<(), OxenError> {
@@ -678,7 +678,7 @@ mod tests {
             let entries = api::client::dir::list_root(&repository).await?;
             assert_eq!(entries.entries.len(), 1);
             match &entries.entries[0] {
-                GenericMetadataEntry::MetadataEntry(meta) => assert_eq!(meta.filename, "README"),
+                EMetadataEntry::MetadataEntry(meta) => assert_eq!(meta.filename, "README"),
                 _ => panic!("Expected a MetadataEntry"),
             }
 

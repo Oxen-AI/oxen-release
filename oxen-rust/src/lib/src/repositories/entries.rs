@@ -49,13 +49,7 @@ pub fn list_commit_entries(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(
-        repo,
-        ROOT_PATH,
-        revision,
-        paginate_opts,
-        repo.min_version(),
-    )
+    list_directory_w_version(repo, ROOT_PATH, revision, paginate_opts, repo.min_version())
 }
 
 /// List all the entries within a directory given a specific commit
@@ -65,13 +59,7 @@ pub fn list_directory(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(
-        repo,
-        directory,
-        revision,
-        paginate_opts,
-        repo.min_version(),
-    )
+    list_directory_w_version(repo, directory, revision, paginate_opts, repo.min_version())
 }
 
 /// Force a version when listing a repo
