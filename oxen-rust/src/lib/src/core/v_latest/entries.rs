@@ -11,7 +11,7 @@ use crate::model::{
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::util;
-use crate::view::entries::{GenericMetadataEntry, ResourceVersion};
+use crate::view::entries::{EMetadataEntry, ResourceVersion};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::Path;
@@ -85,8 +85,8 @@ pub fn list_directory(
     let dir_entry =
         dir_node_to_metadata_entry(repo, &dir, parsed_resource, &mut found_commits, false)?;
     let dir_entry = match dir_entry {
-        Some(dir_entry) => Some(GenericMetadataEntry::WorkspaceMetadataEntry(
-            WorkspaceMetadataEntry::from_metadata_entry(dir_entry)
+        Some(dir_entry) => Some(EMetadataEntry::WorkspaceMetadataEntry(
+            WorkspaceMetadataEntry::from_metadata_entry(dir_entry),
         )),
         None => None,
     };
@@ -98,7 +98,7 @@ pub fn list_directory(
     let (entries, pagination) = util::paginate(entries, page, page_size);
     let metadata: Option<MetadataDir> = Some(MetadataDir::new(dir_node.data_types()));
 
-    let entries: Vec<GenericMetadataEntry> = if parsed_resource.workspace.is_some() {
+    let entries: Vec<EMetadataEntry> = if parsed_resource.workspace.is_some() {
         repositories::workspaces::populate_entries_with_workspace_data(
             directory,
             parsed_resource.workspace.as_ref().unwrap(),
@@ -107,7 +107,7 @@ pub fn list_directory(
     } else {
         entries
             .into_iter()
-            .map(|entry| GenericMetadataEntry::MetadataEntry(entry))
+            .map(|entry| EMetadataEntry::MetadataEntry(entry))
             .collect()
     };
 

@@ -41,8 +41,8 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         mime_type,
         extension,
         metadata,
-        is_queryable: None
-        })
+        is_queryable: None,
+    })
 }
 
 /// Returns the metadata given a file path
@@ -99,7 +99,8 @@ pub fn from_commit_entry(
         mime_type,
         extension,
         metadata,
-        is_queryable: None    })
+        is_queryable: None,
+    })
 }
 
 pub fn from_file_node(
@@ -125,7 +126,8 @@ pub fn from_file_node(
         mime_type: node.mime_type().to_string(),
         extension: node.extension().to_string(),
         metadata: node.metadata(),
-        is_queryable: None    })
+        is_queryable: None,
+    })
 }
 
 pub fn from_dir_node(
@@ -144,7 +146,8 @@ pub fn from_dir_node(
         mime_type: "inode/directory".to_string(),
         extension: "".to_string(),
         metadata: None,
-        is_queryable: None    })
+        is_queryable: None,
+    })
 }
 
 /// Returns metadata with latest commit information. Less efficient than get().

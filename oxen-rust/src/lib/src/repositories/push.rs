@@ -82,7 +82,7 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use crate::view::entries::GenericMetadataEntry;
+    use crate::view::entries::EMetadataEntry;
     use futures::future;
 
     #[tokio::test]
@@ -1416,7 +1416,7 @@ A: Checkout Oxen.ai
                     .unwrap();
 
                 let metadata_entry = match metadata_entry {
-                    GenericMetadataEntry::MetadataEntry(entry) => entry,
+                    EMetadataEntry::MetadataEntry(entry) => entry,
                     _ => panic!("Expected a metadata entry"),
                 };
 

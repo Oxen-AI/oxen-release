@@ -4,8 +4,8 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::error::OxenError;
 
-use liboxen::view::entries::GenericMetadataEntry;
-use liboxen::view::entry_metadata::GenericMetadataEntryResponseView;
+use liboxen::view::entries::EMetadataEntry;
+use liboxen::view::entry_metadata::EMetadataEntryResponseView;
 use liboxen::view::StatusMessage;
 use liboxen::{current_function, repositories};
 
@@ -51,7 +51,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
                     workspace,
                 )?;
                 entry.set_resource(Some(resource.clone()));
-                GenericMetadataEntryResponseView {
+                EMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
                     entry: entry,
                 }
@@ -62,7 +62,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
                     workspace,
                     &resource,
                 )?;
-                GenericMetadataEntryResponseView {
+                EMetadataEntryResponseView {
                     status: StatusMessage::resource_found(),
                     entry: added_entry.into(),
                 }
@@ -71,9 +71,9 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     } else {
         let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
         entry.resource = Some(resource.clone());
-        GenericMetadataEntryResponseView {
+        EMetadataEntryResponseView {
             status: StatusMessage::resource_found(),
-            entry: GenericMetadataEntry::MetadataEntry(entry),
+            entry: EMetadataEntry::MetadataEntry(entry),
         }
     };
 
