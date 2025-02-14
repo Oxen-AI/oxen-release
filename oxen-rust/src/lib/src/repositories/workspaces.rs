@@ -362,13 +362,10 @@ pub fn populate_entry_with_workspace_data(
     let (_additions_map, other_changes_map) = build_file_status_maps_for_file(&workspace_changes);
     let mut entry = WorkspaceMetadataEntry::from_metadata_entry(entry.clone());
     let changes = other_changes_map.get(file_path.to_str().unwrap()).cloned();
-    match changes {
-        Some(status) => {
-            entry.changes = Some(WorkspaceChanges {
-                status: status.clone(),
-            });
-        }
-        None => {}
+    if let Some(status) = changes {
+        entry.changes = Some(WorkspaceChanges {
+            status: status.clone(),
+        });
     }
     Ok(EMetadataEntry::WorkspaceMetadataEntry(entry))
 }
