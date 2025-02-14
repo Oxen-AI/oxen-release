@@ -310,7 +310,7 @@ fn init_workspace_repo(
 pub fn populate_entries_with_workspace_data(
     directory: &Path,
     workspace: &Workspace,
-    entries: &Vec<MetadataEntry>,
+    entries: &[MetadataEntry],
 ) -> Result<Vec<EMetadataEntry>, OxenError> {
     let workspace_changes =
         repositories::workspaces::status::status_from_dir(workspace, directory)?;
