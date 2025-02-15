@@ -24,13 +24,15 @@ pub async fn get_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-) -> Result<EMetadataEntry, OxenError> {
+) -> Result<Option<EMetadataEntry>, OxenError> {
     let remote_path = remote_path.as_ref();
 
-    let response = api::client::metadata::get_file(remote_repo, &revision, &remote_path).await?;
-    let entry = response.entry;
-
-    Ok(entry)
+    let Some(response) =
+        api::client::metadata::get_file(remote_repo, &revision, &remote_path).await?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(response.entry))
 }
 
 pub async fn list_entries_with_type(
@@ -126,11 +128,14 @@ pub async fn download_entry(
     let entry = get_entry(remote_repo, remote_path, &revision).await?;
 
     let entry = match entry {
-        EMetadataEntry::MetadataEntry(entry) => entry,
-        EMetadataEntry::WorkspaceMetadataEntry(_entry) => {
+        Some(EMetadataEntry::MetadataEntry(entry)) => entry,
+        Some(EMetadataEntry::WorkspaceMetadataEntry(_entry)) => {
             return Err(OxenError::basic_str(
                 "Workspace entries are not supported for download",
             ))
+        }
+        None => {
+            return Err(OxenError::path_does_not_exist(remote_path));
         }
     };
 

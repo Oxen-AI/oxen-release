@@ -1,6 +1,8 @@
 //! Fetch metadata about a resource from the remote.
 //!
 
+use http::StatusCode;
+
 use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
@@ -14,7 +16,7 @@ pub async fn get_file(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<EMetadataEntryResponseView, OxenError> {
+) -> Result<Option<EMetadataEntryResponseView>, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let uri = format!("/meta/{}/{}", revision, path);
@@ -22,8 +24,12 @@ pub async fn get_file(
 
     let client = client::new_for_url(&url)?;
     let response = client.get(&url).send().await?;
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+
     let body = client::parse_json_body(&url, response).await?;
-    Ok(serde_json::from_str(&body)?)
+    Ok(Some(serde_json::from_str(&body)?))
 }
 
 #[cfg(test)]
@@ -54,6 +60,7 @@ mod tests {
 
             let entry = api::client::metadata::get_file(&remote_repo, revision, path)
                 .await?
+                .unwrap()
                 .entry;
 
             assert_eq!(entry.filename(), "README.md");
@@ -85,6 +92,7 @@ mod tests {
             let revision = DEFAULT_BRANCH_NAME;
             let entry = api::client::metadata::get_file(&remote_repo, revision, path)
                 .await?
+                .unwrap()
                 .entry;
 
             assert_eq!(entry.filename(), path);
@@ -104,7 +112,9 @@ mod tests {
             let directory = Path::new("train");
 
             let meta: EMetadataEntryResponseView =
-                api::client::metadata::get_file(&remote_repo, branch, directory).await?;
+                api::client::metadata::get_file(&remote_repo, branch, directory)
+                    .await?
+                    .unwrap();
 
             assert_eq!(meta.entry.mime_type(), "inode/directory");
             assert_eq!(meta.entry.data_type(), EntryDataType::Dir);
@@ -143,10 +153,14 @@ mod tests {
             repositories::push(&local_repo).await?;
 
             let meta: EMetadataEntryResponseView =
-                api::client::metadata::get_file(&remote_repo, main_branch, &path).await?;
+                api::client::metadata::get_file(&remote_repo, main_branch, &path)
+                    .await?
+                    .unwrap();
 
             let second_meta: EMetadataEntryResponseView =
-                api::client::metadata::get_file(&remote_repo, second_branch, &path).await?;
+                api::client::metadata::get_file(&remote_repo, second_branch, &path)
+                    .await?
+                    .unwrap();
 
             assert_eq!(meta.entry.latest_commit().unwrap().id, first_commit.id);
             assert_eq!(
@@ -184,7 +198,9 @@ mod tests {
             .await;
 
             let meta: EMetadataEntryResponseView =
-                api::client::metadata::get_file(&remote_repo, workspace_id, file_path).await?;
+                api::client::metadata::get_file(&remote_repo, workspace_id, file_path)
+                    .await?
+                    .unwrap();
 
             let workspace_entry = match meta.entry {
                 EMetadataEntry::WorkspaceMetadataEntry(entry) => entry,
@@ -210,7 +226,8 @@ mod tests {
 
             let meta: EMetadataEntryResponseView =
                 api::client::metadata::get_file(&remote_repo, workspace_id, file_path.clone())
-                    .await?;
+                    .await?
+                    .unwrap();
 
             let workspace_entry = match meta.entry {
                 EMetadataEntry::WorkspaceMetadataEntry(entry) => entry,

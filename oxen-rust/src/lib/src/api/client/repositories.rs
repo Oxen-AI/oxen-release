@@ -731,12 +731,16 @@ mod tests {
 
             // List the files in the repo
             let readme =
-                api::client::entries::get_entry(&repository, "README", DEFAULT_BRANCH_NAME).await?;
+                api::client::entries::get_entry(&repository, "README", DEFAULT_BRANCH_NAME)
+                    .await?
+                    .unwrap();
             let csv = api::client::entries::get_entry(&repository, "data.csv", DEFAULT_BRANCH_NAME)
-                .await?;
+                .await?
+                .unwrap();
             let png =
                 api::client::entries::get_entry(&repository, "image.png", DEFAULT_BRANCH_NAME)
-                    .await?;
+                    .await?
+                    .unwrap();
 
             assert_eq!(readme.filename(), "README");
             assert_eq!(csv.filename(), "data.csv");

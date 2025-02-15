@@ -78,8 +78,20 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::MultipartError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
-            OxenHttpError::BadRequest(desc) => HttpResponse::BadRequest()
-                .json(StatusMessageDescription::bad_request(desc.to_string())),
+            OxenHttpError::BadRequest(desc) => {
+                let error_json = json!({
+                    "error": {
+                        "type": "bad_request",
+                        "title":
+                            "Bad Request",
+                        "detail":
+                            desc.to_string()
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_BAD_REQUEST,
+                });
+                HttpResponse::BadRequest().json(error_json)
+            }
             OxenHttpError::SQLParseError(query) => {
                 HttpResponse::BadRequest().json(SQLParseError::new(query.to_string()))
             }
@@ -248,12 +260,12 @@ impl error::ResponseError for OxenHttpError {
 
                         HttpResponse::NotFound().json(error_json)
                     }
-                    OxenError::RevisionNotFound(commit_id) => {
+                    OxenError::RevisionNotFound(revision) => {
                         let error_json = json!({
                             "error": {
                                 "type": MSG_RESOURCE_NOT_FOUND,
-                                "title": "File does not exist",
-                                "detail": format!("Could not find file in commit: {}", commit_id)
+                                "title": "Revision not found",
+                                "detail": format!("Could not find branch or commit: {}", revision)
                             },
                             "status": STATUS_ERROR,
                             "status_message": MSG_RESOURCE_NOT_FOUND,
@@ -298,13 +310,28 @@ impl error::ResponseError for OxenHttpError {
                             "error": {
                                 "type": MSG_RESOURCE_NOT_FOUND,
                                 "title": "Entry does not exist",
-                                "detail": format!("{}",msg )
+                                "detail": format!("{}", msg)
                             },
                             "status": STATUS_ERROR,
                             "status_message": MSG_RESOURCE_NOT_FOUND,
                         });
 
                         HttpResponse::NotFound().json(error_json)
+                    }
+                    OxenError::UpstreamMergeConflict(desc) => {
+                        log::error!("Upstream merge conflict: {desc}");
+
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_CONFLICT,
+                                "title": "Merge conflict",
+                                "detail": format!("{desc}")
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_CONFLICT,
+                        });
+
+                        HttpResponse::Conflict().json(error_json)
                     }
                     OxenError::InvalidSchema(schema) => {
                         log::error!("Invalid schema: {}", schema);
@@ -374,6 +401,20 @@ impl error::ResponseError for OxenHttpError {
                                     "Column Name Not Found",
                                 "detail":
                                     format!("Column name '{}' not found in schema", column_name)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::BadRequest().json(error_json)
+                    }
+                    OxenError::ImportFileError(desc) => {
+                        let error_json = json!({
+                            "error": {
+                                "type": "bad_request",
+                                "title":
+                                    "Bad Request",
+                                "detail":
+                                    desc.to_string()
                             },
                             "status": STATUS_ERROR,
                             "status_message": MSG_BAD_REQUEST,

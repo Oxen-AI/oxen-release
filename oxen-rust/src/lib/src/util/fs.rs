@@ -155,7 +155,7 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
     //     Ok(meta.len())
     // } else {
     if !version_path.exists() {
-        return Err(OxenError::entry_does_not_exist(version_path));
+        return Err(OxenError::path_does_not_exist(version_path));
     }
     let meta = util::fs::metadata(&version_path)?;
     Ok(meta.len())

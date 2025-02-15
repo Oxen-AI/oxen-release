@@ -52,6 +52,7 @@ mod tests {
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
     use crate::opts::FetchOpts;
+    use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
@@ -827,7 +828,8 @@ mod tests {
                 assert!(result.is_err());
 
                 // Pull
-                repositories::pull(&user_b_repo).await?;
+                let result = repositories::pull(&user_b_repo).await;
+                assert!(result.is_err());
 
                 // Make sure it's not a full clone
                 assert_eq!(user_b_repo.depth(), Some(2));
@@ -913,7 +915,8 @@ mod tests {
                 assert!(result.is_err());
 
                 // Pull
-                repositories::pull(&user_b_repo).await?;
+                let result = repositories::pull(&user_b_repo).await;
+                assert!(result.is_err());
 
                 // Make sure it's not a full clone
                 assert_eq!(user_b_repo.depth(), Some(1));
@@ -995,7 +998,8 @@ mod tests {
                     assert!(result.is_err());
 
                     // Pull
-                    repositories::pull(&user_b_repo).await?;
+                    let result = repositories::pull(&user_b_repo).await;
+                    assert!(result.is_err());
 
                     // Check for merge conflict
                     let status = repositories::status(&user_b_repo)?;
@@ -1067,7 +1071,7 @@ mod tests {
                     // Pull changes without pushing first - fine since no conflict
                     repositories::pull(&user_b_repo).await?;
 
-                    // Get new  head commit of the pulled repo
+                    // Get new head commit of the pulled repo
                     repositories::commits::head_commit(&user_b_repo)?;
 
                     // Make sure we now have all three files
@@ -1161,13 +1165,22 @@ mod tests {
                     )?;
 
                     // Pull changes
+                    let result = repositories::pull(&user_b_repo).await;
+
+                    // There should be a conflict with file_2
+                    assert!(result.is_err());
+
+                    // Remove the file that is causing the conflict
+                    util::fs::remove_file(user_b_repo.path.join(local_file_2))?;
+
+                    // Pull again should succeed
                     repositories::pull(&user_b_repo).await?;
 
                     // Files from the other commit successfully pulled
                     assert!(user_b_repo.path.join(file_1).exists());
                     assert!(user_b_repo.path.join(file_2).exists());
 
-                    // Bad local data successfully overwritten on pull (should we flag conflict here?)
+                    // File 2 should be same as the remote file
                     let local_file_2_contents =
                         std::fs::read_to_string(user_b_repo.path.join(local_file_2))?;
                     assert_eq!(local_file_2_contents, "File 2");
@@ -1529,6 +1542,348 @@ mod tests {
                 Ok(new_repo_dir)
             })
             .await
+        })
+        .await
+    }
+
+    /*
+    When the remote advances, and you have local changes,
+    you do not want to overwrite when pulling from the remote
+    */
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_new_file_modified_by_remote() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+                let user_a_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Make a couple commits on the remote
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
+
+                    let user_b_repo =
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
+
+                    let new_file = "new_file.txt";
+                    let new_file_path = user_b_repo.path.join(new_file);
+                    test::write_txt_file_to_path(&new_file_path, "hello from user b file")?;
+                    repositories::add(&user_b_repo, &new_file_path)?;
+                    repositories::commit(&user_b_repo, "Adding new file")?;
+
+                    // Push the remote
+                    repositories::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                // Make some changes locally
+                let new_file = "new_file.txt";
+                let new_file_path = user_a_repo.path.join(new_file);
+                test::write_txt_file_to_path(&new_file_path, "hello from user a file")?;
+
+                // Pull changes
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&new_file_path)?;
+                assert_eq!(content, "hello from user a file");
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    /*
+    When the remote advances, and you have local changes,
+    you do not want to overwrite when pulling from the remote
+    */
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_modified_files_after_remote_modification(
+    ) -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+                let user_a_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Make a couple commits on the remote
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
+
+                    let user_b_repo =
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
+
+                    // Edit the README to cause a conflict
+                    let readme_path = user_b_repo.path.join("README.md");
+                    test::write_txt_file_to_path(
+                        &readme_path,
+                        "Hello from another user b README :(",
+                    )?;
+                    repositories::add(&user_b_repo, &readme_path)?;
+                    repositories::commit(&user_b_repo, "Updating the README on the remote")?;
+
+                    // Push the remote
+                    repositories::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                // Make some changes locally
+                let modified_file = "README.md";
+                let modified_file_path = user_a_repo.path.join(modified_file);
+                test::write_txt_file_to_path(&modified_file_path, "# User A README")?;
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    /*
+    This one tests modifying the file on the local before it is modified on the remote
+    Regardless, the local file should not be overwritten
+    */
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_modified_files_before_remote_modification(
+    ) -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+                let user_a_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Make some changes locally
+                let modified_file = "README.md";
+                let modified_file_path = user_a_repo.path.join(modified_file);
+                test::write_txt_file_to_path(&modified_file_path, "# User A README")?;
+
+                // Make a couple commits on the remote
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
+
+                    let user_b_repo =
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
+
+                    // Edit the README to cause a conflict
+                    let readme_path = user_b_repo.path.join("README.md");
+                    test::write_txt_file_to_path(
+                        &readme_path,
+                        "Hello from another user b README :(",
+                    )?;
+                    repositories::add(&user_b_repo, &readme_path)?;
+                    repositories::commit(&user_b_repo, "Updating the README on the remote")?;
+
+                    // Push the remote
+                    repositories::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    /*
+    Modify a different file on the remote, and modify the readme locally, and make sure that the local readme is not overwritten
+    */
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_modified_files_after_modifying_different_file(
+    ) -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+                let user_a_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Make a couple commits on the remote
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
+
+                    let user_b_repo =
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
+
+                    // Edit a new file on the remote
+                    let new_file = "new_file.txt";
+                    let new_file_path = user_b_repo.path.join(new_file);
+                    test::write_txt_file_to_path(
+                        &new_file_path,
+                        "Hello from another user b new file",
+                    )?;
+                    repositories::add(&user_b_repo, &new_file_path)?;
+                    repositories::commit(&user_b_repo, "Updating the new file on the remote")?;
+
+                    // Push the remote
+                    repositories::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                // Make some changes locally
+                let modified_file = "README.md";
+                let modified_file_path = user_a_repo.path.join(modified_file);
+                test::write_txt_file_to_path(&modified_file_path, "# User A README")?;
+
+                // Pull should succeed because we did not modify README on remote
+                let result = repositories::pull(&user_a_repo).await;
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+                assert!(result.is_err());
+
+                // Make sure that the local changes are still not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    /*
+    Remove the README.md on the remote, and modify the readme locally, and make sure that the local readme is not overwritten
+    */
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_modified_files_after_removing_file(
+    ) -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+                let user_a_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Make a couple commits on the remote
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
+
+                    let user_b_repo =
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
+
+                    // Remove the README.md on the remote
+                    let rm_opts = RmOpts {
+                        path: PathBuf::from("README.md"),
+                        staged: false,
+                        recursive: false,
+                    };
+                    repositories::rm(&user_b_repo, &rm_opts)?;
+                    repositories::commit(&user_b_repo, "Removing the README.md on the remote")?;
+
+                    // Push the remote
+                    repositories::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                // Make some changes locally
+                let modified_file = "README.md";
+                let modified_file_path = user_a_repo.path.join(modified_file);
+                test::write_txt_file_to_path(&modified_file_path, "# User A README")?;
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                // Pull again
+                let result = repositories::pull(&user_a_repo).await;
+
+                // Assert that it failed
+                assert!(result.is_err());
+
+                // Make sure that the local changes are not overwritten
+                let content = util::fs::read_from_path(&modified_file_path)?;
+                assert_eq!(content, "# User A README");
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
         })
         .await
     }
