@@ -1,4 +1,4 @@
-FROM rust:1.83.0 as builder
+FROM rust:1.84.1 AS builder
 
 USER root
 RUN apt-get update
@@ -28,20 +28,28 @@ RUN apt-get update \
 #     && cmake --build . -j $(nproc) \
 #     && cmake --install .
 
-RUN cargo install cargo-build-deps
+### This is breaking because cargo-build-deps forces an update to dependencies
+### Commenting out and using a simpler approach until we find an alternative
+###
+# RUN cargo install cargo-build-deps
 
-# create an empty project to install dependencies
-RUN cd /usr/src && cargo new --bin oxen-server
+# # create an empty project to install dependencies
+# RUN cd /usr/src && cargo new --bin oxen-server
+# WORKDIR /usr/src/oxen-server
+# COPY Cargo.toml Cargo.lock ./
+# COPY src/lib/Cargo.toml src/lib/Cargo.toml
+# COPY src/cli/Cargo.toml src/cli/Cargo.toml
+# COPY src/server/Cargo.toml src/server/Cargo.toml
+# # build just the deps for caching
+# RUN cargo build-deps --release
+
+# # copy the rest of the source and build the server and cli
+# COPY src src
+# RUN cargo build --release
+### end commented section
+
 WORKDIR /usr/src/oxen-server
-COPY Cargo.toml Cargo.lock ./
-COPY src/lib/Cargo.toml src/lib/Cargo.toml
-COPY src/cli/Cargo.toml src/cli/Cargo.toml
-COPY src/server/Cargo.toml src/server/Cargo.toml
-# build just the deps for caching
-RUN cargo build-deps --release
-
-# copy the rest of the source and build the server and cli
-COPY src src
+COPY . .
 RUN cargo build --release
 
 # Minimal image to run the binary (without Rust toolchain)

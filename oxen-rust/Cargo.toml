@@ -1,6 +1,6 @@
 [package]
 name = "Oxen"
-version = "0.25.3"
+version = "0.27.1"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version large machine learning datasets written in Rust."
@@ -47,7 +47,9 @@ chrono = "0.4.30"
 clap = { version = "4.4.2", features = ["cargo"] }
 colored = "2.0.4"
 comfy-table = "7.0.1"
-duckdb = { package = "duckdb", version = "1.1.1", default-features=false, optional=true, features = ["serde_json"] }
+duckdb = { package = "duckdb", version = "1.1.1", default-features = false, optional = true, features = [
+    "serde_json",
+] }
 deadqueue = "0.2.4"
 derive_more = { version = "1.0.0", features = ["full"] }
 dialoguer = "0.11.0"
@@ -78,7 +80,7 @@ lazy_static = "1.4.0"
 lofty = "0.21.0"
 log = "0.4.20"
 lru = "0.12.0"
-# magick_rust = "0.18.0"
+mockito = "1.1.0"
 mp4 = "0.14.0"
 mime = "0.3.17"
 minus = { version = "5.4.0", features = ["static_output", "search"] }
@@ -140,7 +142,7 @@ uuid = { version = "1.4.1", features = ["serde", "v4"] }
 walkdir = "2.5.0"
 words-count = "0.1.6"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
-mockito = "1.1.0"
+zip = "2.2.0"
 
 
 [workspace]
@@ -165,5 +167,5 @@ path = "src/server/src/main.rs"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-unknown-linux-gnu"
-features = ["duckdb"] # this is without "duckdb/bundled"
+features = ["duckdb"]                       # this is without "duckdb/bundled"
 no-default-features = true
