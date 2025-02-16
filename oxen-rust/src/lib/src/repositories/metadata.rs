@@ -116,6 +116,7 @@ pub fn from_file_node(
         resource: Some(ParsedResource {
             commit: Some(commit.to_owned()),
             branch: None,
+            workspace: None,
             path: PathBuf::from(node.name()),
             version: PathBuf::from(commit.id.to_string()),
             resource: PathBuf::from(commit.id.to_string()).join(node.name()),

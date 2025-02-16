@@ -1653,6 +1653,13 @@ pub fn test_nlp_classification_csv() -> PathBuf {
         .join("test.tsv")
 }
 
+/// Returns: annotations/train/bounding_box.csv
+pub fn test_bounding_box_csv() -> PathBuf {
+    Path::new("annotations")
+        .join("train")
+        .join("bounding_box.csv")
+}
+
 pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
     write_txt_file_to_path(
         repo_dir.join("README.md"),

@@ -11,7 +11,9 @@ use crate::repositories;
 use rayon::prelude::*;
 
 use crate::constants::ROOT_PATH;
-use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource};
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, MetadataEntry, ParsedResource, Workspace,
+};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -71,15 +73,54 @@ pub fn list_directory_w_version(
     match version {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
-            let revision = revision.as_ref().to_string();
-            let branch = repositories::branches::get_by_name(repo, &revision)?;
-            let commit = repositories::revisions::get(repo, &revision)?;
+            let revision_str = revision.as_ref().to_string();
+            let branch = repositories::branches::get_by_name(repo, &revision_str)?;
+            let commit = repositories::revisions::get(repo, &revision_str)?;
             let parsed_resource = ParsedResource {
                 path: directory.as_ref().to_path_buf(),
                 commit,
+                workspace: None,
                 branch,
-                version: PathBuf::from(&revision),
-                resource: PathBuf::from(&revision).join(&directory),
+                version: PathBuf::from(&revision_str),
+                resource: PathBuf::from(&revision_str).join(directory.as_ref()),
+            };
+            core::v_latest::entries::list_directory(
+                repo,
+                directory,
+                &parsed_resource,
+                paginate_opts,
+            )
+        }
+    }
+}
+
+pub fn list_directory_w_workspace(
+    repo: &LocalRepository,
+    directory: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    workspace: Option<Workspace>,
+    paginate_opts: &PaginateOpts,
+    version: MinOxenVersion,
+) -> Result<PaginatedDirEntries, OxenError> {
+    match version {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => {
+            let revision_str = revision.as_ref().to_string();
+            let version_str = if let Some(workspace) = workspace.clone() {
+                workspace.id.clone()
+            } else {
+                revision_str.clone()
+            };
+
+            let branch = repositories::branches::get_by_name(repo, &revision_str)?;
+            let commit = repositories::revisions::get(repo, &revision_str)?;
+            let parsed_resource = ParsedResource {
+                path: directory.as_ref().to_path_buf(),
+                commit,
+                workspace,
+                branch,
+                version: PathBuf::from(&version_str),
+                resource: PathBuf::from(&version_str).join(directory.as_ref()),
             };
             core::v_latest::entries::list_directory(
                 repo,
@@ -113,6 +154,7 @@ pub fn get_meta_entry(
         path: path.to_path_buf(),
         commit: Some(commit.clone()),
         branch: None,
+        workspace: None,
         version: PathBuf::from(&commit.id),
         resource: PathBuf::from(&commit.id).join(path),
     };
@@ -399,11 +441,11 @@ mod tests {
                 dir_entries
                     .clone()
                     .into_iter()
-                    .filter(|e| !e.is_dir)
+                    .filter(|e| !e.is_dir())
                     .count(),
                 4
             );
-            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 5);
+            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir()).count(), 5);
 
             Ok(())
         })
@@ -565,10 +607,10 @@ mod tests {
             )?;
 
             for entry in paginated.entries.iter() {
-                println!("{:?}", entry.filename);
+                println!("{:?}", entry.filename());
             }
 
-            assert_eq!(paginated.entries.first().unwrap().filename, "dir_010");
+            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_010");
 
             println!("{paginated:?}");
             assert_eq!(paginated.total_entries, 42);
@@ -610,10 +652,10 @@ mod tests {
             )?;
 
             for entry in paginated.entries.iter() {
-                println!("{:?}", entry.filename);
+                println!("{:?}", entry.filename());
             }
 
-            assert_eq!(paginated.entries.first().unwrap().filename, "dir_100");
+            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_100");
 
             println!("{paginated:?}");
             assert_eq!(paginated.total_entries, 101);

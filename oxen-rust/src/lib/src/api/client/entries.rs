@@ -5,7 +5,7 @@ use crate::error::OxenError;
 use crate::model::{EntryDataType, MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
 use crate::repositories;
-use crate::view::entries::PaginatedMetadataEntriesResponse;
+use crate::view::entries::{EMetadataEntry, PaginatedMetadataEntriesResponse};
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -24,7 +24,7 @@ pub async fn get_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-) -> Result<Option<MetadataEntry>, OxenError> {
+) -> Result<Option<EMetadataEntry>, OxenError> {
     let remote_path = remote_path.as_ref();
 
     let Some(response) =
@@ -125,9 +125,20 @@ pub async fn download_entry(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let remote_path = remote_path.as_ref();
-    let Some(entry) = get_entry(remote_repo, remote_path, &revision).await? else {
-        return Err(OxenError::path_does_not_exist(remote_path));
+    let entry = get_entry(remote_repo, remote_path, &revision).await?;
+
+    let entry = match entry {
+        Some(EMetadataEntry::MetadataEntry(entry)) => entry,
+        Some(EMetadataEntry::WorkspaceMetadataEntry(_entry)) => {
+            return Err(OxenError::basic_str(
+                "Workspace entries are not supported for download",
+            ))
+        }
+        None => {
+            return Err(OxenError::path_does_not_exist(remote_path));
+        }
     };
+
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
 
