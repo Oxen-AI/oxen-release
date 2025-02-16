@@ -4,10 +4,10 @@ use clap::arg;
 use clap::{Arg, Command};
 
 use liboxen::api;
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_SCHEME};
 use liboxen::error::OxenError;
 use std::path::PathBuf;
 
-use liboxen::opts::DownloadOpts;
 use liboxen::repositories;
 
 use crate::helpers::check_remote_version_blocking;
@@ -25,7 +25,7 @@ impl RunCmd for DownloadCmd {
     fn args(&self) -> Command {
         Command::new(NAME)
         .about("Download a specific file from the remote repository")
-        .arg(arg!(<URL> "URL of the repository you want to download from"))
+        .arg(arg!(<ID> "ID of the repository you want to download from ie. ox/my-repo"))
         .arg(
             Arg::new("paths")
                 .required(true)
@@ -44,56 +44,62 @@ impl RunCmd for DownloadCmd {
                 .help("The branch or commit id to download the data from. Defaults to main branch. If a branch is specified, it will download the latest commit from that branch.")
                 .action(clap::ArgAction::Set),
         )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("The host of the repository you want to download from. Defaults to hub.oxen.ai")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("scheme")
+                .long("scheme")
+                .help("The scheme of the repository you want to download from. Defaults to https")
+                .action(clap::ArgAction::Set),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse args
-        let opts = DownloadOpts {
-            url: args
-                .get_one::<String>("URL")
-                .expect("Must supply a url")
-                .to_string(),
-            paths: args
-                .get_many::<String>("paths")
-                .expect("Must supply paths")
-                .map(PathBuf::from)
-                .collect(),
-            dst: args
-                .get_one::<String>("output")
-                .map(PathBuf::from)
-                .unwrap_or(PathBuf::from(".")),
-            revision: args.get_one::<String>("revision").map(String::from),
-        };
-
-        let paths = &opts.paths;
+        let id = args
+            .get_one::<String>("ID")
+            .expect("Must supply a repository id");
+        let paths: Vec<PathBuf> = args
+            .get_many::<String>("paths")
+            .expect("Must supply paths")
+            .map(PathBuf::from)
+            .collect();
         if paths.is_empty() {
             return Err(OxenError::basic_str("Must supply a path to download."));
         }
+        let dst = args
+            .get_one::<String>("output")
+            .map(PathBuf::from)
+            .unwrap_or(PathBuf::from("."));
+        let revision = args
+            .get_one::<String>("revision")
+            .map(String::from)
+            .unwrap_or(DEFAULT_BRANCH_NAME.to_string());
+        let host = args
+            .get_one::<String>("host")
+            .map(String::from)
+            .unwrap_or(DEFAULT_HOST.to_string());
+        let scheme = args
+            .get_one::<String>("scheme")
+            .map(String::from)
+            .unwrap_or(DEFAULT_SCHEME.to_string());
 
-        // Get the host from the url
-        let parsed_url = url::Url::parse(&opts.url)
-            .map_err(|e| OxenError::basic_str(format!("Invalid URL: {}", e)))?;
-
-        let mut host = parsed_url
-            .host_str()
-            .ok_or_else(|| OxenError::basic_str("Could not extract host from URL"))?
-            .to_string();
-
-        if let Some(port) = parsed_url.port() {
-            host = format!("{}:{}", host, port);
-        }
-
-        check_remote_version_blocking(host).await?;
+        check_remote_version_blocking(&host).await?;
 
         // Check if the first path is a valid remote repo
-        if let Some(remote_repo) = api::client::repositories::get_by_url(&opts.url).await? {
+        if let Some(remote_repo) =
+            api::client::repositories::get_by_name_host_and_scheme(id, &host, &scheme).await?
+        {
             // Download from the remote without having to have a local repo directory
-            let commit_id = opts.remote_commit_id(&remote_repo).await?;
             for path in paths {
-                repositories::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
+                repositories::download(&remote_repo, &path, &dst, &revision).await?;
             }
         } else {
-            eprintln!("Repository does not exist {}", opts.url);
+            eprintln!("Repository does not exist {}", id);
         }
 
         Ok(())

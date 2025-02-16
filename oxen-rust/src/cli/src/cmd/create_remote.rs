@@ -5,7 +5,7 @@ use clap::{Arg, Command};
 
 use liboxen::api;
 use liboxen::config::UserConfig;
-use liboxen::constants::DEFAULT_HOST;
+use liboxen::constants::{DEFAULT_HOST, DEFAULT_SCHEME};
 use liboxen::error::OxenError;
 use liboxen::model::file::{FileContents, FileNew};
 use liboxen::model::RepoNew;
@@ -75,7 +75,7 @@ impl RunCmd for CreateRemoteCmd {
         let scheme = args
             .get_one::<String>("scheme")
             .map(String::from)
-            .unwrap_or("https".to_string());
+            .unwrap_or(DEFAULT_SCHEME.to_string());
 
         // The format is namespace/name
         let parts: Vec<&str> = namespace_name.split('/').collect();
