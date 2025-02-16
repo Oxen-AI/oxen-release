@@ -1,6 +1,11 @@
 use std::path::PathBuf;
 
-use crate::model::{metadata::MetadataDir, Branch, CommitEntry, MetadataEntry, RemoteEntry};
+use crate::model::{
+    entry::metadata_entry::{MetadataEntry, WorkspaceMetadataEntry},
+    metadata::MetadataDir,
+    parsed_resource::ParsedResourceView,
+    Branch, Commit, CommitEntry, EntryDataType, ParsedResource, RemoteEntry,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{Pagination, StatusMessage};
@@ -61,9 +66,85 @@ pub struct PaginatedMetadataEntriesResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum EMetadataEntry {
+    MetadataEntry(MetadataEntry),
+    WorkspaceMetadataEntry(WorkspaceMetadataEntry),
+}
+
+impl EMetadataEntry {
+    /// Returns the filename from the inner entry.
+    pub fn filename(&self) -> &str {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => &entry.filename,
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => &entry.filename,
+        }
+    }
+
+    /// Returns whether the entry is a directory or not.
+    pub fn is_dir(&self) -> bool {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.is_dir,
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.is_dir,
+        }
+    }
+
+    /// Returns the entry's data type.
+    pub fn data_type(&self) -> EntryDataType {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.data_type.clone(),
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.data_type.clone(),
+        }
+    }
+
+    /// Returns the entry's MIME type.
+    pub fn mime_type(&self) -> &str {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => &entry.mime_type,
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => &entry.mime_type,
+        }
+    }
+
+    /// Returns an optional reference to the parsed resource.
+    pub fn resource(&self) -> Option<ParsedResourceView> {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => {
+                entry.resource.clone().map(ParsedResourceView::from)
+            }
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => {
+                entry.resource.clone().map(ParsedResourceView::from)
+            }
+        }
+    }
+
+    pub fn set_resource(&mut self, resource: Option<ParsedResource>) {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.resource = resource,
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => {
+                entry.resource = resource.map(ParsedResourceView::from)
+            }
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.size,
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.size,
+        }
+    }
+
+    pub fn latest_commit(&self) -> Option<Commit> {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.latest_commit.clone(),
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.latest_commit.clone(),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PaginatedDirEntries {
-    pub dir: Option<MetadataEntry>,
-    pub entries: Vec<MetadataEntry>,
+    pub dir: Option<EMetadataEntry>,
+    pub entries: Vec<EMetadataEntry>,
     pub resource: Option<ResourceVersion>,
     pub metadata: Option<MetadataDir>,
     pub page_size: usize,

@@ -82,6 +82,7 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
+    use crate::view::entries::EMetadataEntry;
     use futures::future;
 
     #[tokio::test]
@@ -310,22 +311,22 @@ mod tests {
             assert_eq!(entries.entries.len(), 2);
 
             // find the data entry, and make sure the latest_commit matches the last commit
-            let data_entry = entries.entries.iter().find(|e| e.filename == "data");
+            let data_entry = entries.entries.iter().find(|e| e.filename() == "data");
             assert!(data_entry.is_some());
             let data_entry = data_entry.unwrap();
-            assert_eq!(data_entry.filename, "data");
+            assert_eq!(data_entry.filename(), "data");
             assert_eq!(
-                data_entry.latest_commit.as_ref().unwrap().id,
+                data_entry.latest_commit().as_ref().unwrap().id,
                 last_commit.id
             );
 
             // find the README entry, and make sure latest_commit matches the first commit
-            let readme_entry = entries.entries.iter().find(|e| e.filename == "README.md");
+            let readme_entry = entries.entries.iter().find(|e| e.filename() == "README.md");
             assert!(readme_entry.is_some());
             let readme_entry = readme_entry.unwrap();
-            assert_eq!(readme_entry.filename, "README.md");
+            assert_eq!(readme_entry.filename(), "README.md");
             assert_eq!(
-                readme_entry.latest_commit.as_ref().unwrap().id,
+                readme_entry.latest_commit().as_ref().unwrap().id,
                 first_commit_id.id
             );
 
@@ -338,9 +339,9 @@ mod tests {
             assert_eq!(entries.entries.len(), 1);
 
             let entry = entries.entries.first().unwrap();
-            assert_eq!(entry.filename, "file.txt");
+            assert_eq!(entry.filename(), "file.txt");
             assert_eq!(
-                entry.latest_commit.as_ref().unwrap().message,
+                entry.latest_commit().as_ref().unwrap().message,
                 "Adding file -> data/3/file.txt"
             );
 
@@ -1120,11 +1121,11 @@ mod tests {
             assert!(!dir_entries
                 .entries
                 .iter()
-                .any(|entry| entry.filename == "train"));
+                .any(|entry| entry.filename() == "train"));
             assert!(dir_entries
                 .entries
                 .iter()
-                .any(|entry| entry.filename == "images"));
+                .any(|entry| entry.filename() == "images"));
 
             // Add a single new file
             let new_file = local_repo.path.join("new_file.txt");
@@ -1139,7 +1140,7 @@ mod tests {
             assert!(dir_entries
                 .entries
                 .iter()
-                .any(|entry| entry.filename == "new_file.txt"));
+                .any(|entry| entry.filename() == "new_file.txt"));
 
             Ok(remote_repo)
         })
@@ -1167,12 +1168,12 @@ mod tests {
             assert!(dir_entries
                 .entries
                 .iter()
-                .any(|entry| entry.filename == "README2.md"));
+                .any(|entry| entry.filename() == "README2.md"));
             // make sure we don't have the old file
             assert!(!dir_entries
                 .entries
                 .iter()
-                .any(|entry| entry.filename == "README.md"));
+                .any(|entry| entry.filename() == "README.md"));
 
             Ok(remote_repo)
         })
@@ -1214,7 +1215,7 @@ A: Oxen.ai is a great tool for this! It can handle any size dataset, and is opti
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "ANOTHER_FILE.md"));
+                    .any(|entry| entry.filename() == "ANOTHER_FILE.md"));
 
                 Ok(dir)
             })
@@ -1268,7 +1269,7 @@ A: Checkout Oxen.ai
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "README.md"));
+                    .any(|entry| entry.filename() == "README.md"));
 
                 Ok(dir)
             })
@@ -1320,7 +1321,7 @@ A: Checkout Oxen.ai
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "new_data.tsv"));
+                    .any(|entry| entry.filename() == "new_data.tsv"));
 
                 // Make sure the root directory is in tact
                 let root_dir_entries =
@@ -1330,7 +1331,7 @@ A: Checkout Oxen.ai
                 assert!(root_dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "README.md"));
+                    .any(|entry| entry.filename() == "README.md"));
 
                 Ok(repos_base_dir_copy)
             })
@@ -1404,24 +1405,31 @@ A: Checkout Oxen.ai
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "new_partial_data_1.tsv"));
+                    .any(|entry| entry.filename() == "new_partial_data_1.tsv"));
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "new_partial_data_2.tsv"));
+                    .any(|entry| entry.filename() == "new_partial_data_2.tsv"));
                 assert!(dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "existing_file.tsv"));
+                    .any(|entry| entry.filename() == "existing_file.tsv"));
+
+                let metadata_entry = dir_entries
+                    .entries
+                    .iter()
+                    .find(|entry| entry.filename() == "existing_file.tsv")
+                    .unwrap();
+
+                let metadata_entry = match metadata_entry {
+                    EMetadataEntry::MetadataEntry(entry) => entry,
+                    _ => panic!("Expected a metadata entry"),
+                };
 
                 // Verify the content of the modified existing file
                 api::client::entries::download_file(
                     &remote_repo,
-                    dir_entries
-                        .entries
-                        .iter()
-                        .find(|entry| entry.filename == "existing_file.tsv")
-                        .unwrap(),
+                    metadata_entry,
                     &PathBuf::from("nlp/classification/existing_file.tsv"),
                     &user_a_repo
                         .path
@@ -1444,7 +1452,7 @@ A: Checkout Oxen.ai
                 assert!(root_dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "README.md"));
+                    .any(|entry| entry.filename() == "README.md"));
 
                 // Verify that the original repo structure is intact
                 let classification_dir_entries = api::client::dir::list(
@@ -1465,7 +1473,7 @@ A: Checkout Oxen.ai
                 assert!(root_dir_entries
                     .entries
                     .iter()
-                    .any(|entry| entry.filename == "README.md"));
+                    .any(|entry| entry.filename() == "README.md"));
 
                 Ok(repos_base_dir_copy)
             })

@@ -442,7 +442,7 @@ impl OxenError {
 
     pub fn workspace_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
-            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen workspace add /path/to/file.png -p my-images/\n",
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -d flag.\n\n  oxen workspace add /path/to/file.png -d my-images/\n",
             path.as_ref()
         );
         OxenError::basic_str(err)

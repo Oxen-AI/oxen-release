@@ -1,6 +1,7 @@
 use crate::core;
 use crate::core::db::merkle_node::MerkleNodeDB;
 use crate::error::OxenError;
+use crate::model::entry::metadata_entry::WorkspaceMetadataEntry;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
@@ -10,7 +11,7 @@ use crate::model::{
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::util;
-use crate::view::entries::ResourceVersion;
+use crate::view::entries::{EMetadataEntry, ResourceVersion};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::Path;
@@ -83,6 +84,11 @@ pub fn list_directory(
     let mut found_commits: HashMap<MerkleHash, Commit> = HashMap::new();
     let dir_entry =
         dir_node_to_metadata_entry(repo, &dir, parsed_resource, &mut found_commits, false)?;
+    let dir_entry = dir_entry.map(|dir_entry| {
+        EMetadataEntry::WorkspaceMetadataEntry(WorkspaceMetadataEntry::from_metadata_entry(
+            dir_entry,
+        ))
+    });
     log::debug!("list_directory dir_entry {:?}", dir_entry);
     let entries: Vec<MetadataEntry> =
         dir_entries(repo, &dir, directory, parsed_resource, &mut found_commits)?;
@@ -90,6 +96,19 @@ pub fn list_directory(
 
     let (entries, pagination) = util::paginate(entries, page, page_size);
     let metadata: Option<MetadataDir> = Some(MetadataDir::new(dir_node.data_types()));
+
+    let entries: Vec<EMetadataEntry> = if parsed_resource.workspace.is_some() {
+        repositories::workspaces::populate_entries_with_workspace_data(
+            directory,
+            parsed_resource.workspace.as_ref().unwrap(),
+            &entries,
+        )?
+    } else {
+        entries
+            .into_iter()
+            .map(EMetadataEntry::MetadataEntry)
+            .collect()
+    };
 
     Ok(PaginatedDirEntries {
         dir: dir_entry,
