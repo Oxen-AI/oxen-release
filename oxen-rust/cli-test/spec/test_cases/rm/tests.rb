@@ -64,7 +64,7 @@ RSpec.describe 'rm - test relative paths', type: :aruba do
     expect(File.exist?(File.join(directory_path, 'root.txt'))).to be false
     expect(File.exist?(File.join(directory_path, nested_path))).to be false
 
-    # Return to cli-test 
+    # Return to cli-test
     parent_path = File.join('..', '..')
     Dir.chdir(parent_path)
 

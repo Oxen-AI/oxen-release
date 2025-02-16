@@ -52,5 +52,9 @@ RSpec.describe 'oxen download', type: :aruba do
 
     # Verify file contents
     expect(File.read(File.join('hi2.txt'))).to eq("This is a simple text file.\n")
+
+    # Return to cli-test
+    parent_path = File.join('..', '..')
+    Dir.chdir(parent_path)
   end
 end
