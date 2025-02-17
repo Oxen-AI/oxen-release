@@ -300,9 +300,13 @@ jobs:
       - name: Run oxen-server
         run: |
           mkdir .\data\test\runs
-          .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          echo "Adding user"
+          .\target\debug\oxen-server.exe add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          echo "Copying user config"
           cp user_config.toml data\test\config\user_config.toml
+          echo "Starting server"
           cmd /c "START /B .\target\debug\oxen-server.exe start"
+          echo "🐂 Running tests"
 
       - name: Run RSpec tests
         env:
