@@ -299,6 +299,8 @@ jobs:
 
       - name: Run oxen-server
         run: |
+          mkdir .\data\test\runs
+          mkdir .\data\test\config
           .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
           cp user_config.toml data\test\config\user_config.toml
           cmd /c "START /B .\target\debug\oxen-server.exe start"
