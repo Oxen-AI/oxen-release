@@ -33,11 +33,11 @@ RSpec.configure do |config|
     regexp = ".env".force_encoding('UTF-16LE')
     Dotenv.load(regexp.encode('UTF-8'))
     run_system_command("oxen config --name ruby-test --email test@oxen.ai")
-    system("oxen delete-remote --name ox/performance-test --host localhost:3000 -y")
+    system("oxen delete-remote --name ox/performance-test --host localhost:3000 -y --scheme http")
   end
 
   config.after(:each) do
     # Ensure the remote repository is deleted after each test
-    system("oxen delete-remote --name ox/performance-test --host localhost:3000 -y")
+    system("oxen delete-remote --name ox/performance-test --host localhost:3000 -y --scheme http")
   end
 end
