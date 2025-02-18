@@ -298,6 +298,8 @@ jobs:
           bundle install
 
       - name: Run oxen-server
+        env:
+          PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
         run: |
           mkdir .\data\test\runs
           echo "Adding user"
@@ -307,10 +309,5 @@ jobs:
           echo "Starting server"
           cmd /c "START /B .\target\debug\oxen-server.exe start"
           echo "🐂 Running tests"
-
-      - name: Run RSpec tests
-        env:
-          PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
-        working-directory: ./cli-test
-        run: |
+          cd cli-test
           bundle exec rspec spec/test_cases/**/tests.rb
