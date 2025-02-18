@@ -302,7 +302,7 @@ jobs:
           cp user_config.toml data\test\config\user_config.toml
           echo "Starting server"
           pwd
-          ls -la .\target\debug\
+          ls .\target\debug\
           cmd /c "START /B .\target\debug\oxen-server.exe start"
           echo "🐂 Running tests"
           cd cli-test
