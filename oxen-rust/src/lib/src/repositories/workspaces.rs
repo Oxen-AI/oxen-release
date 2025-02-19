@@ -23,6 +23,7 @@ pub use upload::upload;
 
 use std::collections::HashMap;
 use std::path::Path;
+use uuid::Uuid;
 
 /// Loads a workspace from the filesystem. Must call create() first to create the workspace.
 ///
@@ -95,6 +96,7 @@ pub fn get_by_name(
         workspace_name
     )))
 }
+
 /// Creates a new workspace and saves it to the filesystem
 pub fn create(
     base_repo: &LocalRepository,
@@ -182,6 +184,45 @@ pub fn create_with_name(
         commit: commit.clone(),
         is_editable,
     })
+}
+
+/// A wrapper around Workspace that automatically deletes the workspace when dropped
+pub struct TemporaryWorkspace {
+    workspace: Workspace,
+}
+
+impl TemporaryWorkspace {
+    /// Get a reference to the underlying workspace
+    pub fn workspace(&self) -> &Workspace {
+        &self.workspace
+    }
+}
+
+impl std::ops::Deref for TemporaryWorkspace {
+    type Target = Workspace;
+
+    fn deref(&self) -> &Self::Target {
+        &self.workspace
+    }
+}
+
+impl Drop for TemporaryWorkspace {
+    fn drop(&mut self) {
+        if let Err(e) = delete(&self.workspace) {
+            log::error!("Failed to delete temporary workspace: {}", e);
+        }
+    }
+}
+
+/// Creates a new temporary workspace that will be deleted when the reference is dropped
+pub fn create_temporary(
+    base_repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<TemporaryWorkspace, OxenError> {
+    let workspace_id = Uuid::new_v4().to_string();
+    let workspace_name = format!("temporary-{}", commit.id);
+    let workspace = create_with_name(base_repo, commit, workspace_id, Some(workspace_name), true)?;
+    Ok(TemporaryWorkspace { workspace })
 }
 
 fn check_non_editable_workspace(workspace: &Workspace, commit: &Commit) -> Result<(), OxenError> {
@@ -445,4 +486,50 @@ fn build_file_status_maps_for_file(
         }
     }
     (additions_map, other_changes_map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repositories;
+    use crate::test;
+    use crate::util;
+
+    #[tokio::test]
+    async fn test_temporary_workspace_cleanup() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Write a test file and commit it
+            let test_file = repo.path.join("test.txt");
+            util::fs::write_to_path(&test_file, "Hello")?;
+            repositories::add(&repo, &test_file)?;
+            let commit = repositories::commit(&repo, "Adding test file")?;
+            let workspaces_dir = repo.path.join(".oxen").join("workspaces");
+
+            {
+                // Create temporary workspace in new scope
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Verify workspace exists and contains our file
+                assert!(temp_workspace.dir().exists());
+
+                // Test deref functionality by accessing workspace fields/methods
+                assert_eq!(temp_workspace.commit.id, commit.id);
+                assert!(temp_workspace.is_editable);
+
+                let workspace_entries = std::fs::read_dir(&workspaces_dir)?;
+                assert_eq!(workspace_entries.count(), 1);
+            } // temp_workspace goes out of scope here
+
+            // Verify workspace was cleaned up
+            let workspace_entries = std::fs::read_dir(&workspaces_dir)?;
+            assert_eq!(
+                workspace_entries.count(),
+                0,
+                "Workspace directory should be empty after cleanup"
+            );
+
+            Ok(())
+        })
+        .await
+    }
 }
