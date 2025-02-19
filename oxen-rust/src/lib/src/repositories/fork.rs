@@ -207,6 +207,7 @@ mod tests {
                 std::fs::write(file_path, "test file content")?;
 
                 start_fork(original_repo_path.clone(), new_repo_path.clone())?;
+                tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
                 let status = get_fork_status(&new_repo_path); // Await the initial call
                 let mut current_status = status?.status;
                 while current_status == "in_progress" {

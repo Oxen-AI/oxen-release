@@ -45,6 +45,10 @@ pub fn remote_url_from_name(host: &str, name: &str) -> String {
     format!("{}://{host}/{name}", get_scheme(host))
 }
 
+pub fn remote_url_from_name_and_scheme(host: &str, name: &str, scheme: &str) -> String {
+    format!("{scheme}://{host}/{name}")
+}
+
 pub fn url_from_remote_url(url: &str) -> Result<String, OxenError> {
     log::debug!("creating url_from_remote_url {url:?}");
     match Url::parse(url) {

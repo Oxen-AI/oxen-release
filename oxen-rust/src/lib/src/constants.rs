@@ -141,6 +141,8 @@ pub const DEFAULT_BRANCH_NAME: &str = "main";
 pub const DEFAULT_REMOTE_NAME: &str = "origin";
 /// Default remote host: hub.oxen.ai
 pub const DEFAULT_HOST: &str = "hub.oxen.ai";
+/// Default remote scheme: https
+pub const DEFAULT_SCHEME: &str = "https";
 
 /// Default Namespace: ox
 pub const DEFAULT_NAMESPACE: &str = "ox";
