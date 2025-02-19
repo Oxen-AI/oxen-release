@@ -111,6 +111,7 @@ def chat_bot_local_repo_fully_committed(chat_bot_local_repo_no_commits):
 
     repo.add(os.path.join(repo.path, "examples.tsv"))
     repo.add(os.path.join(repo.path, "prompt.txt"))
+    repo.add(os.path.join(repo.path, "formats"))
     repo.commit("Adding all data")
     yield repo
 
