@@ -14,7 +14,6 @@ use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
 use serde_json::Value;
-use uuid::Uuid;
 
 /// Download file content
 pub async fn get(
@@ -129,9 +128,6 @@ pub async fn put(
             resource.version.to_string_lossy(),
         ))?;
     let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
-    // Generate a random workspace id
-    let workspace_id = Uuid::new_v4().to_string();
-    let workspace_name = format!("file-put-{}-{}", commit.id, resource.path.display());
     // Make sure the resource path is not already a file
     let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
     if node.is_some() && node.unwrap().is_file() {
@@ -150,13 +146,7 @@ pub async fn put(
     let message = req.headers().get("oxen-commit-message");
 
     // Create temporary workspace
-    let workspace = repositories::workspaces::create_with_name(
-        &repo,
-        &commit,
-        &workspace_id,
-        Some(workspace_name),
-        true,
-    )?;
+    let workspace = repositories::workspaces::create_temporary(&repo, &commit)?;
 
     // Add files to workspace
     let files =
@@ -220,9 +210,6 @@ pub async fn import(
         message
     );
 
-    let workspace_id = Uuid::new_v4().to_string();
-    let workspace_name = format!("import-file-{}", directory.display());
-
     // Make sure the resource path is not already a file
     let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
     if node.is_some() && node.unwrap().is_file() {
@@ -236,13 +223,7 @@ pub async fn import(
     }
 
     // Create temporary workspace
-    let workspace = repositories::workspaces::create_with_name(
-        &repo,
-        &commit,
-        &workspace_id,
-        Some(workspace_name),
-        true,
-    )?;
+    let workspace = repositories::workspaces::create_temporary(&repo, &commit)?;
 
     log::debug!("workspace::files::import_file workspace created!");
 
