@@ -54,6 +54,7 @@ impl RunCmd for DownloadCmd {
             Arg::new("scheme")
                 .long("scheme")
                 .help("The scheme of the repository you want to download from. Defaults to https")
+                .value_parser(["http", "https"])
                 .action(clap::ArgAction::Set),
         )
     }
@@ -63,6 +64,12 @@ impl RunCmd for DownloadCmd {
         let id = args
             .get_one::<String>("ID")
             .expect("Must supply a repository id");
+        // Check that the id format is namespace/repo-name
+        if id.chars().filter(|&c| c == '/').count() != 1 {
+            return Err(OxenError::basic_str(
+                "Invalid repository ID format. Must be namespace/repo-name",
+            ));
+        }
         let paths: Vec<PathBuf> = args
             .get_many::<String>("paths")
             .expect("Must supply paths")
