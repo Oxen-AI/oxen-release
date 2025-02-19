@@ -68,6 +68,17 @@ pub async fn get_by_name_and_host(
     get_by_name_host_and_remote(name, host, DEFAULT_REMOTE_NAME).await
 }
 
+pub async fn get_by_name_host_and_scheme(
+    name: impl AsRef<str>,
+    host: impl AsRef<str>,
+    scheme: impl AsRef<str>,
+) -> Result<Option<RemoteRepository>, OxenError> {
+    let name = name.as_ref();
+    let url = api::endpoint::remote_url_from_name_and_scheme(host.as_ref(), name, scheme.as_ref());
+    log::debug!("get_by_name_host_and_scheme({}) remote url: {}", name, url);
+    get_by_url(&url).await
+}
+
 pub async fn get_by_name_host_and_remote(
     name: impl AsRef<str>,
     host: impl AsRef<str>,
