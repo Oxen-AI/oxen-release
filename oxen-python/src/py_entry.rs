@@ -46,6 +46,15 @@ impl PyEntry {
     pub fn is_dir(&self) -> bool {
         self._entry.is_dir
     }
+
+    #[getter]
+    pub fn path(&self) -> String {
+        if let Some(resource) = &self._entry.resource {
+            resource.path.to_string_lossy().to_string()
+        } else {
+            self._entry.filename.to_owned()
+        }
+    }
 }
 
 impl From<MetadataEntry> for PyEntry {
