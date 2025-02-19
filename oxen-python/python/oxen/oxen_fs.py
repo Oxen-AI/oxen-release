@@ -62,6 +62,21 @@ class OxenFS(fsspec.AbstractFileSystem):
         f.write("Hello, world again!")
     ```
 
+    #### Writing file objects
+
+    If you're integrating Oxen in a situation where you already have a file object,
+    you can save it to your repo by using `shutil.copyfileobj` like this:
+
+    ```python
+    import shutil
+
+    file_object_from_somewhere = open("data.csv")
+
+    with fs.open("train/data.csv", mode="wb") as output_file:
+        output_file.commit_message = "Copy from a file object"
+        shutil.copyfileobj(file_object_from_somewhere, output_file)
+    ```
+
     ## Integration with Third Party Libraries (Pandas, etc.)
 
     OxenFS works seamlessly with Pandas and other fsspec-compatible libraries using
@@ -201,7 +216,7 @@ class OxenFS(fsspec.AbstractFileSystem):
             raise ValueError("File name cannot be empty")
         try:
             metadata = self.repo.metadata(target_dir)
-            if not metadata.is_dir:
+            if metadata and not metadata.is_dir:
                 raise ValueError("target_dir cannot be an existing file")
         except ValueError as e:
             if "not found" in str(e):
