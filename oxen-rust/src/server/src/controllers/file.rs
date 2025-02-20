@@ -15,6 +15,8 @@ use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
 use serde_json::Value;
 
+const ALLOWED_IMPORT_DOMAINS: [&str; 3] = ["huggingface.co", "kaggle.com", "oxen.ai"];
+
 /// Download file content
 pub async fn get(
     req: HttpRequest,
@@ -235,18 +237,18 @@ pub async fn import(
         .and_then(|auth| auth.as_str())
         .unwrap_or_default();
 
-    let url = body.get("url").and_then(|v| v.as_str()).unwrap_or_default();
+    let download_url = body
+        .get("download_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
 
     // Validate URL domain
-    let url_parsed =
-        url::Url::parse(url).map_err(|_| OxenHttpError::BadRequest("Invalid URL".into()))?;
+    let url_parsed = url::Url::parse(download_url)
+        .map_err(|_| OxenHttpError::BadRequest("Invalid URL".into()))?;
     let domain = url_parsed
         .domain()
         .ok_or_else(|| OxenHttpError::BadRequest("Invalid URL domain".into()))?;
-    if !["huggingface.co", "kaggle.com"]
-        .iter()
-        .any(|&d| domain.ends_with(d))
-    {
+    if !ALLOWED_IMPORT_DOMAINS.iter().any(|&d| domain.ends_with(d)) {
         return Err(OxenHttpError::BadRequest("URL domain not allowed".into()));
     }
 
@@ -270,7 +272,8 @@ pub async fn import(
     .ok_or_else(|| OxenHttpError::BadRequest("Invalid filename in URL".into()))?;
 
     // download and save the file into the workspace
-    repositories::workspaces::files::import(url, auth, directory, filename, &workspace).await?;
+    repositories::workspaces::files::import(download_url, auth, directory, filename, &workspace)
+        .await?;
 
     // Commit workspace
     let commit_body = NewCommitBody {
@@ -367,6 +370,68 @@ mod tests {
         let version_path = util::fs::version_path_from_hash(&repo, entry.hash().to_string());
         let updated_content = util::fs::read_from_path(&version_path)?;
         assert_eq!(updated_content, "Updated Content!");
+
+        // cleanup
+        util::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_controllers_file_import() -> Result<(), OxenError> {
+        test::init_test_env();
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Name";
+        let author = "test_user";
+        let email = "ox@oxen.ai";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        std::fs::create_dir_all(repo.path.join("data"))?;
+        let hello_file = repo.path.join("data/hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+        repositories::add(&repo, &hello_file)?;
+        let _commit = repositories::commit(&repo, "First commit")?;
+
+        let uri = format!("/oxen/{namespace}/{repo_name}/file/import/main/data");
+
+        // import a file from oxen for testing
+        let body = serde_json::json!({"download_url": "https://hub.oxen.ai/api/repos/datasets/GettingStarted/file/main/tables/cats_vs_dogs.tsv"});
+
+        let req = actix_web::test::TestRequest::post()
+            .uri(&uri)
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
+            .param("namespace", namespace)
+            .param("repo_name", repo_name)
+            .insert_header(("oxen-commit-author", author))
+            .insert_header(("oxen-commit-email", email))
+            .set_json(&body)
+            .to_request();
+
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData::new(sync_dir.clone()))
+                .route(
+                    "/oxen/{namespace}/{repo_name}/file/import/{resource:.*}",
+                    web::post().to(controllers::file::import),
+                ),
+        )
+        .await;
+
+        let resp = actix_web::test::call_service(&app, req).await;
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        println!("Import response: {}", body);
+        let resp: CommitResponse = serde_json::from_str(body)?;
+        assert_eq!(resp.status.status, "success");
+
+        let entry = repositories::entries::get_file(
+            &repo,
+            &resp.commit,
+            PathBuf::from("data/cats_vs_dogs.tsv"),
+        )?
+        .unwrap();
+        let version_path = util::fs::version_path_from_hash(&repo, entry.hash().to_string());
+        assert!(version_path.exists());
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
