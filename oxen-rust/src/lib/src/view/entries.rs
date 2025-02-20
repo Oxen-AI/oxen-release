@@ -139,6 +139,13 @@ impl EMetadataEntry {
             EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.latest_commit.clone(),
         }
     }
+
+    pub fn hash(&self) -> String {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.hash.clone(),
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.hash.clone(),
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
