@@ -4,6 +4,8 @@ on:
     tags:
       - "*"
 
+name: 🚀 Release
+
 env:
   AWS_REGION: us-west-1
   AWS_ROLE: ${{ vars.EC2_GITHUB_RUNNER_ROLE }}
