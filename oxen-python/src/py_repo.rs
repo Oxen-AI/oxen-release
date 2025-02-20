@@ -203,6 +203,7 @@ impl PyRepo {
                 subtree_paths: None,
                 depth: None,
                 all,
+                ..FetchOpts::new()
             };
             repositories::pull_remote_branch(&repo, &fetch_opts).await
         })?;
