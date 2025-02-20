@@ -244,17 +244,31 @@ impl PyRemoteRepo {
         Ok(exists)
     }
 
-    fn file_has_changes(&self, local_path: PathBuf, remote_path: PathBuf, revision: &str) -> PyResult<bool> {
+    fn file_has_changes(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        revision: &str,
+    ) -> PyResult<bool> {
         match pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::metadata::get_file(&self.repo, &revision, &remote_path).await
         }) {
             Ok(Some(remote_metadata)) => {
-                let remote_hash = remote_metadata.entry.hash;
-                let local_hash = liboxen::util::hasher::hash_file_contents(&local_path).map_err(|e| PyValueError::new_err(format!("Error hashing local file: {}", e)))?;
+                let remote_hash = remote_metadata.entry.hash();
+                let local_hash =
+                    liboxen::util::hasher::hash_file_contents(&local_path).map_err(|e| {
+                        PyValueError::new_err(format!("Error hashing local file: {}", e))
+                    })?;
                 Ok(remote_hash != local_hash)
             }
-            Ok(None) => Err(PyValueError::new_err(format!("File does not exist: {}", remote_path.display()))),
-            Err(e) => Err(PyValueError::new_err(format!("Error getting file metadata: {}", e))),
+            Ok(None) => Err(PyValueError::new_err(format!(
+                "File does not exist: {}",
+                remote_path.display()
+            ))),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Error getting file metadata: {}",
+                e
+            ))),
         }
     }
 

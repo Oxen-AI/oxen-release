@@ -69,14 +69,14 @@ impl From<RemoteStagedStatus> for PyStagedData {
         let added_files: HashMap<PathBuf, StagedEntry> =
             HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
                 (
-                    PathBuf::from(e.filename),
+                    PathBuf::from(e.filename()),
                     StagedEntry::empty_status(StagedEntryStatus::Added),
                 )
             }));
         let added_mods: HashMap<PathBuf, StagedEntry> =
             HashMap::from_iter(remote_status.modified_files.entries.into_iter().map(|e| {
                 (
-                    PathBuf::from(e.filename),
+                    PathBuf::from(e.filename()),
                     StagedEntry::empty_status(StagedEntryStatus::Modified),
                 )
             }));
