@@ -198,7 +198,7 @@ impl Schema {
                 // Perform the actual filter condition check
                 f.changes
                     .as_ref()
-                    .map_or(true, |changes| changes.status != "deleted")
+                    .is_none_or(|changes| changes.status != "deleted")
             })
             .map(|f| f.name.clone()) // Assuming name is a String and needs to be cloned
             .collect()
