@@ -144,6 +144,17 @@ class OxenFS(fsspec.AbstractFileSystem):
     def __repr__(self):
         return f"OxenFS(namespace='{self.namespace}', repo='{self.repo_name}', revision='{self.revision}', host='{self.host}', scheme='{self.scheme}')"
 
+    def exists(self, path: str) -> bool:
+        return self.repo.metadata(path) is not None
+
+    def isfile(self, path: str) -> bool:
+        metadata = self.repo.metadata(path)
+        return metadata is not None and not metadata.is_dir
+
+    def isdir(self, path: str) -> bool:
+        metadata = self.repo.metadata(path)
+        return metadata is not None and metadata.is_dir
+
     def ls(self, path: str = "", detail: bool = False):
         """
         List the contents of a directory.
@@ -155,7 +166,10 @@ class OxenFS(fsspec.AbstractFileSystem):
                 If True, return a list of dictionaries with detailed metadata.
                 Otherwise, return a list of strings with the filenames.
         """
+        logger.debug(f"OxenFS.ls: '{path}'")
         metadata = self.repo.metadata(path)
+        if not metadata:
+            return []
         if metadata.is_dir:
             entries = self.repo.ls(path)
             return [
@@ -168,13 +182,13 @@ class OxenFS(fsspec.AbstractFileSystem):
     def _metadata_entry_to_ls_entry(entry: PyEntry, detail: bool = False):
         if detail:
             return {
-                "name": entry.filename,
+                "name": entry.path,
                 "type": "directory" if entry.is_dir else "file",
                 "size": entry.size,
                 "hash": entry.hash,
             }
         else:
-            return entry.filename
+            return entry.path
 
     def _open(self, path: str, mode: str = "rb", **kwargs):
         """
@@ -265,7 +279,7 @@ class OxenFSFileWriter:
         self.target_dir = target_dir
         self._tmp_file = tempfile.NamedTemporaryFile()
         self.closed = False
-        logger.debug(f"Initialized OxenFSFileWriter for {path} in {target_dir}")
+        logger.debug(f"Initialized OxenFSFileWriter for {path} in '{target_dir}'")
 
     def __enter__(self) -> OxenFSFileWriter:
         return self
@@ -294,26 +308,44 @@ class OxenFSFileWriter:
         """
         self._tmp_file.flush()
 
+    def tell(self):
+        """
+        Return the current position of the file.
+        """
+        return self._tmp_file.tell()
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET):
+        """
+        Seek to a specific position in the file.
+        """
+        self._tmp_file.seek(offset, whence)
+
     def commit(self, commit_message: Optional[str] = None):
         """
         Commit the file to the remote repo.
         """
-        logger.debug(f"Committing file {self.path} to {self.target_dir}")
+        logger.debug(f"Committing file {self.path} to dir '{self.target_dir}'")
         self.repo.upload(
             self._tmp_file.name,
             commit_message=commit_message or self.commit_message,
             file_name=self.path,
             dst_dir=self.target_dir,
         )
-        logger.info(f"Committed file {self.path} to {self.target_dir}")
+        logger.info(f"Committed file {self.path} to dir '{self.target_dir}'")
 
     def close(self):
         """
         Close the file writer. This will commit the file to the remote repo.
         """
-        logger.debug(f"Closing OxenFSFileWriter for {self.path} in {self.target_dir}")
+        if self.closed:
+            return
+        logger.debug(
+            f"Closing OxenFSFileWriter for {self.path} in dir '{self.target_dir}'"
+        )
         self.flush()
         self.commit()
         self._tmp_file.close()
         self.closed = True
-        logger.debug(f"Closed OxenFSFileWriter for {self.path} in {self.target_dir}")
+        logger.debug(
+            f"Closed OxenFSFileWriter for {self.path} in dir '{self.target_dir}'"
+        )
