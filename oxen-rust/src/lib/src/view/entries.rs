@@ -111,9 +111,7 @@ impl EMetadataEntry {
             EMetadataEntry::MetadataEntry(entry) => {
                 entry.resource.clone().map(ParsedResourceView::from)
             }
-            EMetadataEntry::WorkspaceMetadataEntry(entry) => {
-                entry.resource.clone().map(ParsedResourceView::from)
-            }
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.resource.clone(),
         }
     }
 
@@ -137,6 +135,13 @@ impl EMetadataEntry {
         match self {
             EMetadataEntry::MetadataEntry(entry) => entry.latest_commit.clone(),
             EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.latest_commit.clone(),
+        }
+    }
+
+    pub fn hash(&self) -> String {
+        match self {
+            EMetadataEntry::MetadataEntry(entry) => entry.hash.clone(),
+            EMetadataEntry::WorkspaceMetadataEntry(entry) => entry.hash.clone(),
         }
     }
 }
