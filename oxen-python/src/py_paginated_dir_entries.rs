@@ -33,10 +33,10 @@ impl PyPaginatedDirEntries {
             .entries
             .iter()
             .map(|e| {
-                if e.is_dir {
-                    format!("{}/", e.filename)
+                if e.is_dir() {
+                    format!("{}/", e.filename())
                 } else {
-                    e.filename.to_string()
+                    e.filename().to_string()
                 }
             })
             .collect::<Vec<String>>();
