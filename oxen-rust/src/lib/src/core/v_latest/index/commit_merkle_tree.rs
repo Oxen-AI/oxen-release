@@ -450,6 +450,7 @@ impl CommitMerkleTree {
         // Look up the directory hash
         let node_hash: Option<MerkleHash> = dir_hashes.get(parent_path).cloned();
         let Some(node_hash) = node_hash else {
+            log::debug!("read_file could not find parent dir: {:?}", parent_path);
             return Ok(None);
         };
 
