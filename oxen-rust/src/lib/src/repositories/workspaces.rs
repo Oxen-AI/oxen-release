@@ -259,10 +259,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
     let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)
         .map_err(|e| OxenError::basic_str(format!("Error listing workspace directories: {}", e)))?;
 
-    log::debug!(
-        "workspace::list got {} workspaces",
-        workspaces_hashes.len()
-    );
+    log::debug!("workspace::list got {} workspaces", workspaces_hashes.len());
 
     let mut workspaces = Vec::new();
     for workspace_hash in workspaces_hashes {
