@@ -498,6 +498,41 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
         }
     }
 
+    if let Some(names) = &opts.rename_col {
+        if names.contains(":") {
+            let parts = names.split(":").collect::<Vec<&str>>();
+            let old_name = parts[0];
+            let new_name = parts[1];
+
+            if old_name.is_empty() || new_name.is_empty() {
+                log::error!("Invalid rename_col format: old name and new name cannot be empty");
+                return Err(OxenError::basic_str(format!(
+                    "Invalid rename_col format `{}`",
+                    names
+                )));
+            }
+
+            let mut mut_df = df
+                .collect()
+                .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+            if mut_df.schema().index_of(old_name).is_none() {
+                log::error!("Column to rename '{}' not found in DataFrame", old_name);
+                return Err(OxenError::basic_str(format!(
+                    "Column '{}' not found",
+                    old_name
+                )));
+            }
+            rename_col(&mut mut_df, old_name, new_name)?;
+            df = mut_df.lazy();
+        } else {
+            log::error!("Invalid rename_col format: {}", names);
+            return Err(OxenError::basic_str(format!(
+                "Invalid rename_col format '{}', expected 'old_name:new_name'",
+                names
+            )));
+        }
+    }
+
     // These ops should be the last ops since they depends on order
     if let Some(indices) = opts.take_indices() {
         match take(df.clone(), indices) {
@@ -602,6 +637,19 @@ fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     } else {
         df
     }
+}
+
+fn rename_col(
+    df: &mut DataFrame,
+    old_name: impl AsRef<str>,
+    new_name: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let old_name = old_name.as_ref();
+    let new_name = new_name.as_ref();
+    log::debug!("Renaming column {:?} to {:?}", old_name, new_name);
+    df.rename(old_name, PlSmallStr::from_str(new_name))
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    Ok(())
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {

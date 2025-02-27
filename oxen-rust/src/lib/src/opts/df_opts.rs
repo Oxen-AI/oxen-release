@@ -31,6 +31,7 @@ pub struct IndexedItem {
 pub struct DFOpts {
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub rename_col: Option<String>,
     pub at: Option<usize>,
     pub columns: Option<String>,
     pub delete_row: Option<String>,
@@ -80,6 +81,7 @@ impl DFOpts {
         DFOpts {
             add_col: None,
             add_row: None,
+            rename_col: None,
             at: None,
             columns: None,
             delete_row: None,
@@ -159,6 +161,7 @@ impl DFOpts {
     pub fn has_transform(&self) -> bool {
         self.add_col.is_some()
             || self.add_row.is_some()
+            || self.rename_col.is_some()
             || self.item.is_some()
             || self.columns.is_some()
             || self.filter.is_some()
