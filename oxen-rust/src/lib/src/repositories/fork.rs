@@ -54,9 +54,10 @@ pub fn start_fork(
     new_path: PathBuf,
 ) -> Result<ForkStartResponse, OxenError> {
     if new_path.exists() {
-        return Err(OxenError::basic_str(
-            "A file already exists at the destination path.",
-        ));
+        return Err(OxenError::basic_str(format!(
+            "A file already exists at the destination path: {}",
+            new_path.to_string_lossy()
+        )));
     }
 
     oxen_fs::create_dir_all(&new_path)?;
@@ -184,6 +185,8 @@ fn count_items(path: &Path, status_repo: &Path, current_count: &mut u32) -> Resu
 mod tests {
     use std::time::Duration;
 
+    use uuid::Uuid;
+
     use super::*;
     use crate::error::OxenError;
     use crate::test;
@@ -193,11 +196,15 @@ mod tests {
         test::run_empty_local_repo_test_async(|original_repo| {
             async move {
                 let original_repo_path = original_repo.path;
+                let forked_repo_path = original_repo_path
+                    .parent()
+                    .unwrap()
+                    .join("forked")
+                    .join(Uuid::new_v4().to_string());
 
                 // Fork creates new repo
-                let new_repo_path = original_repo_path.parent().unwrap().join("forked/new_repo");
-                if new_repo_path.exists() {
-                    std::fs::remove_dir_all(&new_repo_path)?;
+                if forked_repo_path.exists() {
+                    std::fs::remove_dir_all(&forked_repo_path)?;
                 }
 
                 let dir_path = original_repo_path.join("dir");
@@ -206,13 +213,11 @@ mod tests {
                 let file_path = dir_path.join("test_file.txt");
                 std::fs::write(file_path, "test file content")?;
 
-                start_fork(original_repo_path.clone(), new_repo_path.clone())?;
-                tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
-                let status = get_fork_status(&new_repo_path); // Await the initial call
-                let mut current_status = status?.status;
+                start_fork(original_repo_path.clone(), forked_repo_path.clone())?;
+                let mut current_status = "in_progress".to_string();
                 while current_status == "in_progress" {
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
-                    current_status = match get_fork_status(&new_repo_path) {
+                    current_status = match get_fork_status(&forked_repo_path) {
                         Ok(status) => status.status,
                         Err(e) => {
                             if let OxenError::ForkStatusNotFound(_) = e {
@@ -225,9 +230,9 @@ mod tests {
                 }
                 let file_path = original_repo_path.clone().join("dir/test_file.txt");
 
-                assert!(new_repo_path.exists());
+                assert!(forked_repo_path.exists());
                 // Verify that the content of .oxen/config.toml is the same in both repos
-                let new_file_path = new_repo_path.join("dir/test_file.txt");
+                let new_file_path = forked_repo_path.join("dir/test_file.txt");
                 let original_content = fs::read_to_string(&file_path)?;
                 let mut retries = 20;
                 let mut sleep_time = 100;
@@ -250,15 +255,12 @@ mod tests {
                     "The content of test_file.txt should be the same in both repositories"
                 );
 
-                if new_repo_path.exists() {
-                    std::fs::remove_dir_all(&new_repo_path)?;
-                }
-
                 // Fork fails if repo exists
                 let new_repo_path_1 = original_repo_path
                     .parent()
                     .unwrap()
-                    .join("forked/new_repo_1");
+                    .join("forked")
+                    .join(Uuid::new_v4().to_string());
                 if new_repo_path_1.exists() {
                     std::fs::remove_dir_all(&new_repo_path_1)?;
                 }
@@ -272,10 +274,10 @@ mod tests {
 
                 // Fork excludes workspaces
                 let new_repo_path_2 = original_repo_path
-                    .clone()
                     .parent()
                     .unwrap()
-                    .join("forked/new_repo_2");
+                    .join("forked")
+                    .join(Uuid::new_v4().to_string());
 
                 let workspaces_path = original_repo_path.join(".oxen/workspaces");
                 // Create a workspace directory and add a file to it
@@ -284,11 +286,10 @@ mod tests {
                 std::fs::write(workspace_file, "test workspace content")?;
 
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
-                let status = get_fork_status(&new_repo_path_2);
-                let mut current_status = status?.status;
+                let mut current_status = "in_progress".to_string();
                 while current_status == "in_progress" {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    current_status = match get_fork_status(&new_repo_path) {
+                    current_status = match get_fork_status(&new_repo_path_2) {
                         Ok(status) => status.status,
                         Err(e) => {
                             if let OxenError::ForkStatusNotFound(_) = e {
