@@ -220,6 +220,12 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("rename-col")
+                .long("rename-col")
+                .help("Rename a column in the data frame. Format: 'old_name:new_name'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("delete-row")
                 .long("delete-row")
                 .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
@@ -286,6 +292,7 @@ impl DFCmd {
         liboxen::opts::DFOpts {
             add_col: args.get_one::<String>("add-col").map(String::from),
             add_row: args.get_one::<String>("add-row").map(String::from),
+            rename_col: args.get_one::<String>("rename-col").map(String::from),
             at: args
                 .get_one::<String>("at")
                 .map(|x| x.parse::<usize>().expect("at must be valid int")),

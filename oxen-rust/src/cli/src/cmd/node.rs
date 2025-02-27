@@ -43,6 +43,13 @@ impl RunCmd for NodeCmd {
                     .short('f')
                     .help("File path to inspect"),
             )
+            // add --revision flag
+            .arg(
+                Arg::new("revision")
+                    .long("revision")
+                    .short('r')
+                    .help("Which revision to start at"),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -51,7 +58,11 @@ impl RunCmd for NodeCmd {
 
         // if the --file flag is set, we need to get the node for the file
         if let Some(file) = args.get_one::<String>("file") {
-            let commit = repositories::commits::head_commit(&repository)?;
+            let commit = if let Some(revision) = args.get_one::<String>("revision") {
+                repositories::revisions::get(&repository, revision)?.unwrap()
+            } else {
+                repositories::commits::head_commit(&repository)?
+            };
             let node = repositories::entries::get_file(&repository, &commit, file)?;
             println!("{:?}", node);
             return Ok(());
