@@ -112,8 +112,7 @@ impl EMetadataEntry {
                 entry.resource.clone().map(ParsedResourceView::from)
             }
             EMetadataEntry::WorkspaceMetadataEntry(entry) => {
-                entry.resource.clone().map(ParsedResourceView::from)
-            }
+                entry.resource.clone()}
         }
     }
 
