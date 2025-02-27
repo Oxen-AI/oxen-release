@@ -503,13 +503,33 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
             let parts = names.split(":").collect::<Vec<&str>>();
             let old_name = parts[0];
             let new_name = parts[1];
+
+            if old_name.is_empty() || new_name.is_empty() {
+                log::error!("Invalid rename_col format: old name and new name cannot be empty");
+                return Err(OxenError::basic_str(format!(
+                    "Invalid rename_col format `{}`",
+                    names
+                )));
+            }
+
             let mut mut_df = df
                 .collect()
                 .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+            if mut_df.schema().index_of(old_name).is_none() {
+                log::error!("Column to rename '{}' not found in DataFrame", old_name);
+                return Err(OxenError::basic_str(format!(
+                    "Column '{}' not found",
+                    old_name
+                )));
+            }
             rename_col(&mut mut_df, old_name, new_name)?;
             df = mut_df.lazy();
         } else {
             log::error!("Invalid rename_col format: {}", names);
+            return Err(OxenError::basic_str(format!(
+                "Invalid rename_col format '{}', expected 'old_name:new_name'",
+                names
+            )));
         }
     }
 
