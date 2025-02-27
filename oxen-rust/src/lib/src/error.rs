@@ -473,6 +473,10 @@ impl OxenError {
         OxenError::CommitEntryNotFound(err.into())
     }
 
+    pub fn must_supply_valid_api_key() -> OxenError {
+        OxenError::basic_str("Must supply valid API key. Create an account at https://oxen.ai and then set the API key with:\n\n  oxen config --auth hub.oxen.ai <API_KEY>\n")
+    }
+
     pub fn file_has_no_parent(path: impl AsRef<Path>) -> OxenError {
         let err = format!("File has no parent: {:?}", path.as_ref());
         OxenError::basic_str(err)
