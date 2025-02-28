@@ -202,11 +202,29 @@ jobs:
           cmd /c "START /B .\target\debug\oxen-server.exe start"
           cargo test -- --test-threads=1
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
         with:
-          name: oxen-binary-windows
-          path: target/debug/oxen*
+          ruby-version: '3.0'
+          bundler-cache: true
+  
+      - name: Run Rspec Tests
+        env:
+          PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
+        run: |
+          echo "Adding user"
+          .\target\debug\oxen-server.exe add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          echo "Copying user config"
+          cp user_config.toml data\test\config\user_config.toml
+          echo "Starting server"
+          pwd
+          ls .\target\debug\
+          cmd /c "START /B .\target\debug\oxen-server.exe start"
+          echo "🐂 Running tests"
+          cd cli-test
+          bundle config path vendor/bundle
+          bundle install
+          bundle exec rspec spec/test_cases/**/tests.rb
 
   rpsec_tests_macos:
     name: MacOS RSpec CLI Tests
@@ -267,45 +285,4 @@ jobs:
         working-directory: ./cli-test
         run: |
           bundle exec rspec spec/test_cases/**/tests.rb
-
-  rspec_test_windows:
-    name: Windows RSpec CLI Tests
-    needs: [test_windows]
-    runs-on: windows-latest
-
-    env:
-      OXEN_API_KEY: ${{ secrets.DEV_OXEN_API_KEY }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: oxen-binary-windows
-          path: target/debug
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.0'
-          bundler-cache: true
-
-      - name: Run oxen-server
-        env:
-          PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
-        run: |
-          mkdir .\data\test\runs
-          echo "Adding user"
-          .\target\debug\oxen-server.exe add-user --email ox@oxen.ai --name Ox --output user_config.toml
-          echo "Copying user config"
-          cp user_config.toml data\test\config\user_config.toml
-          echo "Starting server"
-          pwd
-          ls .\target\debug\
-          cmd /c "START /B .\target\debug\oxen-server.exe start"
-          echo "🐂 Running tests"
-          cd cli-test
-          bundle config path vendor/bundle
-          bundle install
-          bundle exec rspec spec/test_cases/**/tests.rb
+    
