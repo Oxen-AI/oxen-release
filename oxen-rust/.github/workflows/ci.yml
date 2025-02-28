@@ -212,7 +212,6 @@ jobs:
         env:
           PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
         run: |
-          mkdir .\data\test\runs
           echo "Adding user"
           .\target\debug\oxen-server.exe add-user --email ox@oxen.ai --name Ox --output user_config.toml
           echo "Copying user config"
