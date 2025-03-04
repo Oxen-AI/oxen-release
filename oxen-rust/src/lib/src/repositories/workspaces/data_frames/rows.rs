@@ -17,7 +17,7 @@ use sql_query_builder::Select;
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::core::db;
 
-use crate::core::db::data_frames::{df_db, workspace_df_db};
+use crate::core::db::data_frames::df_db;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::LocalRepository;
 
@@ -121,13 +121,11 @@ pub fn get_by_id(
     log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
-    let schema = workspace_df_db::full_staged_table_schema(&conn)?;
-
     let query = Select::new()
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, row_id));
-    let data = df_db::select(&conn, &query, true, Some(&schema), None)?;
+    let data = df_db::select(&conn, &query, None)?;
     log::debug!("get_row_by_id() got data: {:?}", data);
     Ok(data)
 }

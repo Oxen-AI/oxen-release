@@ -14,11 +14,8 @@ use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
 
 use crate::core::db;
 use crate::core::db::data_frames::row_changes_db;
-use crate::core::db::data_frames::workspace_df_db::{
-    full_staged_table_schema, schema_without_oxen_cols,
-};
+use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::df::tabular;
-use crate::model::data_frame::schema::Schema;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::{constants::TABLE_NAME, error::OxenError};
@@ -58,8 +55,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         df
     };
 
-    let schema = full_staged_table_schema(conn)?;
-    let inserted_df = insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
+    let inserted_df = insert_polars_df(conn, TABLE_NAME, &df)?;
 
     Ok(inserted_df)
 
@@ -76,7 +72,6 @@ pub fn modify_row(
     }
 
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    let out_schema = full_staged_table_schema(conn)?;
 
     // Filter it down to exclude any of the OXEN_COLS, we don't want to modify these but hub sends them over
     let schema = df.schema();
@@ -101,7 +96,7 @@ pub fn modify_row(
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, uuid));
-    let maybe_db_data = df_db::select(conn, &select_hash, true, None, None)?;
+    let maybe_db_data = df_db::select(conn, &select_hash, None)?;
 
     let mut new_row = maybe_db_data.clone().to_owned();
     for col in df.get_columns() {
@@ -125,7 +120,7 @@ pub fn modify_row(
         PlSmallStr::from_str(DIFF_HASH_COL),
         vec![insert_hash],
     ))?;
-    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
+    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row)?;
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
@@ -137,7 +132,6 @@ pub fn modify_rows(
     row_map: HashMap<String, DataFrame>,
 ) -> Result<DataFrame, OxenError> {
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    let out_schema = full_staged_table_schema(conn)?;
 
     let mut update_map: HashMap<String, DataFrame> = HashMap::new();
 
@@ -170,7 +164,7 @@ pub fn modify_rows(
             .select("*")
             .from(TABLE_NAME)
             .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, row_id));
-        let maybe_db_data = df_db::select(conn, &select_hash, true, None, None)?;
+        let maybe_db_data = df_db::select(conn, &select_hash, None)?;
 
         let mut new_row = maybe_db_data.clone().to_owned();
         for col in df.get_columns() {
@@ -196,7 +190,7 @@ pub fn modify_rows(
         update_map.insert(row_id.to_owned(), new_row);
     }
 
-    let result = df_db::modify_rows_with_polars_df(conn, TABLE_NAME, &update_map, &out_schema)?;
+    let result = df_db::modify_rows_with_polars_df(conn, TABLE_NAME, &update_map)?;
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(""));
     }
@@ -218,7 +212,7 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 
-    let row_to_delete = df_db::select(conn, &select_stmt, true, None, None)?;
+    let row_to_delete = df_db::select(conn, &select_stmt, None)?;
 
     if row_to_delete.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
@@ -324,7 +318,6 @@ pub fn insert_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     df: &DataFrame,
-    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
 
@@ -365,7 +358,7 @@ pub fn insert_polars_df(
         // Convert to Vec<&RecordBatch>
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
 
-        let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
+        let df = df_db::record_batches_to_polars_df(result_set)?;
         result_df = if df.height() == 0 || result_df.height() == 0 {
             df
         } else {

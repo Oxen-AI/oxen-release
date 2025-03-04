@@ -42,7 +42,7 @@ pub fn query_df(
     sql: String,
     opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
-    let df = df_db::select_str(conn, sql, false, None, opts)?;
+    let df = df_db::select_str(conn, sql, opts)?;
 
     Ok(df)
 }
