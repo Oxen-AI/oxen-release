@@ -18,6 +18,7 @@ pub enum DataType {
     Float32,
     Float64,
     String,
+    Binary,
     Date,
     Time,
     Datetime,
@@ -53,6 +54,7 @@ impl DataType {
             "double" => DataType::Float64,
             "f64" => DataType::Float64,
             "str" => DataType::String,
+            "binary" => DataType::Binary,
             "date" => DataType::Date,
             "datetime" => DataType::Datetime,
             "time" => DataType::Time,
@@ -71,6 +73,7 @@ impl DataType {
             "list[f32]" => DataType::List(Box::new(DataType::Float32)),
             "list[f64]" => DataType::List(Box::new(DataType::Float64)),
             "list[str]" => DataType::List(Box::new(DataType::String)),
+            "list[binary]" => DataType::List(Box::new(DataType::Binary)),
             "list[date]" => DataType::List(Box::new(DataType::Date)),
             "list[time]" => DataType::List(Box::new(DataType::Time)),
             "list[?]" => DataType::List(Box::new(DataType::Unknown)),
@@ -104,6 +107,7 @@ impl DataType {
             DataType::Float32 => "f32".to_string(),
             DataType::Float64 => "f64".to_string(),
             DataType::String => "str".to_string(),
+            DataType::Binary => "binary".to_string(),
             DataType::Date => "date".to_string(),
             DataType::Datetime => "datetime".to_string(),
             DataType::Time => "time".to_string(),
@@ -124,6 +128,7 @@ impl DataType {
                 DataType::String => "list[str]".to_string(),
                 DataType::Date => "list[date]".to_string(),
                 DataType::Time => "list[time]".to_string(),
+                DataType::Binary => "list[binary]".to_string(),
                 _ => "list[?]".to_string(),
             },
             DataType::Embedding(size) => format!("embedding[{}]", size).to_string(),
@@ -150,6 +155,7 @@ impl DataType {
             DataType::Float32 => polars::prelude::DataType::Float32,
             DataType::Float64 => polars::prelude::DataType::Float64,
             DataType::String => polars::prelude::DataType::String,
+            DataType::Binary => polars::prelude::DataType::Binary,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
             DataType::Embedding(_) => {
@@ -186,6 +192,15 @@ impl DataType {
             polars::prelude::DataType::Float32 => DataType::Float32,
             polars::prelude::DataType::Float64 => DataType::Float64,
             polars::prelude::DataType::String => DataType::String,
+            polars::prelude::DataType::Binary => DataType::Binary,
+            polars::prelude::DataType::Datetime(_, _) => DataType::Datetime,
+            polars::prelude::DataType::Time => DataType::Time,
+            polars::prelude::DataType::Duration(_) => DataType::Duration,
+            polars::prelude::DataType::List(inner) => {
+                log::debug!("Converting List type with inner: {:?}", inner);
+                DataType::List(Box::new(Self::from_polars(inner)))
+            }
+            polars::prelude::DataType::Unknown(_) => DataType::Unknown,
             polars::prelude::DataType::Null => DataType::Null,
             _ => DataType::Unknown,
         }
@@ -205,6 +220,7 @@ impl DataType {
             DataType::Float32 => "FLOAT".to_string(), // alias for REAL, single precision floating-point number (4 bytes)
             DataType::Float64 => "DOUBLE".to_string(), // double-precision floating point number
             DataType::String => "VARCHAR".to_string(), // variable-length character string
+            DataType::Binary => "BINARY".to_string(), // binary data
             DataType::Date => "DATE".to_string(),     // calendar date (year, month day)
             DataType::Time => "TIME".to_string(),     // time of day (no time zone)
             DataType::Datetime => "DATETIME".to_string(), // combination of time and date
@@ -224,6 +240,7 @@ impl DataType {
                 DataType::Float32 => "FLOAT[]".to_string(),
                 DataType::Float64 => "DOUBLE[]".to_string(),
                 DataType::String => "VARCHAR[]".to_string(),
+                DataType::Binary => "BINARY[]".to_string(),
                 DataType::Date => "DATE[]".to_string(),
                 DataType::Time => "TIME[]".to_string(),
                 DataType::Datetime => "DATETIME[]".to_string(),
@@ -254,6 +271,7 @@ impl DataType {
             "FLOAT" => DataType::Float32, // alias for REAL, single precision floating-point number (4 bytes)
             "DOUBLE" => DataType::Float64, // double-precision floating point number
             "VARCHAR" => DataType::String, // variable-length character string
+            "BLOB" => DataType::Binary,   // binary data
             "DATE" => DataType::Date,     // calendar date (year, month day)
             "TIME" => DataType::Time,     // time of day (no time zone)
             "TIMESTAMP" => DataType::Datetime, // combination of time and date
@@ -277,6 +295,7 @@ impl DataType {
             "FLOAT[]" => DataType::List(Box::new(DataType::Float32)),
             "DOUBLE[]" => DataType::List(Box::new(DataType::Float64)),
             "VARCHAR[]" => DataType::List(Box::new(DataType::String)),
+            "BLOB[]" => DataType::List(Box::new(DataType::Binary)),
             "DATE[]" => DataType::List(Box::new(DataType::Date)),
             "TIME[]" => DataType::List(Box::new(DataType::Time)),
             type_name => {

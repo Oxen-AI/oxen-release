@@ -6,9 +6,7 @@ use rocksdb::DB;
 
 use crate::core::db;
 use crate::core::db::data_frames::column_changes_db;
-use crate::core::db::data_frames::workspace_df_db::{
-    full_staged_table_schema, schema_without_oxen_cols,
-};
+use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::model::data_frame::schema::DataType;
 use crate::model::Schema;
 use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
@@ -125,9 +123,7 @@ pub fn polar_insert_column(
     let sql_query = format!("SELECT * FROM {}", table_name);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
 
-    let table_schema = full_staged_table_schema(conn)?;
-
-    df_db::record_batches_to_polars_df_explicit_nulls(result_set, &table_schema)
+    df_db::record_batches_to_polars_df(result_set)
 }
 
 pub fn polar_delete_column(
@@ -147,9 +143,7 @@ pub fn polar_delete_column(
     let sql_query = format!("SELECT * FROM {}", table_name);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
 
-    let table_schema = full_staged_table_schema(conn)?;
-
-    df_db::record_batches_to_polars_df_explicit_nulls(result_set, &table_schema)
+    df_db::record_batches_to_polars_df(result_set)
 }
 
 pub fn polar_update_column(
@@ -185,7 +179,5 @@ pub fn polar_update_column(
     let sql_query = format!("SELECT * FROM {}", table_name);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
 
-    let table_schema = full_staged_table_schema(conn)?;
-
-    df_db::record_batches_to_polars_df_explicit_nulls(result_set, &table_schema)
+    df_db::record_batches_to_polars_df(result_set)
 }
