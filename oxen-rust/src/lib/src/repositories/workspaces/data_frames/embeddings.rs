@@ -345,7 +345,7 @@ pub fn nearest_neighbors(
 
     let start = std::time::Instant::now();
     log::debug!("Serializing similarity query to Polars");
-    let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, &schema)?;
+    let df = df_db::record_batches_to_polars_df(result_set)?;
     log::debug!(
         "Serializing similarity query to Polars took: {:?}",
         start.elapsed()
@@ -384,7 +384,7 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
 
     let start = std::time::Instant::now();
     log::debug!("Serializing similarity query to Polars");
-    let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, &schema)?;
+    let df = df_db::record_batches_to_polars_df(result_set)?;
     log::debug!(
         "Serializing similarity query to Polars took: {:?}",
         start.elapsed()
