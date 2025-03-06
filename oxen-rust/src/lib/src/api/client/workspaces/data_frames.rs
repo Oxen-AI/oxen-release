@@ -265,13 +265,15 @@ mod tests {
     use std::path::Path;
 
     use crate::config::UserConfig;
-    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME};
+    use crate::constants::{
+        DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME,
+    };
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
-    use crate::{command, test};
     use crate::{api, repositories, util};
+    use crate::{command, test};
 
     #[tokio::test]
     async fn test_get_by_resource() -> Result<(), OxenError> {
@@ -880,8 +882,9 @@ mod tests {
                     .await;
             assert!(workspace.is_ok());
 
-            let res = api::client::workspaces::data_frames::index(&remote_repo, workspace_id, file_name)
-                .await?;
+            let res =
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, file_name)
+                    .await?;
 
             assert_eq!(res.status, "success");
 
