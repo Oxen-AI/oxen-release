@@ -73,9 +73,7 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
-
-    use crate::constants::DEFAULT_BRANCH_NAME;
-
+    use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME};
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::RmOpts;
@@ -84,6 +82,7 @@ mod tests {
     use crate::util;
     use crate::view::entries::EMetadataEntry;
     use futures::future;
+    use rand::Rng;
 
     #[tokio::test]
     async fn test_command_push_one_commit() -> Result<(), OxenError> {
@@ -201,6 +200,7 @@ mod tests {
 
             // Track the train dir
             let train_dir = repo.path.join("train");
+
             repositories::add(&repo, &train_dir)?;
             // Commit the train dur
             repositories::commit(&repo, "Adding training data")?;
@@ -1480,6 +1480,84 @@ A: Checkout Oxen.ai
             .await?;
 
             Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_file_with_exact_avg_chunk_size() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let local_repo = local_repo.clone();
+            let remote_repo = remote_repo.clone();
+
+            // Create a file with exactly AVG_CHUNK_SIZE bytes of random data
+            let file_path = local_repo.path.join("exact_chunk_size_file.bin");
+
+            // Generate random data of exactly AVG_CHUNK_SIZE bytes
+            let mut rng = rand::thread_rng();
+            let random_data: Vec<u8> = (0..AVG_CHUNK_SIZE).map(|_| rng.gen::<u8>()).collect();
+
+            // Write the data to the file
+            util::fs::write_data(&file_path, &random_data)?;
+
+            // Verify the file size is exactly AVG_CHUNK_SIZE
+            let metadata = std::fs::metadata(&file_path)?;
+            assert_eq!(
+                metadata.len(),
+                AVG_CHUNK_SIZE,
+                "File size should be exactly AVG_CHUNK_SIZE"
+            );
+
+            // Add and commit the file
+            repositories::add(&local_repo, &file_path)?;
+            let commit_msg = "Add file with exactly AVG_CHUNK_SIZE bytes";
+            let commit = repositories::commit(&local_repo, commit_msg)?;
+
+            // Push the commit to the remote repository
+            let branch = repositories::push(&local_repo).await?;
+
+            // Verify the push was successful by checking the remote repository
+            let remote_commit_opt =
+                api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
+            assert!(remote_commit_opt.is_some(), "Remote commit should exist");
+
+            let remote_repo_clone = remote_repo.clone();
+            // Create a temporary directory to download the file to
+            test::run_empty_dir_test_async(|temp_dir| async move {
+                let download_path = temp_dir.join("downloaded_file.bin");
+
+                // Download the file from the remote repository
+                repositories::download(
+                    &remote_repo_clone,
+                    "exact_chunk_size_file.bin",
+                    &download_path,
+                    &branch.name,
+                )
+                .await?;
+
+                // Verify the file was downloaded successfully
+                assert!(download_path.exists(), "Downloaded file should exist");
+
+                // Verify the file size is exactly AVG_CHUNK_SIZE
+                let downloaded_metadata = std::fs::metadata(&download_path)?;
+                assert_eq!(
+                    downloaded_metadata.len(),
+                    metadata.len(),
+                    "Downloaded file size should match the original file size"
+                );
+
+                // Verify the file contents match the original data
+                let downloaded_data = util::fs::read_bytes_from_path(&download_path)?;
+                assert_eq!(
+                    downloaded_data, random_data,
+                    "Downloaded file contents should match the original data"
+                );
+
+                Ok(temp_dir)
+            })
+            .await?;
+
+            Ok(remote_repo)
         })
         .await
     }
