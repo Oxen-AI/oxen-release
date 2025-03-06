@@ -626,7 +626,7 @@ pub fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFram
     }
 
     let mut buf = Vec::new();
-    let mut writer = arrow::ipc::writer::FileWriter::try_new(&mut buf, &records[0].schema())?;
+    let mut writer = arrow::ipc::writer::FileWriter::try_new(&mut buf, &*records[0].schema())?;
 
     for batch in &records {
         writer.write(batch)?;
