@@ -5,7 +5,6 @@
 
 use std::path::Path;
 
-use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
@@ -13,6 +12,7 @@ use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::opts::fetch_opts::FetchOpts;
 use crate::opts::CloneOpts;
+use crate::{api, util};
 
 pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
     match clone_remote(opts).await {
@@ -72,8 +72,16 @@ async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenE
     let remote_repo = api::client::repositories::get_by_remote(&remote)
         .await?
         .ok_or_else(|| OxenError::remote_repo_not_found(&opts.url))?;
-    let repo = clone_repo(remote_repo, opts).await?;
-    Ok(Some(repo))
+    match clone_repo(remote_repo, opts).await {
+        Ok(repo) => Ok(Some(repo)),
+        Err(err) => {
+            if opts.dst.exists() {
+                // Cleanup the destination directory
+                util::fs::remove_dir_all(&opts.dst)?;
+            }
+            Err(err)
+        }
+    }
 }
 
 async fn clone_repo(

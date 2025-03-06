@@ -217,24 +217,29 @@ pub async fn download_small_entry(
         .map_err(|_| OxenError::resource_not_found(&url))?;
 
     let status = response.status();
-    if reqwest::StatusCode::OK == status {
-        // Copy to file
-        let dest = dest.as_ref();
-        // Create parent directories if they don't exist
-        if let Some(parent) = dest.parent() {
-            if !parent.exists() {
-                util::fs::create_dir_all(parent)?;
+    match status {
+        reqwest::StatusCode::OK => {
+            // Copy to file
+            let dest = dest.as_ref();
+            // Create parent directories if they don't exist
+            if let Some(parent) = dest.parent() {
+                if !parent.exists() {
+                    util::fs::create_dir_all(parent)?;
+                }
             }
+
+            let mut dest_file = { util::fs::file_create(dest)? };
+            let mut content = Cursor::new(response.bytes().await?);
+
+            std::io::copy(&mut content, &mut dest_file)?;
+            Ok(())
         }
-
-        let mut dest_file = { util::fs::file_create(dest)? };
-        let mut content = Cursor::new(response.bytes().await?);
-
-        std::io::copy(&mut content, &mut dest_file)?;
-        Ok(())
-    } else {
-        let err = format!("Could not download entry status: {status}");
-        Err(OxenError::basic_str(err))
+        reqwest::StatusCode::NOT_FOUND => Err(OxenError::path_does_not_exist(remote_path)),
+        reqwest::StatusCode::UNAUTHORIZED => Err(OxenError::must_supply_valid_api_key()),
+        _ => {
+            let err = format!("Could not download entry status: {status}");
+            Err(OxenError::basic_str(err))
+        }
     }
 }
 
@@ -299,6 +304,23 @@ pub async fn download_large_entry(
             chunk_size,
         ));
     }
+
+    // Try to download the first chunk and return error if it fails
+    if tasks.is_empty() {
+        return Err(OxenError::basic_str("No chunks to download"));
+    }
+    let item = tasks.remove(0);
+    let (remote_repo, remote_path, tmp_file, revision, chunk_start, chunk_size) = item;
+    // Will error out if the first chunk is not found or unauthorized
+    try_download_entry_chunk(
+        &remote_repo,
+        &remote_path,
+        &tmp_file,
+        &revision,
+        chunk_start,
+        chunk_size,
+    )
+    .await?;
 
     use futures::prelude::*;
     let num_workers = constants::DEFAULT_NUM_WORKERS;
@@ -409,10 +431,23 @@ async fn try_download_entry_chunk(
         )
         .await
         {
-            Ok(_) => {
-                log::debug!("Downloaded chunk {:?}", local_path.as_ref());
-                return Ok(chunk_size);
-            }
+            Ok(status) => match status {
+                reqwest::StatusCode::OK => {
+                    log::debug!("Downloaded chunk {:?}", local_path.as_ref());
+                    return Ok(chunk_size);
+                }
+                reqwest::StatusCode::NOT_FOUND => {
+                    return Err(OxenError::path_does_not_exist(remote_path));
+                }
+                reqwest::StatusCode::UNAUTHORIZED => {
+                    return Err(OxenError::must_supply_valid_api_key());
+                }
+                _ => {
+                    return Err(OxenError::basic_str(format!(
+                        "Could not download entry status: {status}"
+                    )));
+                }
+            },
             Err(err) => {
                 log::error!("Error trying to download chunk: {}", err);
                 try_num += 1;
@@ -432,7 +467,7 @@ async fn download_entry_chunk(
     revision: impl AsRef<str>,
     chunk_start: u64,
     chunk_size: u64,
-) -> Result<(), OxenError> {
+) -> Result<reqwest::StatusCode, OxenError> {
     let remote_path = remote_path.as_ref();
     let local_path = local_path.as_ref();
     log::debug!(
@@ -465,16 +500,21 @@ async fn download_entry_chunk(
     }
 
     let status = response.status();
-    if reqwest::StatusCode::OK == status {
-        // TODO: replace these with util::fs:: file functions for better error messages
-        // Copy to file
-        let mut dest = { fs::File::create(local_path)? };
-        let mut content = Cursor::new(response.bytes().await?);
-        std::io::copy(&mut content, &mut dest)?;
-        Ok(())
-    } else {
-        let err = format!("Could not download entry status: {status}");
-        Err(OxenError::basic_str(err))
+
+    match status {
+        reqwest::StatusCode::OK => {
+            // TODO: replace these with util::fs:: file functions for better error messages
+            // Copy to file
+            let mut dest = { fs::File::create(local_path)? };
+            let mut content = Cursor::new(response.bytes().await?);
+            std::io::copy(&mut content, &mut dest)?;
+            Ok(status)
+        }
+        reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::UNAUTHORIZED => Ok(status),
+        _ => {
+            let err = format!("Could not download entry status: {status}");
+            Err(OxenError::basic_str(err))
+        }
     }
 }
 
