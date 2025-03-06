@@ -1601,6 +1601,13 @@ pub fn test_invalid_parquet_file() -> PathBuf {
         .join("invalid.parquet")
 }
 
+pub fn test_binary_column_parquet_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("parquet")
+        .join("binary_col.parquet")
+}
+
 pub fn test_csv_file_with_name(name: &str) -> PathBuf {
     PathBuf::from("data").join("test").join("csvs").join(name)
 }

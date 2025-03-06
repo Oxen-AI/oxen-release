@@ -15,8 +15,6 @@ use crate::model::data_frame::schema::Field;
 use crate::model::data_frame::schema::Schema;
 use crate::opts::DFOpts;
 use crate::{model, util};
-use arrow_json::writer::JsonArray;
-use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
@@ -198,12 +196,10 @@ pub fn count_where(
 pub fn select(
     conn: &duckdb::Connection,
     stmt: &sql::Select,
-    with_explicit_nulls: bool,
-    schema: Option<&Schema>,
     opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
     let sql = stmt.as_string();
-    let df = select_str(conn, sql, with_explicit_nulls, schema, opts)?;
+    let df = select_str(conn, sql, opts)?;
     Ok(df)
 }
 
@@ -343,23 +339,16 @@ fn add_special_columns(conn: &duckdb::Connection, sql: &str) -> Result<String, O
 pub fn select_str(
     conn: &duckdb::Connection,
     sql: impl AsRef<str>,
-    with_explicit_nulls: bool,
-    schema: Option<&Schema>,
     opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
     let sql = sql.as_ref();
     let sql = prepare_sql(conn, sql, opts)?;
-    let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
+    let df = select_raw(conn, &sql)?;
     log::debug!("select_str() got raw df {:?}", df);
     Ok(df)
 }
 
-pub fn select_raw(
-    conn: &duckdb::Connection,
-    stmt: &str,
-    with_explicit_nulls: bool,
-    schema: Option<&Schema>,
-) -> Result<DataFrame, OxenError> {
+pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, OxenError> {
     let mut stmt = conn.prepare(stmt)?;
 
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
@@ -368,18 +357,7 @@ pub fn select_raw(
         return Ok(DataFrame::default());
     }
 
-    let df = if with_explicit_nulls {
-        // Provide schema so that it can be filled in with nulls
-        let schema = if let Some(schema) = schema {
-            schema.clone()
-        } else {
-            get_schema(conn, TABLE_NAME)?
-        };
-
-        record_batches_to_polars_df_explicit_nulls(records, &schema)?
-    } else {
-        record_batches_to_polars_df(records)?
-    };
+    let df = record_batches_to_polars_df(records)?;
 
     Ok(df)
 }
@@ -389,7 +367,6 @@ pub fn modify_row_with_polars_df(
     table_name: impl AsRef<str>,
     id: &str,
     df: &DataFrame,
-    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     if df.height() != 1 {
         return Err(OxenError::basic_str(
@@ -433,7 +410,7 @@ pub fn modify_row_with_polars_df(
     let mut stmt = conn.prepare(&sql)?;
     let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
 
-    let df = record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
+    let df = record_batches_to_polars_df(result_set)?;
 
     Ok(df)
 }
@@ -442,7 +419,6 @@ pub fn modify_rows_with_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     row_map: &HashMap<String, DataFrame>,
-    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
     let mut all_result_batches = Vec::new();
@@ -502,7 +478,7 @@ pub fn modify_rows_with_polars_df(
 
     all_result_batches.extend(result_set);
 
-    let df = record_batches_to_polars_df_explicit_nulls(all_result_batches, out_schema)?;
+    let df = record_batches_to_polars_df(all_result_batches)?;
 
     Ok(df)
 }
@@ -640,7 +616,7 @@ pub fn preview(
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
     let query = format!("SELECT * FROM {} LIMIT 10", table_name);
-    let df = select_raw(conn, &query, true, None)?;
+    let df = select_raw(conn, &query)?;
     Ok(df)
 }
 
@@ -648,53 +624,17 @@ pub fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFram
     if records.is_empty() {
         return Ok(DataFrame::default());
     }
-    let records: Vec<&RecordBatch> = records.iter().collect();
 
-    let buf = Vec::new();
-    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
-    writer.write_batches(&records[..])?;
+    let mut buf = Vec::new();
+    let mut writer = arrow::ipc::writer::FileWriter::try_new(&mut buf, &records[0].schema())?;
+
+    for batch in &records {
+        writer.write(batch)?;
+    }
     writer.finish()?;
 
-    let json_bytes = writer.into_inner();
-
-    // log the json string
-    // log::debug!(
-    //     "json_bytes: {}",
-    //     String::from_utf8(json_bytes.clone()).unwrap()
-    // );
-
-    let content = Cursor::new(json_bytes);
-
-    let df = JsonReader::new(content).finish()?;
-
-    Ok(df)
-}
-
-pub fn record_batches_to_polars_df_explicit_nulls(
-    records: Vec<RecordBatch>,
-    schema: &Schema,
-) -> Result<DataFrame, OxenError> {
-    if records.is_empty() {
-        return Ok(DataFrame::default());
-    }
-
-    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let buf = Vec::new();
-    let builder = WriterBuilder::new().with_explicit_nulls(true);
-    let mut writer = builder.build::<_, JsonArray>(buf);
-    writer.write_batches(&records[..]).unwrap();
-    writer.finish().unwrap();
-    let json_bytes = writer.into_inner();
-    // log::debug!(
-    //     "json_bytes: {}",
-    //     String::from_utf8(json_bytes.clone()).unwrap()
-    // );
-
-    let content = Cursor::new(json_bytes);
-
-    let df = JsonReader::new(content)
-        .with_schema(Arc::new(schema.to_polars()))
-        .finish()?;
+    let content = Cursor::new(buf);
+    let df = IpcReader::new(content).finish()?;
 
     Ok(df)
 }

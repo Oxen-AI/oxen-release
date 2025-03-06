@@ -265,13 +265,15 @@ mod tests {
     use std::path::Path;
 
     use crate::config::UserConfig;
-    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
+    use crate::constants::{
+        DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME,
+    };
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
-    use crate::test;
-    use crate::{api, repositories};
+    use crate::{api, repositories, util};
+    use crate::{command, test};
 
     #[tokio::test]
     async fn test_get_by_resource() -> Result<(), OxenError> {
@@ -847,6 +849,41 @@ mod tests {
 
             let res =
                 api::client::workspaces::data_frames::unindex(&remote_repo, workspace_id, path)
+                    .await?;
+
+            assert_eq!(res.status, "success");
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_index_workspace_data_frame_with_binary_column() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            let path = test::test_binary_column_parquet_file();
+
+            let file_name = "binary_col.parquet";
+            let dst_path = local_repo.path.join(file_name);
+            util::fs::copy(&path, &dst_path)?;
+
+            repositories::add(&local_repo, dst_path)?;
+            repositories::commit(&local_repo, "add binary column parquet file")?;
+            command::config::set_remote(
+                &mut local_repo,
+                DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+            repositories::push(&local_repo).await?;
+
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            let res =
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, file_name)
                     .await?;
 
             assert_eq!(res.status, "success");

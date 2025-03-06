@@ -143,9 +143,6 @@ pub fn query(
     // Get the schema of this commit entry
     let schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
-    // Enrich w/ oxen cols
-    let full_schema = workspace_df_db::enhance_schema_with_oxen_cols(&schema)?;
-
     let col_names = select_cols_from_schema(&schema)?;
 
     // Right now embeddings and sql are mutually exclusive
@@ -156,7 +153,7 @@ pub fn query(
         sql::query_df(&mut conn, sql.clone(), None)?
     } else {
         let select = Select::new().select(&col_names).from(TABLE_NAME);
-        df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?
+        df_db::select(&conn, &select, Some(opts))?
     };
 
     Ok(df)
