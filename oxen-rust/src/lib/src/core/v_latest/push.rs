@@ -304,7 +304,7 @@ pub async fn push_entries(
     // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
     let smaller_entries: Vec<Entry> = entries
         .iter()
-        .filter(|e| e.num_bytes() < AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() <= AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
