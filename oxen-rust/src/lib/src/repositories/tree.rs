@@ -898,13 +898,17 @@ pub fn unpack_nodes(
     buffer: &[u8],
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let mut hashes: HashSet<MerkleHash> = HashSet::new();
-    let mut archive = Archive::new(GzDecoder::new(buffer));
+    log::debug!("Unpacking nodes from buffer...");
+    let decoder = GzDecoder::new(buffer);
+    log::debug!("Decoder created");
+    let mut archive = Archive::new(decoder);
+    log::debug!("Archive created");
     let Ok(entries) = archive.entries() else {
         return Err(OxenError::basic_str(
             "Could not unpack tree database from archive",
         ));
     };
-
+    log::debug!("Extracting entries...");
     for file in entries {
         let Ok(mut file) = file else {
             log::error!("Could not unpack file in archive...");
