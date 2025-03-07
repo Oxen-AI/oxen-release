@@ -57,8 +57,11 @@ pub async fn create_nodes(
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Compress the node
+    log::debug!("create_nodes starting compression");
     let enc = GzEncoder::new(Vec::new(), Compression::default());
+    log::debug!("create_nodes compressing nodes");
     let mut tar = tar::Builder::new(enc);
+    log::debug!("create_nodes creating tar");
     let mut children_count = 0;
     for (i, node) in nodes.iter().enumerate() {
         let node_dir = node_db_path(local_repo, &node.hash);
@@ -80,13 +83,15 @@ pub async fn create_nodes(
             children_count
         ));
 
+        log::debug!("create_nodes appending dir to tar");
         tar.append_dir_all(sub_dir, node_dir)?;
         children_count += node.children.len();
+        log::debug!("create_nodes appended dir to tar {}", children_count);
     }
     log::debug!("create_nodes packed {} nodes", children_count);
 
     tar.finish()?;
-
+    log::debug!("create_nodes finished tar");
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
 
     // Upload the node
