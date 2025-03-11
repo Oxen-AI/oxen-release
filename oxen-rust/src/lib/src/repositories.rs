@@ -43,6 +43,7 @@ pub mod restore;
 pub mod revisions;
 pub mod rm;
 pub mod save;
+pub mod size;
 pub mod stats;
 pub mod status;
 pub mod tree;
