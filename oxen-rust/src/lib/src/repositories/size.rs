@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::{error::OxenError, model::LocalRepository, util};
 use std::path::PathBuf;
@@ -11,12 +12,12 @@ pub enum SizeStatus {
     Error,
 }
 
-impl ToString for SizeStatus {
-    fn to_string(&self) -> String {
+impl fmt::Display for SizeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SizeStatus::Pending => "pending".to_string(),
-            SizeStatus::Done => "done".to_string(),
-            SizeStatus::Error => "error".to_string(),
+            SizeStatus::Pending => write!(f, "pending"),
+            SizeStatus::Done => write!(f, "done"),
+            SizeStatus::Error => write!(f, "error"),
         }
     }
 }
@@ -27,9 +28,12 @@ pub struct RepoSizeFile {
     pub size: u64,
 }
 
-impl ToString for RepoSizeFile {
-    fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
+impl fmt::Display for RepoSizeFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match serde_json::to_string(self) {
+            Ok(s) => write!(f, "{}", s),
+            Err(_) => write!(f, ""),
+        }
     }
 }
 
@@ -38,14 +42,14 @@ pub fn update_size(repo: &LocalRepository) -> Result<(), OxenError> {
     let size = match util::fs::read_from_path(&path) {
         Ok(content) => match serde_json::from_str::<RepoSizeFile>(&content) {
             Ok(parsed) => {
-                let new_file = RepoSizeFile {
+                
+                RepoSizeFile {
                     status: SizeStatus::Pending,
                     size: parsed.size,
-                };
-                new_file
+                }
             }
             Err(e) => {
-                return Err(OxenError::basic_str(&format!(
+                return Err(OxenError::basic_str(format!(
                     "Failed to parse size file: {}",
                     e
                 )));
@@ -53,11 +57,11 @@ pub fn update_size(repo: &LocalRepository) -> Result<(), OxenError> {
         },
         Err(e) => {
             log::info!("Size file not found, creating it: {}", e);
-            let new_file = RepoSizeFile {
+            
+            RepoSizeFile {
                 status: SizeStatus::Pending,
                 size: 0,
-            };
-            new_file
+            }
         }
     };
 
