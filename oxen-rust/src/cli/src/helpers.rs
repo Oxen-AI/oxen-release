@@ -66,10 +66,8 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
                 ).into()));
             }
         }
-        Err(_) => {
-            return Err(OxenError::basic_str(
-                "Error: unable to verify remote version",
-            ));
+        Err(err) => {
+            return Err(err);
         }
     }
     Ok(())

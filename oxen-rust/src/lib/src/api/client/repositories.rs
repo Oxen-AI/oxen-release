@@ -114,6 +114,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
         Ok(res) => {
+            log::debug!("get_by_remote status: {}", res.status());
             if 404 == res.status() {
                 return Ok(None);
             }
