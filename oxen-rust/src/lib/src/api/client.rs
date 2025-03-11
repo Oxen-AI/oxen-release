@@ -77,7 +77,7 @@ fn builder_for_host<S: AsRef<str>>(
         Err(err) => {
             log::debug!("remote::client::new_for_host error getting config: {}", err);
 
-            return Ok(builder);
+            return Err(OxenError::must_supply_valid_api_key());
         }
     };
     if let Some(auth_token) = config.auth_token_for_host(host.as_ref()) {
