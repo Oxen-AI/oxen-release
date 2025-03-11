@@ -136,6 +136,27 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     }
 }
 
+pub async fn update_size(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+
+    let repository = get_repo(&app_data.path, &namespace, &name)?;
+    repositories::size::update_size(&repository)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
+}
+
+pub async fn get_size(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+
+    let repository = get_repo(&app_data.path, &namespace, &name)?;
+    let size = repositories::size::get_size(&repository)?;
+    Ok(HttpResponse::Ok().json(size))
+}
+
 pub async fn create(
     req: HttpRequest,
     mut payload: web::Payload,

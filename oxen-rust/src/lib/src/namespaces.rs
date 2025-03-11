@@ -1,10 +1,8 @@
-use fs_extra::dir::get_size;
 use rayon::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::constants::{CACHE_DIR, HISTORY_DIR};
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, Namespace};
+use crate::model::{LocalRepository, Namespace};
 use crate::repositories;
 use crate::util;
 
@@ -54,67 +52,32 @@ pub fn get(data_dir: &Path, name: &str) -> Result<Option<Namespace>, OxenError> 
 }
 
 fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
-    let latest_commit = match repositories::commits::latest_commit(repo) {
-        Ok(commit) => commit,
+    log::debug!(
+        "repositories::namespaces::get_storage_for_repo for repo {:?}",
+        repo.path
+    );
+
+    match repositories::size::get_size(repo) {
+        Ok(size_file) => match size_file.status {
+            repositories::size::SizeStatus::Done => {
+                log::debug!("Got repo size: {} bytes", size_file.size);
+                Ok(size_file.size)
+            }
+            repositories::size::SizeStatus::Pending => {
+                log::info!("Size calculation is still pending, returning previous size");
+                Ok(size_file.size)
+            }
+            repositories::size::SizeStatus::Error => {
+                log::warn!("Size calculation failed, returning 0");
+                Err(OxenError::basic_str("Size calculation failed"))
+            }
+        },
         Err(e) => {
-            log::warn!(
-                "repositories::namespaces::get_storage_for_repo no latest commit for repo {:?}: {}",
-                repo.path,
+            log::error!(
+                "repositories::namespaces::get_storage_for_repo error getting size: {}",
                 e
             );
-            return Ok(0);
-        }
-    };
-
-    let cache_path = repo_size_path(repo, &latest_commit);
-    log::debug!(
-        "repositories::namespaces::get_storage_for_repo cache path {:?}",
-        cache_path
-    );
-    match util::fs::read_from_path(&cache_path) {
-        Ok(size) => {
-            log::debug!(
-                "repositories::namespaces::get_storage_for_repo got repo size {:?}",
-                cache_path
-            );
-            match size.parse::<u64>() {
-                Ok(size) => Ok(size),
-                Err(e) => {
-                    log::error!(
-                        "repositories::namespaces::get_storage_for_repo error parsing size: {}",
-                        e
-                    );
-                    Err(OxenError::basic_str(e.to_string()))
-                }
-            }
-        }
-        Err(_) => {
-            log::warn!("repositories::namespaces::get_storage_for_repo cache file not found, calculating size");
-            // It can be expensive to get the size of the repo, so we cache it per commit
-            match get_size(&repo.path) {
-                Ok(size) => {
-                    // Create the cache dir if it doesn't exist
-                    let cache_dir = cache_path.parent().unwrap();
-                    std::fs::create_dir_all(cache_dir)?;
-                    util::fs::write_to_path(&cache_path, size.to_string())?;
-                    Ok(size)
-                }
-                Err(e) => {
-                    log::error!(
-                        "repositories::namespaces::get_storage_for_repo error getting size: {}",
-                        e
-                    );
-                    Err(OxenError::basic_str(e.to_string()))
-                }
-            }
+            Err(e)
         }
     }
-}
-
-pub fn repo_size_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
-    util::fs::oxen_hidden_dir(&repo.path)
-        .join(HISTORY_DIR)
-        .join(&commit.id)
-        .join(CACHE_DIR)
-        .join("repo_size.txt")
 }
