@@ -41,13 +41,10 @@ pub fn update_size(repo: &LocalRepository) -> Result<(), OxenError> {
     let path = repo_size_path(repo);
     let size = match util::fs::read_from_path(&path) {
         Ok(content) => match serde_json::from_str::<RepoSizeFile>(&content) {
-            Ok(parsed) => {
-                
-                RepoSizeFile {
-                    status: SizeStatus::Pending,
-                    size: parsed.size,
-                }
-            }
+            Ok(parsed) => RepoSizeFile {
+                status: SizeStatus::Pending,
+                size: parsed.size,
+            },
             Err(e) => {
                 return Err(OxenError::basic_str(format!(
                     "Failed to parse size file: {}",
@@ -57,7 +54,7 @@ pub fn update_size(repo: &LocalRepository) -> Result<(), OxenError> {
         },
         Err(e) => {
             log::info!("Size file not found, creating it: {}", e);
-            
+
             RepoSizeFile {
                 status: SizeStatus::Pending,
                 size: 0,
