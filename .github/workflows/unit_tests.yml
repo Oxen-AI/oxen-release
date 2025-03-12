@@ -77,6 +77,12 @@ jobs:
         fileName: "oxen.exe"
         out-file-path: "."
 
+    - name: Run Tests
+      run: |
+        ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
+        ./oxen-server.exe start &
+        pytest -s tests
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
