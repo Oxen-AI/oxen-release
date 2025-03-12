@@ -2,6 +2,7 @@ import os
 import fsspec
 import pandas as pd
 
+from pathlib import PurePath
 from oxen import RemoteRepo
 
 
@@ -17,10 +18,13 @@ def test_fsspec_read_file(
     fs = fsspec.filesystem(
         "oxen", namespace=namespace, repo=repo_name, host=host, scheme=scheme
     )
-    with fs.open("images/1.jpg", mode="rb") as f:
+
+    image = str(PurePath("images", "1.jpg"))
+    with fs.open(image, mode="rb") as f:
         remote_image_file = f.read()
 
-    with open(os.path.join(shared_datadir, "CelebA/images/1.jpg"), "rb") as f:
+    celeb_path = str(PurePath("CelebA", "images", "1.jpg"))
+    with open(os.path.join(shared_datadir, celeb_path), "rb") as f:
         assert remote_image_file == f.read()
 
 
