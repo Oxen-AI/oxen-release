@@ -3,6 +3,7 @@
 
 use crate::config::AuthConfig;
 use crate::error::OxenError;
+use crate::model::RemoteRepository;
 use crate::view::http;
 use crate::view::OxenResponse;
 
@@ -55,6 +56,11 @@ fn new_for_host<S: AsRef<str>>(host: S, should_add_user_agent: bool) -> Result<C
         Ok(client) => Ok(client),
         Err(reqwest_err) => Err(OxenError::HTTP(reqwest_err)),
     }
+}
+
+pub fn builder_for_remote_repo(remote_repo: &RemoteRepository) -> Result<ClientBuilder, OxenError> {
+    let host = get_host_from_url(remote_repo.url())?;
+    builder_for_host(host, true)
 }
 
 pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {

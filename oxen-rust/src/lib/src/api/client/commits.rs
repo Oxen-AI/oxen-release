@@ -29,6 +29,7 @@ use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
+use http::header::CONTENT_LENGTH;
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct ChunkParams {
@@ -954,6 +955,104 @@ pub async fn upload_data_chunk_to_server_with_retry(
     )))
 }
 
+pub async fn upload_data_chunk_to_server_with_client_with_retry(
+    client: &reqwest::Client,
+    remote_repo: &RemoteRepository,
+    chunk: &[u8],
+    hash: &str,
+    params: &ChunkParams,
+    is_compressed: bool,
+    filename: &Option<String>,
+) -> Result<(), OxenError> {
+    let mut total_tries = 0;
+    let mut last_error = String::from("");
+    while total_tries < constants::NUM_HTTP_RETRIES {
+        match upload_data_chunk_to_server_with_client(
+            client,
+            remote_repo,
+            chunk,
+            hash,
+            params,
+            is_compressed,
+            filename,
+        )
+        .await
+        {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                total_tries += 1;
+                // Exponentially back off
+                let sleep_time = total_tries * total_tries;
+                log::debug!(
+                    "upload_data_chunk_to_server_with_client_with_retry upload failed sleeping {}: {}",
+                    sleep_time,
+                    err
+                );
+                last_error = format!("{}", err);
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
+            }
+        }
+    }
+
+    Err(OxenError::basic_str(format!(
+        "Upload chunk retry failed. {}",
+        last_error
+    )))
+}
+
+async fn upload_data_chunk_to_server_with_client(
+    client: &reqwest::Client,
+    remote_repo: &RemoteRepository,
+    chunk: &[u8],
+    hash: &str,
+    params: &ChunkParams,
+    is_compressed: bool,
+    filename: &Option<String>,
+) -> Result<StatusMessage, OxenError> {
+    let maybe_filename = if !is_compressed {
+        format!(
+            "&filename={}",
+            urlencoding::encode(
+                filename
+                    .as_ref()
+                    .expect("Must provide filename if !compressed")
+            )
+        )
+    } else {
+        String::from("")
+    };
+
+    let uri = format!(
+        "/commits/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
+        params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let total_size = chunk.len() as u64;
+    log::debug!(
+        "upload_data_chunk_to_server posting {} to url {}",
+        ByteSize::b(total_size),
+        url
+    );
+
+    let res = client
+        .post(&url)
+        .header(CONTENT_LENGTH, total_size.to_string())
+        .body(chunk.to_owned())
+        .send()
+        .await?;
+    let body = client::parse_json_body(&url, res).await?;
+
+    log::debug!("upload_data_chunk_to_server got response {}", body);
+    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "upload_data_chunk_to_server Err deserializing: {err}"
+        ))),
+    }
+}
+
 async fn upload_data_chunk_to_server(
     remote_repo: &RemoteRepository,
     chunk: &[u8],
@@ -990,23 +1089,16 @@ async fn upload_data_chunk_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(&url).body(chunk.to_owned()).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
+    let res = client.post(&url).body(chunk.to_owned()).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
 
-            log::debug!("upload_data_chunk_to_server got response {}", body);
-            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-            match response {
-                Ok(response) => Ok(response),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "upload_data_chunk_to_server Err deserializing: {err}"
-                ))),
-            }
-        }
-        Err(e) => {
-            let err_str = format!("Err upload_data_chunk_to_server: {e:?}");
-            Err(OxenError::basic_str(err_str))
-        }
+    log::debug!("upload_data_chunk_to_server got response {}", body);
+    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "upload_data_chunk_to_server Err deserializing: {err}"
+        ))),
     }
 }
 
