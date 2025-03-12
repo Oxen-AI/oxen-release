@@ -75,7 +75,7 @@ jobs:
         repository: "Oxen-AI/Oxen"
         latest: true
         fileName: "oxen.exe"
-        out-file-path: "."
+        out-file-path: "./oxen"
 
     - name: Run Tests
       run: |
