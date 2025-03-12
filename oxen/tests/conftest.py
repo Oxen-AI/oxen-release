@@ -3,6 +3,7 @@ import logging
 
 import uuid
 import os
+from pathlib import PurePath
 
 from oxen import Repo, RemoteRepo
 
@@ -152,6 +153,7 @@ def house_prices_local_repo_fully_committed(house_prices_local_repo_no_commits):
 
 @pytest.fixture
 def empty_remote_repo():
+
     repo_name = f"py-ox/test_repo_{str(uuid.uuid4())}"
     repo = RemoteRepo(repo_name, host=TEST_HOST, scheme=TEST_SCHEME)
     repo.create(empty=True)
@@ -163,7 +165,7 @@ def empty_remote_repo():
 def celeba_local_repo_one_image_committed(celeba_local_repo_no_commits):
     repo = celeba_local_repo_no_commits
 
-    image_file = "images/1.jpg"
+    image_file = str(PurePath("images", "1.jpg"))
     full_path = os.path.join(repo.path, image_file)
     repo.add(full_path)
     repo.commit("Adding first image")
