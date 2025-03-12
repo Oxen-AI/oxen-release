@@ -2,8 +2,6 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
 
@@ -29,6 +27,10 @@ jobs:
           {
             name: "cp312-cp312",
             version: "3.12"
+          },
+          {
+            name: "cp313-cp313",
+            version: "3.13"
           },
         ]
         rust: [stable]
