@@ -1,6 +1,7 @@
 import os
 import pytest
 from oxen import RemoteRepo, Workspace
+from pathlib import PurePath
 
 
 def test_commit_one_file(
@@ -9,7 +10,8 @@ def test_commit_one_file(
     _, remote_repo = celeba_remote_repo_one_image_pushed
     # 1 commit pushed in setup
     assert len(remote_repo.log()) == 1
-    full_path = os.path.join(shared_datadir, "CelebA/images/1.jpg")
+    images_path = str(PurePath("CelebA", "images", "1.jpg"))
+    full_path = os.path.join(shared_datadir, images_path)
     workspace = Workspace(remote_repo, "main")
     workspace.add(full_path)
     workspace.commit("a commit message!")

@@ -1,5 +1,5 @@
 import os
-
+from pathlib import PurePath
 
 def test_remote_repo_exists(empty_remote_repo):
     exists = True
@@ -8,7 +8,8 @@ def test_remote_repo_exists(empty_remote_repo):
 
 def test_remote_repo_add(celeba_remote_repo_one_image_pushed, shared_datadir):
     _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
-    full_path = os.path.join(shared_datadir, "ChatBot/examples.tsv")
+    examples_path = str(PurePath("ChatBot", "examples.tsv"))
+    full_path = os.path.join(shared_datadir, examples_path)
     remote_repo.add(full_path)
     status = remote_repo.status()
     added_files = status.added_files()
