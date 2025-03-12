@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tokio::time::Duration;
 
 use crate::api::client::commits::ChunkParams;
+use crate::constants::AVG_CHUNK_SIZE;
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::constants::{self, AVG_CHUNK_SIZE};
 use crate::core::progress::push_progress::PushProgress;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
@@ -446,6 +446,12 @@ async fn upload_large_file_chunks(
     let mut total_bytes_read = 0;
     let mut chunk_size = chunk_size;
 
+    // Create a client for uploading chunks
+    let client = api::client::builder_for_remote_repo(&remote_repo)
+        .unwrap()
+        .build()
+        .unwrap();
+
     // Create queues for sending data to workers
     type PieceOfWork = (
         Vec<u8>,
@@ -453,6 +459,7 @@ async fn upload_large_file_chunks(
         usize, // chunk num
         usize, // total chunks
         u64,   // total size
+        reqwest::Client,
         RemoteRepository,
         String, // entry hash
         Commit,
@@ -462,13 +469,13 @@ async fn upload_large_file_chunks(
     // In order to upload chunks in parallel
     // We should only read N chunks at a time so that
     // the whole file does not get read into memory
-    let sub_chunk_size = constants::DEFAULT_NUM_WORKERS;
+    let sub_chunk_size = concurrency::num_threads_for_items(total_chunks);
 
     let mut total_chunk_idx = 0;
     let mut processed_chunk_idx = 0;
     let num_sub_chunks = (total_chunks / sub_chunk_size) + 1;
     log::debug!(
-        "upload_large_file_chunks {:?} proccessing file in {} subchunks of size {} from total {} chunk size {} file size {}",
+        "upload_large_file_chunks {:?} processing file in {} subchunks of size {} from total {} chunk size {} file size {}",
         entry.path(),
         num_sub_chunks,
         sub_chunk_size,
@@ -530,6 +537,7 @@ async fn upload_large_file_chunks(
                 processed_chunk_idx, // Needs to be the overall chunk num
                 total_chunks,
                 total_bytes,
+                client.clone(),
                 remote_repo.to_owned(),
                 entry.hash().to_owned(),
                 commit.to_owned(),
@@ -548,6 +556,7 @@ async fn upload_large_file_chunks(
                     chunk_num,
                     total_chunks,
                     total_size,
+                    client,
                     remote_repo,
                     entry_hash,
                     _commit,
@@ -568,7 +577,8 @@ async fn upload_large_file_chunks(
                 };
 
                 let is_compressed = false;
-                match api::client::commits::upload_data_chunk_to_server_with_retry(
+                match api::client::commits::upload_data_chunk_to_server_with_client_with_retry(
+                    &client,
                     &remote_repo,
                     &buffer,
                     &entry_hash,
