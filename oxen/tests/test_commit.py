@@ -1,11 +1,12 @@
 import os
+from pathlib import PurePath
 
 
 def test_commit_one_file(celeba_local_repo_no_commits):
     repo = celeba_local_repo_no_commits
 
     # oxen add
-    image_file = "images/1.jpg"
+    image_file = str(PurePath("images", "1.jpg"))
     full_path = os.path.join(repo.path, image_file)
     repo.add(full_path)
 
