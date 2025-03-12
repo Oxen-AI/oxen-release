@@ -68,7 +68,7 @@ jobs:
         repository: "Oxen-AI/Oxen"
         latest: true
         fileName: "oxen-server.exe"
-        out-file-path: "."
+        out-file-path: "./oxen"
     
     - uses: robinraju/release-downloader@v1.8
       with:
@@ -76,13 +76,6 @@ jobs:
         latest: true
         fileName: "oxen.exe"
         out-file-path: "./oxen"
-
-    - name: Run Tests
-      run: |
-        ls
-        ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
-        ./oxen-server.exe start &
-        pytest -s tests
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -97,8 +90,8 @@ jobs:
 
     - name: Run Tests
       run: |
-        oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
-        oxen-server start &
+        ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
+        ./oxen-server.exe start &
         pytest -s tests
 
 
