@@ -41,7 +41,7 @@ impl VersionStore for S3VersionStore {
     fn store_version_from_reader(
         &self,
         _hash: &str,
-        _reader: Box<dyn Read>,
+        _reader: &mut dyn Read,
     ) -> Result<(), OxenError> {
         // TODO: Implement S3 version storage from reader
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))

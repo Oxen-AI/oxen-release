@@ -3,6 +3,7 @@ use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::util;
 
@@ -30,7 +31,10 @@ impl LocalVersionStore {
     fn version_path(&self, hash: &str) -> PathBuf {
         let topdir = &hash[..2];
         let subdir = &hash[2..];
-        self.root_path.join(topdir).join(subdir).join("data")
+        self.root_path
+            .join(topdir)
+            .join(subdir)
+            .join(VERSION_FILE_NAME)
     }
 
     /// Get the directory containing a version file
@@ -59,14 +63,14 @@ impl VersionStore for LocalVersionStore {
     fn store_version_from_reader(
         &self,
         hash: &str,
-        mut reader: Box<dyn Read>,
+        reader: &mut dyn Read,
     ) -> Result<(), OxenError> {
         let version_dir = self.version_dir(hash);
         util::fs::create_dir_all(&version_dir)?;
 
         let version_path = self.version_path(hash);
         let mut file = File::create(&version_path)?;
-        io::copy(&mut *reader, &mut file)?;
+        io::copy(reader, &mut file)?;
 
         Ok(())
     }
@@ -197,12 +201,10 @@ mod tests {
         let data = b"test data from reader";
 
         // Create a cursor with the test data
-        let cursor = Cursor::new(data.to_vec());
+        let mut cursor = Cursor::new(data.to_vec());
 
         // Store using the reader
-        store
-            .store_version_from_reader(hash, Box::new(cursor))
-            .unwrap();
+        store.store_version_from_reader(hash, &mut cursor).unwrap();
 
         // Verify the file exists
         let version_path = store.version_path(hash);
