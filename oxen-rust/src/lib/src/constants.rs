@@ -173,10 +173,10 @@ pub const EVAL_ERROR_COL: &str = "_oxen_eval_error";
 pub const EVAL_DURATION_COL: &str = "_oxen_eval_duration";
 
 // Data transfer
-// Average chunk size of ~4mb
-/// Average chunk size of ~4mb when chunking and sending data
+// Average chunk size of ~10mb
+/// Average chunk size of ~10mb when chunking and sending data
 // pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
-pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
+pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 10;
 // Retry and back off of requests N times
 /// Retry and back off of requests N times
 #[cfg(test)]
@@ -185,7 +185,8 @@ pub const NUM_HTTP_RETRIES: u64 = 1;
 pub const NUM_HTTP_RETRIES: u64 = 10;
 /// Number of workers
 pub const DEFAULT_NUM_WORKERS: usize = 8;
-
+/// Default timeout for HTTP requests
+pub const DEFAULT_TIMEOUT_SECS: u64 = 120;
 /// Default vnode size
 pub const DEFAULT_VNODE_SIZE: u64 = 10_000;
 
