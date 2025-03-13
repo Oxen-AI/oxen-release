@@ -39,8 +39,8 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     ///
     /// # Arguments
     /// * `hash` - The content hash that identifies this version
-    /// * `reader` - Any type that implements Read trait, boxed for object safety
-    fn store_version_from_reader(&self, hash: &str, reader: Box<dyn Read>)
+    /// * `reader` - Any type that implements Read trait
+    fn store_version_from_reader(&self, hash: &str, reader: &mut dyn Read)
         -> Result<(), OxenError>;
 
     /// Store a version file from bytes (less efficient for large files)
