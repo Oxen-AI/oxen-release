@@ -1,9 +1,10 @@
 use crate::error::OxenError;
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::Path;
 
 use super::version_store::VersionStore;
+use crate::storage::version_store::ReadSeek;
 
 /// S3 implementation of version storage
 #[derive(Debug)]
@@ -52,7 +53,7 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    fn open_version(&self, _hash: &str) -> Result<Box<dyn Read>, OxenError> {
+    fn open_version(&self, _hash: &str) -> Result<Box<dyn ReadSeek>, OxenError> {
         // TODO: Implement S3 version opening
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
