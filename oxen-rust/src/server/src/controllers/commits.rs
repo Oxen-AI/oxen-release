@@ -572,7 +572,7 @@ fn check_if_upload_complete_and_unpack(
         // TODO: Cleanup these if / else / match statements
         // Combine into actual file data
         if is_compressed {
-            match unpack_compressed_data(&files, &repo) {
+            match unpack_compressed_data(&files, repo) {
                 Ok(_) => {
                     log::debug!(
                         "check_if_upload_complete_and_unpack unpacked {} files successfully",
@@ -589,7 +589,7 @@ fn check_if_upload_complete_and_unpack(
         } else {
             match filename {
                 Some(filename) => {
-                    match unpack_to_file(&files, &repo, &filename) {
+                    match unpack_to_file(&files, repo, &filename) {
                         Ok(_) => {
                             log::debug!("check_if_upload_complete_and_unpack unpacked {} files successfully", files.len());
                         }
