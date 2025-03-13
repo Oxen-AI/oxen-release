@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use std::collections::HashMap;
-use std::io::{Read, Seek};
+use std::io::Read;
 use std::path::Path;
 
 use super::version_store::VersionStore;

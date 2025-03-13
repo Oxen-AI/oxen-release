@@ -237,14 +237,10 @@ impl LocalRepository {
         let config_path = util::fs::config_filepath(&self.path);
 
         // Determine the current storage type and settings using the trait methods
-        let storage = if let Some(store) = &self.version_store {
-            Some(StorageConfig {
-                type_: store.storage_type().to_string(),
-                settings: store.storage_settings(),
-            })
-        } else {
-            None
-        };
+        let storage = self.version_store.as_ref().map(|store| StorageConfig {
+            type_: store.storage_type().to_string(),
+            settings: store.storage_settings(),
+        });
 
         let config = RepositoryConfig {
             remote_name: self.remote_name.clone(),

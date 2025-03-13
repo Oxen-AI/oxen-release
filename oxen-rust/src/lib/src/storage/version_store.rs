@@ -121,7 +121,7 @@ pub fn create_version_store(
                 let prefix = config
                     .settings
                     .get("prefix")
-                    .map(|s| s.clone())
+                    .cloned()
                     .unwrap_or_else(|| String::from("versions"));
                 let store = S3VersionStore::new(bucket, prefix);
                 store.init()?;
