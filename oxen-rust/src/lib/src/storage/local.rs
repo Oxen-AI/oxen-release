@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
+use crate::storage::version_store::ReadSeek;
 use crate::util;
 
 use super::version_store::VersionStore;
@@ -86,7 +87,7 @@ impl VersionStore for LocalVersionStore {
         Ok(())
     }
 
-    fn open_version(&self, hash: &str) -> Result<Box<dyn Read>, OxenError> {
+    fn open_version(&self, hash: &str) -> Result<Box<dyn ReadSeek>, OxenError> {
         let path = self.version_path(hash);
         let file = File::open(&path)?;
         Ok(Box::new(file))

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::panic::RefUnwindSafe;
 use std::path::Path;
 use std::sync::Arc;
@@ -22,6 +22,12 @@ pub struct StorageConfig {
     #[serde(default)]
     pub settings: HashMap<String, String>,
 }
+
+/// Trait for types that implement Read and Seek
+pub trait ReadSeek: Read + Seek {}
+
+/// Implement ReadSeek for any type that implements both Read and Seek
+impl<T: Read + Seek> ReadSeek for T {}
 
 /// Trait defining operations for version file storage backends
 pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
@@ -54,7 +60,7 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     ///
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
-    fn open_version(&self, hash: &str) -> Result<Box<dyn Read>, OxenError>;
+    fn open_version(&self, hash: &str) -> Result<Box<dyn ReadSeek>, OxenError>;
 
     /// Retrieve a version file's contents as bytes (less efficient for large files)
     ///
