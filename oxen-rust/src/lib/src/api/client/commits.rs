@@ -21,7 +21,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
-use std::time;
 
 use async_compression::futures::bufread::GzipDecoder;
 use async_tar::Archive;
@@ -677,7 +676,16 @@ pub async fn post_tree_objects_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
+    let client = client::new_for_remote_repo(remote_repo)?;
+    post_data_to_server_with_client(
+        &client,
+        remote_repo,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await
 }
 
 pub async fn post_commit_dir_hashes_to_server(
@@ -715,7 +723,16 @@ pub async fn post_commit_dir_hashes_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
+    let client = client::new_for_remote_repo(remote_repo)?;
+    post_data_to_server_with_client(
+        &client,
+        remote_repo,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await
 }
 
 pub async fn post_commits_dir_hashes_to_server(
@@ -755,7 +772,16 @@ pub async fn post_commits_dir_hashes_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    post_data_to_server(remote_repo, buffer, is_compressed, &filename, quiet_bar).await
+    let client = client::new_for_remote_repo(remote_repo)?;
+    post_data_to_server_with_client(
+        &client,
+        remote_repo,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await
 }
 
 pub async fn bulk_create_commit_obj_on_server(
@@ -783,7 +809,8 @@ pub async fn bulk_create_commit_obj_on_server(
     }
 }
 
-pub async fn post_data_to_server(
+pub async fn post_data_to_server_with_client(
+    client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     buffer: Vec<u8>,
     is_compressed: bool,
@@ -793,15 +820,24 @@ pub async fn post_data_to_server(
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
 
     if buffer.len() > chunk_size {
-        upload_data_to_server_in_chunks(remote_repo, &buffer, chunk_size, is_compressed, filename)
-            .await?;
+        upload_data_to_server_in_chunks_with_client(
+            client,
+            remote_repo,
+            &buffer,
+            chunk_size,
+            is_compressed,
+            filename,
+        )
+        .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(remote_repo, &buffer, bar).await?;
+        upload_single_tarball_to_server_with_client_with_retry(client, remote_repo, &buffer, bar)
+            .await?;
     }
     Ok(())
 }
 
-pub async fn upload_single_tarball_to_server_with_retry(
+pub async fn upload_single_tarball_to_server_with_client_with_retry(
+    client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     buffer: &[u8],
     bar: Arc<ProgressBar>,
@@ -809,7 +845,14 @@ pub async fn upload_single_tarball_to_server_with_retry(
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(remote_repo, buffer, bar.to_owned()).await {
+        match upload_single_tarball_to_server_with_client(
+            client,
+            remote_repo,
+            buffer,
+            bar.to_owned(),
+        )
+        .await
+        {
             Ok(_) => {
                 return Ok(());
             }
@@ -830,41 +873,32 @@ pub async fn upload_single_tarball_to_server_with_retry(
     Err(OxenError::basic_str("Upload retry failed."))
 }
 
-async fn upload_single_tarball_to_server(
+async fn upload_single_tarball_to_server_with_client(
+    client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     buffer: &[u8],
     bar: Arc<ProgressBar>,
 ) -> Result<StatusMessage, OxenError> {
     let uri = "/commits/upload".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = client::builder_for_url(&url)?
-        .timeout(time::Duration::from_secs(120))
-        .build()?;
-
     let size = buffer.len() as u64;
-    match client.post(&url).body(buffer.to_owned()).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
+    let res = client.post(&url).body(buffer.to_owned()).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
 
-            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-            match response {
-                Ok(response) => {
-                    bar.inc(size);
-                    Ok(response)
-                }
-                Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_single_tarball_to_server Err deserializing \n\n{body}"
-                ))),
-            }
+    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => {
+            bar.inc(size);
+            Ok(response)
         }
-        Err(e) => {
-            let err_str = format!("Err upload_single_tarball_to_server: {e:?}");
-            Err(OxenError::basic_str(err_str))
-        }
+        Err(_) => Err(OxenError::basic_str(format!(
+            "upload_single_tarball_to_server Err deserializing \n\n{body}"
+        ))),
     }
 }
 
-async fn upload_data_to_server_in_chunks(
+async fn upload_data_to_server_in_chunks_with_client(
+    client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     buffer: &[u8],
     chunk_size: usize,
@@ -897,6 +931,7 @@ async fn upload_data_to_server_in_chunks(
             total_size,
         };
         match upload_data_chunk_to_server_with_retry(
+            client,
             remote_repo,
             chunk,
             &hash,
@@ -918,6 +953,7 @@ async fn upload_data_to_server_in_chunks(
 }
 
 pub async fn upload_data_chunk_to_server_with_retry(
+    client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     chunk: &[u8],
     hash: &str,
@@ -928,8 +964,16 @@ pub async fn upload_data_chunk_to_server_with_retry(
     let mut total_tries = 0;
     let mut last_error = String::from("");
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_data_chunk_to_server(remote_repo, chunk, hash, params, is_compressed, filename)
-            .await
+        match upload_data_chunk_to_server(
+            client,
+            remote_repo,
+            chunk,
+            hash,
+            params,
+            is_compressed,
+            filename,
+        )
+        .await
         {
             Ok(_) => {
                 return Ok(());
@@ -955,54 +999,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     )))
 }
 
-pub async fn upload_data_chunk_to_server_with_client_with_retry(
-    client: &reqwest::Client,
-    remote_repo: &RemoteRepository,
-    chunk: &[u8],
-    hash: &str,
-    params: &ChunkParams,
-    is_compressed: bool,
-    filename: &Option<String>,
-) -> Result<(), OxenError> {
-    let mut total_tries = 0;
-    let mut last_error = String::from("");
-    while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_data_chunk_to_server_with_client(
-            client,
-            remote_repo,
-            chunk,
-            hash,
-            params,
-            is_compressed,
-            filename,
-        )
-        .await
-        {
-            Ok(_) => {
-                return Ok(());
-            }
-            Err(err) => {
-                total_tries += 1;
-                // Exponentially back off
-                let sleep_time = total_tries * total_tries;
-                log::debug!(
-                    "upload_data_chunk_to_server_with_client_with_retry upload failed sleeping {}: {}",
-                    sleep_time,
-                    err
-                );
-                last_error = format!("{}", err);
-                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
-            }
-        }
-    }
-
-    Err(OxenError::basic_str(format!(
-        "Upload chunk retry failed. {}",
-        last_error
-    )))
-}
-
-async fn upload_data_chunk_to_server_with_client(
+async fn upload_data_chunk_to_server(
     client: &reqwest::Client,
     remote_repo: &RemoteRepository,
     chunk: &[u8],
@@ -1041,55 +1038,6 @@ async fn upload_data_chunk_to_server_with_client(
         .body(chunk.to_owned())
         .send()
         .await?;
-    let body = client::parse_json_body(&url, res).await?;
-
-    log::debug!("upload_data_chunk_to_server got response {}", body);
-    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
-    match response {
-        Ok(response) => Ok(response),
-        Err(err) => Err(OxenError::basic_str(format!(
-            "upload_data_chunk_to_server Err deserializing: {err}"
-        ))),
-    }
-}
-
-async fn upload_data_chunk_to_server(
-    remote_repo: &RemoteRepository,
-    chunk: &[u8],
-    hash: &str,
-    params: &ChunkParams,
-    is_compressed: bool,
-    filename: &Option<String>,
-) -> Result<StatusMessage, OxenError> {
-    let maybe_filename = if !is_compressed {
-        format!(
-            "&filename={}",
-            urlencoding::encode(
-                filename
-                    .as_ref()
-                    .expect("Must provide filename if !compressed")
-            )
-        )
-    } else {
-        String::from("")
-    };
-
-    let uri = format!(
-        "/commits/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let total_size = chunk.len() as u64;
-    log::debug!(
-        "upload_data_chunk_to_server posting {} to url {}",
-        ByteSize::b(total_size),
-        url
-    );
-
-    let client = client::builder_for_url(&url)?
-        .timeout(time::Duration::from_secs(120))
-        .build()?;
-
-    let res = client.post(&url).body(chunk.to_owned()).send().await?;
     let body = client::parse_json_body(&url, res).await?;
 
     log::debug!("upload_data_chunk_to_server got response {}", body);
