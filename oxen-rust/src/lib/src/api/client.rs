@@ -2,12 +2,14 @@
 //!
 
 use crate::config::AuthConfig;
+use crate::constants;
 use crate::error::OxenError;
+use crate::model::RemoteRepository;
 use crate::view::http;
 use crate::view::OxenResponse;
-
 pub use reqwest::Url;
 use reqwest::{header, Client, ClientBuilder, IntoUrl};
+use std::time;
 
 pub mod branches;
 pub mod commits;
@@ -51,10 +53,23 @@ pub fn new_for_url_no_user_agent<U: IntoUrl>(url: U) -> Result<Client, OxenError
 }
 
 fn new_for_host<S: AsRef<str>>(host: S, should_add_user_agent: bool) -> Result<Client, OxenError> {
-    match builder_for_host(host.as_ref(), should_add_user_agent)?.build() {
+    match builder_for_host(host.as_ref(), should_add_user_agent)?
+        .timeout(time::Duration::from_secs(constants::DEFAULT_TIMEOUT_SECS))
+        .build()
+    {
         Ok(client) => Ok(client),
         Err(reqwest_err) => Err(OxenError::HTTP(reqwest_err)),
     }
+}
+
+pub fn new_for_remote_repo(remote_repo: &RemoteRepository) -> Result<Client, OxenError> {
+    let host = get_host_from_url(remote_repo.url())?;
+    new_for_host(host, true)
+}
+
+pub fn builder_for_remote_repo(remote_repo: &RemoteRepository) -> Result<ClientBuilder, OxenError> {
+    let host = get_host_from_url(remote_repo.url())?;
+    builder_for_host(host, true)
 }
 
 pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
