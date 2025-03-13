@@ -447,10 +447,12 @@ async fn upload_large_file_chunks(
     let mut chunk_size = chunk_size;
 
     // Create a client for uploading chunks
-    let client = api::client::builder_for_remote_repo(&remote_repo)
-        .unwrap()
-        .build()
-        .unwrap();
+    let client = Arc::new(
+        api::client::builder_for_remote_repo(&remote_repo)
+            .unwrap()
+            .build()
+            .unwrap(),
+    );
 
     // Create queues for sending data to workers
     type PieceOfWork = (
@@ -459,7 +461,7 @@ async fn upload_large_file_chunks(
         usize, // chunk num
         usize, // total chunks
         u64,   // total size
-        reqwest::Client,
+        Arc<reqwest::Client>,
         RemoteRepository,
         String, // entry hash
         Commit,
@@ -577,7 +579,7 @@ async fn upload_large_file_chunks(
                 };
 
                 let is_compressed = false;
-                match api::client::commits::upload_data_chunk_to_server_with_client_with_retry(
+                match api::client::commits::upload_data_chunk_to_server_with_retry(
                     &client,
                     &remote_repo,
                     &buffer,
@@ -645,9 +647,18 @@ async fn bundle_and_send_small_entries(
         chunk_size = entries.len();
     }
 
+    // Create a client for uploading chunks
+    let client = Arc::new(api::client::builder_for_remote_repo(remote_repo)?.build()?);
+
     // Split into chunks, zip up, and post to server
     use tokio::time::sleep;
-    type PieceOfWork = (Vec<Entry>, LocalRepository, Commit, RemoteRepository);
+    type PieceOfWork = (
+        Vec<Entry>,
+        LocalRepository,
+        Commit,
+        RemoteRepository,
+        Arc<reqwest::Client>,
+    );
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -660,6 +671,7 @@ async fn bundle_and_send_small_entries(
                 local_repo.to_owned(),
                 commit.to_owned(),
                 remote_repo.to_owned(),
+                client.clone(),
             )
         })
         .collect();
@@ -680,7 +692,7 @@ async fn bundle_and_send_small_entries(
         let bar = Arc::clone(progress);
         tokio::spawn(async move {
             loop {
-                let (chunk, repo, _commit, remote_repo) = queue.pop().await;
+                let (chunk, repo, _commit, remote_repo, client) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -735,7 +747,8 @@ async fn bundle_and_send_small_entries(
                 // TODO: Refactor where the bars are being passed so we don't need silent here
                 let quiet_bar = Arc::new(ProgressBar::hidden());
 
-                match api::client::commits::post_data_to_server(
+                match api::client::commits::post_data_to_server_with_client(
+                    &client,
                     &remote_repo,
                     buffer,
                     is_compressed,
