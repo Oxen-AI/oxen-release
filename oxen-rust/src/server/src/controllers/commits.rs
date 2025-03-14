@@ -626,45 +626,6 @@ fn check_if_upload_complete_and_unpack(
     }
 }
 
-pub async fn upload_tree(
-    req: HttpRequest,
-    mut body: web::Payload,
-) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let client_head_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, name)?;
-    // Get head commit on sever repo
-    let server_head_commit = repositories::commits::head_commit(&repo)?;
-
-    // Unpack in tmp/tree/commit_id
-    let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
-
-    let mut bytes = web::BytesMut::new();
-    while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
-    }
-
-    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    log::debug!(
-        "Got compressed data for tree {} -> {}",
-        client_head_id,
-        ByteSize::b(total_size)
-    );
-
-    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
-
-    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-
-    unpack_tree_tarball(&tmp_dir, &mut archive);
-
-    Ok(HttpResponse::Ok().json(CommitResponse {
-        status: StatusMessage::resource_found(),
-        commit: server_head_commit.to_owned(),
-    }))
-}
-
 pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -825,47 +786,6 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
         Err(repo_err) => {
             log::error!("Err get_by_name: {}", repo_err);
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
-}
-
-fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
-    match archive.entries() {
-        Ok(entries) => {
-            for file in entries {
-                if let Ok(mut file) = file {
-                    let path = file.path().unwrap();
-                    log::debug!("unpack_tree_tarball path {:?}", path);
-                    let stripped_path = if path.starts_with(HISTORY_DIR) {
-                        match path.strip_prefix(HISTORY_DIR) {
-                            Ok(stripped) => stripped,
-                            Err(err) => {
-                                log::error!("Could not strip prefix from path {:?}", err);
-                                return;
-                            }
-                        }
-                    } else {
-                        &path
-                    };
-
-                    let mut new_path = PathBuf::from(tmp_dir);
-                    new_path.push(stripped_path);
-
-                    if let Some(parent) = new_path.parent() {
-                        if !parent.exists() {
-                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
-                        }
-                    }
-                    log::debug!("unpack_tree_tarball new_path {:?}", path);
-                    file.unpack(&new_path).unwrap();
-                } else {
-                    log::error!("Could not unpack file in archive...");
-                }
-            }
-        }
-        Err(err) => {
-            log::error!("Could not unpack tree database from archive...");
-            log::error!("Err: {:?}", err);
         }
     }
 }
