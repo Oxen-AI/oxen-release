@@ -821,12 +821,11 @@ fn unpack_entry_tarball(
 
 // Helper function to extract the content hash from a version file path
 fn extract_hash_from_path(path: &Path) -> Result<String, OxenError> {
-    // Path structure is typically: versions/files/XX/YYYYYYYY/data
+    // Path structure is: versions/files/XX/YYYYYYYY/data
     // where XXYYYYYYYY is the content hash
-    let path_str = path.to_string_lossy();
 
     // Split the path and look for the pattern
-    let parts: Vec<&str> = path_str.split('/').collect();
+    let parts: Vec<_> = path.components().map(|comp| comp.as_os_str()).collect();
     if parts.len() >= 5 && parts[0] == "versions" && parts[1] == "files" {
         // The hash is composed of the directory names: XX/YYYYYYYY
         let top_dir = parts[2];
@@ -834,7 +833,11 @@ fn extract_hash_from_path(path: &Path) -> Result<String, OxenError> {
 
         // Ensure we have a valid hash structure
         if top_dir.len() == 2 && !sub_dir.is_empty() {
-            return Ok(format!("{}{}", top_dir, sub_dir));
+            return Ok(format!(
+                "{}{}",
+                top_dir.to_string_lossy(),
+                sub_dir.to_string_lossy()
+            ));
         }
     }
 
