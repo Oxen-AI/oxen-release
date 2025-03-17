@@ -691,6 +691,88 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
     }
 }
 
+fn any_val_to_json(value: AnyValue) -> Value {
+    match value {
+        AnyValue::Null => Value::Null,
+        AnyValue::Boolean(b) => Value::Bool(b),
+        AnyValue::Int32(n) => json!(n),
+        AnyValue::Int64(n) => json!(n),
+        AnyValue::Float32(f) => json!(f),
+        AnyValue::Float64(f) => json!(f),
+        AnyValue::String(s) => Value::String(s.to_string()),
+        AnyValue::StringOwned(s) => Value::String(s.to_string()),
+        AnyValue::List(l) => match l.dtype() {
+            polars::prelude::DataType::Int64 => {
+                let vec: Vec<i64> = l.i64().unwrap().into_iter().flatten().collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::Int32 => {
+                let vec: Vec<i32> = l.i32().unwrap().into_iter().flatten().collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::Float64 => {
+                let vec: Vec<f64> = l.f64().unwrap().into_iter().flatten().collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::Float32 => {
+                let vec: Vec<f32> = l.f32().unwrap().into_iter().flatten().collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::String => {
+                let vec: Vec<String> = l
+                    .str()
+                    .unwrap()
+                    .into_iter()
+                    .flatten()
+                    .map(|s| s.to_string())
+                    .collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::Boolean => {
+                let vec: Vec<bool> = l.bool().unwrap().into_iter().flatten().collect();
+                json!(vec)
+            }
+            polars::prelude::DataType::List(_) => {
+                let mut array = Vec::new();
+
+                if let Ok(list_chunked) = l.list() {
+                    for i in 0..list_chunked.len() {
+                        if let Some(inner_series) = list_chunked.get_as_series(i) {
+                            array.push(any_val_to_json(AnyValue::List(inner_series)));
+                        } else {
+                            array.push(Value::Null);
+                        }
+                    }
+                }
+
+                Value::Array(array)
+            }
+            dtype => {
+                panic!("Unsupported list dtype: {:?}", dtype)
+            }
+        },
+        AnyValue::StructOwned(s) => {
+            let mut map = serde_json::Map::new();
+
+            let values = &s.0; // &Vec<AnyValue<'_>>
+            let fields = &s.1; // &Vec<Field>
+
+            for (i, field) in fields.iter().enumerate() {
+                if let Some(value) = values.get(i) {
+                    let field_name = field.name();
+                    let field_json = any_val_to_json(value.clone());
+
+                    map.insert(field_name.to_string(), field_json);
+                }
+            }
+
+            Value::Object(map)
+        }
+
+        other => panic!("Unsupported dtype in JSON conversion: {:?}", other),
+    }
+}
+
 pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
     match value {
         AnyValue::String(s) => Box::new(s.to_string()),
@@ -733,11 +815,19 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
                     let vec: Vec<bool> = l.bool().unwrap().into_iter().flatten().collect();
                     json!(vec)
                 }
+                polars::prelude::DataType::List(_) => {
+                    let json_value = any_val_to_json(AnyValue::List(l));
+                    json_value
+                }
                 dtype => {
                     panic!("Unsupported dtype: {:?}", dtype)
                 }
             };
             Box::new(json_array.to_string())
+        }
+        AnyValue::StructOwned(s) => {
+            let json_value = any_val_to_json(AnyValue::StructOwned(s));
+            Box::new(json_value.to_string())
         }
         other => panic!("Unsupported dtype: {:?}", other),
     }
@@ -1721,6 +1811,116 @@ mod tests {
         let df = tabular::read_df("data/test/csvs/spam_ham_data_w_quote.tsv", DFOpts::empty())?;
         assert_eq!(df.width(), 2);
         assert_eq!(df.height(), 100);
+        Ok(())
+    }
+
+    #[test]
+    fn test_any_val_to_json_primitive_types() -> Result<(), OxenError> {
+        use polars::prelude::AnyValue;
+        use serde_json::json;
+        use serde_json::Value;
+
+        let val = AnyValue::Null;
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, Value::Null);
+
+        let val = AnyValue::Boolean(true);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, Value::Bool(true));
+
+        let val = AnyValue::Int32(42);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!(42));
+
+        let val = AnyValue::Int64(42);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!(42));
+
+        let val = AnyValue::Float32(3.14);
+        let json = super::any_val_to_json(val);
+        if let serde_json::Value::Number(num) = json {
+            let float_val = num.as_f64().unwrap();
+            assert!(
+                (float_val - 3.14).abs() < 0.0001,
+                "Float32 value should be approximately 3.14"
+            );
+        } else {
+            panic!("Expected a JSON number");
+        }
+
+        let val = AnyValue::Float64(3.14);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!(3.14));
+
+        let val = AnyValue::String("hello");
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, Value::String("hello".to_string()));
+
+        let val = AnyValue::StringOwned("hello".to_string().into());
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, Value::String("hello".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_any_val_to_json_list_types() -> Result<(), OxenError> {
+        use polars::prelude::{AnyValue, PlSmallStr, Series};
+        use serde_json::json;
+
+        let s = Series::new(PlSmallStr::from_str("ints"), &[1, 2, 3]);
+        let val = AnyValue::List(s);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!([1, 2, 3]));
+
+        let s = Series::new(PlSmallStr::from_str("floats"), &[1.1, 2.2, 3.3]);
+        let val = AnyValue::List(s);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!([1.1, 2.2, 3.3]));
+
+        let s = Series::new(PlSmallStr::from_str("strings"), &["a", "b", "c"]);
+        let val = AnyValue::List(s);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!(["a", "b", "c"]));
+
+        let s = Series::new(PlSmallStr::from_str("bools"), &[true, false, true]);
+        let val = AnyValue::List(s);
+        let json = super::any_val_to_json(val);
+        assert_eq!(json, json!([true, false, true]));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_struct_owned_to_json() -> Result<(), OxenError> {
+        use polars::datatypes::DataType as PolarsDataType;
+        use polars::prelude::{AnyValue, Field, PlSmallStr};
+
+        let fields = vec![
+            Field::new(PlSmallStr::from_str("name"), PolarsDataType::String),
+            Field::new(PlSmallStr::from_str("age"), PolarsDataType::Int32),
+            Field::new(PlSmallStr::from_str("active"), PolarsDataType::Boolean),
+        ];
+
+        let values = vec![
+            AnyValue::String("John Doe"),
+            AnyValue::Int32(30),
+            AnyValue::Boolean(true),
+        ];
+
+        let struct_owned = AnyValue::StructOwned(Box::new((values, fields)));
+
+        let json = super::any_val_to_json(struct_owned);
+
+        if let serde_json::Value::Object(map) = json {
+            assert_eq!(map.len(), 3);
+            assert_eq!(map.get("name").unwrap(), "John Doe");
+            assert_eq!(map.get("age").unwrap(), 30);
+            assert_eq!(map.get("active").unwrap(), true);
+        } else {
+            panic!("Expected a JSON object");
+        }
+
         Ok(())
     }
 }
