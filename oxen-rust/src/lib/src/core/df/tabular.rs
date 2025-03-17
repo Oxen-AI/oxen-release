@@ -1821,23 +1821,23 @@ mod tests {
         use serde_json::Value;
 
         let val = AnyValue::Null;
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, Value::Null);
 
         let val = AnyValue::Boolean(true);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, Value::Bool(true));
 
         let val = AnyValue::Int32(42);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!(42));
 
         let val = AnyValue::Int64(42);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!(42));
 
         let val = AnyValue::Float32(3.14);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         if let serde_json::Value::Number(num) = json {
             let float_val = num.as_f64().unwrap();
             assert!(
@@ -1849,15 +1849,15 @@ mod tests {
         }
 
         let val = AnyValue::Float64(3.14);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!(3.14));
 
         let val = AnyValue::String("hello");
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, Value::String("hello".to_string()));
 
         let val = AnyValue::StringOwned("hello".to_string().into());
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, Value::String("hello".to_string()));
 
         Ok(())
@@ -1870,22 +1870,22 @@ mod tests {
 
         let s = Series::new(PlSmallStr::from_str("ints"), &[1, 2, 3]);
         let val = AnyValue::List(s);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!([1, 2, 3]));
 
         let s = Series::new(PlSmallStr::from_str("floats"), &[1.1, 2.2, 3.3]);
         let val = AnyValue::List(s);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!([1.1, 2.2, 3.3]));
 
         let s = Series::new(PlSmallStr::from_str("strings"), &["a", "b", "c"]);
         let val = AnyValue::List(s);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!(["a", "b", "c"]));
 
         let s = Series::new(PlSmallStr::from_str("bools"), &[true, false, true]);
         let val = AnyValue::List(s);
-        let json = super::any_val_to_json(val);
+        let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!([true, false, true]));
 
         Ok(())
@@ -1910,7 +1910,7 @@ mod tests {
 
         let struct_owned = AnyValue::StructOwned(Box::new((values, fields)));
 
-        let json = super::any_val_to_json(struct_owned);
+        let json = tabular::any_val_to_json(struct_owned);
 
         if let serde_json::Value::Object(map) = json {
             assert_eq!(map.len(), 3);
