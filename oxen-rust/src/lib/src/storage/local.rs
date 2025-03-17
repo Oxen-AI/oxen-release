@@ -294,8 +294,14 @@ mod tests {
 
         match store.get_version(hash) {
             Ok(_) => panic!("Expected error when getting non-existent version"),
+            Err(OxenError::IO(e)) => {
+                assert_eq!(e.kind(), io::ErrorKind::NotFound);
+            }
             Err(e) => {
-                assert!(e.to_string().contains("No such file or directory"));
+                panic!(
+                    "Unexpected error when getting non-existent version: {:?}",
+                    e
+                );
             }
         }
     }
