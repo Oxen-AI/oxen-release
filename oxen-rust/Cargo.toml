@@ -142,7 +142,7 @@ uuid = { version = "1.4.1", features = ["serde", "v4"] }
 walkdir = "2.5.0"
 words-count = "0.1.6"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
-zip = "2.2.0"
+zip = "2.4.1"
 
 
 [workspace]
