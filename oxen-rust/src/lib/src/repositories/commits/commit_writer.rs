@@ -48,6 +48,21 @@ pub struct EntryVNode {
     pub entries: Vec<StagedMerkleTreeNode>,
 }
 
+impl std::fmt::Debug for EntryVNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EntryVNode {{ id: {:?}, entries: {} }}",
+            self.id,
+            self.entries
+                .iter()
+                .map(|e| e.node.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+}
+
 impl EntryVNode {
     pub fn new(id: MerkleHash) -> Self {
         EntryVNode {
@@ -1062,11 +1077,18 @@ fn compute_dir_node(
             for entry in vnode.entries.iter() {
                 log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
-                    EMerkleTreeNode::Directory(node) => {
-                        log::debug!("No need to aggregate dir {}", node.name());
+                    EMerkleTreeNode::Directory(dir_node) => {
                         if path == *child {
                             num_entries += 1;
                         }
+                        log::debug!(
+                            "Updating hash for dir {} -> hash {} status {:?}",
+                            dir_node.name(),
+                            dir_node.hash(),
+                            entry.status
+                        );
+                        hasher.update(dir_node.name().as_bytes());
+                        hasher.update(&dir_node.hash().to_le_bytes());
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
@@ -1208,6 +1230,7 @@ mod tests {
     use crate::core::v_latest::index::CommitMerkleTree;
     use crate::error::OxenError;
     use crate::model::MerkleHash;
+    use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::test::add_n_files_m_dirs;
@@ -1754,6 +1777,50 @@ mod tests {
                 let node = third_tree.get_by_path(&path)?.unwrap();
                 assert_eq!(node.hash, hash);
             }
+
+            Ok(())
+        })
+    }
+
+    /*
+    This tests a bug we found where removing a directory breaks the tree by
+    updating the root dir hash of the _initial_ commit to the root dir hash from
+    the commit where the directory was removed.
+     */
+    #[test]
+    fn test_rm_dir_doesnt_break_tree() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // create initial commit
+            let readme = repo.path.join("README.md");
+            repositories::add(&repo, &readme)?;
+            let first_commit = super::commit(&repo, "Initial commit")?;
+
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            let first_root_dir_node = first_tree.get_by_path(Path::new(""))?.unwrap();
+
+            // add the data
+            repositories::add(&repo, repo.path.join("train"))?;
+            repositories::add(&repo, repo.path.join("test"))?;
+            let second_commit = super::commit(&repo, "Adding the data")?;
+
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            let second_root_dir_node = second_tree.get_by_path(Path::new(""))?.unwrap();
+            assert_ne!(first_root_dir_node.hash, second_root_dir_node.hash);
+
+            // remove a directory
+            let rm_opts = RmOpts::from_path_recursive(Path::new("train"));
+            repositories::rm(&repo, &rm_opts)?;
+            let third_commit = super::commit(&repo, "Removing train dir")?;
+
+            let third_tree = CommitMerkleTree::from_commit(&repo, &third_commit)?;
+            let third_root_dir_node = third_tree.get_by_path(Path::new(""))?.unwrap();
+            assert_ne!(first_root_dir_node.hash, third_root_dir_node.hash);
+
+            // now read the first commit again and make sure the root dir hash is the same
+            let first_tree_2 = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            let first_root_dir_node_2 = first_tree_2.get_by_path(Path::new(""))?.unwrap();
+            assert_eq!(first_root_dir_node.hash, first_root_dir_node_2.hash);
+            assert_ne!(first_root_dir_node_2.hash, third_root_dir_node.hash);
 
             Ok(())
         })
