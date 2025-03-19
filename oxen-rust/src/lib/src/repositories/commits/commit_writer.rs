@@ -1077,11 +1077,18 @@ fn compute_dir_node(
             for entry in vnode.entries.iter() {
                 log::debug!("Aggregating entry {}", entry.node);
                 match &entry.node.node {
-                    EMerkleTreeNode::Directory(node) => {
-                        log::debug!("No need to aggregate dir {}", node.name());
+                    EMerkleTreeNode::Directory(dir_node) => {
                         if path == *child {
                             num_entries += 1;
                         }
+                        log::debug!(
+                            "Updating hash for dir {} -> hash {} status {:?}",
+                            dir_node.name(),
+                            dir_node.hash(),
+                            entry.status
+                        );
+                        hasher.update(dir_node.name().as_bytes());
+                        hasher.update(&dir_node.hash().to_le_bytes());
                     }
                     EMerkleTreeNode::File(file_node) => {
                         log::debug!(
