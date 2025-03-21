@@ -1,3 +1,5 @@
+import os
+
 from typing import Optional, TYPE_CHECKING
 
 from .oxen import PyWorkspace
@@ -109,7 +111,15 @@ class Workspace:
             dst: `str`
                 The path in the remote repo where the file will be added
         """
-        self._workspace.add(src, dst)
+        # Add a file to the workspace
+        if os.path.isdir(src):
+            for dir_path, _, files in os.walk(src):
+                for file_name in files:
+                    path = os.path.join(dir_path, file_name)
+                    self._workspace.add(path, dst)
+        else:
+            # Add a single file
+            self._workspace.add(src, dst)
 
     def rm(self, path: str):
         """
