@@ -60,7 +60,7 @@ def test_remote_repo_branch_exists(
     _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
     file_path = "examples.tsv"
     relative_path = os.path.join("ChatBot", file_path)
-    full_path = os.path.join(shared_datadir, relative_path)
+    _full_path = os.path.join(shared_datadir, relative_path)
     remote_repo.create_checkout_branch("test-branch")
     
     assert remote_repo.branch_exists("main")
