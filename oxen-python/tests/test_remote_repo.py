@@ -54,6 +54,20 @@ def test_remote_repo_add_on_branch(
     assert not remote_repo.file_exists(file_path, "main")
 
 
+def test_remote_repo_branch_exists(
+    celeba_remote_repo_one_image_pushed: Tuple[Repo, RemoteRepo], shared_datadir
+):
+    _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
+    file_path = "examples.tsv"
+    relative_path = os.path.join("ChatBot", file_path)
+    full_path = os.path.join(shared_datadir, relative_path)
+    remote_repo.create_checkout_branch("test-branch")
+    
+    assert remote_repo.branch_exists("main")
+    assert remote_repo.branch_exists("test-branch")
+    assert not remote_repo.branch_exists("non-existent-branch")
+
+
 def test_remote_repo_file_has_changes(
     celeba_remote_repo_one_image_pushed: Tuple[Repo, RemoteRepo], shared_datadir
 ):

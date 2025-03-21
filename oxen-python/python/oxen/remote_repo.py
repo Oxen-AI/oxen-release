@@ -245,14 +245,14 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, src: str, dst_dir: Optional[str] = "", branch: Optional[str] = None):
+    def add(self, src: str, dst: Optional[str] = "", branch: Optional[str] = None):
         """
         Stage a file to a workspace in the remote repo.
 
         Args:
             src: `str`
                 The path to the local file to upload
-            dst_dir: `str | None`
+            dst: `str | None`
                 The directory to upload the file to. If None, will upload to the root directory.
             branch: `str | None`
                 The branch to upload the file to. Defaults to `self.revision`
@@ -266,8 +266,7 @@ class RemoteRepo:
             print(f"Creating workspace for branch {branch}")
             self._workspace = Workspace(self, branch)
 
-        # Add a file to the workspace
-        self._workspace.add(src, dst_dir)
+        self._workspace.add(src, dst)
         return self._workspace
 
     def status(self):
@@ -366,6 +365,17 @@ class RemoteRepo:
         """
         return self._repo.log()
 
+    def branch_exists(self, name: str) -> bool:
+        """
+        Check if a branch exists in the remote repo.
+
+        Args:
+            name: `str`
+                The name of the branch to check
+        """
+        branches = set([b.name for b in self._repo.branches()])
+        return name in branches
+
     def branches(self):
         """
         List all branches for a remote repo
@@ -408,7 +418,8 @@ class RemoteRepo:
             branch: `str`
                 The name to assign to the created branch
         """
-        self.create_branch(branch)
+        if not self.branch_exists(branch):
+            self.create_branch(branch)
         return self.checkout(branch)
 
     def merge(self, base_branch: str, head_branch: str):
