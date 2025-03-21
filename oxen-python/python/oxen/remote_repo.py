@@ -373,7 +373,7 @@ class RemoteRepo:
             name: `str`
                 The name of the branch to check
         """
-        branches = set([b.name for b in self._repo.branches()])
+        branches = set([b.name for b in self.branches()])
         return name in branches
 
     def branches(self):
