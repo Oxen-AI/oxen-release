@@ -80,6 +80,17 @@ impl MerkleTreeNode {
         count
     }
 
+    /// Get the latest commit id for file or dir
+    pub fn latest_commit_id(&self) -> Result<&MerkleHash, OxenError> {
+        match &self.node {
+            EMerkleTreeNode::File(file_node) => Ok(file_node.last_commit_id()),
+            EMerkleTreeNode::Directory(dir_node) => Ok(dir_node.last_commit_id()),
+            _ => Err(OxenError::basic_str(
+                "MerkleTreeNode::latest_commit_id called on invalid node type",
+            )),
+        }
+    }
+
     /// Create a default DirNode with none of the metadata fields set
     pub fn default_dir() -> MerkleTreeNode {
         MerkleTreeNode {

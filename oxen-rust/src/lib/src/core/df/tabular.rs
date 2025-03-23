@@ -1836,21 +1836,21 @@ mod tests {
         let json = tabular::any_val_to_json(val);
         assert_eq!(json, json!(42));
 
-        let val = AnyValue::Float32(3.14);
+        let val = AnyValue::Float32(3.41);
         let json = tabular::any_val_to_json(val);
         if let serde_json::Value::Number(num) = json {
             let float_val = num.as_f64().unwrap();
             assert!(
-                (float_val - 3.14).abs() < 0.0001,
-                "Float32 value should be approximately 3.14"
+                (float_val - 3.41).abs() < 0.0001,
+                "Float32 value should be approximately 3.41"
             );
         } else {
             panic!("Expected a JSON number");
         }
 
-        let val = AnyValue::Float64(3.14);
+        let val = AnyValue::Float64(3.41);
         let json = tabular::any_val_to_json(val);
-        assert_eq!(json, json!(3.14));
+        assert_eq!(json, json!(3.41));
 
         let val = AnyValue::String("hello");
         let json = tabular::any_val_to_json(val);

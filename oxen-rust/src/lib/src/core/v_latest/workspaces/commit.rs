@@ -17,6 +17,7 @@ use crate::model::{
 };
 use crate::repositories;
 use crate::util;
+use crate::view::merge::{MergeConflictFile, Mergeable};
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
@@ -45,20 +46,9 @@ pub fn commit(
 
     let branch = branch.unwrap();
 
-    let workspace_commit = &workspace.commit;
-    if branch.commit_id != workspace_commit.id {
-        return Err(OxenError::WorkspaceBehind(Branch {
-            name: branch_name.to_string(),
-            commit_id: workspace_commit.id.to_string(),
-        }));
-    }
-
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
 
-    log::debug!(
-        "0.19.0::workspaces::commit staged db path: {:?}",
-        staged_db_path
-    );
+    log::debug!("workspaces::commit staged db path: {:?}", staged_db_path);
     let opts = db::key_val::opts::default();
     let commit = {
         let staged_db: DBWithThreadMode<SingleThreaded> =
@@ -72,6 +62,14 @@ pub fn commit(
             &staged_db,
             &commit_progress_bar,
         )?;
+
+        let conflicts = list_conflicts(workspace, &dir_entries, &branch)?;
+        if !conflicts.is_empty() {
+            return Err(OxenError::WorkspaceBehind(Branch {
+                name: branch_name.to_string(),
+                commit_id: workspace.commit.id.to_string(),
+            }));
+        }
 
         let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
 
@@ -112,6 +110,151 @@ pub fn commit(
     }
 
     Ok(commit)
+}
+
+pub fn mergeability(
+    workspace: &Workspace,
+    branch_name: impl AsRef<str>,
+) -> Result<Mergeable, OxenError> {
+    let branch_name = branch_name.as_ref();
+    let Some(branch) = repositories::branches::get_by_name(&workspace.base_repo, branch_name)?
+    else {
+        return Err(OxenError::revision_not_found(
+            branch_name.to_string().into(),
+        ));
+    };
+
+    let Some(base) = repositories::commits::get_by_id(&workspace.base_repo, &branch.commit_id)?
+    else {
+        return Err(OxenError::revision_not_found(
+            branch.commit_id.clone().into(),
+        ));
+    };
+    let head = &workspace.commit;
+
+    // Get commits between the base and head
+    let commits =
+        repositories::merge::list_commits_between_commits(&workspace.base_repo, &base, head)?;
+
+    // Get conflicts between the base and head
+    let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
+
+    log::debug!("workspaces::commit staged db path: {:?}", staged_db_path);
+    let opts = db::key_val::opts::default();
+    let staged_db: DBWithThreadMode<SingleThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
+
+    let commit_progress_bar = ProgressBar::new_spinner();
+
+    // Read all the staged entries
+    let (dir_entries, _) = core::v_latest::status::read_staged_entries(
+        &workspace.workspace_repo,
+        &staged_db,
+        &commit_progress_bar,
+    )?;
+
+    let conflicts = list_conflicts(workspace, &dir_entries, &branch)?;
+    if !conflicts.is_empty() {
+        return Ok(Mergeable {
+            is_mergeable: false,
+            conflicts: conflicts
+                .into_iter()
+                .map(|path| MergeConflictFile {
+                    path: path.to_string_lossy().to_string(),
+                })
+                .collect(),
+            commits,
+        });
+    }
+
+    Ok(Mergeable {
+        is_mergeable: true,
+        conflicts: vec![],
+        commits,
+    })
+}
+
+fn list_conflicts(
+    workspace: &Workspace,
+    dir_entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+    branch: &Branch,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let workspace_commit = &workspace.commit;
+    let Some(branch_commit) =
+        repositories::commits::get_by_id(&workspace.base_repo, &branch.commit_id)?
+    else {
+        return Err(OxenError::revision_not_found(
+            branch.commit_id.clone().into(),
+        ));
+    };
+    log::debug!(
+        "checking if workspace is behind: {:?} {} == {}",
+        branch.name,
+        branch_commit,
+        workspace_commit
+    );
+    if branch.commit_id == workspace_commit.id {
+        // Nothing has changed on the branch since the workspace was created
+        return Ok(vec![]);
+    }
+
+    // Check to see if any of the staged entries have been updated on the target branch
+    // If so, mark the commit as behind
+    // Otherwise, we can just commit the changes
+    let Some(branch_commit) =
+        repositories::commits::get_by_id(&workspace.base_repo, &branch.commit_id)?
+    else {
+        return Err(OxenError::revision_not_found(
+            branch.commit_id.clone().into(),
+        ));
+    };
+    let Some(branch_tree) =
+        repositories::tree::get_root_with_children(&workspace.base_repo, &branch_commit)?
+    else {
+        return Err(OxenError::revision_not_found(
+            branch.commit_id.clone().into(),
+        ));
+    };
+    let Some(workspace_tree) =
+        repositories::tree::get_root_with_children(&workspace.base_repo, workspace_commit)?
+    else {
+        return Err(OxenError::revision_not_found(
+            workspace.commit.id.clone().into(),
+        ));
+    };
+
+    let mut conflicts = vec![];
+    for (path, entries) in dir_entries {
+        for entry in entries {
+            let EMerkleTreeNode::File(_) = &entry.node.node else {
+                // Only check files for conflicts
+                continue;
+            };
+
+            log::debug!("checking if workspace is behind: {:?} -> {}", path, entry);
+            let file_path = entry.node.maybe_path()?;
+            log::debug!("checking if branch tree has file: {:?}", file_path);
+            let Some(branch_node) = branch_tree.get_by_path(&file_path)? else {
+                log::debug!("branch node not found: {:?}", file_path);
+                continue;
+            };
+            let Some(workspace_node) = workspace_tree.get_by_path(&file_path)? else {
+                log::debug!("workspace node not found: {:?}", file_path);
+                continue;
+            };
+            log::debug!("comparing hashes: {:?} -> {}", path, entry);
+            log::debug!("branch node hash: {:?}", branch_node.hash);
+            log::debug!("workspace node hash: {:?}", workspace_node.hash);
+            if branch_node.hash == workspace_node.hash {
+                log::debug!("branch node hashes match: {:?} -> {}", path, entry);
+                continue;
+            }
+            log::debug!("got conflict: {:?}", file_path);
+            conflicts.push(file_path.to_path_buf());
+        }
+    }
+
+    Ok(conflicts)
 }
 
 fn export_tabular_data_frames(
