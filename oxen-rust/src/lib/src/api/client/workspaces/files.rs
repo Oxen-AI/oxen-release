@@ -152,10 +152,12 @@ pub async fn post_file(
 
 pub async fn add_many(
     remote_repo: &RemoteRepository,
-    workspace_id: &str,
-    directory_name: &str,
+    workspace_id: impl AsRef<str>,
+    directory_name: impl AsRef<str>,
     paths: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let directory_name = directory_name.as_ref();
     // Check if the total size of the files is too large (over 100mb for now)
     let limit = 100_000_000;
     let total_size: u64 = paths.iter().map(|p| p.metadata().unwrap().len()).sum();

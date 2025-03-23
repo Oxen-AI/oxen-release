@@ -9,6 +9,7 @@ use crate::util;
 
 use crate::model::{workspace::WorkspaceConfig, Commit, LocalRepository, NewCommitBody, Workspace};
 use crate::view::entries::EMetadataEntry;
+use crate::view::merge::Mergeable;
 
 pub mod data_frames;
 pub mod df;
@@ -334,6 +335,16 @@ pub fn commit(
     }
 }
 
+pub fn mergeability(
+    workspace: &Workspace,
+    branch_name: impl AsRef<str>,
+) -> Result<Mergeable, OxenError> {
+    match workspace.workspace_repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::workspaces::commit::mergeability(workspace, branch_name),
+    }
+}
+
 fn init_workspace_repo(
     repo: &LocalRepository,
     workspace_dir: impl AsRef<Path>,
@@ -488,9 +499,185 @@ fn build_file_status_maps_for_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::repositories;
     use crate::test;
     use crate::util;
+
+    #[tokio::test]
+    async fn test_can_commit_different_files_workspaces_without_merge_conflicts(
+    ) -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Write two files, hello.txt and goodbye.txt, and commit them
+            let hello_file = repo.path.join("hello.txt");
+            let goodbye_file = repo.path.join("goodbye.txt");
+            util::fs::write_to_path(&hello_file, "Hello")?;
+            util::fs::write_to_path(&goodbye_file, "Goodbye")?;
+            repositories::add(&repo, &hello_file)?;
+            repositories::add(&repo, &goodbye_file)?;
+            let commit = repositories::commit(&repo, "Adding hello and goodbye files")?;
+
+            {
+                // Create temporary workspace in new scope
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the hello file in the temporary workspace
+                let workspace_hello_file = temp_workspace.dir().join("hello.txt");
+                util::fs::write_to_path(&workspace_hello_file, "Hello again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_hello_file)?;
+                // Commit the changes to the "main" branch
+                repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating hello file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                )?;
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            {
+                // Create a new temporary workspace off of the same original commit
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the goodbye file in the temporary workspace
+                let workspace_goodbye_file = temp_workspace.dir().join("goodbye.txt");
+                util::fs::write_to_path(&workspace_goodbye_file, "Goodbye again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file)?;
+                // Commit the changes to the "main" branch
+                repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating goodbye file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                )?;
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_cannot_commit_different_files_workspaces_with_merge_conflicts(
+    ) -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Both workspaces try to commit the same file
+            let hello_file = repo.path.join("greetings").join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello")?;
+            repositories::add(&repo, &hello_file)?;
+            let commit = repositories::commit(&repo, "Adding hello file")?;
+
+            {
+                // Create temporary workspace in new scope
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the hello file in the temporary workspace
+                let workspace_hello_file = temp_workspace.dir().join("greetings").join("hello.txt");
+                util::fs::write_to_path(&workspace_hello_file, "Hello again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_hello_file)?;
+                // Commit the changes to the "main" branch
+                repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating hello file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                )?;
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            {
+                // Create a new temporary workspace off of the same original commit
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the hello file in the temporary workspace
+                let workspace_hello_file = temp_workspace.dir().join("greetings").join("hello.txt");
+                util::fs::write_to_path(&workspace_hello_file, "Hello again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_hello_file)?;
+                // Commit the changes to the "main" branch
+                let result = repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating hello file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                );
+
+                // We should get a merge conflict error
+                assert!(result.is_err());
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_can_commit_different_files_workspaces_without_merge_conflicts_in_subdirs(
+    ) -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Write two files, greetings/hello.txt and greetings/goodbye.txt, and commit them
+            let hello_file = repo.path.join("greetings").join("hello.txt");
+            let goodbye_file = repo.path.join("greetings").join("goodbye.txt");
+            util::fs::write_to_path(&hello_file, "Hello")?;
+            util::fs::write_to_path(&goodbye_file, "Goodbye")?;
+            repositories::add(&repo, &hello_file)?;
+            repositories::add(&repo, &goodbye_file)?;
+            let commit = repositories::commit(&repo, "Adding hello and goodbye files")?;
+
+            {
+                // Create temporary workspace in new scope
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the hello file in the temporary workspace
+                let workspace_hello_file = temp_workspace.dir().join("greetings").join("hello.txt");
+                util::fs::write_to_path(&workspace_hello_file, "Hello again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_hello_file)?;
+                // Commit the changes to the "main" branch
+                repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating hello file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                )?;
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            {
+                // Create a new temporary workspace off of the same original commit
+                let temp_workspace = create_temporary(&repo, &commit)?;
+
+                // Update the goodbye file in the temporary workspace
+                let workspace_goodbye_file =
+                    temp_workspace.dir().join("greetings").join("goodbye.txt");
+                util::fs::write_to_path(&workspace_goodbye_file, "Goodbye again")?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file)?;
+                // Commit the changes to the "main" branch
+                repositories::workspaces::commit(
+                    &temp_workspace,
+                    &NewCommitBody {
+                        message: "Updating goodbye file".to_string(),
+                        author: "Bessie".to_string(),
+                        email: "bessie@oxen.ai".to_string(),
+                    },
+                    DEFAULT_BRANCH_NAME,
+                )?;
+            } // temp_workspace goes out of scope here and gets cleaned up
+
+            Ok(())
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_temporary_workspace_cleanup() -> Result<(), OxenError> {

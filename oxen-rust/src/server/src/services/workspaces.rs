@@ -39,6 +39,10 @@ pub fn workspace() -> Scope {
                     "/commit/{branch:.*}",
                     web::post().to(controllers::workspaces::commit),
                 )
+                .route(
+                    "/mergeability/{branch:.*}",
+                    web::get().to(controllers::workspaces::mergeability),
+                )
                 .service(data_frames::data_frames()),
         )
 }

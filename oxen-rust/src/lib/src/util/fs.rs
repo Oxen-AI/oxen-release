@@ -351,6 +351,14 @@ pub fn read_from_path(path: impl AsRef<Path>) -> Result<String, OxenError> {
 pub fn write_to_path(path: impl AsRef<Path>, value: impl AsRef<str>) -> Result<(), OxenError> {
     let path = path.as_ref();
     let value = value.as_ref();
+
+    // Make sure the parent directory exists
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            create_dir_all(parent)?;
+        }
+    }
+
     match File::create(path) {
         Ok(mut file) => match file.write(value.as_bytes()) {
             Ok(_) => Ok(()),
