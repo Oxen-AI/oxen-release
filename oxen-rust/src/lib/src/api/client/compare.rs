@@ -245,8 +245,8 @@ mod tests {
             // Push the commits to the remote
             repositories::push(&local_repo).await?;
 
-            let base_commit_id = MerkleHash::from_str(&commit_ids[1])?;
-            let head_commit_id = MerkleHash::from_str(&commit_ids[3])?;
+            let base_commit_id = MerkleHash::from_str(&commit_ids[3])?;
+            let head_commit_id = MerkleHash::from_str(&commit_ids[1])?;
             let commits =
                 api::client::compare::commits(&remote_repo, &base_commit_id, &head_commit_id)
                     .await?;
