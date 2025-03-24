@@ -116,6 +116,7 @@ pub async fn history(
                 let commits =
                     repositories::commits::list_from_paginated(&repo, revision_id, pagination)?;
                 log::debug!("commit_history got {} commits", commits.commits.len());
+                // log::debug!("commit_history commits: {:?}", commits.commits);
                 Ok(HttpResponse::Ok().json(commits))
             } else {
                 Err(OxenHttpError::NotFound)

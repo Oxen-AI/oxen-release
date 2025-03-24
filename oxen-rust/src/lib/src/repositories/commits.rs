@@ -193,6 +193,7 @@ pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, 
         _ => core::v_latest::commits::list_from(repo, revision),
     }
 }
+
 pub fn list_from_with_depth(
     repo: &LocalRepository,
     revision: &str,
@@ -208,12 +209,12 @@ pub fn list_from_with_depth(
 /// List the history between two commits
 pub fn list_between(
     repo: &LocalRepository,
-    start: &Commit,
-    end: &Commit,
+    base: &Commit,
+    head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::commits::list_between(repo, start, end),
+        _ => core::v_latest::commits::list_between(repo, base, head),
     }
 }
 
@@ -785,7 +786,7 @@ mod tests {
             repositories::add(&repo, new_file)?;
             repositories::commit(&repo, "commit 4")?;
 
-            let history = repositories::commits::list_between(&repo, &head_commit, &base_commit)?;
+            let history = repositories::commits::list_between(&repo, &base_commit, &head_commit)?;
             assert_eq!(history.len(), 3);
 
             assert_eq!(history.first().unwrap().message, head_commit.message);

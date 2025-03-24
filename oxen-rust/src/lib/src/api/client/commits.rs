@@ -1237,8 +1237,8 @@ mod tests {
 
             // Log comes out in reverse order, so we want the 5th commit as the base,
             // and will end up with the 1st,2nd,3rd,4th commits (4 commits total inclusive)
-            let base_commit = &commit_history[1];
-            let head_commit = &commit_history[4];
+            let head_commit = &commit_history[1];
+            let base_commit = &commit_history[4];
 
             println!("base_commit: {}\nhead_commit: {}", base_commit, head_commit);
 

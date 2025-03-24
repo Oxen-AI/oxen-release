@@ -107,7 +107,7 @@ pub fn list_commits_between_branches(
         head_commit,
         lca
     );
-    list_between(repo, &head_commit, &lca)
+    list_between(repo, &lca, &head_commit)
 }
 
 pub fn list_commits_between_commits(
@@ -116,7 +116,7 @@ pub fn list_commits_between_commits(
     head_commit: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
     log::debug!(
-        "list_commits_between_commits() base: {:?} head: {:?}",
+        "list_commits_between_commits()\nbase: {}\nhead: {}",
         base_commit,
         head_commit
     );
@@ -613,7 +613,7 @@ fn merge_commits(
 ) -> Result<Option<Commit>, OxenError> {
     // User output
     println!(
-        "merge_commits {} -> {}",
+        "Merge commits {} -> {}",
         merge_commits.base.id, merge_commits.merge.id
     );
 

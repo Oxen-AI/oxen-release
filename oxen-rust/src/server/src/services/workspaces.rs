@@ -35,9 +35,18 @@ pub fn workspace() -> Scope {
                     "/files/{path:.*}",
                     web::delete().to(controllers::workspaces::files::delete),
                 )
+                // TODO: Depreciate /commit as we are calling it /merge instead to be consistent with the /merge branch endpoint
                 .route(
                     "/commit/{branch:.*}",
                     web::post().to(controllers::workspaces::commit),
+                )
+                .route(
+                    "/merge/{branch:.*}",
+                    web::post().to(controllers::workspaces::commit),
+                )
+                .route(
+                    "/merge/{branch:.*}",
+                    web::get().to(controllers::workspaces::mergeability),
                 )
                 .service(data_frames::data_frames()),
         )

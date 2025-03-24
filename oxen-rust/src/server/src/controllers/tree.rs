@@ -207,6 +207,11 @@ pub async fn download_tree_nodes(
     );
 
     let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head_str)?;
+    log::debug!("download_tree_nodes base_commit_id: {}", base_commit_id);
+    log::debug!(
+        "download_tree_nodes maybe_head_commit_id: {:?}",
+        maybe_head_commit_id
+    );
 
     let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
         .ok_or(OxenError::resource_not_found(&base_commit_id))?;
@@ -245,7 +250,7 @@ fn get_commit_list(
     let commits = if let Some(head_commit_id) = maybe_head_commit_id {
         let head_commit = repositories::commits::get_by_id(repository, &head_commit_id)?
             .ok_or(OxenError::resource_not_found(&head_commit_id))?;
-        repositories::commits::list_between(repository, &head_commit, base_commit)?
+        repositories::commits::list_between(repository, base_commit, &head_commit)?
     } else {
         // If the subtree is specified, we only want to get the latest commit
         if maybe_subtrees.is_some() {
@@ -375,7 +380,7 @@ pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpRespons
     let commits = if let Some(head_commit_id) = maybe_head_commit_id {
         let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
             .ok_or(OxenError::resource_not_found(&head_commit_id))?;
-        repositories::commits::list_between(&repository, &head_commit, &base_commit)?
+        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
     } else {
         repositories::commits::list_from(&repository, &base_commit_id)?
     };
