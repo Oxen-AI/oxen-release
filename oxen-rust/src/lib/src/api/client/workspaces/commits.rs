@@ -10,7 +10,7 @@ pub async fn mergeability(
     branch_name: &str,
     workspace_id: &str,
 ) -> Result<Mergeable, OxenError> {
-    let uri = format!("/workspaces/{workspace_id}/mergeability/{branch_name}");
+    let uri = format!("/workspaces/{workspace_id}/merge/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
@@ -19,7 +19,7 @@ pub async fn mergeability(
     match response {
         Ok(val) => Ok(val.mergeable),
         Err(err) => Err(OxenError::basic_str(format!(
-            "api::workspaces::commits::mergeability error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+            "api::workspaces::commits::merge error parsing response from {url}\n\nErr {err:?} \n\n{body}"
         ))),
     }
 }
