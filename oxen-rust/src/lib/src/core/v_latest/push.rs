@@ -167,7 +167,7 @@ async fn push_to_existing_branch(
 
     // If we do have the commit locally, we are ahead
     // We need to find all the commits that need to be pushed
-    let mut commits = repositories::commits::list_between(repo, commit, &latest_remote_commit)?;
+    let mut commits = repositories::commits::list_between(repo, &latest_remote_commit, commit)?;
     commits.reverse();
 
     push_commits(repo, remote_repo, &commits).await?;

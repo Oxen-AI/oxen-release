@@ -141,9 +141,12 @@ async fn sync_from_head(
     pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let repo_hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+    log::debug!("sync_from_head head_commit: {}", head_commit);
+    log::debug!("sync_from_head branch: {}", branch);
 
     // If HEAD commit is not on the remote server, that means we are ahead of the remote branch
     if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
+        log::debug!("sync_from_head has head commit: {}", head_commit);
         pull_progress.set_message(format!(
             "Downloading commits from {} to {}",
             head_commit.id, branch.commit_id
@@ -158,8 +161,8 @@ async fn sync_from_head(
         .await?;
         api::client::commits::download_base_head_dir_hashes(
             remote_repo,
-            &branch.commit_id,
             &head_commit.id,
+            &branch.commit_id,
             &repo_hidden_dir,
         )
         .await?;

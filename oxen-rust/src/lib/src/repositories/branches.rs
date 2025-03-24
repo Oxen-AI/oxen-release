@@ -241,9 +241,10 @@ pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> 
     let clean_name = branch_name_no_slashes(name);
     let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
-        "Checking if branch is locked: {} at path {}",
+        "Checking if branch is locked: {} at path {} exists: {}",
         name,
-        branch_lock_file.display()
+        branch_lock_file.display(),
+        branch_lock_file.exists()
     );
     // Branch is locked if file exists
     Ok(branch_lock_file.exists())
@@ -259,9 +260,10 @@ pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, Oxen
     let clean_name = branch_name_no_slashes(name);
     let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
-        "Reading lock file for branch: {} at path {}",
+        "Reading lock file for branch: {} at path {} exists: {}",
         name,
-        branch_lock_file.display()
+        branch_lock_file.display(),
+        branch_lock_file.exists()
     );
 
     // Check if lock exists
@@ -278,11 +280,18 @@ pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, Oxen
 pub fn latest_synced_commit(repo: &LocalRepository, name: &str) -> Result<Commit, OxenError> {
     // If branch is locked, we want to get the commit from the lockfile
     if is_locked(repo, name)? {
+        log::debug!("Latest synced commit is locked for branch {}", name);
         let commit_id = read_lock_file(repo, name)?;
+        log::debug!(
+            "Latest synced commit read from lock file for branch {} is {}",
+            name,
+            commit_id
+        );
         let commit = repositories::commits::get_by_id(repo, &commit_id)?
             .ok_or(OxenError::commit_id_does_not_exist(&commit_id))?;
         return Ok(commit);
     }
+    log::debug!("Latest synced commit is not locked for branch {}", name);
     // If branch is not locked, we want to get the latest commit from the branch
     let branch = repositories::branches::get_by_name(repo, name)?
         .ok_or(OxenError::local_branch_not_found(name))?;

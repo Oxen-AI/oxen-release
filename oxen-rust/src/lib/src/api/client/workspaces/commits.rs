@@ -141,6 +141,8 @@ mod tests {
             )
             .await?;
             assert!(mergeable.is_mergeable);
+            assert_eq!(mergeable.conflicts.len(), 0);
+            assert_eq!(mergeable.commits.len(), 1);
 
             Ok(remote_repo)
         })
@@ -210,6 +212,8 @@ mod tests {
             .await?;
             println!("mergeable: {:?}", mergeable);
             assert!(mergeable.is_mergeable);
+            assert_eq!(mergeable.conflicts.len(), 0);
+            assert_eq!(mergeable.commits.len(), 2);
 
             let body = NewCommitBody {
                 message: "Update bounding box".to_string(),
@@ -305,6 +309,8 @@ mod tests {
             )
             .await?;
             assert!(!mergeable.is_mergeable);
+            assert_eq!(mergeable.conflicts.len(), 1);
+            assert_eq!(mergeable.commits.len(), 2);
 
             let commit_result = api::client::workspaces::commit(
                 &remote_repo,

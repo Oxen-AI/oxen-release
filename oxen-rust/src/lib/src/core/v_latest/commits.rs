@@ -230,27 +230,27 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 
 fn list_recursive(
     repo: &LocalRepository,
-    commit: Commit,
+    head_commit: Commit,
     results: &mut Vec<Commit>,
-    stop_at: Option<&Commit>,
+    stop_at_base: Option<&Commit>,
     visited: &mut HashSet<String>,
 ) -> Result<(), OxenError> {
     // Check if we've already visited this commit
-    if !visited.insert(commit.id.clone()) {
+    if !visited.insert(head_commit.id.clone()) {
         return Ok(());
     }
 
-    // log::debug!("list_recursive: commit: {}", commit);
-    results.push(commit.clone());
+    log::debug!("list_recursive: commit: {}", head_commit);
+    results.push(head_commit.clone());
 
-    if stop_at.is_some() && &commit == stop_at.unwrap() {
+    if stop_at_base.is_some() && &head_commit == stop_at_base.unwrap() {
         return Ok(());
     }
 
-    for parent_id in commit.parent_ids {
+    for parent_id in head_commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;
         if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
-            list_recursive(repo, parent_commit, results, stop_at, visited)?;
+            list_recursive(repo, parent_commit, results, stop_at_base, visited)?;
         }
     }
     Ok(())
@@ -370,13 +370,13 @@ pub fn list_between(
     base: &Commit,
     head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("list_between() base: {} head: {}", base, head);
+    log::debug!("list_between()\nbase: {}\nhead: {}", base, head);
     let mut results = vec![];
     list_recursive(
         repo,
-        base.clone(),
+        head.clone(),
         &mut results,
-        Some(head),
+        Some(base),
         &mut HashSet::new(),
     )?;
     Ok(results)

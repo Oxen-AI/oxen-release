@@ -124,17 +124,22 @@ pub fn mergeability(
         ));
     };
 
-    let Some(base) = repositories::commits::get_by_id(&workspace.base_repo, &branch.commit_id)?
+    let base = &workspace.commit;
+    let Some(head) = repositories::commits::get_by_id(&workspace.base_repo, &branch.commit_id)?
     else {
         return Err(OxenError::revision_not_found(
             branch.commit_id.clone().into(),
         ));
     };
-    let head = &workspace.commit;
+
+    log::debug!("workspaces::mergeability base: {:?}", base);
+    log::debug!("workspaces::mergeability head: {:?}", head);
 
     // Get commits between the base and head
     let commits =
-        repositories::merge::list_commits_between_commits(&workspace.base_repo, &base, head)?;
+        repositories::merge::list_commits_between_commits(&workspace.base_repo, base, &head)?;
+
+    log::debug!("workspaces::mergeability commits: {:?}", commits);
 
     // Get conflicts between the base and head
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
