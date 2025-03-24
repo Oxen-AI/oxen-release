@@ -385,9 +385,15 @@ pub async fn download_trees_between(
     log::debug!("unpacked trees {}", base_head);
 
     // Return the commits we downloaded
-    let base_commit = repositories::commits::get_by_id(local_repo, base_id)?.unwrap();
-    let head_commit = repositories::commits::get_by_id(local_repo, head_id)?.unwrap();
+    let Some(head_commit) = repositories::commits::get_by_id(local_repo, head_id)? else {
+        return Err(OxenError::revision_not_found(head_id.to_string().into()));
+    };
+    let Some(base_commit) = repositories::commits::get_by_id(local_repo, base_id)? else {
+        return Err(OxenError::revision_not_found(base_id.to_string().into()));
+    };
     let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
+    log::debug!("download_trees_between commits: {:?}", commits.len());
+    log::debug!("download_trees_between commits: {:?}", commits);
 
     Ok(commits)
 }
