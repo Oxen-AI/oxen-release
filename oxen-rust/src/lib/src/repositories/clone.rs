@@ -72,11 +72,16 @@ async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenE
     let remote_repo = api::client::repositories::get_by_remote(&remote)
         .await?
         .ok_or_else(|| OxenError::remote_repo_not_found(&opts.url))?;
+
+    // Check if the destination directory exists before cloning so we know
+    // whether to clean it up or not in the case of an error.
+    let dst_exists_before_clone = opts.dst.exists();
+
     match clone_repo(remote_repo, opts).await {
         Ok(repo) => Ok(Some(repo)),
         Err(err) => {
-            if opts.dst.exists() {
-                // Cleanup the destination directory
+            if !dst_exists_before_clone && opts.dst.exists() {
+                // Cleanup the destination directory if it wasn't there before cloning
                 util::fs::remove_dir_all(&opts.dst)?;
             }
             Err(err)
@@ -589,6 +594,45 @@ mod tests {
             .await?;
 
             Ok(ret_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_clone_error_cleanup() -> Result<(), OxenError> {
+        test::run_select_data_sync_remote("README.md", |_, remote_repo| async move {
+            // Clone a non-existent repo, destination directory should be cleaned up
+            let remote_url = remote_repo.remote.url.clone();
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let dst_dir = new_repo_dir.join("new_repo_1");
+                // cloning with a valid remote url but a non-existent branch
+                // will fail later in the clone process
+                let clone_opts = CloneOpts::from_branch(&remote_url, &dst_dir, "fake-branch");
+                let cloned_repo = repositories::clone(&clone_opts).await;
+                assert!(cloned_repo.is_err());
+                assert!(!dst_dir.exists());
+
+                Ok(new_repo_dir)
+            })
+            .await?;
+
+            // Clone a non-existent repo, destination directory should *NOT* be
+            // cleaned up because it already existed before cloning
+            let remote_url = remote_repo.remote.url.clone();
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let dst_dir = new_repo_dir.join("new_repo_2");
+                // Create the destination directory before cloning
+                util::fs::create_dir_all(&dst_dir)?;
+                let clone_opts = CloneOpts::from_branch(&remote_url, &dst_dir, "fake-branch");
+                let cloned_repo = repositories::clone(&clone_opts).await;
+                assert!(cloned_repo.is_err());
+                assert!(dst_dir.exists());
+
+                Ok(new_repo_dir)
+            })
+            .await?;
+
+            Ok(remote_repo)
         })
         .await
     }
