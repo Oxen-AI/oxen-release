@@ -38,6 +38,134 @@ def test_data_frame_crud(celeba_remote_repo_fully_pushed):
     assert height == og_height, "Error removing row"
 
 
+def test_data_frame_create_on_insert(celeba_remote_repo_fully_pushed):
+    _, remote_repo = celeba_remote_repo_fully_pushed
+
+    new_file = "logs/prompts.jsonl"
+    new_row = {
+        "prompt": "what is the best data version control tool?",
+        "response": "You should check out Oxen.ai",
+    }
+
+    df = DataFrame(
+        remote_repo.identifier,
+        new_file,
+        host="localhost:3000",
+        scheme="http",
+    )
+
+    # Add a row and commit
+    row_id = df.insert_row(new_row)
+    _width, height = df.size()
+    assert height == 1, "DataFrame should have 1 row"
+
+    rows = df.list_page(1)
+    assert len(rows) == 1, "DataFrame should have 1 row"
+    row = df.get_row_by_id(row_id)
+
+    assert row["prompt"] == new_row["prompt"], "Prompt should match"
+    assert row["response"] == new_row["response"], "Response should match"
+
+    # insert another row
+    second_row = {
+        "prompt": "what is the fastest data version control tool?",
+        "response": "Oxen.ai scales and is fast",
+    }
+    df.insert_row(second_row)
+    rows = df.list_page(1)
+    assert len(rows) == 2, "DataFrame should have 2 rows"
+
+    assert rows[0]["prompt"] == new_row["prompt"], "Prompt should match"
+    assert rows[0]["response"] == new_row["response"], "Response should match"
+    assert rows[1]["prompt"] == second_row["prompt"], "Prompt should match"
+    assert rows[1]["response"] == second_row["response"], "Response should match"
+
+
+def test_data_frame_create_on_insert_on_branch(celeba_remote_repo_fully_pushed):
+    _, remote_repo = celeba_remote_repo_fully_pushed
+
+    new_file = "logs/prompts.jsonl"
+    new_row = {
+        "prompt": "what is the best data version control tool?",
+        "response": "You should check out Oxen.ai",
+    }
+
+    df = DataFrame(
+        remote_repo.identifier,
+        new_file,
+        host="localhost:3000",
+        scheme="http",
+        branch="test-branch",
+    )
+
+    # Add a row and commit
+    row_id = df.insert_row(new_row)
+    _width, height = df.size()
+    assert height == 1, "DataFrame should have 1 row"
+
+    rows = df.list_page(1)
+    assert len(rows) == 1, "DataFrame should have 1 row"
+    row = df.get_row_by_id(row_id)
+
+    assert row["prompt"] == new_row["prompt"], "Prompt should match"
+    assert row["response"] == new_row["response"], "Response should match"
+
+    # insert another row
+    second_row = {
+        "prompt": "what is the fastest data version control tool?",
+        "response": "Oxen.ai scales and is fast",
+    }
+    df.insert_row(second_row)
+    rows = df.list_page(1)
+    assert len(rows) == 2, "DataFrame should have 2 rows"
+
+    assert rows[0]["prompt"] == new_row["prompt"], "Prompt should match"
+    assert rows[0]["response"] == new_row["response"], "Response should match"
+    assert rows[1]["prompt"] == second_row["prompt"], "Prompt should match"
+    assert rows[1]["response"] == second_row["response"], "Response should match"
+
+
+def test_data_frame_create_on_insert_on_branch_instantiated_from_remote_repo(
+    celeba_remote_repo_fully_pushed,
+):
+    _, remote_repo = celeba_remote_repo_fully_pushed
+
+    new_file = "logs/prompts.jsonl"
+    new_row = {
+        "prompt": "what is the best data version control tool?",
+        "response": "You should check out Oxen.ai",
+    }
+
+    remote_repo.create_checkout_branch("test-branch")
+    df = DataFrame(remote_repo, new_file)
+
+    # Add a row and commit
+    row_id = df.insert_row(new_row)
+    _width, height = df.size()
+    assert height == 1, "DataFrame should have 1 row"
+
+    rows = df.list_page(1)
+    assert len(rows) == 1, "DataFrame should have 1 row"
+    row = df.get_row_by_id(row_id)
+
+    assert row["prompt"] == new_row["prompt"], "Prompt should match"
+    assert row["response"] == new_row["response"], "Response should match"
+
+    # insert another row
+    second_row = {
+        "prompt": "what is the fastest data version control tool?",
+        "response": "Oxen.ai scales and is fast",
+    }
+    df.insert_row(second_row)
+    rows = df.list_page(1)
+    assert len(rows) == 2, "DataFrame should have 2 rows"
+
+    assert rows[0]["prompt"] == new_row["prompt"], "Prompt should match"
+    assert rows[0]["response"] == new_row["response"], "Response should match"
+    assert rows[1]["prompt"] == second_row["prompt"], "Prompt should match"
+    assert rows[1]["response"] == second_row["response"], "Response should match"
+
+
 def test_data_frame_commit(celeba_remote_repo_fully_pushed):
     _, remote_repo = celeba_remote_repo_fully_pushed
 

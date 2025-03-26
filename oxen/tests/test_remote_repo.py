@@ -62,7 +62,7 @@ def test_remote_repo_branch_exists(
     relative_path = os.path.join("ChatBot", file_path)
     full_path = os.path.join(shared_datadir, relative_path)
     remote_repo.create_checkout_branch("test-branch")
-    
+
     assert remote_repo.branch_exists("main")
     assert remote_repo.branch_exists("test-branch")
     assert not remote_repo.branch_exists("non-existent-branch")
