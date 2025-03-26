@@ -93,14 +93,16 @@ impl PyRemoteRepo {
     }
 
     fn list_workspaces(&self) -> Result<Vec<PyWorkspaceResponse>, PyOxenError> {
-        let workspaces = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::workspaces::list(&self.repo).await
-        })?;
-        Ok(workspaces.iter().map(|w| PyWorkspaceResponse {
-            id: w.id.clone(),
-            name: w.name.clone(),
-            commit_id: w.commit.id.clone(),
-        }).collect())
+        let workspaces = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::workspaces::list(&self.repo).await })?;
+        Ok(workspaces
+            .iter()
+            .map(|w| PyWorkspaceResponse {
+                id: w.id.clone(),
+                name: w.name.clone(),
+                commit_id: w.commit.id.clone(),
+            })
+            .collect())
     }
 
     fn create(&mut self, empty: bool, is_public: bool) -> Result<PyRemoteRepo, PyOxenError> {
@@ -230,12 +232,52 @@ impl PyRemoteRepo {
         Ok(PyPaginatedDirEntries::from(result))
     }
 
-    fn metadata(&self, path: PathBuf) -> Result<PyEntry, PyOxenError> {
+    fn file_exists(&self, path: PathBuf, revision: &str) -> Result<bool, PyOxenError> {
+        let exists = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            match api::client::metadata::get_file(&self.repo, &revision, &path).await {
+                Ok(Some(_)) => Ok(true),
+                Ok(None) => Ok(false),
+                Err(e) => Err(e),
+            }
+        })?;
+
+        Ok(exists)
+    }
+
+    fn file_has_changes(
+        &self,
+        local_path: PathBuf,
+        remote_path: PathBuf,
+        revision: &str,
+    ) -> PyResult<bool> {
+        match pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::metadata::get_file(&self.repo, &revision, &remote_path).await
+        }) {
+            Ok(Some(remote_metadata)) => {
+                let remote_hash = remote_metadata.entry.hash();
+                let local_hash =
+                    liboxen::util::hasher::hash_file_contents(&local_path).map_err(|e| {
+                        PyValueError::new_err(format!("Error hashing local file: {}", e))
+                    })?;
+                Ok(remote_hash != local_hash)
+            }
+            Ok(None) => Err(PyValueError::new_err(format!(
+                "File does not exist: {}",
+                remote_path.display()
+            ))),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Error getting file metadata: {}",
+                e
+            ))),
+        }
+    }
+
+    fn metadata(&self, path: PathBuf) -> Result<Option<PyEntry>, PyOxenError> {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::metadata::get_file(&self.repo, &self.revision, &path).await
         })?;
 
-        Ok(PyEntry::from(result.entry))
+        Ok(result.map(|e| PyEntry::from(e.entry)))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
@@ -272,18 +314,32 @@ impl PyRemoteRepo {
         }
     }
 
-    fn checkout(&mut self, revision: String) -> PyResult<()> {
+    fn merge(&self, base_branch: String, head_branch: String) -> PyResult<()> {
+        let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::merger::merge(&self.repo, &base_branch, &head_branch).await
+        });
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Could not merge branches: {}",
+                e
+            ))),
+        }
+    }
+
+    fn checkout(&mut self, revision: String) -> PyResult<String> {
         let branch = self.get_branch(revision.clone());
         if let Ok(branch) = branch {
             self.set_revision(branch.name().to_string());
-            return Ok(());
+            return Ok(branch.name().to_string());
         }
 
         let commit = self.get_commit(revision.clone());
         match commit {
             Ok(commit) => {
-                self.set_revision(commit.commit.id);
-                Ok(())
+                self.set_revision(commit.commit.id.clone());
+                Ok(commit.commit.id.clone())
             },
             _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision)))
         }

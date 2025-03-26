@@ -167,7 +167,7 @@ class RemoteRepo:
         if create:
             return self._repo.create_branch(revision)
 
-        self._repo.checkout(revision)
+        return self._repo.checkout(revision)
 
     def ls(
         self, directory: Optional[str] = None, page_num: int = 1, page_size: int = 100
@@ -188,9 +188,7 @@ class RemoteRepo:
 
         return self._repo.ls(directory, page_num, page_size)
 
-    def scan(
-        self, directory: Optional[str] = None, page_size: int = 100
-    ):
+    def scan(self, directory: Optional[str] = None, page_size: int = 100):
         """
         Generator over the contents of a directory in the remote repo
 
@@ -206,7 +204,9 @@ class RemoteRepo:
         current_page = 1
 
         while True:
-            contents = self._repo.ls(directory, page_num=current_page, page_size=page_size)
+            contents = self._repo.ls(
+                directory, page_num=current_page, page_size=page_size
+            )
 
             if not contents.entries:
                 return
@@ -262,7 +262,7 @@ class RemoteRepo:
         """
         if self._workspace is None:
             if branch is None or branch == "":
-                branch = "main"
+                branch = self.revision
             print(f"Creating workspace for branch {branch}")
             self._workspace = Workspace(self, branch)
 
@@ -321,6 +321,45 @@ class RemoteRepo:
         """
         return self._repo.metadata(path)
 
+    def file_exists(self, path: str, revision: str = None):
+        """
+        Check if a file exists in the remote repo.
+
+        Args:
+            path: `str`
+                The path to the file to check
+            revision: `str`
+                The revision to check against, defaults to `self.revision`
+        """
+
+        if revision is None:
+            revision = self.revision
+
+        return self._repo.file_exists(path, revision)
+
+    def file_has_changes(
+        self, local_path: str, remote_path: str = None, revision: str = None
+    ):
+        """
+        Check if a local file has changed compared to a remote revision
+
+        Args:
+            local_path: `str`
+                The local path to the file to check
+            remote_path: `str`
+                The remote path to the file to check, will default to `local_path` if not provided
+            revision: `str`
+                The revision to check against, defaults to `self.revision`
+        """
+
+        if remote_path is None:
+            remote_path = local_path
+
+        if revision is None:
+            revision = self.revision
+
+        return self._repo.file_has_changes(local_path, remote_path, revision)
+
     def log(self):
         """
         Get the commit history for a remote repo
@@ -371,6 +410,18 @@ class RemoteRepo:
         """
         self.create_branch(branch)
         return self.checkout(branch)
+
+    def merge(self, base_branch: str, head_branch: str):
+        """
+        Merge the head branch into the base branch on the remote repo.
+
+        Args:
+            base_branch: `str`
+                The base branch to merge into
+            head_branch: `str`
+                The head branch to merge
+        """
+        self._repo.merge(base_branch, head_branch)
 
     @property
     def namespace(self) -> str:

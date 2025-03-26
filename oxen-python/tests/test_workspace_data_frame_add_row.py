@@ -9,7 +9,7 @@ def test_workspace_df_add_row_success(
     celeba_remote_repo_one_image_pushed, shared_datadir
 ):
     _, remote_repo = celeba_remote_repo_one_image_pushed
-    workspace = Workspace(remote_repo, "main")
+    workspace = Workspace(remote_repo, "main", workspace_name="test_workspace")
 
     file_path = os.path.join(shared_datadir, "CelebA", "annotations", "train.csv")
     df = pd.read_csv(file_path)
@@ -41,7 +41,7 @@ def test_remote_df_add_row_invalid_schema(
     celeba_remote_repo_one_image_pushed, shared_datadir
 ):
     _, remote_repo = celeba_remote_repo_one_image_pushed
-    workspace = Workspace(remote_repo, "main")
+    workspace = Workspace(remote_repo, "main", workspace_name="test_workspace")
 
     file_path = os.path.join(shared_datadir, "CelebA", "annotations", "train.csv")
     # df = pd.read_csv(file_path)
