@@ -79,9 +79,10 @@ class DataFrame:
         """
         if isinstance(remote, str):
             remote_repo = RemoteRepo(remote, host=host, scheme=scheme)
+            if branch is None:
+                branch = remote_repo.branch().name
             self._workspace = Workspace(remote_repo, branch, path=path)
         elif isinstance(remote, RemoteRepo):
-            # remote.create_checkout_branch(branch)
             if branch is None:
                 branch = remote.branch().name
             self._workspace = Workspace(remote, branch, path=path)
