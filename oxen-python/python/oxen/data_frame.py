@@ -3,6 +3,9 @@ from oxen.remote_repo import RemoteRepo
 from .oxen import PyWorkspaceDataFrame
 import json
 from typing import List, Union, Optional
+import os
+import polars as pl
+from oxen import df_utils
 
 
 class DataFrame:
@@ -75,9 +78,10 @@ class DataFrame:
                 The scheme of the remote repo. Defaults to "https".
         """
         if isinstance(remote, str):
-            remote_repo = RemoteRepo(remote, host, branch, scheme)
+            remote_repo = RemoteRepo(remote, host=host, scheme=scheme)
             self._workspace = Workspace(remote_repo, branch, path=path)
         elif isinstance(remote, RemoteRepo):
+            # remote.create_checkout_branch(branch)
             self._workspace = Workspace(remote, branch, path=path)
         elif isinstance(remote, Workspace):
             self._workspace = remote
@@ -86,9 +90,12 @@ class DataFrame:
                 "Invalid remote type. Must be a string, RemoteRepo, or Workspace"
             )
         self._path = path
-
         # this will return an error if the data frame file does not exist
-        self.data_frame = PyWorkspaceDataFrame(self._workspace._workspace, path)
+        try:
+            self.data_frame = PyWorkspaceDataFrame(self._workspace._workspace, path)
+        except Exception as e:
+            print(e)
+            self.data_frame = None
         self.filter_keys = ["_oxen_diff_hash", "_oxen_diff_status", "_oxen_row_id"]
 
     def __repr__(self):
@@ -151,10 +158,41 @@ class DataFrame:
         Returns:
             The id of the row that was inserted.
         """
-        # convert dict to json string
-        # this is not the most efficient but gets it working
-        data = json.dumps(data)
-        return self.data_frame.insert_row(data)
+
+        repo = self._workspace.repo()
+        if not repo.file_exists(self._path):
+            tmp_file_path = self._write_first_row(data)
+            # Add the file to the repo
+            dirname = os.path.dirname(self._path)
+            repo.add(tmp_file_path, dst=dirname)
+            repo.commit("Adding data frame at " + self._path)
+            self._workspace = Workspace(repo, self._workspace.branch(), path=self._path)
+            self.data_frame = PyWorkspaceDataFrame(
+                self._workspace._workspace, self._path
+            )
+            results = self.data_frame.list(1)
+            results = json.loads(results)
+            print(results)
+            return results[0]["_oxen_id"]
+        else:
+            # convert dict to json string
+            # this is not the most efficient but gets it working
+            data = json.dumps(data)
+            return self.data_frame.insert_row(data)
+
+    def _write_first_row(self, data: dict):
+        """
+        Write the first row of the data frame to disk, based on the file extension and the input data.
+        """
+        repo = self._workspace.repo()
+        basename = os.path.basename(self._path)
+        tmp_file_path = os.path.join("/tmp", basename)
+        # Create a polars data frame from the input data
+        df = pl.DataFrame(data)
+        # Save the data frame to disk
+        df_utils.save(df, tmp_file_path)
+        # Return the path to the file
+        return tmp_file_path
 
     # TODO: Allow `where_from_str` to be passed in so user could write their own where clause
     def where_sql_from_dict(self, attributes: dict, operator: str = "AND") -> str:
