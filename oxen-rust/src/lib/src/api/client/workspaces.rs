@@ -281,6 +281,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_workspace_by_name_does_not_exist() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            let workspace_name = "name_does_not_exist";
+
+            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
+            assert!(workspace.is_none());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_by_id_does_not_exist() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            let workspace_id = "id_does_not_exist";
+
+            let workspace = get(&remote_repo, &workspace_id).await?;
+            assert!(workspace.is_none());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_clear_workspaces() -> Result<(), OxenError> {
         test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
             // Create 10 workspaces

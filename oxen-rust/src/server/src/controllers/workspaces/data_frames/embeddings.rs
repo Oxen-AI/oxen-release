@@ -11,7 +11,7 @@ use liboxen::view::data_frames::embeddings::{
 };
 use liboxen::view::entries::ResourceVersion;
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
-use liboxen::view::{JsonDataFrameViews, StatusMessage};
+use liboxen::view::{JsonDataFrameViews, StatusMessage, StatusMessageDescription};
 
 /// Get the embedding status for a data frame
 pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
@@ -24,7 +24,10 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = path_param(&req, "path")?;
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let response = EmbeddingColumnsResponse {
         columns: repositories::workspaces::data_frames::embeddings::list_indexed_columns(
@@ -46,7 +49,10 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = path_param(&req, "path")?;
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
     log::debug!("neighbors is_indexed: {}", is_indexed);
@@ -144,7 +150,10 @@ pub async fn post(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHt
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = path_param(&req, "path")?;
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let Ok(data) = String::from_utf8(bytes.to_vec()) else {
         return Err(OxenHttpError::BadRequest(
             "Could not parse bytes as utf8".to_string().into(),

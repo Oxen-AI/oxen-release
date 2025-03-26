@@ -97,7 +97,10 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
     let mut opts = DFOpts::empty();
@@ -186,7 +189,10 @@ pub async fn get_schema(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
     let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
@@ -213,7 +219,10 @@ pub async fn download(
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
     let mut opts = DFOpts::empty();
@@ -301,7 +310,10 @@ pub async fn download_streaming(
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
     let mut opts = DFOpts::empty();
@@ -374,7 +386,10 @@ pub async fn get_by_branch(
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let branch_name: &str = req.match_info().query("branch");
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -420,7 +435,10 @@ pub async fn diff(
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -482,7 +500,10 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
     log::debug!("workspace {} data frame put {:?}", workspace_id, file_path);
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let data: DataFramePayload = serde_json::from_str(&body)?;
     log::debug!("workspace {} data frame put {:?}", workspace_id, data);
 
@@ -506,7 +527,10 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     repositories::workspaces::data_frames::restore(&repo, &workspace, file_path)?;
 
@@ -530,7 +554,10 @@ pub async fn rename(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let new_path = PathBuf::from(body.new_path);
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     if repositories::entries::get_file(&repo, &workspace.commit, &new_path)?.is_some() {
         return Err(OxenHttpError::BadRequest("new_path already exists".into()));

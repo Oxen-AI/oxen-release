@@ -27,6 +27,11 @@ impl StatusMessageDescription {
         }
     }
 
+    pub fn workspace_not_found(workspace_id: impl AsRef<str>) -> StatusMessageDescription {
+        let workspace_id = workspace_id.as_ref();
+        StatusMessageDescription::not_found(format!("Workspace not found: {workspace_id}"))
+    }
+
     pub fn bad_request(description: impl AsRef<str>) -> StatusMessageDescription {
         StatusMessageDescription {
             status: String::from(view::http::STATUS_ERROR),

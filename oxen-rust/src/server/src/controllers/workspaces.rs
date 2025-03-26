@@ -7,7 +7,9 @@ use liboxen::model::NewCommitBody;
 use liboxen::repositories;
 use liboxen::view::merge::MergeableResponse;
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
-use liboxen::view::{CommitResponse, StatusMessage, WorkspaceResponseView};
+use liboxen::view::{
+    CommitResponse, StatusMessage, StatusMessageDescription, WorkspaceResponseView,
+};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -52,7 +54,7 @@ pub async fn get_or_create(
         workspace_identifier = workspace_id.clone();
     }
     log::debug!("get_or_create workspace_id {:?}", workspace_id);
-    if let Ok(workspace) = repositories::workspaces::get(&repo, &workspace_identifier) {
+    if let Ok(Some(workspace)) = repositories::workspaces::get(&repo, &workspace_identifier) {
         return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
             status: StatusMessage::resource_found(),
             workspace: WorkspaceResponse {
@@ -91,7 +93,10 @@ pub async fn get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     let workspace_id = path_param(&req, "workspace_id")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_found(),
@@ -203,7 +208,10 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     let workspace_id = path_param(&req, "workspace_id")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     repositories::workspaces::delete(&workspace)?;
 
@@ -225,7 +233,10 @@ pub async fn mergeability(req: HttpRequest) -> Result<HttpResponse, OxenHttpErro
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let branch_name = path_param(&req, "branch")?;
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let mergeable = repositories::workspaces::mergeability(&workspace, &branch_name)?;
 
     let response = MergeableResponse {
@@ -261,7 +272,10 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
     };
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     match repositories::workspaces::commit(&workspace, &data, &branch_name) {
         Ok(commit) => {
