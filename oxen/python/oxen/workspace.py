@@ -74,22 +74,37 @@ class Workspace:
                 The path to the workspace. If left empty, the workspace will be created in the root of the remote repo.
         """
         self._repo = repo
+        self._repo.create_checkout_branch(branch)
         self._workspace = PyWorkspace(
             repo._repo, branch, workspace_id, workspace_name, path
         )
-        print(f"Returned workspace with id: {self._workspace.id()}")
 
     def __repr__(self):
         return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
 
     def id(self):
+        """
+        Get the id of the workspace.
+        """
         return self._workspace.id()
 
     def name(self):
+        """
+        Get the name of the workspace.
+        """
         return self._workspace.name()
 
     def branch(self):
+        """
+        Get the branch that the workspace is tied to.
+        """
         return self._workspace.branch()
+
+    def repo(self) -> "RemoteRepo":
+        """
+        Get the remote repo that the workspace is tied to.
+        """
+        return self._repo
 
     def status(self, path: str = ""):
         """
