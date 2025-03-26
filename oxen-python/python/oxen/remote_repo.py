@@ -376,6 +376,12 @@ class RemoteRepo:
         branches = set([b.name for b in self.branches()])
         return name in branches
 
+    def branch(self):
+        """
+        Get the current branch for a remote repo
+        """
+        return self.get_branch(self.revision)
+
     def branches(self):
         """
         List all branches for a remote repo
