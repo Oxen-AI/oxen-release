@@ -8,7 +8,7 @@ use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
-use liboxen::view::{FilePathsResponse, StatusMessage};
+use liboxen::view::{FilePathsResponse, StatusMessage, StatusMessageDescription};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -27,7 +27,9 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let workspace_id = path_param(&req, "workspace_id")?;
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Err(OxenHttpError::NotFound);
+    };
     let path = path_param(&req, "path")?;
 
     // The path in a workspace context is just the working path of the workspace repo
@@ -60,7 +62,10 @@ pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, O
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let directory = PathBuf::from(path_param(&req, "path")?);
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     log::debug!("add_file directory {:?}", directory);
 
@@ -87,7 +92,10 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let path = PathBuf::from(path_param(&req, "path")?);
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
     if util::fs::is_tabular(&path) {

@@ -44,7 +44,7 @@ pub fn parse_resource_from_path(
 
         // If not a commit, try to interpret the first component as a workspace id.
         match repositories::workspaces::get(repo, first_str) {
-            Ok(workspace) => {
+            Ok(Some(workspace)) => {
                 let mut file_path = PathBuf::new();
                 for (i, component) in components.iter().enumerate() {
                     if i != 0 {
@@ -65,6 +65,10 @@ pub fn parse_resource_from_path(
                     version: PathBuf::from(workspace.id),
                     resource: path.to_owned(),
                 }));
+            }
+            Ok(None) => {
+                log::debug!("Workspace not found: {}", first_str);
+                // Continue to branch resolution below if no workspace is found
             }
             Err(e) => {
                 log::debug!(

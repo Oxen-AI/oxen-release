@@ -14,7 +14,9 @@ use liboxen::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
 use liboxen::view::json_data_frame_view::JsonDataFrameColumnResponse;
-use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
+use liboxen::view::{
+    JsonDataFrameView, JsonDataFrameViews, StatusMessage, StatusMessageDescription,
+};
 use serde_json::{json, Value};
 
 pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -51,7 +53,10 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("create column with data {:?}", new_column);
 
     // Get the workspace
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // Make sure the data frame is indexed
     let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
@@ -118,7 +123,10 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("create column with data {:?}", column_to_delete);
 
     // Get the workspace
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // Make sure the data frame is indexed
     let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
@@ -221,7 +229,10 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("update column with data {:?}", column_to_update);
 
     // Get the workspace
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // Make sure the data frame is indexed
     let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
@@ -297,7 +308,10 @@ pub async fn add_column_metadata(
     let path = path_param(&req, "path")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let parsed_json: serde_json::Value = serde_json::from_str(&body)?;
 
@@ -333,7 +347,10 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
