@@ -56,7 +56,7 @@ class DataFrame:
         remote: Union[str, RemoteRepo, Workspace],
         path: str,
         host: str = "hub.oxen.ai",
-        branch: str = "main",
+        branch: Optional[str] = None,
         scheme: str = "https",
     ):
         """
@@ -72,8 +72,8 @@ class DataFrame:
                 The path of the data frame file in the repository.
             host: `str`
                 The host of the oxen-server. Defaults to "hub.oxen.ai".
-            branch: `str`
-                The branch of the remote repo. Defaults to "main".
+            branch: `Optional[str]`
+                The branch of the remote repo. Defaults to None.
             scheme: `str`
                 The scheme of the remote repo. Defaults to "https".
         """
@@ -82,6 +82,8 @@ class DataFrame:
             self._workspace = Workspace(remote_repo, branch, path=path)
         elif isinstance(remote, RemoteRepo):
             # remote.create_checkout_branch(branch)
+            if branch is None:
+                branch = remote.branch().name
             self._workspace = Workspace(remote, branch, path=path)
         elif isinstance(remote, Workspace):
             self._workspace = remote
@@ -184,8 +186,9 @@ class DataFrame:
         """
         Write the first row of the data frame to disk, based on the file extension and the input data.
         """
-        repo = self._workspace.repo()
+        # get the filename from the path logs/data_frame_name.csv -> data_frame_name.csv
         basename = os.path.basename(self._path)
+        # write the data to a temp file that we will add to the repo
         tmp_file_path = os.path.join("/tmp", basename)
         # Create a polars data frame from the input data
         df = pl.DataFrame(data)
