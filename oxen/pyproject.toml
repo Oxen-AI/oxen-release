@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-version = "0.29.0"
+version = "0.32.0"
 name = "oxenai"
 description = "Data version control for machine learning"
 requires-python = ">=3.7"
