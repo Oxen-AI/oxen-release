@@ -109,7 +109,12 @@ impl RunCmd for EmbeddingsQueryCmd {
         let repository = LocalRepository::from_current_dir()?;
         let commit = repositories::commits::head_commit(&repository)?;
         let workspace_id = format!("{}-{}", path, commit.id);
-        let workspace = repositories::workspaces::get(&repository, workspace_id)?;
+        let Some(workspace) = repositories::workspaces::get(&repository, &workspace_id)? else {
+            return Err(OxenError::basic_str(format!(
+                "Workspace not found: {}",
+                workspace_id
+            )));
+        };
 
         let start = std::time::Instant::now();
         let mut df =
