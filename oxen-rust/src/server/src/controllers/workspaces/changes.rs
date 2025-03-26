@@ -6,7 +6,7 @@ use liboxen::constants;
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::remote_staged_status::RemoteStagedStatus;
-use liboxen::view::{RemoteStagedStatusResponse, StatusMessage};
+use liboxen::view::{RemoteStagedStatusResponse, StatusMessage, StatusMessageDescription};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -25,7 +25,10 @@ pub async fn list(
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let staged = repositories::workspaces::status::status_from_dir(&workspace, &path)?;
 
     staged.print();
@@ -46,11 +49,14 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let user_id = path_param(&req, "workspace_id")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let path = PathBuf::from(path_param(&req, "path")?);
 
-    let workspace = repositories::workspaces::get(&repo, user_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
     if util::fs::is_tabular(&path) {

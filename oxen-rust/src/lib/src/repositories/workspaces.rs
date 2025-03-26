@@ -28,8 +28,11 @@ use uuid::Uuid;
 
 /// Loads a workspace from the filesystem. Must call create() first to create the workspace.
 ///
-/// Returns an error if the workspace does not exist
-pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Workspace, OxenError> {
+/// Returns an None if the workspace does not exist
+pub fn get(
+    repo: &LocalRepository,
+    workspace_id: impl AsRef<str>,
+) -> Result<Option<Workspace>, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
     log::debug!("workspace::get workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
@@ -50,14 +53,14 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
 pub fn get_by_dir(
     repo: &LocalRepository,
     workspace_dir: impl AsRef<Path>,
-) -> Result<Workspace, OxenError> {
+) -> Result<Option<Workspace>, OxenError> {
     let workspace_dir = workspace_dir.as_ref();
     let workspace_id = workspace_dir.file_name().unwrap().to_str().unwrap();
     let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
 
     if !config_path.exists() {
         log::debug!("workspace::get workspace not found: {:?}", workspace_dir);
-        return Err(OxenError::workspace_not_found(workspace_id.into()));
+        return Ok(None);
     }
 
     let config_contents = util::fs::read_from_path(&config_path)?;
@@ -71,14 +74,14 @@ pub fn get_by_dir(
         )));
     };
 
-    Ok(Workspace {
+    Ok(Some(Workspace {
         id: config.workspace_id.unwrap_or(workspace_id.to_owned()),
         name: config.workspace_name,
         base_repo: repo.clone(),
         workspace_repo: LocalRepository::new(workspace_dir)?,
         commit,
         is_editable: config.is_editable,
-    })
+    }))
 }
 
 pub fn get_by_name(
@@ -265,10 +268,14 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
     let mut workspaces = Vec::new();
     for workspace_hash in workspaces_hashes {
         // Construct the Workspace and add it to the list
-        match get_by_dir(repo, workspace_hash) {
-            Ok(workspace) => workspaces.push(workspace),
+        match get_by_dir(repo, &workspace_hash) {
+            Ok(Some(workspace)) => workspaces.push(workspace),
+            Ok(None) => {
+                log::debug!("Workspace not found: {:?}", workspace_hash);
+                continue;
+            }
             Err(e) => {
-                log::error!("Failed to create workspace: {}", e);
+                log::error!("Failed to list workspace: {}", e);
                 continue;
             }
         }

@@ -13,7 +13,9 @@ use liboxen::repositories;
 use liboxen::view::json_data_frame_view::{
     BatchUpdateResponse, JsonDataFrameRowResponse, VecBatchUpdateResponse,
 };
-use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
+use liboxen::view::{
+    JsonDataFrameView, JsonDataFrameViews, StatusMessage, StatusMessageDescription,
+};
 
 pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -43,7 +45,10 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     log::debug!("create row with data {:?}", data);
 
     // Get the workspace
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     // Make sure the data frame is indexed
     let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
@@ -93,7 +98,10 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let file_path = path_param(&req, "path")?;
     let row_id = path_param(&req, "row_id")?;
 
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     let row_df =
         repositories::workspaces::data_frames::rows::get_by_id(&workspace, file_path, row_id)?;
 
@@ -149,7 +157,10 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     };
 
     // Assumes the workspace is already created
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     log::debug!(
         "update row repo {}/{} -> {}/{:?}",
         namespace,
@@ -195,7 +206,10 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let file_path = PathBuf::from(path_param(&req, "path")?);
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let df = repositories::workspaces::data_frames::rows::delete(
         &repo, &workspace, &file_path, &row_id,
@@ -229,7 +243,10 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let file_path = PathBuf::from(path_param(&req, "path")?);
-    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
 
     let restored_row = repositories::workspaces::data_frames::rows::restore(
         &repo, &workspace, &file_path, &row_id,
@@ -280,7 +297,10 @@ pub async fn batch_update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse
         &json_value
     };
 
-    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
     log::debug!(
         "update row repo {}/{} -> {}/{:?}",
         namespace,
