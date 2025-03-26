@@ -78,7 +78,6 @@ class Workspace:
         self._workspace = PyWorkspace(
             repo._repo, branch, workspace_id, workspace_name, path
         )
-        print(f"Returned workspace with id: {self._workspace.id()}")
 
     def __repr__(self):
         return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
