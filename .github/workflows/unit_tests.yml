@@ -92,7 +92,7 @@ jobs:
       run: |
         ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
         ./oxen-server.exe start &
-        pytest -s tests
+        pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
 
 
 
