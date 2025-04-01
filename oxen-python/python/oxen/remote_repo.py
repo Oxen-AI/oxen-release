@@ -165,7 +165,7 @@ class RemoteRepo:
                 Whether to create a new branch if it doesn't exist. Default: False
         """
         if create:
-            return self._repo.create_branch(revision)
+            self._repo.create_branch(revision)
 
         return self._repo.checkout(revision)
 
