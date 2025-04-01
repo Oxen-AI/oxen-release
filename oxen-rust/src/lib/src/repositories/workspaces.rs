@@ -42,14 +42,12 @@ pub fn get(
 
     if config_path.exists() {
         get_by_dir(repo, workspace_dir)
+    } else if let Some(workspace) = get_by_name(repo, workspace_id)? {
+        let workspace_id = util::hasher::hash_str_sha256(&workspace.id);
+        let workspace_dir = Workspace::workspace_dir(repo, &workspace_id);
+        get_by_dir(repo, workspace_dir)
     } else {
-        if let Some(workspace) = get_by_name(repo, workspace_id)? {
-            let workspace_id = util::hasher::hash_str_sha256(&workspace.id);
-            let workspace_dir = Workspace::workspace_dir(repo, &workspace_id);
-            get_by_dir(repo, workspace_dir)
-        } else {
-            Ok(None)
-        }
+        Ok(None)
     }
 }
 
@@ -98,7 +96,7 @@ pub fn get_by_name(
             return Ok(Some(workspace));
         }
     }
-    return Ok(None);
+    Ok(None)
 }
 
 /// Creates a new workspace and saves it to the filesystem
