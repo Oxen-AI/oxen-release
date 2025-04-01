@@ -42,11 +42,12 @@ pub fn get(
 
     if config_path.exists() {
         get_by_dir(repo, workspace_dir)
-    } else {
-        let workspace = get_by_name(repo, workspace_id)?;
+    } else if let Some(workspace) = get_by_name(repo, workspace_id)? {
         let workspace_id = util::hasher::hash_str_sha256(&workspace.id);
         let workspace_dir = Workspace::workspace_dir(repo, &workspace_id);
         get_by_dir(repo, workspace_dir)
+    } else {
+        Ok(None)
     }
 }
 
@@ -87,18 +88,15 @@ pub fn get_by_dir(
 pub fn get_by_name(
     repo: &LocalRepository,
     workspace_name: impl AsRef<str>,
-) -> Result<Workspace, OxenError> {
+) -> Result<Option<Workspace>, OxenError> {
     let workspace_name = workspace_name.as_ref();
     let workspaces = list(repo)?;
     for workspace in workspaces {
         if workspace.name == Some(workspace_name.to_string()) {
-            return Ok(workspace);
+            return Ok(Some(workspace));
         }
     }
-    Err(OxenError::basic_str(format!(
-        "Workspace {} not found",
-        workspace_name
-    )))
+    Ok(None)
 }
 
 /// Creates a new workspace and saves it to the filesystem
