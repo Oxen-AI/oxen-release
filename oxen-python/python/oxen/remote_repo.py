@@ -1,4 +1,5 @@
 import os
+import uuid
 
 from typing import Optional
 from typing import List, Tuple
@@ -264,7 +265,9 @@ class RemoteRepo:
             if branch is None or branch == "":
                 branch = self.revision
             print(f"Creating workspace for branch {branch}")
-            self._workspace = Workspace(self, branch)
+            self._workspace = Workspace(
+                self, branch, workspace_name=f"{branch}_{uuid.uuid4()}"
+            )
 
         self._workspace.add(src, dst)
         return self._workspace
