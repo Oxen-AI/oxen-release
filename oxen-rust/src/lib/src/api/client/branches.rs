@@ -65,7 +65,7 @@ pub async fn create_from_commit(
     let new_name = new_name.as_ref();
 
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
-    log::debug!("branches::create_from_branch {}", url);
+    log::debug!("branches::create_from_commit {}", url);
 
     let params = serde_json::to_string(&BranchNewFromCommitId {
         new_name: new_name.to_string(),
@@ -88,7 +88,7 @@ pub async fn create_from_commit_id(
     let commit_id = commit_id.as_ref();
 
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
-    log::debug!("branches::create_from_branch {}", url);
+    log::debug!("branches::create_from_commit_id {}", url);
 
     let params = serde_json::to_string(&BranchNewFromCommitId {
         new_name: new_name.to_string(),
