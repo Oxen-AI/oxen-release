@@ -47,22 +47,19 @@ pub async fn get_by_id(
     log::debug!("remote::commits::get_by_id {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        if res.status() == 404 {
-            return Ok(None);
-        }
+    let res = client.get(&url).send().await?;
+    if res.status() == 404 {
+        return Ok(None);
+    }
 
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("api::client::commits::get_by_id Got response {}", body);
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res.commit)),
-            Err(err) => Err(OxenError::basic_str(format!(
-                "get_commit_by_id() Could not deserialize response [{err}]\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str("get_commit_by_id() Request failed"))
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("api::client::commits::get_by_id Got response {}", body);
+    let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(j_res) => Ok(Some(j_res.commit)),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "get_commit_by_id() Could not deserialize response [{err}]\n{body}"
+        ))),
     }
 }
 
