@@ -80,7 +80,7 @@ class Workspace:
         )
 
     def __repr__(self):
-        return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
+        return f"Workspace({self._workspace.id}, {self._workspace.branch})"
 
     @property
     def id(self):
