@@ -12,7 +12,7 @@ pub struct NewWorkspace {
     pub resource_path: Option<String>,
     pub entity_type: Option<String>,
     pub name: Option<String>,
-    pub force: bool,
+    pub force: Option<bool>,
 }
 
 // HACK to get this to work with our hub where we don't keep parent_ids 🤦‍♂️

@@ -40,6 +40,7 @@ pub fn get(
     let workspace_dir = Workspace::workspace_dir(repo, &workspace_id_hash);
     let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
 
+    log::debug!("workspace::get directory: {workspace_dir:?}");
     if config_path.exists() {
         get_by_dir(repo, workspace_dir)
     } else if let Some(workspace) = get_by_name(repo, workspace_id)? {
