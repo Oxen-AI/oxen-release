@@ -27,6 +27,13 @@ pub struct PyPaginatedDirEntries {
 
 #[pymethods]
 impl PyPaginatedDirEntries {
+    #[staticmethod]
+    pub fn empty() -> PyPaginatedDirEntries {
+        Self {
+            _entries: PaginatedDirEntries::empty()
+        }
+    }
+
     fn __repr__(&self) -> String {
         let entries = self
             ._entries
