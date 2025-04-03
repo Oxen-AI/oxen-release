@@ -25,13 +25,17 @@ impl PyRemoteDataFrame {
     }
 
     fn size(&self) -> Result<(usize, usize), PyOxenError> {
+        let Some(revision) = &self.repo.revision else {
+            return Err(OxenError::no_commits_found().into())
+        };
+
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some("0..1".to_string());
 
             let response = api::client::data_frames::get(
                 &self.repo.repo,
-                &self.repo.revision,
+                &revision,
                 &self.path,
                 DFOpts::empty(),
             )
@@ -45,13 +49,17 @@ impl PyRemoteDataFrame {
     }
 
     fn get_row_by_index(&self, row: usize) -> Result<String, PyOxenError> {
+        let Some(revision) = &self.repo.revision else {
+            return Err(OxenError::no_commits_found().into())
+        };
+
         let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", row, row + 1));
 
             let response = api::client::data_frames::get(
                 &self.repo.repo,
-                &self.repo.revision,
+                &revision,
                 &self.path,
                 opts,
             )
@@ -75,6 +83,10 @@ impl PyRemoteDataFrame {
         end: usize,
         columns: Vec<String>,
     ) -> Result<String, PyOxenError> {
+        let Some(revision) = &self.repo.revision else {
+            return Err(OxenError::no_commits_found().into())
+        };
+
         let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", start, end));
@@ -87,7 +99,7 @@ impl PyRemoteDataFrame {
 
             let response = api::client::data_frames::get(
                 &self.repo.repo,
-                &self.repo.revision,
+                &revision,
                 &self.path,
                 opts,
             )

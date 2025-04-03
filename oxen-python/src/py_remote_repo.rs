@@ -1,3 +1,4 @@
+use liboxen::error::OxenError;
 use liboxen::model::file::{FileContents, FileNew};
 use pyo3::prelude::*;
 
@@ -24,51 +25,61 @@ pub struct PyRemoteRepo {
     #[pyo3(get)]
     pub host: String,
     #[pyo3(get)]
-    pub revision: String,
-    #[pyo3(get)]
     pub scheme: String,
+    // revision and commit_id are Option's in case you call .create(empty=True)
+    #[pyo3(get)]
+    pub revision: Option<String>,
+    #[pyo3(get)]
+    pub commit_id: Option<String>,
 }
 
 #[pymethods]
 impl PyRemoteRepo {
     #[new]
     #[pyo3(signature = (repo, host, revision="main", scheme="https"))]
-    fn py_new(repo: String, host: String, revision: &str, scheme: &str) -> PyResult<Self> {
+    fn py_new(repo: String, host: String, revision: &str, scheme: &str) -> Result<Self, PyOxenError> {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
-                return Err(PyValueError::new_err(format!(
+                return Err(OxenError::basic_str(format!(
                     "Invalid repo name, must be in format namespace/repo_name. Got {}",
                     repo
-                )))
+                )).into())
             }
         };
 
-        Ok(Self {
-            repo: RemoteRepository {
-                namespace: namespace.to_owned(),
-                name: repo_name.to_owned(),
-                remote: Remote {
-                    url: liboxen::api::endpoint::remote_url_from_namespace_name_scheme(
-                        &host, &namespace, &repo_name, scheme,
-                    ),
-                    name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
-                },
-                is_empty: false,
-                min_version: Some(liboxen::constants::MIN_OXEN_VERSION.to_string()),
+        let remote_repo = RemoteRepository {
+            namespace: namespace.to_owned(),
+            name: repo_name.to_owned(),
+            remote: Remote {
+                url: liboxen::api::endpoint::remote_url_from_namespace_name_scheme(
+                    &host, &namespace, &repo_name, scheme,
+                ),
+                name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
             },
-            revision: revision.to_string(),
+            is_empty: false,
+            min_version: Some(liboxen::constants::MIN_OXEN_VERSION.to_string()),
+        };
+
+        let parsed_revision = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { liboxen::api::client::revisions::get(&remote_repo, revision).await })?;
+
+        Ok(Self {
+            repo: remote_repo,
             scheme: scheme.to_string(),
             host,
+            revision: Some(revision.to_string()),
+            commit_id: parsed_revision.map(|r| r.commit.unwrap().id)
         })
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "RemoteRepo(namespace='{}', name='{}', url='{}')",
+            "RemoteRepo(namespace='{}', name='{}', url='{}' commit='{:?}')",
             self.namespace(),
             self.name(),
-            self.url()
+            self.url(),
+            self.commit_id
         )
     }
 
@@ -89,7 +100,11 @@ impl PyRemoteRepo {
     }
 
     fn set_revision(&mut self, new_revision: String) {
-        self.revision = new_revision;
+        self.revision = Some(new_revision);
+    }
+
+    fn set_commit_id(&mut self, commit_id: String) {
+        self.commit_id = Some(commit_id);
     }
 
     fn list_workspaces(&self) -> Result<Vec<PyWorkspaceResponse>, PyOxenError> {
@@ -137,8 +152,9 @@ impl PyRemoteRepo {
         Ok(PyRemoteRepo {
             repo: self.repo.clone(),
             host: self.host.clone(),
-            revision: self.revision.clone(),
             scheme: self.scheme.clone(),
+            revision: self.revision.clone(),
+            commit_id: self.commit_id.clone(),
         })
     }
 
@@ -166,7 +182,11 @@ impl PyRemoteRepo {
             if !revision.is_empty() {
                 repositories::download(&self.repo, &remote_path, &local_path, revision).await
             } else {
-                repositories::download(&self.repo, &remote_path, &local_path, &self.revision).await
+                if let Some(revision) = &self.revision {
+                    repositories::download(&self.repo, &remote_path, &local_path, &revision).await
+                } else {
+                    Err(OxenError::basic_str("Invalid Revision: Cannot download without a version.").into())
+                }
             }
         })?;
 
@@ -203,8 +223,12 @@ impl PyRemoteRepo {
     }
 
     fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
+        let Some(revision) = &self.revision else{
+            return Ok(vec![]);
+        };
+
         let log = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::commits::list_commit_history(&self.repo, &self.revision).await
+            api::client::commits::list_commit_history(&self.repo, revision).await
         })?;
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
@@ -224,8 +248,12 @@ impl PyRemoteRepo {
         page_num: usize,
         page_size: usize,
     ) -> Result<PyPaginatedDirEntries, PyOxenError> {
+        let Some(revision) = &self.revision else{
+            return Ok(PyPaginatedDirEntries::empty());
+        };
+
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::dir::list(&self.repo, &self.revision, &path, page_num, page_size).await
+            api::client::dir::list(&self.repo, &revision, &path, page_num, page_size).await
         })?;
 
         // Convert remote status to a PyStagedData using the from method
@@ -273,8 +301,12 @@ impl PyRemoteRepo {
     }
 
     fn metadata(&self, path: PathBuf) -> Result<Option<PyEntry>, PyOxenError> {
+        let Some(revision) = &self.revision else {
+            return Ok(None)
+        };
+
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::metadata::get_file(&self.repo, &self.revision, &path).await
+            api::client::metadata::get_file(&self.repo, &revision, &path).await
         })?;
 
         Ok(result.map(|e| PyEntry::from(e.entry)))
@@ -304,8 +336,12 @@ impl PyRemoteRepo {
     }
 
     fn create_branch(&self, new_name: String) -> PyResult<PyBranch> {
+        let Some(commit_id) = &self.commit_id else {
+            return Err(PyValueError::new_err("Must have commit id to create branch"))
+        };
+
         let branch = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::branches::create_from_branch(&self.repo, &new_name, &self.revision).await
+            api::client::branches::create_from_commit_id(&self.repo, &new_name, &commit_id).await
         });
 
         match branch {
@@ -314,32 +350,34 @@ impl PyRemoteRepo {
         }
     }
 
-    fn merge(&self, base_branch: String, head_branch: String) -> PyResult<()> {
+    fn merge(&mut self, base_branch: String, head_branch: String) -> Result<PyCommit, PyOxenError> {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::merger::merge(&self.repo, &base_branch, &head_branch).await
-        });
+        })?;
+        
+        // Make sure to advance internal commit id
+        self.commit_id = Some(result.merge.id.clone());
 
-        match result {
-            Ok(()) => Ok(()),
-            Err(e) => Err(PyValueError::new_err(format!(
-                "Could not merge branches: {}",
-                e
-            ))),
-        }
+        Ok(PyCommit {
+            commit: result.merge
+        })
     }
 
     fn checkout(&mut self, revision: String) -> PyResult<String> {
         let branch = self.get_branch(revision.clone());
         if let Ok(branch) = branch {
             self.set_revision(branch.name().to_string());
+            self.commit_id = Some(branch.commit_id().to_string());
             return Ok(branch.name().to_string());
         }
 
         let commit = self.get_commit(revision.clone());
         match commit {
             Ok(commit) => {
-                self.set_revision(commit.commit.id.clone());
-                Ok(commit.commit.id.clone())
+                let commit_id = commit.commit.id.clone();
+                self.set_revision(commit_id.clone());
+                self.commit_id = Some(commit_id.clone());
+                Ok(commit_id)
             },
             _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision)))
         }
