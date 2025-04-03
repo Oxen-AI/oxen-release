@@ -266,7 +266,7 @@ pub async fn import(
     } else {
         url_parsed
             .path_segments()
-            .and_then(|segments| segments.last())
+            .and_then(|mut segments| segments.next_back())
             .map(|s| s.to_string())
     }
     .ok_or_else(|| OxenHttpError::BadRequest("Invalid filename in URL".into()))?;

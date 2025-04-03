@@ -18,7 +18,7 @@ pub fn init_logging() {
         .format(|buf, record| {
             // Split string on a character and take the last part
             fn take_last(s: &str, c: char) -> &str {
-                s.split(c).last().unwrap_or("")
+                s.split(c).next_back().unwrap_or("")
             }
 
             // Format the target to remove "liboxen::" prefix and replace "::" with "/"
