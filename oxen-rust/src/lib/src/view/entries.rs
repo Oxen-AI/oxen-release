@@ -158,6 +158,21 @@ pub struct PaginatedDirEntries {
     pub total_entries: usize,
 }
 
+impl PaginatedDirEntries {
+    pub fn empty() -> PaginatedDirEntries {
+        PaginatedDirEntries {
+            dir: None,
+            entries: vec![],
+            resource: None,
+            metadata: None,
+            page_size: 0,
+            page_number: 0,
+            total_pages: 0,
+            total_entries: 0,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntriesResponse {
     #[serde(flatten)]

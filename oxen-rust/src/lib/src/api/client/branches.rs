@@ -79,6 +79,29 @@ pub async fn create_from_commit(
     Ok(response.branch)
 }
 
+pub async fn create_from_commit_id(
+    repository: &RemoteRepository,
+    new_name: impl AsRef<str>,
+    commit_id: impl AsRef<str>,
+) -> Result<Branch, OxenError> {
+    let new_name = new_name.as_ref();
+    let commit_id = commit_id.as_ref();
+
+    let url = api::endpoint::url_from_repo(repository, "/branches")?;
+    log::debug!("branches::create_from_branch {}", url);
+
+    let params = serde_json::to_string(&BranchNewFromCommitId {
+        new_name: new_name.to_string(),
+        commit_id: commit_id.to_string(),
+    })?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.post(&url).body(params).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: BranchResponse = serde_json::from_str(&body)?;
+    Ok(response.branch)
+}
+
 /// List all branches on the remote
 pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
