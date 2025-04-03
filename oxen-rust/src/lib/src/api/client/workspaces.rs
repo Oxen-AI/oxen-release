@@ -123,6 +123,7 @@ pub async fn create_with_path(
         resource_path: Some(path.to_str().unwrap().to_string()),
         entity_type: Some("user".to_string()),
         name: workspace_name,
+        force: true,
     };
 
     let client = client::new_for_url(&url)?;
