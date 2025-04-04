@@ -80,26 +80,30 @@ class Workspace:
         )
 
     def __repr__(self):
-        return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
+        return f"Workspace({self._workspace.id}, {self._workspace.branch})"
 
+    @property
     def id(self):
         """
         Get the id of the workspace.
         """
         return self._workspace.id()
 
+    @property
     def name(self):
         """
         Get the name of the workspace.
         """
         return self._workspace.name()
 
+    @property
     def branch(self):
         """
         Get the branch that the workspace is tied to.
         """
         return self._workspace.branch()
 
+    @property
     def repo(self) -> "RemoteRepo":
         """
         Get the remote repo that the workspace is tied to.
