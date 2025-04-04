@@ -157,11 +157,8 @@ impl TabularDiffWrapper {
         match node {
             Some(node) => {
                 let version_path = util::fs::version_path_from_hash(repo, node.hash().to_string());
-                tabular::read_df_with_extension(
-                    version_path,
-                    node.extension(),
-                    &DFOpts::empty(),
-                ).ok()
+                tabular::read_df_with_extension(version_path, node.extension(), &DFOpts::empty())
+                    .ok()
             }
             None => None,
         }
