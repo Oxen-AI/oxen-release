@@ -3,7 +3,7 @@ pub use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDB
 pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBReader;
 use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
-use crate::core::refs::RefWriter;
+use crate::core::refs::with_ref_writer;
 use crate::core::v_latest::commits::{get_commit_or_head, list_between};
 use crate::core::v_latest::{add, rm};
 use crate::error::OxenError;
@@ -446,8 +446,9 @@ fn fast_forward_merge(
     }
 
     // Move the HEAD forward to this commit
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_head_commit_id(&merge_commit.id)?;
+    with_ref_writer(repo, |ref_writer| {
+        ref_writer.set_head_commit_id(&merge_commit.id)
+    })?;
 
     Ok(merge_commit.clone())
 }

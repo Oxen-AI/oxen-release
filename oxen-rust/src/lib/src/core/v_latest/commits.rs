@@ -5,7 +5,7 @@ use glob::Pattern;
 use time::OffsetDateTime;
 
 use crate::core;
-use crate::core::refs::{RefReader, RefWriter};
+use crate::core::refs::{with_ref_writer, RefReader};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::commit_node::CommitNodeOpts;
 use crate::model::merkle_tree::node::{CommitNode, EMerkleTreeNode};
@@ -212,8 +212,9 @@ pub fn create_empty_commit(
     repositories::tree::cp_dir_hashes_to(repo, &existing_commit_id, commit_node.hash())?;
 
     // Update the ref
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_branch_commit_id(branch_name, commit_node.hash().to_string())?;
+    with_ref_writer(repo, |ref_writer| {
+        ref_writer.set_branch_commit_id(branch_name, commit_node.hash().to_string())
+    })?;
 
     Ok(commit_node.to_commit())
 }
