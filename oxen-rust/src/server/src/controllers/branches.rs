@@ -59,15 +59,19 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
+    log::debug!("Create branch: {body}");
+
     // Try to deserialize the body into a BranchNewFromBranchName
     let data: Result<BranchNewFromBranchName, serde_json::Error> = serde_json::from_str(&body);
     if let Ok(data) = data {
+        log::debug!("Create from branch!");
         return create_from_branch(&repo, &data);
     }
 
     // Try to deserialize the body into a BranchNewFromCommitId
     let data: Result<BranchNewFromCommitId, serde_json::Error> = serde_json::from_str(&body);
     if let Ok(data) = data {
+        log::debug!("Create from commit!");
         return create_from_commit(&repo, &data);
     }
 

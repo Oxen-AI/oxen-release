@@ -44,6 +44,18 @@ impl Workspace {
     }
 }
 
+impl std::fmt::Display for Workspace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Workspace(name={:?}, commit_id={})",
+            self.name, self.commit.id
+        )
+    }
+}
+
+impl std::error::Error for Workspace {}
+
 /// Conversion from the internal `Workspace` to a `WorkspaceView`
 impl From<Workspace> for WorkspaceView {
     fn from(workspace: Workspace) -> Self {
