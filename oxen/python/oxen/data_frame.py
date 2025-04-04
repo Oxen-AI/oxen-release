@@ -162,14 +162,14 @@ class DataFrame:
             The id of the row that was inserted.
         """
 
-        repo = self._workspace.repo()
+        repo = self._workspace.repo
         if not repo.file_exists(self._path):
             tmp_file_path = self._write_first_row(data)
             # Add the file to the repo
             dirname = os.path.dirname(self._path)
             repo.add(tmp_file_path, dst=dirname)
             repo.commit("Adding data frame at " + self._path)
-            self._workspace = Workspace(repo, self._workspace.branch(), path=self._path)
+            self._workspace = Workspace(repo, self._workspace.branch, path=self._path)
             self.data_frame = PyWorkspaceDataFrame(
                 self._workspace._workspace, self._path
             )
