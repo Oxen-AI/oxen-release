@@ -5,7 +5,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::merge::{MergeSuccessResponse, Mergeable, MergeableResponse};
+use crate::view::merge::{MergeResult, MergeSuccessResponse, Mergeable, MergeableResponse};
 
 /// Can check the mergability of base into head
 /// base or head are strings that can be branch names or commit ids
@@ -30,7 +30,7 @@ pub async fn merge(
     remote_repo: &RemoteRepository,
     base: &str,
     head: &str,
-) -> Result<(), OxenError> {
+) -> Result<MergeResult, OxenError> {
     let uri = format!("/merge/{base}..{head}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("api::client::merger::merge url: {url}");
@@ -38,8 +38,8 @@ pub async fn merge(
     let client = client::new_for_url(&url)?;
     let res = client.post(&url).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    let _response: MergeSuccessResponse = serde_json::from_str(&body)?;
-    Ok(())
+    let response: MergeSuccessResponse = serde_json::from_str(&body)?;
+    Ok(response.commits)
 }
 
 #[cfg(test)]

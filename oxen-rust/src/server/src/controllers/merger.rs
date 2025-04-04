@@ -6,7 +6,9 @@ use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::error::OxenError;
 use liboxen::repositories;
-use liboxen::view::merge::{MergeConflictFile, MergeSuccessResponse, Mergeable, MergeableResponse};
+use liboxen::view::merge::{
+    MergeConflictFile, MergeResult, MergeSuccessResponse, Mergeable, MergeableResponse,
+};
 use liboxen::view::StatusMessage;
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -58,21 +60,30 @@ pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let base_head = path_param(&req, "base_head")?;
 
     // Get the repository or return error
-    let repository = get_repo(&app_data.path, namespace, name)?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
 
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
-    let (base_commit, head_commit) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
-    let head = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
+    let (maybe_base_branch, maybe_head_branch) = resolve_base_head_branches(&repo, &base, &head)?;
+    let base_branch =
+        maybe_base_branch.ok_or(OxenError::revision_not_found(base.clone().into()))?;
+    let head_branch =
+        maybe_head_branch.ok_or(OxenError::revision_not_found(head.clone().into()))?;
+
+    // .unwrap() safe because branches must have commits
+    let base_commit = repositories::commits::get_by_id(&repo, &base_branch.commit_id)?.unwrap();
+    let head_commit = repositories::commits::get_by_id(&repo, &head_branch.commit_id)?.unwrap();
 
     // Check if mergeable
-    match repositories::merge::merge_into_base(&repository, &head, &base) {
-        Ok(Some(_merge_commit)) => {
+    match repositories::merge::merge_into_base(&repo, &head_branch, &base_branch) {
+        Ok(Some(merge_commit)) => {
             let response = MergeSuccessResponse {
                 status: StatusMessage::resource_found(),
-                base_commit: base.commit_id,
-                head_commit: head.commit_id,
+                commits: MergeResult {
+                    base: base_commit,
+                    head: head_commit,
+                    merge: merge_commit,
+                },
             };
 
             Ok(HttpResponse::Ok().json(response))

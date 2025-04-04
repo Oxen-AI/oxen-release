@@ -80,10 +80,7 @@ impl MetadataEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         entry.as_ref()?;
-        match repositories::metadata::from_commit_entry(repo, &entry.unwrap(), commit) {
-            Ok(metadata) => Some(metadata),
-            Err(_) => None,
-        }
+        repositories::metadata::from_commit_entry(repo, &entry.unwrap(), commit).ok()
     }
 
     pub fn from_file_node(
@@ -92,10 +89,7 @@ impl MetadataEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         node.as_ref()?;
-        match repositories::metadata::from_file_node(repo, &node.unwrap(), commit) {
-            Ok(metadata) => Some(metadata),
-            Err(_) => None,
-        }
+        repositories::metadata::from_file_node(repo, &node.unwrap(), commit).ok()
     }
 
     pub fn from_dir_node(
@@ -104,10 +98,7 @@ impl MetadataEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         node.as_ref()?;
-        match repositories::metadata::from_dir_node(repo, &node.unwrap(), commit) {
-            Ok(metadata) => Some(metadata),
-            Err(_) => None,
-        }
+        repositories::metadata::from_dir_node(repo, &node.unwrap(), commit).ok()
     }
 }
 

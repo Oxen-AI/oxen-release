@@ -408,7 +408,7 @@ async fn chunk_and_send_large_entries(
         });
     }
 
-    while finished_queue.len() > 0 {
+    while !finished_queue.is_empty() {
         // log::debug!("Before waiting for {} workers to finish...", queue.len());
         sleep(Duration::from_secs(1)).await;
     }
@@ -770,7 +770,7 @@ async fn bundle_and_send_small_entries(
             }
         });
     }
-    while finished_queue.len() > 0 {
+    while !finished_queue.is_empty() {
         // log::debug!("Waiting for {} workers to finish...", queue.len());
         sleep(Duration::from_secs(1)).await;
     }
