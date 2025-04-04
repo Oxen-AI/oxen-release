@@ -165,7 +165,7 @@ class RemoteRepo:
                 Whether to create a new branch if it doesn't exist. Default: False
         """
         if create:
-            return self._repo.create_branch(revision)
+            self._repo.create_branch(revision)
 
         return self._repo.checkout(revision)
 
@@ -245,7 +245,13 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, src: str, dst: Optional[str] = "", branch: Optional[str] = None):
+    def add(
+        self,
+        src: str,
+        dst: Optional[str] = "",
+        branch: Optional[str] = None,
+        workspace_name: Optional[str] = None,
+    ):
         """
         Stage a file to a workspace in the remote repo.
 
@@ -264,7 +270,7 @@ class RemoteRepo:
             if branch is None or branch == "":
                 branch = self.revision
             print(f"Creating workspace for branch {branch}")
-            self._workspace = Workspace(self, branch)
+            self._workspace = Workspace(self, branch, workspace_name=workspace_name)
 
         self._workspace.add(src, dst)
         return self._workspace
@@ -285,7 +291,11 @@ class RemoteRepo:
         if self._workspace is None:
             raise ValueError("No workspace found. Please call add() first.")
 
-        return self._workspace.commit(message)
+        commit = self._workspace.commit(message)
+        # If it's not a named workspace, it's deleted after commit
+        if self._workspace.name is None:
+            self._workspace = None
+        return commit
 
     def upload(
         self,
