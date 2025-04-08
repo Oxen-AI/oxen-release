@@ -111,7 +111,7 @@ pub async fn fetch_remote_branch(
 
     // Mark the commits as synced
     for commit in commits {
-        core::commit_sync_status::mark_commit_as_synced(repo, &commit)?;
+        core::commit_sync_status::mark_commit_as_synced(repo, &MerkleHash::from_str(&commit.id)?)?;
     }
 
     // Write the new branch commit id to the local repo
@@ -459,7 +459,7 @@ async fn r_download_entries(
         // Mark the commit as synced
         let commit_id = commit_node.hash().to_string();
         let commit = repositories::commits::get_by_id(repo, &commit_id)?.unwrap();
-        core::commit_sync_status::mark_commit_as_synced(repo, &commit)?;
+        core::commit_sync_status::mark_commit_as_synced(repo, &MerkleHash::from_str(&commit.id)?)?;
     }
 
     Ok(())

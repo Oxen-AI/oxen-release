@@ -11,6 +11,7 @@ use crate::util;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{core, resource};
 
+use derive_more::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -309,7 +310,8 @@ pub fn commit_history_is_complete(
             "commit_history_is_complete checking if commit is synced: {}",
             c
         );
-        if !core::commit_sync_status::commit_is_synced(repo, c) {
+
+        if !core::commit_sync_status::commit_is_synced(repo, &MerkleHash::from_str(&c.id)?) {
             log::debug!("commit_history_is_complete ❌ commit is not synced: {}", c);
             return Ok(false);
         } else {
