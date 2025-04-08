@@ -58,6 +58,7 @@ class DataFrame:
         host: str = "hub.oxen.ai",
         branch: Optional[str] = None,
         scheme: str = "https",
+        workspace_name: Optional[str] = None,
     ):
         """
         Initialize the DataFrame class. Will index the data frame
@@ -81,11 +82,15 @@ class DataFrame:
             remote_repo = RemoteRepo(remote, host=host, scheme=scheme)
             if branch is None:
                 branch = remote_repo.branch().name
-            self._workspace = Workspace(remote_repo, branch, path=path)
+            self._workspace = Workspace(
+                remote_repo, branch, path=path, workspace_name=workspace_name
+            )
         elif isinstance(remote, RemoteRepo):
             if branch is None:
                 branch = remote.branch().name
-            self._workspace = Workspace(remote, branch, path=path)
+            self._workspace = Workspace(
+                remote, branch, path=path, workspace_name=workspace_name
+            )
         elif isinstance(remote, Workspace):
             self._workspace = remote
         else:
@@ -104,6 +109,12 @@ class DataFrame:
     def __repr__(self):
         name = f"{self._workspace._repo.namespace}/{self._workspace._repo.name}"
         return f"DataFrame(repo={name}, path={self._path})"
+
+    def workspace_url(self, host: str = "oxen.ai", scheme: str = "https") -> str:
+        """
+        Get the url of the data frame.
+        """
+        return f"{scheme}://{host}/{self._workspace._repo.namespace}/{self._workspace._repo.name}/workspaces/{self._workspace.id}/file/{self._path}"
 
     def size(self) -> tuple[int, int]:
         """
@@ -314,6 +325,21 @@ class DataFrame:
         data = self.data_frame.sql_query(sql)
         data = json.loads(data)
         return data
+
+    def get_row(self, idx: int):
+        """
+        Get a single row of data by index.
+
+        Args:
+            idx: `int`
+                The index of the row to get.
+
+        Returns:
+            A dictionary representing the row.
+        """
+        result = self.data_frame.get_row_by_idx(idx)
+        result = json.loads(result)
+        return result
 
     def get_row_by_id(self, id: str):
         """
