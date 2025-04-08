@@ -65,10 +65,7 @@ pub fn commit(
 
         let conflicts = list_conflicts(workspace, &dir_entries, &branch)?;
         if !conflicts.is_empty() {
-            return Err(OxenError::WorkspaceBehind(Branch {
-                name: branch_name.to_string(),
-                commit_id: workspace.commit.id.to_string(),
-            }));
+            return Err(OxenError::workspace_behind(workspace));
         }
 
         let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;

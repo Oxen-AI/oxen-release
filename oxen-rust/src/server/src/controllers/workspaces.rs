@@ -1,4 +1,4 @@
-use crate::errors::OxenHttpError;
+use crate::errors::{OxenHttpError, WorkspaceBranch};
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param, NameParam};
 
@@ -277,6 +277,10 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
+    let Some(branch) = repositories::branches::get_by_name(&repo, &branch_name)? else {
+        return Ok(HttpResponse::NotFound().json(StatusMessageDescription::not_found(branch_name)));
+    };
+
     match repositories::workspaces::commit(&workspace, &data, &branch_name) {
         Ok(commit) => {
             log::debug!("workspace::commit ✅ success! commit {:?}", commit);
@@ -285,7 +289,12 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
                 commit,
             }))
         }
-        Err(OxenError::WorkspaceBehind(branch)) => Err(OxenHttpError::WorkspaceBehind(branch)),
+        Err(OxenError::WorkspaceBehind(workspace)) => {
+            Err(OxenHttpError::WorkspaceBehind(Box::new(WorkspaceBranch {
+                workspace: *workspace.clone(),
+                branch,
+            })))
+        }
         Err(err) => {
             log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
             Ok(HttpResponse::UnprocessableEntity().json(StatusMessage::error(format!("{err:?}"))))

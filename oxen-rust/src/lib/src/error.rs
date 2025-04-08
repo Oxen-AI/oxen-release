@@ -12,8 +12,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::path::StripPrefixError;
 
-use crate::model::Branch;
 use crate::model::Schema;
+use crate::model::Workspace;
 use crate::model::{Commit, ParsedResource};
 use crate::model::{Remote, RepoNew};
 
@@ -68,7 +68,7 @@ pub enum OxenError {
     // Workspaces
     WorkspaceNotFound(Box<StringError>),
     QueryableWorkspaceNotFound(),
-    WorkspaceBehind(Branch),
+    WorkspaceBehind(Box<Workspace>),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -266,8 +266,8 @@ impl OxenError {
         OxenError::WorkspaceNotFound(Box::new(value))
     }
 
-    pub fn workspace_behind(branch: Branch) -> Self {
-        OxenError::WorkspaceBehind(branch)
+    pub fn workspace_behind(workspace: &Workspace) -> Self {
+        OxenError::WorkspaceBehind(Box::new(workspace.clone()))
     }
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {

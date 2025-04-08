@@ -240,7 +240,7 @@ fn list_recursive(
         return Ok(());
     }
 
-    log::debug!("list_recursive: commit: {}", head_commit);
+    // log::debug!("list_recursive: commit: {}", head_commit);
     results.push(head_commit.clone());
 
     if stop_at_base.is_some() && &head_commit == stop_at_base.unwrap() {

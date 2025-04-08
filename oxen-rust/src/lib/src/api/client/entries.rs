@@ -43,7 +43,7 @@ pub async fn list_entries_with_type(
 ) -> Result<Vec<MetadataEntry>, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
-    let uri = if path == "" || path == "/" {
+    let uri = if path.is_empty() || path == "/" {
         format!("/{}/{}", data_type, revision)
     } else {
         format!("/{}/{}/{}", data_type, revision, path)

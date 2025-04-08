@@ -112,32 +112,22 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     log::debug!("get_by_remote url: {}", url);
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            log::debug!("get_by_remote status: {}", res.status());
-            if 404 == res.status() {
-                return Ok(None);
-            }
+    let res = client.get(&url).send().await?;
+    log::debug!("get_by_remote status: {}", res.status());
+    if 404 == res.status() {
+        return Ok(None);
+    }
 
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("repositories::get_by_remote {}\n {}", url, body);
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
-            let response: Result<RepositoryResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
-                Err(err) => {
-                    log::debug!("Err: {}", err);
-                    Err(OxenError::basic_str(format!(
-                        "get_by_remote Could not deserialize repository [{url}]"
-                    )))
-                }
-            }
-        }
+    let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
         Err(err) => {
-            log::error!("Failed to get remote url {url}\n{err:?}");
+            log::debug!("Err: {}", err);
             Err(OxenError::basic_str(format!(
-                "get_by_remote Request failed at url {url}"
+                "get_by_remote Could not deserialize repository [{url}]"
             )))
         }
     }

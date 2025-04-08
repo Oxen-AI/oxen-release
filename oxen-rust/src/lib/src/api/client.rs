@@ -22,6 +22,7 @@ pub mod file;
 pub mod merger;
 pub mod metadata;
 pub mod repositories;
+pub mod revisions;
 pub mod schemas;
 pub mod stats;
 pub mod tree;
