@@ -2,7 +2,7 @@ import os
 
 from typing import Optional, TYPE_CHECKING
 
-from .oxen import PyWorkspace
+from .oxen import PyWorkspace, PyCommit
 
 # Use TYPE_CHECKING for type hints to avoid runtime circular imports
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ class Workspace:
         )
 
     def __repr__(self):
-        return f"Workspace({self._workspace.id}, {self._workspace.branch})"
+        return f"Workspace(id={self._workspace.id()}, branch={self._workspace.branch()}, commit_id={self._workspace.commit_id()})"
 
     @property
     def id(self):
@@ -102,6 +102,13 @@ class Workspace:
         Get the branch that the workspace is tied to.
         """
         return self._workspace.branch()
+
+    @property
+    def commit_id(self):
+        """
+        Get the commit id of the workspace.
+        """
+        return self._workspace.commit_id()
 
     @property
     def repo(self) -> "RemoteRepo":
@@ -154,7 +161,7 @@ class Workspace:
         self,
         message: str,
         branch_name: Optional[str] = None,
-    ):
+    ) -> PyCommit:
         """
         Commit the workspace to a branch
 
