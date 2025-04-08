@@ -15,6 +15,7 @@ use crate::py_staged_data::PyStagedData;
 pub struct PyWorkspace {
     pub repo: PyRemoteRepo,
     pub branch_name: String,
+    pub commit_id: String,
     pub id: String,
     pub name: Option<String>,
 }
@@ -67,6 +68,7 @@ impl PyWorkspace {
                 branch_name: branch_name.clone(),
                 id: workspace.id,
                 name: workspace.name,
+                commit_id: workspace.commit.id,
             });
         }
 
@@ -86,6 +88,7 @@ impl PyWorkspace {
             branch_name,
             id: workspace.id,
             name: workspace.name,
+            commit_id: workspace.commit.id,
         })
     }
 
@@ -99,6 +102,10 @@ impl PyWorkspace {
 
     fn branch(&self) -> String {
         self.branch_name.clone()
+    }
+
+    fn commit_id(&self) -> String {
+        self.commit_id.clone()
     }
 
     fn status(&self, path: PathBuf) -> Result<PyStagedData, PyOxenError> {

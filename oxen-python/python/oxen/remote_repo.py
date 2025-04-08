@@ -271,6 +271,10 @@ class RemoteRepo:
                 branch = self.revision
             print(f"Creating workspace for branch {branch}")
             self._workspace = Workspace(self, branch, workspace_name=workspace_name)
+            print(
+                f"Workspace '{self._workspace.id}' created from commit '{self._workspace.commit_id}'"
+            )
+            self._repo.set_commit_id(self._workspace.commit_id)
 
         self._workspace.add(src, dst)
         return self._workspace
@@ -291,7 +295,9 @@ class RemoteRepo:
         if self._workspace is None:
             raise ValueError("No workspace found. Please call add() first.")
 
-        commit = self._workspace.commit(message)
+        commit = self._workspace.commit(message, self.branch().name)
+        self._repo.set_commit_id(commit.id)
+
         # If it's not a named workspace, it's deleted after commit
         if self._workspace.name is None:
             self._workspace = None
@@ -423,6 +429,7 @@ class RemoteRepo:
             branch: `str`
                 The name to assign to the created branch
         """
+        print(f"Creating branch '{branch}' from commit '{self._repo.commit_id}'")
         return self._repo.create_branch(branch)
 
     def create_checkout_branch(self, branch: str):
@@ -448,7 +455,8 @@ class RemoteRepo:
             head_branch: `str`
                 The head branch to merge
         """
-        self._repo.merge(base_branch, head_branch)
+        commit = self._repo.merge(base_branch, head_branch)
+        return commit
 
     @property
     def namespace(self) -> str:
