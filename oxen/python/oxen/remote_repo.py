@@ -275,7 +275,6 @@ class RemoteRepo:
                 f"Workspace '{self._workspace.id}' created from commit '{self._workspace.commit_id}'"
             )
             self._repo.set_commit_id(self._workspace.commit_id)
-            print(f"Repo commit id: {self._repo.commit_id}")
 
         self._workspace.add(src, dst)
         return self._workspace
