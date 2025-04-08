@@ -26,7 +26,7 @@ for i, question in enumerate(questions):
     print("==== Question", i, "====")
     start = time.time()
     df = DataFrame("ox/prompts", "fine-tune.jsonl", host="localhost:3001", scheme="http")
-    print(f"Connected to DataFrame with workspace {df._workspace.id()}")
+    print(f"Connected to DataFrame with workspace {df._workspace.id}")
     init_time = time.time() - start
     print("Init time: ", init_time)
     init_times.append(init_time)
