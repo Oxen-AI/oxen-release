@@ -3,7 +3,7 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
-use liboxen::model::Branch;
+use liboxen::model::{Branch, Workspace};
 use liboxen::view::http::{
     MSG_BAD_REQUEST, MSG_CONFLICT, MSG_INTERNAL_SERVER_ERROR, MSG_RESOURCE_ALREADY_EXISTS,
     MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
@@ -12,6 +12,24 @@ use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
 use serde_json::json;
 use std::io;
+
+#[derive(Debug)]
+pub struct WorkspaceBranch {
+    pub workspace: Workspace,
+    pub branch: Branch,
+}
+
+impl std::fmt::Display for WorkspaceBranch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "WorkspaceBranch(workspace={:?}, branch={})",
+            self.workspace, self.branch
+        )
+    }
+}
+
+impl std::error::Error for WorkspaceBranch {}
 
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
@@ -27,7 +45,7 @@ pub enum OxenHttpError {
     DatasetAlreadyIndexed(PathBufError),
     UpdateRequired(StringError),
     MigrationRequired(StringError),
-    WorkspaceBehind(Branch),
+    WorkspaceBehind(Box<WorkspaceBranch>),
     BasicError(StringError),
 
     // Translate OxenError to OxenHttpError
@@ -147,12 +165,14 @@ impl error::ResponseError for OxenHttpError {
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
-            OxenHttpError::WorkspaceBehind(branch) => {
+            OxenHttpError::WorkspaceBehind(workspace_branch) => {
+                let workspace = &workspace_branch.workspace;
+                let branch = &workspace_branch.branch;
                 let error_json = json!({
                     "error": {
                         "type": MSG_CONFLICT,
                         "title": "Workspace is behind",
-                        "detail": format!("This workspace is behind on branch '{}'", branch.name)
+                        "detail": format!("This workspace '{}' is behind on branch '{}' commit {} < {}", workspace.id, branch.name, workspace.commit.id, branch.commit_id)
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_CONFLICT,

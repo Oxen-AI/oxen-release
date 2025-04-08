@@ -68,24 +68,24 @@ pub async fn push_remote_branch(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::model::merkle_tree::node::MerkleTreeNode;
     use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME};
+    use crate::core::progress::push_progress::PushProgress;
     use crate::error::OxenError;
+    use crate::model::merkle_tree::node::MerkleTreeNode;
     use crate::opts::CloneOpts;
     use crate::opts::RmOpts;
     use crate::repositories;
     use crate::test;
     use crate::util;
     use crate::view::entries::EMetadataEntry;
-    use crate::core::progress::push_progress::PushProgress;
     use futures::future;
     use rand::Rng;
-    use std::sync::Arc;
     use std::collections::HashSet;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_command_push_one_commit() -> Result<(), OxenError> {
@@ -1568,20 +1568,21 @@ A: Checkout Oxen.ai
     #[tokio::test]
     async fn test_create_nodes_before_starting_push() -> Result<(), OxenError> {
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-
             // Add a single new file
             let new_file = local_repo.path.join("new_file.txt");
             util::fs::write(&new_file, "I am a new file")?;
             repositories::add(&local_repo, &new_file)?;
             let commit = repositories::commit(&local_repo, "Added a new file")?;
-            
+
             // Collect all nodes in the local tree
             let progress = Arc::new(PushProgress::new());
             progress.set_message("Collecting missing nodes...");
 
             let mut candidate_nodes: HashSet<MerkleTreeNode> = HashSet::new();
-            let Some(commit_node) = repositories::tree::get_root_with_children(&local_repo, &commit)? else {
-                return Err(OxenError::basic_str("Err: Root not found")); 
+            let Some(commit_node) =
+                repositories::tree::get_root_with_children(&local_repo, &commit)?
+            else {
+                return Err(OxenError::basic_str("Err: Root not found"));
             };
             candidate_nodes.insert(commit_node.clone());
             commit_node.walk_tree_without_leaves(|node| {
@@ -1591,17 +1592,25 @@ A: Checkout Oxen.ai
                     candidate_nodes.len()
                 ));
             });
-        
-            // Create nodes on server 
+
+            // Create nodes on server
             progress.set_message(format!("Pushing {} nodes...", candidate_nodes.len()));
-            api::client::tree::create_nodes(&local_repo, &remote_repo, candidate_nodes.clone(), &progress).await?;
-            
+            api::client::tree::create_nodes(
+                &local_repo,
+                &remote_repo,
+                candidate_nodes.clone(),
+                &progress,
+            )
+            .await?;
+
             // Attempt push with non-leaf nodes already created on server
             repositories::push(&local_repo).await?;
 
             let new_path = PathBuf::from("new_file.txt");
             // Check for new file node on server
-            let _found_node  = api::client::tree::get_node_hash_by_path(&remote_repo, &commit.id, new_path).await?;
+            let _found_node =
+                api::client::tree::get_node_hash_by_path(&remote_repo, &commit.id, new_path)
+                    .await?;
             Ok(remote_repo)
         })
         .await

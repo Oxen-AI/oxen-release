@@ -74,7 +74,7 @@ impl RunCmd for CloneCmd {
 
         let dst = std::env::current_dir().expect("Could not get current working directory");
         // Get the name of the repo from the url
-        let name = url.split('/').last().unwrap();
+        let name = url.split('/').next_back().unwrap();
         let dst = dst.join(name);
 
         let opts = CloneOpts {

@@ -297,10 +297,7 @@ impl DiffEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         if let Some(dir) = dir {
-            match repositories::entries::get_meta_entry(repo, commit, dir) {
-                Ok(entry) => Some(entry),
-                Err(_) => None,
-            }
+            repositories::entries::get_meta_entry(repo, commit, dir).ok()
         } else {
             None
         }
