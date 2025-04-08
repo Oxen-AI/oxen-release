@@ -58,6 +58,7 @@ class DataFrame:
         host: str = "hub.oxen.ai",
         branch: Optional[str] = None,
         scheme: str = "https",
+        workspace_name: Optional[str] = None,
     ):
         """
         Initialize the DataFrame class. Will index the data frame
@@ -81,11 +82,15 @@ class DataFrame:
             remote_repo = RemoteRepo(remote, host=host, scheme=scheme)
             if branch is None:
                 branch = remote_repo.branch().name
-            self._workspace = Workspace(remote_repo, branch, path=path)
+            self._workspace = Workspace(
+                remote_repo, branch, path=path, workspace_name=workspace_name
+            )
         elif isinstance(remote, RemoteRepo):
             if branch is None:
                 branch = remote.branch().name
-            self._workspace = Workspace(remote, branch, path=path)
+            self._workspace = Workspace(
+                remote, branch, path=path, workspace_name=workspace_name
+            )
         elif isinstance(remote, Workspace):
             self._workspace = remote
         else:
