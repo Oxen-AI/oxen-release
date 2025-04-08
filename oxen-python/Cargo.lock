@@ -3182,9 +3182,9 @@ checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "liboxen"
-version = "0.31.0"
+version = "0.32.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be43ac012693a87d96ca076a35ff1ed0eedbb8b83cb83f22b42c9e9777b01fac"
+checksum = "d01906e1896b7eb2167557512a9c2e87d80842e2aa92adc68c2e0224eb3e4fc8"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3887,7 +3887,7 @@ dependencies = [
 
 [[package]]
 name = "oxen"
-version = "0.32.0"
+version = "0.32.4"
 dependencies = [
  "bindgen 0.71.1",
  "cc",
