@@ -266,6 +266,31 @@ impl PyWorkspaceDataFrame {
         Ok(result)
     }
 
+    fn get_row_by_idx(&self, row: usize) -> Result<String, PyOxenError> {
+        let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            let mut opts = DFOpts::empty();
+            opts.sql = Some(format!("SELECT * FROM df LIMIT 1 OFFSET {}", row));
+
+            let response = api::client::workspaces::data_frames::get(
+                &self.workspace.repo.repo,
+                &self.workspace.id,
+                &self.path,
+                &opts,
+            )
+            .await?;
+
+            // convert view to json string
+            match serde_json::to_string(&response.data_frame.unwrap().view.data) {
+                Ok(json) => Ok(json),
+                Err(e) => Err(OxenError::basic_str(format!(
+                    "Could not convert view to json: {}",
+                    e
+                ))),
+            }
+        })?;
+        Ok(data)
+    }
+
     fn get_row_by_id(&self, id: String) -> Result<String, PyOxenError> {
         let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::data_frames::rows::get(

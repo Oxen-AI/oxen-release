@@ -105,6 +105,12 @@ class DataFrame:
         name = f"{self._workspace._repo.namespace}/{self._workspace._repo.name}"
         return f"DataFrame(repo={name}, path={self._path})"
 
+    def workspace_url(self, host: str = "oxen.ai", scheme: str = "https") -> str:
+        """
+        Get the url of the data frame.
+        """
+        return f"{scheme}://{host}/{self._workspace._repo.namespace}/{self._workspace._repo.name}/workspaces/{self._workspace.id}/file/{self._path}"
+
     def size(self) -> tuple[int, int]:
         """
         Get the size of the data frame. Returns a tuple of (rows, columns)
@@ -314,6 +320,21 @@ class DataFrame:
         data = self.data_frame.sql_query(sql)
         data = json.loads(data)
         return data
+
+    def get_row(self, idx: int):
+        """
+        Get a single row of data by index.
+
+        Args:
+            idx: `int`
+                The index of the row to get.
+
+        Returns:
+            A dictionary representing the row.
+        """
+        result = self.data_frame.get_row_by_idx(idx)
+        result = json.loads(result)
+        return result
 
     def get_row_by_id(self, id: str):
         """
