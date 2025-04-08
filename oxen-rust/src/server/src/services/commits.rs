@@ -20,8 +20,8 @@ pub fn commits() -> Scope {
             web::post().to(controllers::commits::list_missing),
         )
         .route(
-            "/mark_hashes_as_synced",
-            web::post().to(controllers::commits::mark_hashes_as_synced),
+            "/mark_commits_as_synced",
+            web::post().to(controllers::commits::mark_commits_as_synced),
         )
         .route("/{commit_id}", web::get().to(controllers::commits::show))
         .route(

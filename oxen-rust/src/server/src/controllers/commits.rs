@@ -178,7 +178,7 @@ pub async fn list_missing(
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn mark_hashes_as_synced(
+pub async fn mark_commits_as_synced(
     req: HttpRequest,
     mut body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -195,10 +195,14 @@ pub async fn mark_hashes_as_synced(
     let request: MerkleHashes = serde_json::from_slice(&bytes)?;
     let hashes = request.hashes;
     log::debug!(
-        "mark_hashes_as_synced marking {} commit hashes",
+        "mark_commits_as_synced marking {} commit hashes",
         &hashes.len()
     );
-    commit_sync_status::mark_commit_hashes_as_synced(&repository, &hashes)?;
+
+    for hash in &hashes {
+        commit_sync_status::mark_commit_as_synced(&repository, hash)?;
+    }
+
     log::debug!("successfully marked {} commit hashes", &hashes.len());
     Ok(HttpResponse::Ok().json(MerkleHashesResponse {
         status: StatusMessage::resource_found(),

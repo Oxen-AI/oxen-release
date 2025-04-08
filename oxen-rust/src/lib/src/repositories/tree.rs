@@ -571,7 +571,7 @@ pub fn list_missing_node_hashes(
     for hash in hashes {
         let dir_prefix = node_db_path(repo, hash);
 
-        if !(commit_sync_status::commit_hash_is_synced(repo, hash)
+        if !(commit_sync_status::commit_is_synced(repo, hash)
             && dir_prefix.join("node").exists()
             && dir_prefix.join("children").exists())
         {

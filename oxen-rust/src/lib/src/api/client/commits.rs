@@ -152,11 +152,11 @@ pub async fn list_missing_hashes(
     }
 }
 
-pub async fn mark_commit_hashes_as_synced(
+pub async fn mark_commits_as_synced(
     remote_repo: &RemoteRepository,
     commit_hashes: HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
-    let uri = "/commits/mark_hashes_as_synced".to_string();
+    let uri = "/commits/mark_commits_as_synced".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let res = client

@@ -39,9 +39,6 @@ pub async fn pull_remote_branch(
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use std::path::PathBuf;
-
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -49,6 +46,7 @@ mod tests {
     use crate::core;
     use crate::core::df::tabular;
     use crate::error::OxenError;
+    use crate::model::MerkleHash;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
     use crate::opts::FetchOpts;
@@ -56,6 +54,9 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
+    use derive_more::FromStr;
+    use std::path::Path;
+    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
@@ -1490,7 +1491,10 @@ mod tests {
                 let mut synced_commits = 0;
                 log::debug!("total n remote commits {}", remote_commits.len());
                 for commit in remote_commits {
-                    if core::commit_sync_status::commit_is_synced(&user_a_repo, &commit) {
+                    if core::commit_sync_status::commit_is_synced(
+                        &user_a_repo,
+                        &MerkleHash::from_str(&commit.id)?,
+                    ) {
                         synced_commits += 1;
                     }
                 }

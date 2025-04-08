@@ -282,7 +282,7 @@ async fn push_commits(
     push_entries(repo, remote_repo, &missing_files, commit, &progress).await?;
 
     // Mark commits as synced on the server
-    api::client::commits::mark_commit_hashes_as_synced(remote_repo, missing_commit_hashes).await?;
+    api::client::commits::mark_commits_as_synced(remote_repo, missing_commit_hashes).await?;
 
     progress.finish();
 
