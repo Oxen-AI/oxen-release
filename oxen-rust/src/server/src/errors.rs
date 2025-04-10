@@ -97,9 +97,9 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::MultipartError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
-            OxenHttpError::FailedToReadRequestPayload => {
-                HttpResponse::BadRequest().json(StatusMessageDescription::bad_request("Failed to read request payload"))
-            }
+            OxenHttpError::FailedToReadRequestPayload => HttpResponse::BadRequest().json(
+                StatusMessageDescription::bad_request("Failed to read request payload"),
+            ),
             OxenHttpError::BadRequest(desc) => {
                 let error_json = json!({
                     "error": {
