@@ -1,3 +1,9 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::str;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
+
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::core::db;
 use crate::core::refs::ref_db_reader::RefDBReader;
@@ -5,22 +11,88 @@ use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
+use parking_lot::{Mutex, RwLock};
 use rocksdb::{IteratorMode, DB};
-use std::path::{Path, PathBuf};
-use std::str;
+
+#[cfg(not(test))]
+pub const LOCK_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(test)]
+pub const LOCK_TIMEOUT: Duration = Duration::from_millis(100);
+
+// This is a lazy static variable that is initialized on first access.
+// It stores a map of repository paths to their locks. The entire map is
+// protected by a RwLock so that we can't accidentally create multiple
+// locks for the same repository.
+static REPOSITORY_LOCKS: LazyLock<RwLock<HashMap<PathBuf, Arc<Mutex<()>>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 pub struct RefWriter {
     refs_db: DB,
     head_file: PathBuf,
 }
 
+pub fn with_ref_writer<F, T>(repository: &LocalRepository, operation: F) -> Result<T, OxenError>
+where
+    F: FnOnce(&RefWriter) -> Result<T, OxenError>,
+{
+    // Get or create the repository lock
+    let lock = {
+        // First try to get the lock with just a read lock
+        let locks = REPOSITORY_LOCKS.read();
+        if let Some(lock) = locks.get(&repository.path) {
+            log::debug!("with_ref_writer: got lock with read lock");
+            lock.clone()
+        } else {
+            // Drop read lock before acquiring write lock
+            drop(locks);
+
+            let mut locks = REPOSITORY_LOCKS.write();
+            log::debug!("with_ref_writer: got lock with write lock");
+            // Use entry(...).or_insert_with(...) in case another thread created
+            // it before we got the write lock
+            locks
+                .entry(repository.path.clone())
+                .or_insert_with(|| Arc::new(Mutex::new(())))
+                .clone()
+        }
+    };
+
+    log::debug!("with_ref_writer: trying to lock");
+
+    // Try to acquire with timeout
+    let result = match lock.try_lock_for(LOCK_TIMEOUT) {
+        Some(_guard) => {
+            log::debug!("with_ref_writer: got lock");
+
+            // Create a temporary RefWriter
+            let writer = RefWriter::new(repository)?;
+
+            // Execute the operation and return its result
+            operation(&writer)
+            // Lock will be released after we leave this scope
+        }
+        None => {
+            log::warn!("with_ref_writer: timed out waiting for lock");
+            Err(OxenError::basic_str(
+                "Timed out waiting for repository refs lock",
+            ))
+        }
+    };
+    // We assign the result of the match to a variable and return it here so the
+    // block (which contains a reference to the lock) is not the last expression
+    // in the function. This ensures that the lock and the guard both go out of
+    // scope by the end of the function.
+    result
+}
+
 impl RefWriter {
-    pub fn new(repository: &LocalRepository) -> Result<RefWriter, OxenError> {
+    fn new(repository: &LocalRepository) -> Result<RefWriter, OxenError> {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(REFS_DIR));
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(HEAD_FILE));
-        log::debug!("RefWriter::new() refs_dir: {}", refs_dir.display());
+        log::warn!("RefWriter::new() refs_dir: {}", refs_dir.display());
 
         let opts = db::key_val::opts::default();
+
         Ok(RefWriter {
             refs_db: DB::open(&opts, dunce::simplified(&refs_dir))?,
             head_file: head_filename,
@@ -231,8 +303,9 @@ impl RefWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
+    use super::*;
     use crate::test;
+    use std::thread;
 
     #[test]
     fn test_default_head() -> Result<(), OxenError> {
@@ -241,7 +314,6 @@ mod tests {
                 referencer.read_head_ref()?,
                 crate::constants::DEFAULT_BRANCH_NAME
             );
-
             Ok(())
         })
     }
@@ -363,6 +435,36 @@ mod tests {
             assert!(result.is_err());
 
             Ok(())
+        })
+    }
+
+    #[test]
+    fn test_per_repository_locking() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo1| {
+            test::run_empty_local_repo_test(|repo2| {
+                // Use the first repo (acquires lock)
+                with_ref_writer(&repo1, |_writer1| {
+                    // Use the second repo (should work since it's a different repo)
+                    with_ref_writer(&repo2, |_writer2| Ok(()))?;
+
+                    // Try to use repo1 again from another thread - should timeout
+                    let repo1_clone = repo1.clone();
+                    let result =
+                        thread::spawn(move || with_ref_writer(&repo1_clone, |_writer| Ok(())))
+                            .join()
+                            .expect("Thread panicked");
+
+                    assert!(result.is_err());
+                    if let Err(e) = result {
+                        println!("Error: {}", e);
+                        assert!(e
+                            .to_string()
+                            .contains("Timed out waiting for repository refs lock"));
+                    }
+
+                    Ok(())
+                })
+            })
         })
     }
 }

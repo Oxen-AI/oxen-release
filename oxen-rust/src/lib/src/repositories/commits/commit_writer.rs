@@ -18,7 +18,7 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::db::merkle_node::MerkleNodeDB;
-use crate::core::refs::RefWriter;
+use crate::core::refs::with_ref_writer;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::status;
 use crate::error::OxenError;
@@ -169,18 +169,21 @@ pub fn commit_with_cfg(
     // Write HEAD file and update branch
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
     log::debug!("Looking for HEAD file at {:?}", head_path);
-    let ref_writer = RefWriter::new(repo)?;
+
     let commit_id = commit.id.to_owned();
     let branch_name = maybe_branch_name.unwrap_or(DEFAULT_BRANCH_NAME.to_string());
-    if !head_path.exists() {
-        log::debug!("HEAD file does not exist, creating new branch");
-        ref_writer.set_head(&branch_name);
-        ref_writer.set_branch_commit_id(&branch_name, &commit_id)?;
-    }
-    ref_writer.set_head_commit_id(&commit_id)?;
+    let head_path_exists = head_path.exists();
+
+    with_ref_writer(repo, |ref_writer| {
+        if !head_path_exists {
+            log::debug!("HEAD file does not exist, creating new branch");
+            ref_writer.set_head(&branch_name);
+            ref_writer.set_branch_commit_id(&branch_name, &commit_id)?;
+        }
+        ref_writer.set_head_commit_id(&commit_id)
+    })?;
 
     // Print that we finished
-
     println!(
         "🐂 commit {} in {}",
         commit,
