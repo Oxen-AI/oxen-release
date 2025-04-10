@@ -6,7 +6,7 @@ use crate::command;
 use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::refs::RefWriter;
+use crate::core::refs::ref_writer::{with_ref_writer, RefWriter};
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
@@ -1523,7 +1523,7 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
 
 pub fn run_referencer_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(RefWriter) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(&RefWriter) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
     log::info!("<<<<< run_referencer_test start");
@@ -1536,22 +1536,25 @@ where
     repositories::add(&repo, new_file)?;
     repositories::commit(&repo, "Added a new file")?;
 
-    let referencer = RefWriter::new(&repo)?;
-
-    // Run test to see if it panic'd
+    // Run test with the referencer
     log::info!(">>>>> run_referencer_test running test");
-    let result = std::panic::catch_unwind(|| match test(referencer) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
-        }
-    });
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        with_ref_writer(&repo, |referencer| test(referencer))
+    }));
 
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    match result {
+        Ok(inner_result) => {
+            if let Err(err) = inner_result {
+                panic!("Error running test. Err: {}", err);
+            }
+        }
+        Err(err) => std::panic::resume_unwind(err),
+    }
+
     Ok(())
 }
 
