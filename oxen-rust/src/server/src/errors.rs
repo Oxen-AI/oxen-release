@@ -47,6 +47,7 @@ pub enum OxenHttpError {
     MigrationRequired(StringError),
     WorkspaceBehind(Box<WorkspaceBranch>),
     BasicError(StringError),
+    FailedToReadRequestPayload,
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
@@ -96,6 +97,9 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::MultipartError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
+            OxenHttpError::FailedToReadRequestPayload => HttpResponse::BadRequest().json(
+                StatusMessageDescription::bad_request("Failed to read request payload"),
+            ),
             OxenHttpError::BadRequest(desc) => {
                 let error_json = json!({
                     "error": {
@@ -536,6 +540,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::MigrationRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::FailedToReadRequestPayload => StatusCode::BAD_REQUEST,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,

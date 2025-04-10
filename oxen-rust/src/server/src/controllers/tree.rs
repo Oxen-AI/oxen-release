@@ -52,7 +52,7 @@ pub async fn list_missing_node_hashes(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     let request: MerkleHashes = serde_json::from_slice(&bytes)?;
@@ -83,7 +83,7 @@ pub async fn list_missing_file_hashes_from_commits(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     let request: MerkleHashes = serde_json::from_slice(&bytes)?;
@@ -141,7 +141,7 @@ pub async fn create_nodes(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     log::debug!(

@@ -7,6 +7,7 @@ use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::OBJECTS_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 
+use liboxen::core::commit_sync_status;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::PaginateOpts;
@@ -175,6 +176,38 @@ pub async fn list_missing(
         hashes: missing_commits,
     };
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn mark_commits_as_synced(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
+    }
+
+    let request: MerkleHashes = serde_json::from_slice(&bytes)?;
+    let hashes = request.hashes;
+    log::debug!(
+        "mark_commits_as_synced marking {} commit hashes",
+        &hashes.len()
+    );
+
+    for hash in &hashes {
+        commit_sync_status::mark_commit_as_synced(&repository, hash)?;
+    }
+
+    log::debug!("successfully marked {} commit hashes", &hashes.len());
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -466,7 +499,7 @@ pub async fn upload_chunk(
     // Read bytes from body
     let mut bytes = web::BytesMut::new();
     while let Some(item) = chunk.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     // Write to tmp file
@@ -646,7 +679,7 @@ pub async fn upload_tree(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
@@ -760,7 +793,7 @@ pub async fn upload(
     // Read bytes from body
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     // Compute total size as u64
