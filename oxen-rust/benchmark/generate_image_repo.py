@@ -1,11 +1,11 @@
 import os
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import argparse
 from tqdm import tqdm
 import pandas as pd
 
-def generate_noise_images(num_images, output_dir, num_dirs, image_size):
+def generate_noise_images(num_images, output_dir, num_dirs, image_size, show_index=False):
     print(f"Generating {num_images} images with {num_dirs} directories in {output_dir}")
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -30,8 +30,33 @@ def generate_noise_images(num_images, output_dir, num_dirs, image_size):
         # Create an image from the noise array
         img = Image.fromarray(noise)
 
+        # Add index text if requested
+        if show_index:
+            draw = ImageDraw.Draw(img)
+            # Calculate text size to center it
+            text = str(i)
+            # Use a font size proportional to image size
+            font_size = min(image_size) // 4
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+            except:
+                # Fallback to default font if Helvetica is not available
+                font = ImageFont.load_default()
+
+            # Get text size for centering
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Calculate center position
+            x = (image_size[0] - text_width) // 2
+            y = (image_size[1] - text_height) // 2
+
+            # Draw text with white color
+            draw.text((x, y), text, fill=(255, 255, 255), font=font)
+
         # Save the image
-        path = os.path.join(subdir, f"noise_image_{i}.png")
+        path = os.path.join(subdir, f"noise_image_{i}.tiff")
         img.save(path)
 
         # Get the relative path to the output_dir
@@ -47,11 +72,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_dirs", type=int, default=1000)
     parser.add_argument("--output_dir", type=str, default="noise_images")
     parser.add_argument("--image_size", type=int, nargs=2, default=(128, 128))
+    parser.add_argument("--show_index", action="store_true", help="Draw the image index in the center of each image")
     # TODO: Add random sample % as a parameter and use that instead of mod
     args = parser.parse_args()
 
-
-    image_paths = generate_noise_images(args.num_images, args.output_dir, args.num_dirs, args.image_size)
+    image_paths = generate_noise_images(args.num_images, args.output_dir, args.num_dirs, args.image_size, args.show_index)
     print("Image generation complete!")
 
     # create random labels for each image of cat or dog
