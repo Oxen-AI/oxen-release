@@ -795,8 +795,8 @@ mod tests {
 
             // Verify both commits were successful
             assert_ne!(result1.id, result2.id, "Commits should have different IDs");
-            assert!(result1.id.len() > 0, "Commit 1 should have valid ID");
-            assert!(result2.id.len() > 0, "Commit 2 should have valid ID");
+            assert!(!result1.id.is_empty(), "Commit 1 should have valid ID");
+            assert!(!result2.id.is_empty(), "Commit 2 should have valid ID");
 
             Ok(remote_repo)
         })
