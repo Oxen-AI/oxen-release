@@ -189,7 +189,7 @@ pub async fn mark_commits_as_synced(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     let request: MerkleHashes = serde_json::from_slice(&bytes)?;
@@ -499,7 +499,7 @@ pub async fn upload_chunk(
     // Read bytes from body
     let mut bytes = web::BytesMut::new();
     while let Some(item) = chunk.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     // Write to tmp file
@@ -679,7 +679,7 @@ pub async fn upload_tree(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
@@ -793,7 +793,7 @@ pub async fn upload(
     // Read bytes from body
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
 
     // Compute total size as u64
