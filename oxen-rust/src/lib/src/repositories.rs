@@ -5,7 +5,7 @@
 
 use crate::constants;
 use crate::core;
-use crate::core::refs::RefWriter;
+use crate::core::refs::with_ref_writer;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::error::NO_REPO_FOUND;
@@ -236,19 +236,10 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
     std::fs::create_dir_all(history_dir)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
-    {
-        // Make go out of scope to release LOCK
-        log::debug!(
-            "repositories::create BEFORE ref writer: {:?}",
-            local_repo.path
-        );
-        let ref_writer = RefWriter::new(&local_repo)?;
+    with_ref_writer(&local_repo, |ref_writer| {
         ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
-        log::debug!(
-            "repositories::create AFTER ref writer: {:?}",
-            local_repo.path
-        );
-    }
+        Ok(())
+    })?;
 
     // If the user supplied files, add and commit them
     let mut commit: Option<Commit> = None;

@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
-use crate::core::refs::{RefReader, RefWriter};
+use crate::core::refs::{with_ref_writer, RefReader};
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository};
@@ -79,9 +79,10 @@ pub fn create_from_head(
     name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
     let name = name.as_ref();
-    let ref_writer = RefWriter::new(repo)?;
     let head_commit = repositories::commits::head_commit(repo)?;
-    ref_writer.create_branch(name, &head_commit.id)
+    with_ref_writer(repo, |ref_writer| {
+        ref_writer.create_branch(name, &head_commit.id)
+    })
 }
 
 /// # Create a local branch from a specific commit id
@@ -92,9 +93,9 @@ pub fn create(
 ) -> Result<Branch, OxenError> {
     let name = name.as_ref();
     let commit_id = commit_id.as_ref();
-    let ref_writer = RefWriter::new(repo)?;
+
     if repositories::commits::commit_id_exists(repo, commit_id)? {
-        ref_writer.create_branch(name, commit_id)
+        with_ref_writer(repo, |ref_writer| ref_writer.create_branch(name, commit_id))
     } else {
         Err(OxenError::commit_id_does_not_exist(commit_id))
     }
@@ -108,11 +109,12 @@ pub fn create_checkout(repo: &LocalRepository, name: impl AsRef<str>) -> Result<
     let name = util::fs::linux_path_str(name);
     println!("Create and checkout branch: {name}");
     let head_commit = repositories::commits::head_commit(repo)?;
-    let ref_writer = RefWriter::new(repo)?;
 
-    let branch = ref_writer.create_branch(&name, &head_commit.id)?;
-    ref_writer.set_head(name);
-    Ok(branch)
+    with_ref_writer(repo, |ref_writer| {
+        let branch = ref_writer.create_branch(&name, &head_commit.id)?;
+        ref_writer.set_head(name);
+        Ok(branch)
+    })
 }
 
 /// Update the branch name to point to a commit id
@@ -127,11 +129,10 @@ pub fn update(
     match ref_reader.get_branch_by_name(name)? {
         Some(branch) => {
             // Set the branch to point to the commit
-            let ref_writer = RefWriter::new(repo)?;
-            match ref_writer.set_branch_commit_id(name, commit_id) {
-                Ok(()) => Ok(branch),
-                Err(err) => Err(err),
-            }
+            with_ref_writer(repo, |ref_writer| {
+                ref_writer.set_branch_commit_id(name, commit_id)?;
+                Ok(branch)
+            })
         }
         None => create(repo, name, commit_id),
     }
@@ -149,8 +150,7 @@ pub fn delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, O
     }
 
     if branch_has_been_merged(repo, name)? {
-        let ref_writer = RefWriter::new(repo)?;
-        ref_writer.delete_branch(name)
+        with_ref_writer(repo, |ref_writer| ref_writer.delete_branch(name))
     } else {
         let err = format!("Err: The branch '{name}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {name}'.");
         Err(OxenError::basic_str(err))
@@ -168,8 +168,7 @@ pub fn force_delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Bra
         }
     }
 
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.delete_branch(name)
+    with_ref_writer(repo, |ref_writer| ref_writer.delete_branch(name))
 }
 
 /// Check if a branch is checked out
@@ -372,9 +371,10 @@ pub async fn checkout_commit_from_commit(
 
 pub fn set_head(repo: &LocalRepository, value: impl AsRef<str>) -> Result<(), OxenError> {
     log::debug!("set_head {}", value.as_ref());
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.set_head(value.as_ref());
-    Ok(())
+    with_ref_writer(repo, |ref_writer| {
+        ref_writer.set_head(value);
+        Ok(())
+    })
 }
 
 fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
@@ -401,10 +401,11 @@ fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, Ox
 
 pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(), OxenError> {
     if let Ok(Some(branch)) = current_branch(repo) {
-        let ref_writer = RefWriter::new(repo)?;
-        ref_writer.rename_branch(&branch.name, new_name)?;
-        ref_writer.set_head(new_name);
-        Ok(())
+        with_ref_writer(repo, |ref_writer| {
+            ref_writer.rename_branch(&branch.name, new_name)?;
+            ref_writer.set_head(new_name);
+            Ok(())
+        })
     } else {
         log::error!("rename_current_branch No current branch found");
         Err(OxenError::must_be_on_valid_branch())
@@ -449,7 +450,6 @@ pub async fn set_working_repo_to_commit(
 
 fn branch_name_no_slashes(name: &str) -> String {
     // Replace all slashes with dashes
-
     name.replace('/', "-")
 }
 
@@ -458,7 +458,7 @@ mod tests {
     use std::path::Path;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core;
+    use crate::core::refs::with_ref_writer;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
@@ -578,10 +578,10 @@ mod tests {
             let commit_5 = repositories::commit(&repo, "adding test file 5")?;
 
             // Back to main - hacky to avoid async checkout
-            {
-                let ref_writer = core::refs::RefWriter::new(&repo)?;
+            with_ref_writer(&repo, |ref_writer| {
                 ref_writer.set_head(DEFAULT_BRANCH_NAME);
-            }
+                Ok(())
+            })?;
 
             // Another commit
             util::fs::write_to_path(&file_repo_path, "something different now again again again")?;
