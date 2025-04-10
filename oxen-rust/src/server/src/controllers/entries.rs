@@ -37,7 +37,7 @@ pub async fn download_data_from_version_paths(
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
-        bytes.extend_from_slice(&item.unwrap());
+        bytes.extend_from_slice(&item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?);
     }
     log::debug!(
         "{} got repo [{}] and content_ids size {}",
