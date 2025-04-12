@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use zip::ZipArchive;
 
 use crate::constants::STAGED_DIR;
-use crate::core::db;
+use crate::core::{self, db};
 use crate::core::v_latest::add::{add_file_node_to_staged_db, process_add_file};
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
@@ -195,7 +195,7 @@ async fn fetch_file(
 
     // check if the file size matches
     let bytes_written = if save_path.exists() {
-        std::fs::metadata(&save_path)?.len()
+        util::fs::metadata(&save_path)?.len()
     } else {
         0
     };
@@ -276,7 +276,7 @@ pub async fn save_stream(
 }
 
 async fn decompress_zip(zip_filepath: &PathBuf) -> Result<Vec<PathBuf>, OxenError> {
-    //File unzipped into the same directory
+    // File unzipped into the same directory
     let mut files: Vec<PathBuf> = vec![];
     let file = File::open(zip_filepath)?;
     let mut archive = ZipArchive::new(file)
@@ -428,13 +428,21 @@ fn p_add_file(
         maybe_dir_node = CommitMerkleTree::dir_with_children(base_repo, head_commit, parent_path)?;
     }
 
+    // See if this is a new file or a modified file
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+    let full_path = workspace_repo.path.join(&path);
+    let file_status = core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, &full_path)?;
+
+    // Store the file in the version store using the hash as the key
+    let hash_str = file_status.hash.to_string();
+    version_store.store_version_from_path(&hash_str, &full_path)?;
+
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         workspace_repo,
         &workspace_repo.path,
-        &version_store,
+        &file_status,
         &staged_db,
-        &maybe_dir_node,
         path,
         &seen_dirs,
     )

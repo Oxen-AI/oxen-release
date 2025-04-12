@@ -1,7 +1,7 @@
 use crate::error::OxenError;
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::version_store::VersionStore;
 use crate::storage::version_store::ReadSeek;
@@ -63,8 +63,28 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
+    fn get_version_path(&self, _hash: &str) -> Result<PathBuf, OxenError> {
+        // TODO: Implement S3 version path retrieval
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
     fn copy_version_to_path(&self, _hash: &str, _dest_path: &Path) -> Result<(), OxenError> {
         // TODO: Implement S3 version copying to path
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
+    fn store_version_chunk(&self, _hash: &str, _chunk_number: u32, _data: &[u8]) -> Result<(), OxenError> {
+        // TODO: Implement S3 version chunk storage
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
+    fn get_version_chunk(&self, _hash: &str, _chunk_number: u32) -> Result<Vec<u8>, OxenError> {
+        // TODO: Implement S3 version chunk retrieval
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
+    fn list_version_chunks(&self, _hash: &str) -> Result<Vec<u32>, OxenError> {
+        // TODO: Implement S3 version chunk listing
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
@@ -80,6 +100,11 @@ impl VersionStore for S3VersionStore {
 
     fn list_versions(&self) -> Result<Vec<String>, OxenError> {
         // TODO: Implement S3 version listing
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
+    fn combine_version_chunks(&self, _hash: &str, _cleanup: bool) -> Result<(), OxenError> {
+        // TODO: Implement S3 version chunk combination
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 

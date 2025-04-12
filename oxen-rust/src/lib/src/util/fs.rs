@@ -673,7 +673,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         } else {
             output_root.join(&src)
         };
-        if std::fs::metadata(&dest).is_err() {
+        if util::fs::metadata(&dest).is_err() {
             // log::debug!("copy_dir_all  mkdir: {:?}", dest);
             std::fs::create_dir_all(&dest)?;
         }

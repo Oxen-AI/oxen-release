@@ -20,6 +20,7 @@ pub mod message;
 pub mod mime_type_count;
 pub mod namespace;
 pub mod oxen_response;
+pub mod oxen_version;
 pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
@@ -29,7 +30,7 @@ pub mod sql_parse_error;
 pub mod status_message;
 pub mod tabular_diff_view;
 pub mod tree;
-pub mod version;
+pub mod version_file;
 pub mod workspaces;
 
 pub use crate::view::compare::CompareEntriesResponse;
