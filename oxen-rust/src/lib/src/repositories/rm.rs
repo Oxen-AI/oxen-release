@@ -74,7 +74,12 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use crate::api;
+    use crate::command;
+    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
+    use crate::model::NewCommitBody;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
@@ -137,6 +142,156 @@ mod tests {
 
             let num_restored = util::fs::rcount_files_in_dir(&full_path);
             assert_eq!(num_restored, num_files);
+
+            Ok(())
+        })
+        .await
+    }
+
+    /*
+    This bug occurred with a repo that looked like this:
+
+    .
+    ├── README.md
+    ├── gemma-3
+    │   └── chat.py
+    ├── mistral-small-3-1
+    │   └── chat.py
+    └── phi-4
+    │   └── chat.py
+    └── phi-4-multimodal
+        ├── chat.py
+        ├── eval
+        │   └── ocr-bench-v2.py
+
+    And the command:
+    $ oxen rm -r phi-4
+
+    Then pushing to the remote.
+
+    When loading the remote, only the README.md remained.
+    */
+    #[tokio::test]
+    async fn test_rm_r_dir_at_root() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // create the directory structure
+            let gemma_dir = repo.path.join("gemma-3");
+            util::fs::create_dir_all(&gemma_dir)?;
+
+            let chat_file = gemma_dir.join("chat.py");
+            util::fs::write(chat_file, "print('Hello, Gemma!')")?;
+
+            let mistral_dir = repo.path.join("mistral-small-3-1");
+            util::fs::create_dir_all(&mistral_dir)?;
+
+            let chat_file = mistral_dir.join("chat.py");
+            util::fs::write(chat_file, "print('Hello, Mistral!')")?;
+
+            let phi_dir = repo.path.join("phi-4");
+            util::fs::create_dir_all(&phi_dir)?;
+
+            let chat_file = phi_dir.join("chat.py");
+            util::fs::write(chat_file, "print('Hello, Phi!')")?;
+
+            let phi_multimodal_dir = repo.path.join("phi-4-multimodal");
+            util::fs::create_dir_all(&phi_multimodal_dir)?;
+
+            let chat_file = phi_multimodal_dir.join("chat.py");
+            util::fs::write(chat_file, "print('Hello, Phi Multimodal!')")?;
+
+            let ocr_bench_dir = phi_multimodal_dir.join("eval");
+            util::fs::create_dir_all(&ocr_bench_dir)?;
+
+            let ocr_file = ocr_bench_dir.join("ocr-bench-v2.py");
+            util::fs::write(ocr_file, "print('Hello, Phi OCR Bench!')")?;
+
+            // Write a README.md file
+            let readme_file = repo.path.join("README.md");
+            util::fs::write(readme_file, "Hello, world!")?;
+
+            // Add and commit the files
+            repositories::add(&repo, &repo.path)?;
+            repositories::commit(&repo, "Adding initial files")?;
+
+            // Create a remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push it to the remote
+            repositories::push(&repo).await?;
+
+            // List the files/folders in the remote
+            let root_entries =
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 5);
+
+            // // add data via a workspace
+            // let workspace_id = "my_workspace";
+            // let workspace =
+            //     api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+            //         .await?;
+            // assert_eq!(workspace.id, workspace_id);
+            // let file_to_post = test::test_csv_file_with_name("emojis.csv");
+            // let directory_name = "phi-4";
+            // let result = api::client::workspaces::files::post_file(
+            //     &remote_repo,
+            //     &workspace_id,
+            //     directory_name,
+            //     file_to_post,
+            // )
+            // .await;
+            // println!("result: {:?}", result);
+            // assert!(result.is_ok());
+
+            // let body = NewCommitBody {
+            //     message: "Add emojis data frame".to_string(),
+            //     author: "Test User".to_string(),
+            //     email: "test@oxen.ai".to_string(),
+            // };
+            // api::client::workspaces::commit(
+            //     &remote_repo,
+            //     DEFAULT_BRANCH_NAME,
+            //     &workspace_id,
+            //     &body,
+            // )
+            // .await?;
+
+            // List the files/folders in the remote
+            let root_entries =
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 5);
+
+            let cloned_remote_repo = remote_repo.clone();
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let new_repo_dir = new_repo_dir.join("new_repo");
+                let cloned_repo =
+                    repositories::clone_url(&cloned_remote_repo.remote.url, &new_repo_dir).await?;
+
+                let mut rm_opts = RmOpts::from_path(Path::new("phi-4"));
+                rm_opts.recursive = true;
+                repositories::rm(&cloned_repo, &rm_opts)?;
+                repositories::commit(&cloned_repo, "Removing phi-4")?;
+
+                // Push it to the remote
+                repositories::push(&cloned_repo).await?;
+
+                // List the files/folders in the remote
+                let root_entries =
+                    api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+
+                for entry in root_entries.entries.iter() {
+                    println!("entry: {:?}", entry);
+                }
+
+                assert_eq!(root_entries.entries.len(), 4);
+
+                Ok(new_repo_dir)
+            })
+            .await?;
+
 
             Ok(())
         })

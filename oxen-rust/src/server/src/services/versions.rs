@@ -3,9 +3,20 @@ use actix_web::Scope;
 
 use crate::controllers;
 
+pub mod chunks;
+
 pub fn versions() -> Scope {
-    web::scope("/versions").route(
-        "",
-        web::get().to(controllers::entries::download_data_from_version_paths),
-    )
+    web::scope("/versions")
+        .route(
+            "",
+            web::get().to(controllers::entries::download_data_from_version_paths),
+        )
+        .route(
+            "/{version_id}/chunks/{chunk_number}",
+            web::put().to(controllers::versions::chunks::upload),
+        )
+        .route(
+            "/{version_id}/chunks",
+            web::post().to(controllers::versions::chunks::complete),
+        )
 }

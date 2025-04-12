@@ -7,6 +7,7 @@ use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
+
 use std::path::{Path, PathBuf};
 
 use crate::core::oxenignore;
@@ -91,60 +92,63 @@ pub async fn post_file(
     directory: impl AsRef<Path>,
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+
+    let Ok(metadata) = path.metadata() else {
+        return Err(OxenError::path_does_not_exist(path));
+    };
+
+    log::debug!("Uploading file with size: {}", metadata.len());
+    if metadata.len() > 100_000_000 {
+        Err(OxenError::basic_str("File size is too large to upload"))
+    } else {
+        multipart_file_upload(remote_repo, workspace_id, directory, path).await
+    }
+}
+
+async fn multipart_file_upload(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    directory: impl AsRef<Path>,
+    path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let directory = directory.as_ref();
-    let path = path.as_ref();
     let directory_name = directory.to_string_lossy();
-
-    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let file_name = path
-        .file_name()
-        .unwrap()
-        .to_os_string()
-        .into_string()
-        .ok()
-        .unwrap();
-    log::info!(
-        "api::client::workspaces::files::add sending file_name: {:?}",
-        file_name
-    );
-    log::info!(
-        "api::client::workspaces::files::add reading path: {:?}",
-        path
-    );
-
-    let Ok(file) = std::fs::read(path) else {
+    let path = path.as_ref();
+    log::debug!("multipart_file_upload path: {:?}", path);
+    let Ok(file) = std::fs::read(&path) else {
         let err = format!("Error reading file at path: {path:?}");
         return Err(OxenError::basic_str(err));
     };
 
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let file_name: String = path.file_name().unwrap().to_string_lossy().into();
+    log::info!(
+        "api::client::workspaces::files::add sending file_name: {:?}",
+        file_name
+    );
+
     let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
     let form = reqwest::multipart::Form::new().part("file", file_part);
     let client = client::new_for_url(&url)?;
-    match client.post(&url).multipart(form).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<FilePathsResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => {
-                    log::debug!("File path response: {:?}", val);
-                    if let Some(path) = val.paths.first() {
-                        Ok(path.clone())
-                    } else {
-                        Err(OxenError::basic_str("No file path returned from server"))
-                    }
-                }
-                Err(err) => {
-                    let err = format!("api::staging::add_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
+    let response = client.post(&url).multipart(form).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    let response: Result<FilePathsResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(val) => {
+            log::debug!("File path response: {:?}", val);
+            if let Some(path) = val.paths.first() {
+                Ok(path.clone())
+            } else {
+                Err(OxenError::basic_str("No file path returned from server"))
             }
         }
         Err(err) => {
-            let err = format!("api::staging::add_file Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::add_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -191,21 +195,14 @@ pub async fn add_many(
     }
 
     let client = client::new_for_url(&url)?;
-    match client.post(&url).multipart(form).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<FilePathsResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.paths),
-                Err(err) => {
-                    let err = format!("api::staging::add_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
-                    Err(OxenError::basic_str(err))
-                }
-            }
-        }
+    let response = client.post(&url).multipart(form).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    let response: Result<FilePathsResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.paths),
         Err(err) => {
-            let err = format!("api::staging::add_files Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::add_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -221,17 +218,10 @@ pub async fn rm(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_file {}", url);
     let client = client::new_for_url(&url)?;
-    match client.delete(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("rm_file got body: {}", body);
-            Ok(())
-        }
-        Err(err) => {
-            let err = format!("rm_file Request failed: {url}\n\nErr {err:?}");
-            Err(OxenError::basic_str(err))
-        }
-    }
+    let response = client.delete(&url).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    log::debug!("rm_file got body: {}", body);
+    Ok(())
 }
 
 #[cfg(test)]

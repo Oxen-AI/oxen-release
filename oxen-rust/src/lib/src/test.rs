@@ -1655,6 +1655,14 @@ pub fn test_1k_parquet() -> PathBuf {
         .join("wiki_1k.parquet")
 }
 
+/// Returns: data/test/parquet/wiki_100k.parquet
+pub fn test_100k_parquet() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("parquet")
+        .join("wiki_100k.parquet")
+}
+
 /// Returns: nlp/classification/annotations/test.tsv
 pub fn test_nlp_classification_csv() -> PathBuf {
     Path::new("nlp")
