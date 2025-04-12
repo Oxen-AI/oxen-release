@@ -12,6 +12,10 @@ pub fn versions() -> Scope {
             web::get().to(controllers::entries::download_data_from_version_paths),
         )
         .route(
+            "/{version_id}/metadata",
+            web::get().to(controllers::versions::metadata),
+        )
+        .route(
             "/{version_id}/chunks/{chunk_number}",
             web::put().to(controllers::versions::chunks::upload),
         )

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::{Read, Seek};
 use std::panic::RefUnwindSafe;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,34 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     /// * `data` - The raw bytes to store
     fn store_version(&self, hash: &str, data: &[u8]) -> Result<(), OxenError>;
 
+    /// Store a chunk of a version file, to be combined into a full version file
+    ///
+    /// # Arguments
+    /// * `hash` - The content hash that identifies this version
+    /// * `chunk_number` - The chunk number to store
+    /// * `data` - The raw bytes to store
+    fn store_version_chunk(&self, hash: &str, chunk_number: u32, data: &[u8]) -> Result<(), OxenError>;
+
+    /// Retrieve a chunk of a version file
+    ///
+    /// # Arguments
+    /// * `hash` - The content hash that identifies this version
+    /// * `chunk_number` - The chunk number to retrieve
+    fn get_version_chunk(&self, hash: &str, chunk_number: u32) -> Result<Vec<u8>, OxenError>;
+
+    /// List all chunks for a version file
+    ///
+    /// # Arguments
+    /// * `hash` - The content hash that identifies this version
+    fn list_version_chunks(&self, hash: &str) -> Result<Vec<u32>, OxenError>;
+
+    /// Combine all the chunks for a version file into a single file
+    ///
+    /// # Arguments
+    /// * `hash` - The content hash that identifies this version
+    /// * `cleanup` - Whether to delete the chunks after combining
+    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<(), OxenError>;
+
     /// Open a version file for reading
     ///
     /// # Arguments
@@ -67,6 +95,13 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
     fn get_version(&self, hash: &str) -> Result<Vec<u8>, OxenError>;
+
+
+    /// Get the path to a version file
+    ///
+    /// # Arguments
+    /// * `hash` - The content hash of the version to retrieve
+    fn get_version_path(&self, hash: &str) -> Result<PathBuf, OxenError>;
 
     /// Copy a version to a destination path
     ///

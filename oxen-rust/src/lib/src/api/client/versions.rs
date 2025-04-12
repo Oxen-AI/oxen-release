@@ -5,7 +5,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::model::{MerkleHash, RemoteRepository};
-use crate::view::StatusMessage;
+use crate::view::version_file::{VersionFile, VersionFileResponse};
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -59,23 +59,30 @@ pub async fn has_version(
     repository: &RemoteRepository,
     version_id: MerkleHash,
 ) -> Result<bool, OxenError> {
-    let uri = format!("/versions/{version_id}");
+    Ok(get(repository, version_id).await?.is_some())
+}
+
+/// Get the size of a version
+pub async fn get(
+    repository: &RemoteRepository,
+    version_id: MerkleHash,
+) -> Result<Option<VersionFile>, OxenError> {
+    let uri = format!("/versions/{version_id}/metadata");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("api::client::versions::has_version {}", url);
+    log::debug!("api::client::versions::get {}", url);
 
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     if res.status() == 404 {
-        return Ok(false);
+        return Ok(None);
     }
 
     let body = client::parse_json_body(&url, res).await?;
-    log::debug!("api::client::versions::has_version Got response {}", body);
-    let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+    let response: Result<VersionFileResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
-        Ok(_) => Ok(true),
+        Ok(version_file) => Ok(Some(version_file.version)),
         Err(err) => Err(OxenError::basic_str(format!(
-            "api::client::versions::has_version() Could not deserialize response [{err}]\n{body}"
+            "api::client::versions::get() Could not deserialize response [{err}]\n{body}"
         ))),
     }
 }
@@ -287,6 +294,10 @@ mod tests {
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = test::test_100k_parquet();
 
+            // Get original file size
+            let metadata = path.metadata().unwrap();
+            let original_file_size = metadata.len();
+
             let result = api::client::versions::multipart_large_file_upload(
                 &remote_repo,
                 path,
@@ -294,12 +305,13 @@ mod tests {
             .await;
             assert!(result.is_ok());
 
-            let has_version = api::client::versions::has_version(
+            let version = api::client::versions::get(
                 &remote_repo,
                 result.unwrap().hash,
             )
             .await?;
-            assert!(has_version);
+            assert!(version.is_some());
+            assert_eq!(version.unwrap().size, original_file_size);
 
             Ok(remote_repo)
         })

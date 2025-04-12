@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::constants::VERSION_FILE_NAME;
+use crate::constants::{VERSION_CHUNKS_DIR, VERSION_CHUNK_FILE_NAME, VERSION_FILE_NAME};
 use crate::error::OxenError;
 use crate::storage::version_store::ReadSeek;
 use crate::util;
@@ -28,21 +28,32 @@ impl LocalVersionStore {
         }
     }
 
-    /// Get the full path for a version file
-    fn version_path(&self, hash: &str) -> PathBuf {
-        let topdir = &hash[..2];
-        let subdir = &hash[2..];
-        self.root_path
-            .join(topdir)
-            .join(subdir)
-            .join(VERSION_FILE_NAME)
-    }
-
     /// Get the directory containing a version file
     fn version_dir(&self, hash: &str) -> PathBuf {
         let topdir = &hash[..2];
         let subdir = &hash[2..];
         self.root_path.join(topdir).join(subdir)
+    }
+
+    /// Get the full path for a version file
+    fn version_path(&self, hash: &str) -> PathBuf {
+        self.version_dir(hash).join(VERSION_FILE_NAME)
+    }
+
+    /// Get the directory containing all the chunks for a version file
+    fn version_chunks_dir(&self, hash: &str) -> PathBuf {
+        self.version_dir(hash).join(VERSION_CHUNKS_DIR)
+    }
+
+    /// Get the directory containing a version file
+    /// .oxen/versions/{hash}/chunks/{chunk_number}
+    fn version_chunk_dir(&self, hash: &str, chunk_number: u32) -> PathBuf {
+        self.version_chunks_dir(hash).join(chunk_number.to_string())
+    }
+
+    /// Get the directory containing a version file
+    fn version_chunk_file(&self, hash: &str, chunk_number: u32) -> PathBuf {
+        self.version_chunk_dir(hash, chunk_number).join(VERSION_CHUNK_FILE_NAME)
     }
 }
 
@@ -98,6 +109,10 @@ impl VersionStore for LocalVersionStore {
         Ok(fs::read(&path)?)
     }
 
+    fn get_version_path(&self, hash: &str) -> Result<PathBuf, OxenError> {
+        Ok(self.version_path(hash))
+    }
+
     fn copy_version_to_path(&self, hash: &str, dest_path: &Path) -> Result<(), OxenError> {
         let version_path = self.version_path(hash);
         fs::copy(&version_path, dest_path)?;
@@ -144,6 +159,69 @@ impl VersionStore for LocalVersionStore {
         }
 
         Ok(versions)
+    }
+
+    fn store_version_chunk(&self, hash: &str, chunk_number: u32, data: &[u8]) -> Result<(), OxenError> {
+        let chunk_dir = self.version_chunk_dir(hash, chunk_number);
+        util::fs::create_dir_all(&chunk_dir)?;
+
+        let chunk_path = self.version_chunk_file(hash, chunk_number);
+        let mut file = File::create(&chunk_path)?;
+        file.write_all(data)?;
+
+        Ok(())
+    }
+
+    fn get_version_chunk(&self, hash: &str, chunk_number: u32) -> Result<Vec<u8>, OxenError> {
+        let chunk_path = self.version_chunk_file(hash, chunk_number);
+        Ok(fs::read(&chunk_path)?)
+    }
+
+    fn list_version_chunks(&self, hash: &str) -> Result<Vec<u32>, OxenError> {
+        let chunk_dir = self.version_chunks_dir(hash);
+        let mut chunks = Vec::new();
+        for entry in fs::read_dir(&chunk_dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                if let Ok(chunk_number) = entry.file_name().to_string_lossy().parse::<u32>() {
+                    chunks.push(chunk_number);
+                }
+            }
+        }
+        Ok(chunks)
+    }
+
+    /// Combine all the chunks for a version file into a single file
+    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<(), OxenError> {
+        let version_path = self.version_path(hash);
+        let mut output_file = File::create(&version_path)?;
+        
+        // Get list of chunks and sort them to ensure correct order
+        let mut chunks = self.list_version_chunks(hash)?;
+        chunks.sort();
+
+        // Process each chunk
+        for chunk_number in chunks {
+            let chunk_path = self.version_chunk_file(hash, chunk_number);
+            let mut chunk_file = File::open(&chunk_path)?;
+            io::copy(&mut chunk_file, &mut output_file)?;
+
+            // Cleanup chunk if requested
+            if cleanup {
+                let chunk_dir = self.version_chunk_dir(hash, chunk_number);
+                util::fs::remove_dir_all(&chunk_dir)?;
+            }
+        }
+
+        // Cleanup the chunks directory if requested
+        if cleanup {
+            let chunks_dir = self.version_chunks_dir(hash);
+            if chunks_dir.exists() {
+                util::fs::remove_dir_all(&chunks_dir)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn storage_type(&self) -> &str {
@@ -313,5 +391,42 @@ mod tests {
 
         // Should not error when deleting non-existent version
         store.delete_version(hash).unwrap();
+    }
+
+    #[test]
+    fn test_store_and_get_version_chunk() {
+        let (_temp_dir, store) = setup();
+        let hash = "abcdef1234567890";
+        let chunk_number = 1;
+        let data = b"test chunk data";
+
+        // Store the chunk
+        store.store_version_chunk(hash, chunk_number, data).unwrap();
+
+        // Verify the file exists with correct structure
+        let chunk_path = store.version_chunk_file(hash, chunk_number);
+        assert!(chunk_path.exists());
+        assert_eq!(chunk_path.parent().unwrap(), store.version_chunk_dir(hash, chunk_number));
+
+        // Get and verify the data
+        let retrieved = store.get_version_chunk(hash, chunk_number).unwrap();
+        assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn test_get_nonexistent_chunk() {
+        let (_temp_dir, store) = setup();
+        let hash = "abcdef1234567890";
+        let chunk_number = 999;
+
+        match store.get_version_chunk(hash, chunk_number) {
+            Ok(_) => panic!("Expected error when getting non-existent chunk"),
+            Err(OxenError::IO(e)) => {
+                assert_eq!(e.kind(), io::ErrorKind::NotFound);
+            }
+            Err(e) => {
+                panic!("Unexpected error when getting non-existent chunk: {:?}", e);
+            }
+        }
     }
 }

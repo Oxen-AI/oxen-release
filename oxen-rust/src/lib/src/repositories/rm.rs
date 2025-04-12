@@ -228,36 +228,36 @@ mod tests {
                 api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 5);
 
-            // // add data via a workspace
-            // let workspace_id = "my_workspace";
-            // let workspace =
-            //     api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-            //         .await?;
-            // assert_eq!(workspace.id, workspace_id);
-            // let file_to_post = test::test_csv_file_with_name("emojis.csv");
-            // let directory_name = "phi-4";
-            // let result = api::client::workspaces::files::post_file(
-            //     &remote_repo,
-            //     &workspace_id,
-            //     directory_name,
-            //     file_to_post,
-            // )
-            // .await;
-            // println!("result: {:?}", result);
-            // assert!(result.is_ok());
+            // add data via a workspace
+            let workspace_id = "my_workspace";
+            let workspace =
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
+            let file_to_post = test::test_csv_file_with_name("emojis.csv");
+            let directory_name = "phi-4";
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            println!("result: {:?}", result);
+            assert!(result.is_ok());
 
-            // let body = NewCommitBody {
-            //     message: "Add emojis data frame".to_string(),
-            //     author: "Test User".to_string(),
-            //     email: "test@oxen.ai".to_string(),
-            // };
-            // api::client::workspaces::commit(
-            //     &remote_repo,
-            //     DEFAULT_BRANCH_NAME,
-            //     &workspace_id,
-            //     &body,
-            // )
-            // .await?;
+            let body = NewCommitBody {
+                message: "Add emojis data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            api::client::workspaces::commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &workspace_id,
+                &body,
+            )
+            .await?;
 
             // List the files/folders in the remote
             let root_entries =

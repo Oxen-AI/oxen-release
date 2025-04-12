@@ -1504,7 +1504,7 @@ A: Checkout Oxen.ai
             util::fs::write_data(&file_path, &random_data)?;
 
             // Verify the file size is exactly AVG_CHUNK_SIZE
-            let metadata = std::fs::metadata(&file_path)?;
+            let metadata = util::fs::metadata(&file_path)?;
             assert_eq!(
                 metadata.len(),
                 AVG_CHUNK_SIZE,
@@ -1542,7 +1542,7 @@ A: Checkout Oxen.ai
                 assert!(download_path.exists(), "Downloaded file should exist");
 
                 // Verify the file size is exactly AVG_CHUNK_SIZE
-                let downloaded_metadata = std::fs::metadata(&download_path)?;
+                let downloaded_metadata = util::fs::metadata(&download_path)?;
                 assert_eq!(
                     downloaded_metadata.len(),
                     metadata.len(),

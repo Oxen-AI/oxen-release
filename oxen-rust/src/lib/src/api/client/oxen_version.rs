@@ -1,7 +1,7 @@
 use crate::api::client;
 use crate::api::endpoint;
 use crate::error::OxenError;
-use crate::view::version::VersionResponse;
+use crate::view::oxen_version::OxenVersionResponse;
 use crate::view::StatusMessage;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
@@ -37,7 +37,7 @@ pub async fn get_min_oxen_version(host: &str) -> Result<String, OxenError> {
         log::debug!("get_remote_version got status: {}", res.status());
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("get_remote_version got body: {}", body);
-        let response: Result<VersionResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<OxenVersionResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val.version),
             Err(_) => Err(OxenError::basic_str(format!(
