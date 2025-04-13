@@ -16,7 +16,7 @@ use crate::core::{self, db};
 use crate::core::v_latest::add::{add_file_node_to_staged_db, process_add_file};
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::StagedMerkleTreeNode;
+use crate::model::merkle_tree::node::{MerkleTreeNode, StagedMerkleTreeNode};
 use crate::model::workspace::Workspace;
 use crate::model::LocalRepository;
 use crate::model::{Commit, StagedEntryStatus};
@@ -431,6 +431,17 @@ fn p_add_file(
     // See if this is a new file or a modified file
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let full_path = workspace_repo.path.join(&path);
+
+    if !full_path.is_file() {
+        // If it's not a file - no need to add it
+        // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
+        return Ok(Some(StagedMerkleTreeNode {
+            status: StagedEntryStatus::Added,
+            node: MerkleTreeNode::default_dir(),
+        }));
+    }
+
     let file_status = core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, &full_path)?;
 
     // Store the file in the version store using the hash as the key
