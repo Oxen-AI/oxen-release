@@ -62,7 +62,12 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     /// * `hash` - The content hash that identifies this version
     /// * `chunk_number` - The chunk number to store
     /// * `data` - The raw bytes to store
-    fn store_version_chunk(&self, hash: &str, chunk_number: u32, data: &[u8]) -> Result<(), OxenError>;
+    fn store_version_chunk(
+        &self,
+        hash: &str,
+        chunk_number: u32,
+        data: &[u8],
+    ) -> Result<(), OxenError>;
 
     /// Retrieve a chunk of a version file
     ///
@@ -82,7 +87,7 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     /// # Arguments
     /// * `hash` - The content hash that identifies this version
     /// * `cleanup` - Whether to delete the chunks after combining. If false, the chunks will be left in place.
-    ///               May be helpful for debugging or chunk-level deduplication.
+    ///   May be helpful for debugging or chunk-level deduplication.
     fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError>;
 
     /// Open a version file for reading
@@ -96,7 +101,6 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
     fn get_version(&self, hash: &str) -> Result<Vec<u8>, OxenError>;
-
 
     /// Get the path to a version file
     ///

@@ -225,7 +225,8 @@ mod tests {
 
             // List the files/folders in the remote
             let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10)
+                    .await?;
             assert_eq!(root_entries.entries.len(), 5);
 
             // add data via a workspace
@@ -254,14 +255,15 @@ mod tests {
             api::client::workspaces::commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &workspace_id,
+                workspace_id,
                 &body,
             )
             .await?;
 
             // List the files/folders in the remote
             let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10)
+                    .await?;
             assert_eq!(root_entries.entries.len(), 5);
 
             let cloned_remote_repo = remote_repo.clone();
@@ -280,7 +282,8 @@ mod tests {
 
                 // List the files/folders in the remote
                 let root_entries =
-                    api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10).await?;
+                    api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10)
+                        .await?;
 
                 for entry in root_entries.entries.iter() {
                     println!("entry: {:?}", entry);
@@ -291,7 +294,6 @@ mod tests {
                 Ok(new_repo_dir)
             })
             .await?;
-
 
             Ok(())
         })

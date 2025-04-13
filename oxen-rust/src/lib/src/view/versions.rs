@@ -27,21 +27,21 @@ pub enum MultipartLargeFileUploadStatus {
 
 #[derive(Clone)]
 pub struct MultipartLargeFileUpload {
-    pub local_path: PathBuf, // Path to the file on the local filesystem
+    pub local_path: PathBuf,      // Path to the file on the local filesystem
     pub dst_dir: Option<PathBuf>, // Path to upload the file to on the server
-    pub hash: MerkleHash, // Unique identifier for the file
-    pub size: u64, // Size of the file in bytes
+    pub hash: MerkleHash,         // Unique identifier for the file
+    pub size: u64,                // Size of the file in bytes
     pub status: MultipartLargeFileUploadStatus, // Status of the upload
-    pub reason: Option<String>, // Reason for the upload failure
+    pub reason: Option<String>,   // Reason for the upload failure
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompletedFileUpload {
     pub hash: String,
-    pub file_name: String, // The name of the file
+    pub file_name: String,        // The name of the file
     pub dst_dir: Option<PathBuf>, // The destination directory for the file
-    // `upload_results` is all the headers from the chunk uploads 
-    // so that we can verify the upload results and re-upload 
+    // `upload_results` is all the headers from the chunk uploads
+    // so that we can verify the upload results and re-upload
     // the file if there were any failures
     pub upload_results: Vec<HashMap<String, String>>,
 }

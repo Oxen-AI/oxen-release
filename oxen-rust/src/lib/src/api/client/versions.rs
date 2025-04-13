@@ -1,12 +1,12 @@
-
-
-
 use crate::api;
 use crate::api::client;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{MerkleHash, RemoteRepository};
-use crate::view::versions::{CompleteVersionUploadRequest, CompletedFileUpload, MultipartLargeFileUpload, MultipartLargeFileUploadStatus, VersionFile, VersionFileResponse};
+use crate::view::versions::{
+    CompleteVersionUploadRequest, CompletedFileUpload, MultipartLargeFileUpload,
+    MultipartLargeFileUploadStatus, VersionFile, VersionFileResponse,
+};
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -15,15 +15,15 @@ use rand::{thread_rng, Rng};
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 use std::collections::HashMap;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::Semaphore;
 use tokio::time::sleep;
-use std::time::Duration;
-use std::io::SeekFrom;
 
 use crate::util;
 
@@ -80,13 +80,24 @@ pub async fn parallel_large_file_upload(
     log::debug!("multipart_large_file_upload path: {:?}", file_path.as_ref());
     let mut upload = create_multipart_large_file_upload(file_path, dst_dir).await?;
     log::debug!("multipart_large_file_upload upload: {:?}", upload.hash);
-    let results = upload_chunks(&remote_repo, &mut upload, AVG_CHUNK_SIZE, MAX_FILES, PARALLEL_FAILURES, MAX_RETRIES).await?;
-    log::debug!("multipart_large_file_upload results length: {:?}", results.len());
-    complete_multipart_large_file_upload(&remote_repo, upload, results, workspace_id).await
+    let results = upload_chunks(
+        remote_repo,
+        &mut upload,
+        AVG_CHUNK_SIZE,
+        MAX_FILES,
+        PARALLEL_FAILURES,
+        MAX_RETRIES,
+    )
+    .await?;
+    log::debug!(
+        "multipart_large_file_upload results length: {:?}",
+        results.len()
+    );
+    complete_multipart_large_file_upload(remote_repo, upload, results, workspace_id).await
 }
 
 /// Creates a new multipart large file upload
-/// Will reject the upload if the hash already exists on the server. 
+/// Will reject the upload if the hash already exists on the server.
 /// The rejection helps prevent duplicate uploads or parallel uploads of the same file.
 /// Returns the `MultipartLargeFileUpload` struct for the created upload
 async fn create_multipart_large_file_upload(
@@ -102,7 +113,7 @@ async fn create_multipart_large_file_upload(
     };
     let file_size = metadata.len();
     let hash = MerkleHash::from_str(&util::hasher::hash_file_contents(file_path)?)?;
-    
+
     Ok(MultipartLargeFileUpload {
         local_path: file_path.to_path_buf(),
         dst_dir: dst_dir.map(|d| d.as_ref().to_path_buf()),
@@ -122,7 +133,7 @@ async fn upload_chunks(
     max_retries: usize,
 ) -> Result<Vec<HashMap<String, String>>, OxenError> {
     let file_path = &upload.local_path;
-    let client = api::client::builder_for_remote_repo(&remote_repo)?.build()?;
+    let client = api::client::builder_for_remote_repo(remote_repo)?.build()?;
 
     let mut handles = FuturesUnordered::new();
     let semaphore = Arc::new(Semaphore::new(max_files));
@@ -133,7 +144,7 @@ async fn upload_chunks(
         return Err(OxenError::path_does_not_exist(file_path));
     };
     let file_size = metadata.len();
-    let num_chunks = (file_size + chunk_size - 1) / chunk_size;
+    let num_chunks = file_size.div_ceil(chunk_size);
 
     for chunk_number in 0..num_chunks {
         let remote_repo = remote_repo.clone();
@@ -247,7 +258,6 @@ async fn complete_multipart_large_file_upload(
     results: Vec<HashMap<String, String>>,
     workspace_id: Option<String>,
 ) -> Result<MultipartLargeFileUpload, OxenError> {
-    
     let file_hash = &upload.hash.to_string();
 
     let uri = format!("/versions/{file_hash}/chunks");
@@ -258,11 +268,16 @@ async fn complete_multipart_large_file_upload(
     let body = CompleteVersionUploadRequest {
         files: vec![CompletedFileUpload {
             hash: file_hash.to_string(),
-            file_name: upload.local_path.file_name().unwrap().to_string_lossy().to_string(),
+            file_name: upload
+                .local_path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
             dst_dir: upload.dst_dir.clone(),
             upload_results: results,
         }],
-        workspace_id: workspace_id,
+        workspace_id,
     };
 
     let body = serde_json::to_string(&body)?;
@@ -284,8 +299,8 @@ fn jitter() -> usize {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::error::OxenError;
     use crate::api;
+    use crate::error::OxenError;
     use crate::test;
 
     #[tokio::test]
@@ -309,11 +324,7 @@ mod tests {
             .await;
             assert!(result.is_ok());
 
-            let version = api::client::versions::get(
-                &remote_repo,
-                result.unwrap().hash,
-            )
-            .await?;
+            let version = api::client::versions::get(&remote_repo, result.unwrap().hash).await?;
             assert!(version.is_some());
             assert_eq!(version.unwrap().size, original_file_size);
 

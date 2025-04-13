@@ -53,7 +53,8 @@ impl LocalVersionStore {
 
     /// Get the directory containing a version file
     fn version_chunk_file(&self, hash: &str, chunk_number: u32) -> PathBuf {
-        self.version_chunk_dir(hash, chunk_number).join(VERSION_CHUNK_FILE_NAME)
+        self.version_chunk_dir(hash, chunk_number)
+            .join(VERSION_CHUNK_FILE_NAME)
     }
 }
 
@@ -161,7 +162,12 @@ impl VersionStore for LocalVersionStore {
         Ok(versions)
     }
 
-    fn store_version_chunk(&self, hash: &str, chunk_number: u32, data: &[u8]) -> Result<(), OxenError> {
+    fn store_version_chunk(
+        &self,
+        hash: &str,
+        chunk_number: u32,
+        data: &[u8],
+    ) -> Result<(), OxenError> {
         let chunk_dir = self.version_chunk_dir(hash, chunk_number);
         util::fs::create_dir_all(&chunk_dir)?;
 
@@ -195,7 +201,7 @@ impl VersionStore for LocalVersionStore {
     fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError> {
         let version_path = self.version_path(hash);
         let mut output_file = File::create(&version_path)?;
-        
+
         // Get list of chunks and sort them to ensure correct order
         let mut chunks = self.list_version_chunks(hash)?;
         chunks.sort();
@@ -406,7 +412,10 @@ mod tests {
         // Verify the file exists with correct structure
         let chunk_path = store.version_chunk_file(hash, chunk_number);
         assert!(chunk_path.exists());
-        assert_eq!(chunk_path.parent().unwrap(), store.version_chunk_dir(hash, chunk_number));
+        assert_eq!(
+            chunk_path.parent().unwrap(),
+            store.version_chunk_dir(hash, chunk_number)
+        );
 
         // Get and verify the data
         let retrieved = store.get_version_chunk(hash, chunk_number).unwrap();

@@ -73,7 +73,12 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    fn store_version_chunk(&self, _hash: &str, _chunk_number: u32, _data: &[u8]) -> Result<(), OxenError> {
+    fn store_version_chunk(
+        &self,
+        _hash: &str,
+        _chunk_number: u32,
+        _data: &[u8],
+    ) -> Result<(), OxenError> {
         // TODO: Implement S3 version chunk storage
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }

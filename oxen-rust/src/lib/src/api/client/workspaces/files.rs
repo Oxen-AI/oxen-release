@@ -102,13 +102,16 @@ pub async fn post_file(
     // If the file is larger than AVG_CHUNK_SIZE, use the parallel upload strategy
     if metadata.len() > AVG_CHUNK_SIZE {
         let directory = directory.as_ref();
-        match api::client::versions::parallel_large_file_upload(remote_repo, path, Some(directory), Some(workspace_id.as_ref().to_string())).await {
-            Ok(upload) => {
-                Ok(upload.local_path)
-            }
-            Err(err) => {
-                Err(err)
-            }
+        match api::client::versions::parallel_large_file_upload(
+            remote_repo,
+            path,
+            Some(directory),
+            Some(workspace_id.as_ref().to_string()),
+        )
+        .await
+        {
+            Ok(upload) => Ok(upload.local_path),
+            Err(err) => Err(err),
         }
     } else {
         // Single multipart request
@@ -127,7 +130,7 @@ async fn multipart_file_upload(
     let directory_name = directory.to_string_lossy();
     let path = path.as_ref();
     log::debug!("multipart_file_upload path: {:?}", path);
-    let Ok(file) = std::fs::read(&path) else {
+    let Ok(file) = std::fs::read(path) else {
         let err = format!("Error reading file at path: {path:?}");
         return Err(OxenError::basic_str(err));
     };
@@ -146,8 +149,7 @@ async fn multipart_file_upload(
     let client = client::new_for_url(&url)?;
     let response = client.post(&url).multipart(form).send().await?;
     let body = client::parse_json_body(&url, response).await?;
-    let response: Result<FilePathsResponse, serde_json::Error> =
-        serde_json::from_str(&body);
+    let response: Result<FilePathsResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => {
             log::debug!("File path response: {:?}", val);
@@ -207,8 +209,7 @@ pub async fn add_many(
     let client = client::new_for_url(&url)?;
     let response = client.post(&url).multipart(form).send().await?;
     let body = client::parse_json_body(&url, response).await?;
-    let response: Result<FilePathsResponse, serde_json::Error> =
-        serde_json::from_str(&body);
+    let response: Result<FilePathsResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(val) => Ok(val.paths),
         Err(err) => {

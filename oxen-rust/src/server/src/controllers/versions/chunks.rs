@@ -1,5 +1,3 @@
-
-
 use std::path::PathBuf;
 
 use crate::errors::OxenHttpError;
@@ -12,24 +10,26 @@ use liboxen::repositories;
 use liboxen::view::versions::CompleteVersionUploadRequest;
 use liboxen::view::StatusMessage;
 
-pub async fn upload(
-    req: HttpRequest,
-    body: web::Payload
-) -> Result<HttpResponse, OxenHttpError> {
+pub async fn upload(req: HttpRequest, body: web::Payload) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let version_id = path_param(&req, "version_id")?;
     let chunk_number = path_param(&req, "chunk_number")?;
-    let chunk_number = chunk_number.parse::<u32>()
-        .map_err(|_| OxenHttpError::BadRequest(
-            format!("Invalid chunk number, must be a number: {}", chunk_number).into()
+    let chunk_number = chunk_number.parse::<u32>().map_err(|_| {
+        OxenHttpError::BadRequest(
+            format!("Invalid chunk number, must be a number: {}", chunk_number).into(),
         )
-    )?;
+    })?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    log::debug!("/upload version {} chunk {} to repo: {:?}", version_id, chunk_number, repo.path);
+    log::debug!(
+        "/upload version {} chunk {} to repo: {:?}",
+        version_id,
+        chunk_number,
+        repo.path
+    );
 
     let version_store = repo.version_store()?;
     let body = body.to_bytes().await?;
@@ -48,11 +48,14 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
     log::debug!("/complete version chunk upload to repo: {:?}", repo.path);
 
     // Try to deserialize the body
-    let request: Result<CompleteVersionUploadRequest, serde_json::Error> = serde_json::from_str(&body);
+    let request: Result<CompleteVersionUploadRequest, serde_json::Error> =
+        serde_json::from_str(&body);
     if let Ok(request) = request {
         // There should only be a single file in the request
         if request.files.len() != 1 {
-            return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Expected a single file in the request")));
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(
+                "Expected a single file in the request",
+            )));
         }
 
         let file = &request.files[0];
@@ -63,7 +66,13 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
         log::debug!("Found {} chunks", chunks.len());
 
         if chunks.len() != file.upload_results.len() {
-            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Number of chunks does not match expected number of chunks: {} != {}", chunks.len(), file.upload_results.len()))));
+            return Ok(
+                HttpResponse::BadRequest().json(StatusMessage::error(format!(
+                    "Number of chunks does not match expected number of chunks: {} != {}",
+                    chunks.len(),
+                    file.upload_results.len()
+                ))),
+            );
         }
 
         // Combine all the chunks for a version file into a single file
@@ -73,7 +82,10 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
         // If the workspace id is provided, stage the file
         if let Some(workspace_id) = request.workspace_id {
             let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
-                return Ok(HttpResponse::NotFound().json(StatusMessage::error(format!("Workspace not found: {}", workspace_id))));
+                return Ok(HttpResponse::NotFound().json(StatusMessage::error(format!(
+                    "Workspace not found: {}",
+                    workspace_id
+                ))));
             };
             // TODO: Can we just replace workspaces::files::add with this?
             // repositories::workspaces::files::add(&workspace, &version_path)?;
@@ -82,7 +94,11 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
             } else {
                 PathBuf::from(file.file_name.clone())
             };
-            core::v_latest::workspaces::files::add_version_file(&workspace, &version_path, &dst_path)?;
+            core::v_latest::workspaces::files::add_version_file(
+                &workspace,
+                &version_path,
+                &dst_path,
+            )?;
         }
 
         return Ok(HttpResponse::Ok().json(StatusMessage::resource_found()));
