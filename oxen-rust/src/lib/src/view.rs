@@ -30,7 +30,7 @@ pub mod sql_parse_error;
 pub mod status_message;
 pub mod tabular_diff_view;
 pub mod tree;
-pub mod version_file;
+pub mod versions;
 pub mod workspaces;
 
 pub use crate::view::compare::CompareEntriesResponse;

@@ -2,7 +2,7 @@
 pub mod chunks;
 
 use actix_web::{HttpRequest, HttpResponse};
-use liboxen::view::version_file::{VersionFile, VersionFileResponse};
+use liboxen::view::versions::{VersionFile, VersionFileResponse};
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};

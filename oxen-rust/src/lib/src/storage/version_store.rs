@@ -81,8 +81,9 @@ pub trait VersionStore: Debug + Send + Sync + RefUnwindSafe + 'static {
     ///
     /// # Arguments
     /// * `hash` - The content hash that identifies this version
-    /// * `cleanup` - Whether to delete the chunks after combining
-    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<(), OxenError>;
+    /// * `cleanup` - Whether to delete the chunks after combining. If false, the chunks will be left in place.
+    ///               May be helpful for debugging or chunk-level deduplication.
+    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError>;
 
     /// Open a version file for reading
     ///

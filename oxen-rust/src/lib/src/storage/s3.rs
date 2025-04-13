@@ -103,7 +103,7 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    fn combine_version_chunks(&self, _hash: &str, _cleanup: bool) -> Result<(), OxenError> {
+    fn combine_version_chunks(&self, _hash: &str, _cleanup: bool) -> Result<PathBuf, OxenError> {
         // TODO: Implement S3 version chunk combination
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }

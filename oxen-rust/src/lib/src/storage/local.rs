@@ -192,7 +192,7 @@ impl VersionStore for LocalVersionStore {
     }
 
     /// Combine all the chunks for a version file into a single file
-    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<(), OxenError> {
+    fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError> {
         let version_path = self.version_path(hash);
         let mut output_file = File::create(&version_path)?;
         
@@ -221,7 +221,7 @@ impl VersionStore for LocalVersionStore {
             }
         }
 
-        Ok(())
+        Ok(version_path)
     }
 
     fn storage_type(&self) -> &str {
