@@ -252,13 +252,8 @@ mod tests {
                 author: "Test User".to_string(),
                 email: "test@oxen.ai".to_string(),
             };
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_id,
-                &body,
-            )
-            .await?;
+            api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &body)
+                .await?;
 
             // List the files/folders in the remote
             let root_entries =

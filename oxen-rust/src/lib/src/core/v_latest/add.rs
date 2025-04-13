@@ -269,7 +269,7 @@ pub fn process_add_dir(
                 ));
 
                 if path.is_dir() {
-                    return ;
+                    return;
                 }
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
