@@ -1655,12 +1655,13 @@ pub fn test_1k_parquet() -> PathBuf {
         .join("wiki_1k.parquet")
 }
 
-/// Returns: data/test/parquet/wiki_100k.parquet
-pub fn test_100k_parquet() -> PathBuf {
+/// Returns: data/test/parquet/wiki_30k.parquet
+/// Used for larger file uploads > 10mb (it is ~85mb)
+pub fn test_30k_parquet() -> PathBuf {
     Path::new("data")
         .join("test")
         .join("parquet")
-        .join("wiki_100k.parquet")
+        .join("wiki_30k.parquet")
 }
 
 /// Returns: nlp/classification/annotations/test.tsv

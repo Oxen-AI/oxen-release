@@ -1,5 +1,6 @@
 use crate::api;
 use crate::api::client;
+use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 
@@ -99,9 +100,19 @@ pub async fn post_file(
     };
 
     log::debug!("Uploading file with size: {}", metadata.len());
-    if metadata.len() > 100_000_000 {
-        Err(OxenError::basic_str("File size is too large to upload"))
+    // If the file is larger than AVG_CHUNK_SIZE, use the parallel upload strategy
+    if metadata.len() > AVG_CHUNK_SIZE {
+        let directory = directory.as_ref();
+        match api::client::versions::parallel_large_file_upload(remote_repo, path, Some(directory), Some(workspace_id.as_ref().to_string())).await {
+            Ok(upload) => {
+                Ok(upload.local_path)
+            }
+            Err(err) => {
+                Err(err)
+            }
+        }
     } else {
+        // Single multipart request
         multipart_file_upload(remote_repo, workspace_id, directory, path).await
     }
 }
@@ -257,6 +268,53 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
+            let result = api::client::workspaces::files::post_file(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                path,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let page_num = constants::DEFAULT_PAGE_NUM;
+            let page_size = constants::DEFAULT_PAGE_SIZE;
+            let path = Path::new(directory_name);
+            let entries = api::client::workspaces::changes::list(
+                &remote_repo,
+                &workspace_id,
+                path,
+                page_num,
+                page_size,
+            )
+            .await?;
+            assert_eq!(entries.added_files.entries.len(), 1);
+            assert_eq!(entries.added_files.total_entries, 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_stage_large_file() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let branch_name = "add-large-file";
+            let branch = api::client::branches::create_from_branch(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let directory_name = "my_large_file";
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            let path = test::test_30k_parquet();
             let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &workspace_id,

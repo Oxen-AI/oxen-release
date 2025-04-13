@@ -561,6 +561,87 @@ pub fn process_add_file(
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
 }
 
+pub fn process_add_version_file(
+    repo: &LocalRepository,
+    file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    version_path: &Path, // Path to the file in the repository, or path defined by the user
+    dst_path: &Path, // Path to the file in the workspace
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("process_add_version_file version_path {:?}", version_path);
+    log::debug!("process_add_version_file dst_path {:?}", dst_path);
+
+    let status = file_status.status.clone();
+    let hash = file_status.hash.clone();
+    let num_bytes = file_status.num_bytes;
+    let mtime = file_status.mtime;
+    let maybe_file_node = file_status.previous_file_node.clone();
+    let previous_metadata = file_status.previous_metadata.clone();
+
+    log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
+
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
+        return Ok(None);
+    }
+
+    // Get the data type of the file
+    let mime_type = util::fs::file_mime_type(version_path);
+    let mut data_type = util::fs::datatype_from_mimetype(version_path, &mime_type);
+    let metadata = match &previous_metadata {
+        Some(previous_oxen_metadata) => {
+            let df_metadata = repositories::metadata::get_file_metadata(&version_path, &data_type)?;
+            maybe_construct_generic_metadata_for_tabular(
+                df_metadata,
+                previous_oxen_metadata.clone(),
+            )
+        }
+        None => repositories::metadata::get_file_metadata(&version_path, &data_type)?,
+    };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
+
+    let file_extension = dst_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let relative_path_str = dst_path.to_str().unwrap_or_default();
+    let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
+        let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
+        let metadata_hash = MerkleHash::new(metadata_hash);
+        let combined_hash =
+            util::hasher::get_combined_hash(Some(metadata_hash.to_u128()), hash.to_u128())?;
+        let combined_hash = MerkleHash::new(combined_hash);
+        (hash, Some(metadata_hash), combined_hash)
+    } else {
+        (hash, None, hash)
+    };
+    let file_node = FileNode::new(
+        repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
+
+    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+}
+
 pub fn maybe_construct_generic_metadata_for_tabular(
     df_metadata: Option<GenericMetadata>,
     previous_oxen_metadata: GenericMetadata,

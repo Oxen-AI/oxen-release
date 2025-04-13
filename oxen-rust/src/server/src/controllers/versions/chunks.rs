@@ -1,12 +1,15 @@
 
 
-use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use liboxen::core;
+use liboxen::repositories;
+use liboxen::view::versions::CompleteVersionUploadRequest;
 use liboxen::view::StatusMessage;
 
 pub async fn upload(
@@ -45,20 +48,43 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
     log::debug!("/complete version chunk upload to repo: {:?}", repo.path);
 
     // Try to deserialize the body
-    let data: Result<Vec<HashMap<String, String>>, serde_json::Error> = serde_json::from_str(&body);
-    if let Ok(data) = data {
-        log::debug!("Received {} chunks", data.len());
+    let request: Result<CompleteVersionUploadRequest, serde_json::Error> = serde_json::from_str(&body);
+    if let Ok(request) = request {
+        // There should only be a single file in the request
+        if request.files.len() != 1 {
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Expected a single file in the request")));
+        }
+
+        let file = &request.files[0];
+        log::debug!("Received {} chunks", file.upload_results.len());
         let version_store = repo.version_store()?;
 
         let chunks = version_store.list_version_chunks(&version_id)?;
         log::debug!("Found {} chunks", chunks.len());
 
-        if chunks.len() != data.len() {
-            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Number of chunks does not match expected number of chunks: {} != {}", chunks.len(), data.len()))));
+        if chunks.len() != file.upload_results.len() {
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("Number of chunks does not match expected number of chunks: {} != {}", chunks.len(), file.upload_results.len()))));
         }
 
         // Combine all the chunks for a version file into a single file
-        version_store.combine_version_chunks(&version_id, true)?;
+        let cleanup = true;
+        let version_path = version_store.combine_version_chunks(&version_id, cleanup)?;
+
+        // If the workspace id is provided, stage the file
+        if let Some(workspace_id) = request.workspace_id {
+            let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+                return Ok(HttpResponse::NotFound().json(StatusMessage::error(format!("Workspace not found: {}", workspace_id))));
+            };
+            // TODO: Can we just replace workspaces::files::add with this?
+            // repositories::workspaces::files::add(&workspace, &version_path)?;
+            let dst_path = if let Some(dst_dir) = &file.dst_dir {
+                dst_dir.join(file.file_name.clone())
+            } else {
+                PathBuf::from(file.file_name.clone())
+            };
+            core::v_latest::workspaces::files::add_version_file(&workspace, &version_path, &dst_path)?;
+        }
+
         return Ok(HttpResponse::Ok().json(StatusMessage::resource_found()));
     }
 
