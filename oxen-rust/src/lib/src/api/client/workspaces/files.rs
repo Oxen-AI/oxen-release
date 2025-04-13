@@ -8,7 +8,6 @@ use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
-
 use std::path::{Path, PathBuf};
 
 use crate::core::oxenignore;
