@@ -30,7 +30,6 @@ use crate::model::merkle_tree::node::{
     EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
 };
 
-
 #[derive(Clone, Debug)]
 pub struct FileStatus {
     pub data_path: PathBuf,
@@ -270,13 +269,17 @@ pub fn process_add_dir(
                 ));
 
                 if path.is_dir() {
-                    return ();
+                    return ;
                 }
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
-                let file_status = core::v_latest::add::determine_file_status(&dir_node, &file_name, &path).unwrap();
-                version_store.store_version_from_path(&file_status.hash.to_string(), &path).unwrap();
-            
+                let file_status =
+                    core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
+                        .unwrap();
+                version_store
+                    .store_version_from_path(&file_status.hash.to_string(), &path)
+                    .unwrap();
+
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo,
@@ -361,37 +364,38 @@ fn add_file_inner(
     version_store.store_version_from_path(&file_status.hash.to_string(), path)?;
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    process_add_file(
-        repo,
-        repo_path,
-        &file_status,
-        staged_db,
-        path,
-        &seen_dirs,
-    )
+    process_add_file(repo, repo_path, &file_status, staged_db, path, &seen_dirs)
 }
 
 pub fn determine_file_status(
     maybe_dir_node: &Option<MerkleTreeNode>,
-    file_name: impl AsRef<str>, // Name of the file in the repository
+    file_name: impl AsRef<str>,  // Name of the file in the repository
     data_path: impl AsRef<Path>, // Path to the data file (maybe in the version store)
 ) -> Result<FileStatus, OxenError> {
     // Check if the file is already in the head commit
     let file_path = file_name.as_ref();
     let data_path = data_path.as_ref();
-    log::debug!("determine_file_status data_path {:?} file_name {:?}", data_path, file_path);
+    log::debug!(
+        "determine_file_status data_path {:?} file_name {:?}",
+        data_path,
+        file_path
+    );
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
     let mut previous_oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
-        log::debug!("got existing file_node: {} data_path {:?}", file_node, data_path);
+        log::debug!(
+            "got existing file_node: {} data_path {:?}",
+            file_node,
+            data_path
+        );
         // first check if the file timestamp is different
         let metadata = util::fs::metadata(data_path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         previous_oxen_metadata = file_node.metadata();
         if has_different_modification_time(file_node, &mtime) {
             log::debug!("has_different_modification_time true {}", file_node);
-            let hash = util::hasher::get_hash_given_metadata(&data_path, &metadata)?;
+            let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
             if file_node.hash().to_u128() != hash {
                 log::debug!(
                     "has_different_modification_time hash is different true {}",
@@ -413,7 +417,7 @@ pub fn determine_file_status(
                 )
             }
         } else {
-            let hash = util::hasher::get_hash_given_metadata(&data_path, &metadata)?;
+            let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
 
             if file_node.hash().to_u128() != hash {
                 log::debug!("hash is different true {}", file_node);
@@ -435,7 +439,7 @@ pub fn determine_file_status(
     } else {
         let metadata = util::fs::metadata(data_path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        let hash = util::hasher::get_hash_given_metadata(&data_path, &metadata)?;
+        let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
         (
             StagedEntryStatus::Added,
             MerkleHash::new(hash),
@@ -457,7 +461,7 @@ pub fn determine_file_status(
 
 pub fn process_add_file(
     repo: &LocalRepository,
-    repo_path: &Path, // Path to the repository
+    repo_path: &Path,         // Path to the repository
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: &Path, // Path to the file in the repository, or path defined by the user
@@ -478,7 +482,7 @@ pub fn process_add_file(
     }
 
     let mut status = file_status.status.clone();
-    let hash = file_status.hash.clone();
+    let hash = file_status.hash;
     let num_bytes = file_status.num_bytes;
     let mtime = file_status.mtime;
     let maybe_file_node = file_status.previous_file_node.clone();
@@ -566,14 +570,14 @@ pub fn process_add_version_file(
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_path: &Path, // Path to the file in the repository, or path defined by the user
-    dst_path: &Path, // Path to the file in the workspace
+    dst_path: &Path,     // Path to the file in the workspace
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     log::debug!("process_add_version_file version_path {:?}", version_path);
     log::debug!("process_add_version_file dst_path {:?}", dst_path);
 
     let status = file_status.status.clone();
-    let hash = file_status.hash.clone();
+    let hash = file_status.hash;
     let num_bytes = file_status.num_bytes;
     let mtime = file_status.mtime;
     let maybe_file_node = file_status.previous_file_node.clone();
@@ -592,13 +596,13 @@ pub fn process_add_version_file(
     let mut data_type = util::fs::datatype_from_mimetype(version_path, &mime_type);
     let metadata = match &previous_metadata {
         Some(previous_oxen_metadata) => {
-            let df_metadata = repositories::metadata::get_file_metadata(&version_path, &data_type)?;
+            let df_metadata = repositories::metadata::get_file_metadata(version_path, &data_type)?;
             maybe_construct_generic_metadata_for_tabular(
                 df_metadata,
                 previous_oxen_metadata.clone(),
             )
         }
-        None => repositories::metadata::get_file_metadata(&version_path, &data_type)?,
+        None => repositories::metadata::get_file_metadata(version_path, &data_type)?,
     };
 
     // If the metadata is None, but the data type is tabular, we need to set the data type to binary
@@ -607,10 +611,7 @@ pub fn process_add_version_file(
         data_type = EntryDataType::Binary;
     }
 
-    let file_extension = dst_path
-        .extension()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let file_extension = dst_path.extension().unwrap_or_default().to_string_lossy();
     let relative_path_str = dst_path.to_str().unwrap_or_default();
     let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
         let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;

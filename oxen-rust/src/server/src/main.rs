@@ -147,7 +147,10 @@ async fn main() -> std::io::Result<()> {
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
-                            .route("/api/version", web::get().to(controllers::oxen_version::index))
+                            .route(
+                                "/api/version",
+                                web::get().to(controllers::oxen_version::index),
+                            )
                             .route(
                                 "/api/min_version",
                                 web::get().to(controllers::oxen_version::min_version),
