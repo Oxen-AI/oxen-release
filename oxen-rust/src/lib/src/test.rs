@@ -305,7 +305,7 @@ where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    log::info!("<<<<< run_empty_local_repo_test start");
+    log::info!("<<<<< run_one_commit_local_repo_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
     let new_repo_dir = repo_dir.parent().unwrap().join("forked");
@@ -315,7 +315,7 @@ where
     repositories::add(&repo, &file_path)?;
     repositories::commit(&repo, "Init commit")?;
 
-    log::info!(">>>>> run_empty_local_repo_test running test");
+    log::info!(">>>>> run_one_commit_local_repo_test running test");
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}
         Err(err) => {
@@ -341,7 +341,7 @@ where
     Fut: Future<Output = Result<(), OxenError>>,
 {
     init_test_env();
-    log::debug!("run_empty_local_repo_test_async start");
+    log::debug!("run_one_commit_local_repo_test_async start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
 
