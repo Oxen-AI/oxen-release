@@ -106,7 +106,10 @@ impl RefManager {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("{err}");
+                log::error!(
+                    "get_commit_id_for_branch error finding commit id for branch {}",
+                    name
+                );
                 Err(OxenError::basic_str(err))
             }
         }
@@ -118,12 +121,10 @@ impl RefManager {
         if let Some(head_ref) = head_ref {
             if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
                 Ok(Some(commit_id))
+            } else if repositories::commits::commit_id_exists(&self.repository, &head_ref)? {
+                Ok(Some(head_ref))
             } else {
-                if repositories::commits::commit_id_exists(&self.repository, &head_ref)? {
-                    Ok(Some(head_ref))
-                } else {
-                    Ok(None)
-                }
+                Ok(None)
             }
         } else {
             Ok(None)

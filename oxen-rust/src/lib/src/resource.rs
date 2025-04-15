@@ -1,4 +1,4 @@
-use crate::core::refs::RefReader;
+use crate::core::refs::with_ref_manager;
 
 use crate::core;
 use crate::core::versions::MinOxenVersion;
@@ -23,8 +23,9 @@ pub fn maybe_get_commit_id_from_branch_name<S: AsRef<str>>(
     repo: &LocalRepository,
     commit_id_or_branch_name: S,
 ) -> Result<Option<String>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    ref_reader.get_commit_id_for_branch(commit_id_or_branch_name.as_ref())
+    with_ref_manager(repo, |manager| {
+        manager.get_commit_id_for_branch(commit_id_or_branch_name.as_ref())
+    })
 }
 
 /// Pass in a commit id or a branch name and resolve it to a

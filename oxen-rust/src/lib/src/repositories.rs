@@ -5,7 +5,7 @@
 
 use crate::constants;
 use crate::core;
-use crate::core::refs::with_ref_writer;
+use crate::core::refs::with_ref_manager;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::error::NO_REPO_FOUND;
@@ -236,8 +236,8 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
     std::fs::create_dir_all(history_dir)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
-    with_ref_writer(&local_repo, |ref_writer| {
-        ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
+    with_ref_manager(&local_repo, |manager| {
+        manager.set_head(constants::DEFAULT_BRANCH_NAME);
         Ok(())
     })?;
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::constants::STAGED_DIR;
 use crate::core;
 use crate::core::db;
-use crate::core::refs::with_ref_writer;
+use crate::core::refs::with_ref_manager;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
@@ -90,8 +90,8 @@ pub fn commit(
 
     // Update the branch
     let commit_id = commit.id.to_owned();
-    with_ref_writer(&workspace.base_repo, |ref_writer| {
-        ref_writer.set_branch_commit_id(branch_name, &commit_id)
+    with_ref_manager(&workspace.base_repo, |manager| {
+        manager.set_branch_commit_id(branch_name, &commit_id)
     })?;
 
     // Cleanup workspace on commit
