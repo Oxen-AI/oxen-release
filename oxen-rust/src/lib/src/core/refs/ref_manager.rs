@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str;
 use std::sync::{Arc, LazyLock};
 
-use parking_lot::RwLock;
+use lru::LruCache;
+use parking_lot::Mutex;
 use rocksdb::{IteratorMode, DB};
 
 use crate::constants::{HEAD_FILE, REFS_DIR};
@@ -13,9 +14,11 @@ use crate::model::{Branch, LocalRepository};
 use crate::repositories;
 use crate::util;
 
-// Static cache of DB instances
-static DB_INSTANCES: LazyLock<RwLock<HashMap<PathBuf, Arc<DB>>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+const DB_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(100).unwrap();
+
+// Static cache of DB instances with LRU eviction
+static DB_INSTANCES: LazyLock<Mutex<LruCache<PathBuf, Arc<DB>>>> =
+    LazyLock::new(|| Mutex::new(LruCache::new(DB_CACHE_SIZE)));
 
 pub struct RefManager {
     refs_db: Arc<DB>,
@@ -31,38 +34,26 @@ where
     let refs_db = {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(REFS_DIR);
 
-        // First try to get the DB with just a read lock
-        let instances = DB_INSTANCES.read();
+        let mut instances = DB_INSTANCES.lock();
         if let Some(db) = instances.get(&refs_dir) {
-            // type annotation needed so if and else block return types match
             Ok::<Arc<DB>, OxenError>(db.clone())
         } else {
-            // Drop read lock before acquiring write lock
-            drop(instances);
-
-            let mut instances = DB_INSTANCES.write();
-
-            // Check again in case another thread created it
-            if let Some(db) = instances.get(&refs_dir) {
-                Ok(db.clone())
-            } else {
-                // Ensure directory exists
-                if !refs_dir.exists() {
-                    std::fs::create_dir_all(&refs_dir).map_err(|e| {
-                        log::error!("Failed to create refs directory: {}", e);
-                        OxenError::basic_str(format!("Failed to create refs directory: {}", e))
-                    })?;
-                }
-
-                let opts = db::key_val::opts::default();
-                let db = DB::open(&opts, dunce::simplified(&refs_dir)).map_err(|e| {
-                    log::error!("Failed to open refs database: {}", e);
-                    OxenError::basic_str(format!("Failed to open refs database: {}", e))
+            // Ensure directory exists
+            if !refs_dir.exists() {
+                std::fs::create_dir_all(&refs_dir).map_err(|e| {
+                    log::error!("Failed to create refs directory: {}", e);
+                    OxenError::basic_str(format!("Failed to create refs directory: {}", e))
                 })?;
-                let arc_db = Arc::new(db);
-                instances.insert(refs_dir, arc_db.clone());
-                Ok(arc_db)
             }
+
+            let opts = db::key_val::opts::default();
+            let db = DB::open(&opts, dunce::simplified(&refs_dir)).map_err(|e| {
+                log::error!("Failed to open refs database: {}", e);
+                OxenError::basic_str(format!("Failed to open refs database: {}", e))
+            })?;
+            let arc_db = Arc::new(db);
+            instances.put(refs_dir, arc_db.clone());
+            Ok(arc_db)
         }
     }?;
 
@@ -156,8 +147,8 @@ impl RefManager {
                             let ref_name = String::from(key_str);
                             let id = String::from(value);
                             branch_names.push(Branch {
-                                name: ref_name.clone(),
-                                commit_id: id.clone(),
+                                name: ref_name,
+                                commit_id: id,
                             });
                         }
                     }
@@ -228,7 +219,15 @@ impl RefManager {
 
     pub fn rename_branch(&self, old_name: &str, new_name: &str) -> Result<(), OxenError> {
         if !self.has_branch(old_name) {
-            Err(OxenError::local_branch_not_found(new_name))
+            Err(OxenError::local_branch_not_found(old_name))
+        } else if self.has_branch(new_name) {
+            Err(OxenError::basic_str(format!(
+                "Branch already exists: {new_name}"
+            )))
+        } else if self.is_invalid_branch_name(new_name) {
+            Err(OxenError::basic_str(format!(
+                "'{new_name}' is not a valid branch name."
+            )))
         } else {
             let old_id = self.refs_db.get(old_name)?.unwrap();
             self.refs_db.delete(old_name)?;
@@ -472,6 +471,14 @@ mod tests {
                 manager.create_branch(og_name, "1234")?;
                 let og_branches = manager.list_branches()?;
                 let og_branch_count = og_branches.len();
+
+                // try to rename to invalid name
+                let result = manager.rename_branch(og_name, "invalid~name");
+                assert!(result.is_err());
+
+                // try to rename to existing name
+                let result = manager.rename_branch(og_name, "my-branch-name");
+                assert!(result.is_err());
 
                 // rename branch
                 let new_name = "new-name";
