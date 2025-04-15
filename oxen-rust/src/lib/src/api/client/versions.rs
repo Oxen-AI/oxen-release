@@ -260,7 +260,7 @@ async fn complete_multipart_large_file_upload(
 ) -> Result<MultipartLargeFileUpload, OxenError> {
     let file_hash = &upload.hash.to_string();
 
-    let uri = format!("/versions/{file_hash}/chunks");
+    let uri = format!("/versions/{file_hash}/complete");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("complete_multipart_large_file_upload {}", url);
     let client = client::new_for_url(&url)?;
