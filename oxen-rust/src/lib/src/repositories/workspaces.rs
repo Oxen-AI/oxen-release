@@ -802,4 +802,77 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_fully_concurrent_workspace_operations() -> Result<(), OxenError> {
+        // Number of concurrent tasks to run
+        const NUM_TASKS: usize = 20;
+
+        test::run_one_commit_sync_repo_test(|repo, remote_repo| async move {
+            let mut handles = vec![];
+
+            // Spawn NUM_TASKS concurrent tasks
+            for i in 0..NUM_TASKS {
+                let remote_repo = remote_repo.clone();
+                let repo = repo.clone();
+                let handle = tokio::spawn(async move {
+                    // Create a unique branch for this task
+                    let branch_name = format!("branch-{}", i);
+                    api::client::branches::create_from_branch(
+                        &remote_repo,
+                        &branch_name,
+                        DEFAULT_BRANCH_NAME,
+                    )
+                    .await?;
+
+                    // Create workspace from the new branch
+                    let workspace = api::client::workspaces::create(
+                        &remote_repo,
+                        &branch_name,
+                        &format!("workspace-{}", i),
+                    )
+                    .await?;
+
+                    // Add a unique file
+                    let file_path = repo.path.join(format!("file-{}.txt", i));
+                    util::fs::write_to_path(&file_path, format!("content {}", i))?;
+                    api::client::workspaces::files::post_file(
+                        &remote_repo,
+                        &workspace.id,
+                        "",
+                        file_path,
+                    )
+                    .await?;
+
+                    // Commit changes back to the task's branch
+                    let commit_body = NewCommitBody {
+                        message: format!("Commit from task {}", i),
+                        author: "Test Author".to_string(),
+                        email: "test@oxen.ai".to_string(),
+                    };
+
+                    api::client::workspaces::commit(
+                        &remote_repo,
+                        &branch_name,
+                        &workspace.id,
+                        &commit_body,
+                    )
+                    .await?;
+
+                    Ok::<_, OxenError>(())
+                });
+                handles.push(handle);
+            }
+
+            // Wait for all tasks to complete and collect results
+            for handle in handles {
+                handle
+                    .await
+                    .map_err(|e| OxenError::basic_str(format!("Task error: {}", e)))??;
+            }
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 }
