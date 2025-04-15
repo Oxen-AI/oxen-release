@@ -5,7 +5,7 @@ use glob::Pattern;
 use time::OffsetDateTime;
 
 use crate::core;
-use crate::core::refs::{with_ref_writer, RefReader};
+use crate::core::refs::with_ref_manager;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::commit_node::CommitNodeOpts;
 use crate::model::merkle_tree::node::{CommitNode, EMerkleTreeNode};
@@ -61,12 +61,11 @@ fn get_commit_by_branch(repo: &LocalRepository, branch_name: &str) -> Option<Com
     repositories::branches::get_by_name(repo, branch_name)
         .ok()
         .flatten()
-        .and_then(|branch| get_by_id(repo, branch.commit_id).ok().flatten())
+        .and_then(|branch| get_by_id(repo, &branch.commit_id).ok().flatten())
 }
 
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let branches = ref_reader.list_branches()?;
+    let branches = with_ref_manager(repo, |manager| manager.list_branches())?;
     let mut latest_commit: Option<Commit> = None;
     for branch in branches {
         let commit = get_by_id(repo, &branch.commit_id)?;
@@ -82,23 +81,21 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 }
 
 fn head_commit_id(repo: &LocalRepository) -> Result<MerkleHash, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    match ref_reader.head_commit_id() {
-        Ok(Some(commit_id)) => MerkleHash::from_str(&commit_id),
-        Ok(None) => Err(OxenError::head_not_found()),
-        Err(err) => Err(err),
+    let commit_id = with_ref_manager(repo, |manager| manager.head_commit_id())?;
+    match commit_id {
+        Some(commit_id) => MerkleHash::from_str(&commit_id),
+        None => Err(OxenError::head_not_found()),
     }
 }
 
 pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    match ref_reader.head_commit_id() {
-        Ok(Some(commit_id)) => {
+    let commit_id = with_ref_manager(repo, |manager| manager.head_commit_id())?;
+    match commit_id {
+        Some(commit_id) => {
             let commit_id = MerkleHash::from_str(&commit_id)?;
             get_by_hash(repo, &commit_id)
         }
-        Ok(None) => Ok(None),
-        Err(err) => Err(err),
+        None => Ok(None),
     }
 }
 
@@ -120,8 +117,9 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
     // Try to get a branch ref and follow it to the root
     // We only need to look at one ref as all branches will have the same root
-    let ref_reader = RefReader::new(repo)?;
-    if let Some(branch) = ref_reader.list_branches()?.first() {
+    let branches = with_ref_manager(repo, |manager| manager.list_branches())?;
+
+    if let Some(branch) = branches.first() {
         if let Some(commit) = get_by_id(repo, &branch.commit_id)? {
             let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
             return Ok(Some(root_commit));
@@ -212,8 +210,8 @@ pub fn create_empty_commit(
     repositories::tree::cp_dir_hashes_to(repo, &existing_commit_id, commit_node.hash())?;
 
     // Update the ref
-    with_ref_writer(repo, |ref_writer| {
-        ref_writer.set_branch_commit_id(branch_name, commit_node.hash().to_string())
+    with_ref_manager(repo, |manager| {
+        manager.set_branch_commit_id(branch_name, commit_node.hash().to_string())
     })?;
 
     Ok(commit_node.to_commit())
@@ -259,8 +257,7 @@ fn list_recursive(
 
 /// List commits for the repository in no particular order
 pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let branches = ref_reader.list_branches()?;
+    let branches = with_ref_manager(repo, |manager| manager.list_branches())?;
     let mut commits = HashSet::new();
     for branch in branches {
         let commit = get_by_id(repo, &branch.commit_id)?;

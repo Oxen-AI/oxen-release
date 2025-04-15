@@ -6,7 +6,6 @@ use crate::command;
 use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::refs::ref_writer::{with_ref_writer, RefWriter};
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
@@ -975,7 +974,7 @@ where
     Ok(())
 }
 
-/// Run a test on a repo with a bunch of filees
+/// Run a test on a repo with a bunch of files
 pub async fn run_training_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Fut,
@@ -1552,43 +1551,6 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
     repositories::add(repo, repo.path.join("nlp"))?;
     repositories::add(repo, repo.path.join("labels.txt"))?;
     repositories::add(repo, repo.path.join("README.md"))?;
-
-    Ok(())
-}
-
-pub fn run_referencer_test<T>(test: T) -> Result<(), OxenError>
-where
-    T: FnOnce(&RefWriter) -> Result<(), OxenError> + std::panic::UnwindSafe,
-{
-    init_test_env();
-    log::info!("<<<<< run_referencer_test start");
-    let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = repositories::init(&repo_dir)?;
-
-    // add and commit a file
-    let new_file = repo.path.join("new_file.txt");
-    util::fs::write(&new_file, "I am a new file")?;
-    repositories::add(&repo, new_file)?;
-    repositories::commit(&repo, "Added a new file")?;
-
-    // Run test with the referencer
-    log::info!(">>>>> run_referencer_test running test");
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        with_ref_writer(&repo, |referencer| test(referencer))
-    }));
-
-    // Remove repo dir
-    maybe_cleanup_repo(&repo_dir)?;
-
-    // Assert everything okay after we cleanup the repo dir
-    match result {
-        Ok(inner_result) => {
-            if let Err(err) = inner_result {
-                panic!("Error running test. Err: {}", err);
-            }
-        }
-        Err(err) => std::panic::resume_unwind(err),
-    }
 
     Ok(())
 }

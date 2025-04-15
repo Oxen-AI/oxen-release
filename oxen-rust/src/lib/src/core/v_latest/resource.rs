@@ -1,4 +1,4 @@
-use crate::core::refs::RefReader;
+use crate::core::refs::with_ref_manager;
 
 use crate::error::OxenError;
 use crate::model::{LocalRepository, ParsedResource};
@@ -83,7 +83,6 @@ pub fn parse_resource_from_path(
 
     // Fallback to branch resolution logic if neither commit nor workspace was found.
     // Create a ref reader to look up branch information.
-    let ref_reader = RefReader::new(repo)?;
     let mut file_path = PathBuf::new();
     while let Some(component) = components.pop() {
         let component_path: &Path = component.as_ref();
@@ -95,7 +94,9 @@ pub fn parse_resource_from_path(
         // If we have no more components to process, consider this as the branch name.
         if components.is_empty() {
             let branch_name = util::fs::linux_path_str(file_path.to_str().unwrap());
-            if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
+            let maybe_branch =
+                with_ref_manager(repo, |manager| manager.get_branch_by_name(&branch_name))?;
+            if let Some(branch) = maybe_branch {
                 log::debug!(
                     "parse_resource_from_path got branch [{}] with no file path",
                     branch_name
@@ -122,7 +123,9 @@ pub fn parse_resource_from_path(
             branch_path = branch_path.join(component_path);
         }
         let branch_name = util::fs::linux_path_str(branch_path.to_str().unwrap());
-        if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
+        let maybe_branch =
+            with_ref_manager(repo, |manager| manager.get_branch_by_name(&branch_name))?;
+        if let Some(branch) = maybe_branch {
             log::debug!(
                 "parse_resource_from_path got branch [{}] and filepath [{:?}]",
                 branch_name,
