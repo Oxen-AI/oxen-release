@@ -301,6 +301,41 @@ where
     Ok(())
 }
 
+pub fn run_one_commit_local_repo_test<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    log::info!("<<<<< run_empty_local_repo_test start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init(&repo_dir)?;
+    let new_repo_dir = repo_dir.parent().unwrap().join("forked");
+
+    let txt = generate_random_string(20);
+    let file_path = add_txt_file_to_dir(&repo_dir, &txt)?;
+    repositories::add(&repo, &file_path)?;
+    repositories::commit(&repo, "Init commit")?;
+
+    log::info!(">>>>> run_empty_local_repo_test running test");
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove forked dir
+    if new_repo_dir.exists() {
+        std::fs::remove_dir_all(&new_repo_dir)?;
+    }
+    // Remove repo dir
+    maybe_cleanup_repo(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
 pub async fn run_one_commit_local_repo_test_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Fut,
