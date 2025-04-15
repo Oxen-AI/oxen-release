@@ -34,7 +34,8 @@ where
         // First try to get the DB with just a read lock
         let instances = DB_INSTANCES.read();
         if let Some(db) = instances.get(&refs_dir) {
-            db.clone()
+            // type annotation needed so if and else block return types match
+            Ok::<Arc<DB>, OxenError>(db.clone())
         } else {
             // Drop read lock before acquiring write lock
             drop(instances);
@@ -42,24 +43,28 @@ where
             let mut instances = DB_INSTANCES.write();
 
             // Check again in case another thread created it
-            instances
-                .entry(refs_dir.clone())
-                .or_insert_with(|| {
-                    // Ensure directory exists
-                    if !refs_dir.exists() {
-                        std::fs::create_dir_all(&refs_dir)
-                            .expect("Failed to create refs directory");
-                    }
+            if let Some(db) = instances.get(&refs_dir) {
+                Ok(db.clone())
+            } else {
+                // Ensure directory exists
+                if !refs_dir.exists() {
+                    std::fs::create_dir_all(&refs_dir).map_err(|e| {
+                        log::error!("Failed to create refs directory: {}", e);
+                        OxenError::basic_str(format!("Failed to create refs directory: {}", e))
+                    })?;
+                }
 
-                    let opts = db::key_val::opts::default();
-                    Arc::new(
-                        DB::open(&opts, dunce::simplified(&refs_dir))
-                            .expect("Failed to open refs database"),
-                    )
-                })
-                .clone()
+                let opts = db::key_val::opts::default();
+                let db = DB::open(&opts, dunce::simplified(&refs_dir)).map_err(|e| {
+                    log::error!("Failed to open refs database: {}", e);
+                    OxenError::basic_str(format!("Failed to open refs database: {}", e))
+                })?;
+                let arc_db = Arc::new(db);
+                instances.insert(refs_dir, arc_db.clone());
+                Ok(arc_db)
+            }
         }
-    };
+    }?;
 
     let manager = RefManager {
         refs_db,
