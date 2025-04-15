@@ -91,7 +91,12 @@ pub async fn fetch_remote_branch(
     } else {
         let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
         let commit_node = repositories::tree::get_node_by_id(repo, &hash)?.unwrap();
-        HashSet::from([commit_node.commit()?.to_commit()])
+
+        if core::commit_sync_status::commit_is_synced(repo, &hash) {
+            HashSet::new()
+        } else {
+            HashSet::from([commit_node.commit()?.to_commit()])
+        }
     };
     log::debug!("Fetch got {} commits", commits.len());
 
