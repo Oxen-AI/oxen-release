@@ -567,7 +567,7 @@ pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     match std::fs::read_dir(dir) {
         Ok(paths) => {
             for path in paths.flatten() {
-                if util::fs::metadata(path.path()).unwrap().is_file() {
+                if path.path().is_file() {
                     files.push(path.path());
                 }
             }
