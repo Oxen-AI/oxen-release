@@ -21,12 +21,13 @@ pub mod entries;
 pub mod file;
 pub mod merger;
 pub mod metadata;
+pub mod oxen_version;
 pub mod repositories;
 pub mod revisions;
 pub mod schemas;
 pub mod stats;
 pub mod tree;
-pub mod version;
+pub mod versions;
 pub mod workspaces;
 
 const VERSION: &str = crate::constants::OXEN_VERSION;

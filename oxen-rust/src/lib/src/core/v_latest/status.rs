@@ -738,7 +738,7 @@ fn is_modified(
     }
 
     // Check the file timestamps vs the commit timestamps
-    let metadata = std::fs::metadata(&full_path)?;
+    let metadata = util::fs::metadata(&full_path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
 
     let mut is_dir = false;

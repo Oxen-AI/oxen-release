@@ -2,6 +2,7 @@ use crate::core::db::key_val::tree_db::TreeObjectChild;
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{ContentHashable, NewCommit};
+use crate::util;
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::prelude::*;
@@ -141,7 +142,7 @@ pub fn get_metadata_hash(oxen_metadata: &Option<GenericMetadata>) -> Result<u128
 pub fn get_hash_and_size(path: &Path) -> Result<(u128, u64), OxenError> {
     // If file is < 1GB, one-shot hash for speed
     // If file is > 1GB, stream hash to avoid memory overage issues
-    let file_size = std::fs::metadata(path)?.len();
+    let file_size = util::fs::metadata(path)?.len();
 
     if file_size < 1_000_000_000 {
         Ok((hash_small_file_contents(path)?, file_size))
@@ -153,7 +154,7 @@ pub fn get_hash_and_size(path: &Path) -> Result<(u128, u64), OxenError> {
 pub fn u128_hash_file_contents(path: &Path) -> Result<u128, OxenError> {
     // If file is < 1GB, one-shot hash for speed
     // If file is > 1GB, stream hash to avoid memory overage issues
-    let file_size = std::fs::metadata(path)?.len();
+    let file_size = util::fs::metadata(path)?.len();
 
     if file_size < 1_000_000_000 {
         hash_small_file_contents(path)
@@ -165,7 +166,7 @@ pub fn u128_hash_file_contents(path: &Path) -> Result<u128, OxenError> {
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     // If file is < 1GB, one-shot hash for speed
     // If file is > 1GB, stream hash to avoid memory overage issues
-    let file_size = std::fs::metadata(path)?.len();
+    let file_size = util::fs::metadata(path)?.len();
 
     if file_size < 1_000_000_000 {
         Ok(format!("{:x}", hash_small_file_contents(path)?))
