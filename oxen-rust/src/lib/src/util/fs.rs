@@ -567,7 +567,7 @@ pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     match std::fs::read_dir(dir) {
         Ok(paths) => {
             for path in paths.flatten() {
-                if util::fs::metadata(path.path()).unwrap().is_file() {
+                if path.path().is_file() {
                     files.push(path.path());
                 }
             }
@@ -673,7 +673,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         } else {
             output_root.join(&src)
         };
-        if std::fs::metadata(&dest).is_err() {
+        if util::fs::metadata(&dest).is_err() {
             // log::debug!("copy_dir_all  mkdir: {:?}", dest);
             std::fs::create_dir_all(&dest)?;
         }

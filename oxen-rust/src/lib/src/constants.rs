@@ -112,6 +112,10 @@ pub const OBJECT_VNODES_DIR: &str = "vnodes";
 pub const OBJECT_SCHEMAS_DIR: &str = "schemas";
 /// File name for files stored in versions directory (>0.8.4). (Was commit id <= 0.8.4)
 pub const VERSION_FILE_NAME: &str = "data";
+/// File name for chunks of files stored in versions directory
+pub const VERSION_CHUNK_FILE_NAME: &str = "chunk";
+/// Chunks directory for version files
+pub const VERSION_CHUNKS_DIR: &str = "chunks";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later
@@ -128,8 +132,6 @@ pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 
-/// Key for hash of the file
-pub const HASH_FILE: &str = "HASH";
 /// Key for content being valid
 pub const CONTENT_IS_VALID: &str = "CONTENT_IS_VALID";
 /// Key for if something is synced

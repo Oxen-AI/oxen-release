@@ -11,12 +11,12 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use zip::ZipArchive;
 
-use crate::constants::FILES_DIR;
 use crate::constants::STAGED_DIR;
-use crate::constants::VERSIONS_DIR;
-use crate::core::db;
-use crate::core::v_latest::add::{add_file_node_to_staged_db, process_add_file};
+use crate::core::v_latest::add::{
+    add_file_node_to_staged_db, process_add_file, process_add_version_file,
+};
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::{self, db};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::workspace::Workspace;
@@ -30,6 +30,7 @@ const MAX_CONTENT_LENGTH: u64 = 1024 * 1024 * 1024; // 1GB limit
 const MAX_DECOMPRESSED_SIZE: u64 = 1024 * 1024 * 1024; // 1GB limit
 const MAX_COMPRESSION_RATIO: u64 = 100; // Maximum allowed
 
+// TODO: Do we depreciate this, if we always upload to version store?
 pub fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let filepath = filepath.as_ref();
     let workspace_repo = &workspace.workspace_repo;
@@ -42,6 +43,27 @@ pub fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf,
     // Return the relative path of the file in the workspace
     let relative_path = util::fs::path_relative_to_dir(filepath, &workspace_repo.path)?;
     Ok(relative_path)
+}
+
+pub fn add_version_file(
+    workspace: &Workspace,
+    version_path: impl AsRef<Path>,
+    dst_path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let version_path = version_path.as_ref();
+    let dst_path = dst_path.as_ref();
+
+    let base_repo = &workspace.base_repo;
+    let workspace_repo = &workspace.workspace_repo;
+
+    p_add_version_file(
+        base_repo,
+        workspace_repo,
+        &Some(workspace.commit.clone()),
+        version_path,
+        dst_path,
+    )?;
+    Ok(dst_path.to_path_buf())
 }
 
 pub fn track_modified_data_frame(
@@ -197,7 +219,7 @@ async fn fetch_file(
 
     // check if the file size matches
     let bytes_written = if save_path.exists() {
-        std::fs::metadata(&save_path)?.len()
+        util::fs::metadata(&save_path)?.len()
     } else {
         0
     };
@@ -278,7 +300,7 @@ pub async fn save_stream(
 }
 
 async fn decompress_zip(zip_filepath: &PathBuf) -> Result<Vec<PathBuf>, OxenError> {
-    //File unzipped into the same directory
+    // File unzipped into the same directory
     let mut files: Vec<PathBuf> = vec![];
     let file = File::open(zip_filepath)?;
     let mut archive = ZipArchive::new(file)
@@ -417,9 +439,7 @@ fn p_add_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let versions_path = util::fs::oxen_hidden_dir(&base_repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
+    let version_store = base_repo.version_store()?;
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
@@ -432,14 +452,67 @@ fn p_add_file(
         maybe_dir_node = CommitMerkleTree::dir_with_children(base_repo, head_commit, parent_path)?;
     }
 
+    // Skip if it's not a file
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+    let relative_path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
+    let full_path = workspace_repo.path.join(&relative_path);
+    if !full_path.is_file() {
+        log::debug!("is not a file - skipping add on {:?}", full_path);
+        return Ok(None);
+    }
+
+    // See if this is a new file or a modified file
+    let file_status =
+        core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, &full_path)?;
+
+    // Store the file in the version store using the hash as the key
+    let hash_str = file_status.hash.to_string();
+    version_store.store_version_from_path(&hash_str, &full_path)?;
+
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         workspace_repo,
         &workspace_repo.path,
-        &versions_path,
+        &file_status,
         &staged_db,
-        &maybe_dir_node,
         path,
+        &seen_dirs,
+    )
+}
+
+// TODO: Have function to stage file from version store
+fn p_add_version_file(
+    base_repo: &LocalRepository,
+    workspace_repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    version_path: impl AsRef<Path>,
+    dst_path: impl AsRef<Path>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let dst_path = dst_path.as_ref();
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    let mut maybe_dir_node = None;
+    if let Some(head_commit) = maybe_head_commit {
+        let parent_path = dst_path.parent().unwrap_or(Path::new(""));
+        maybe_dir_node = CommitMerkleTree::dir_with_children(base_repo, head_commit, parent_path)?;
+    }
+
+    // See if this is a new file or a modified file
+    let full_path = version_path.as_ref();
+    let file_name = dst_path.file_name().unwrap_or_default().to_string_lossy();
+    let file_status =
+        core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, full_path)?;
+
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+    process_add_version_file(
+        workspace_repo,
+        &file_status,
+        &staged_db,
+        full_path,
+        dst_path,
         &seen_dirs,
     )
 }

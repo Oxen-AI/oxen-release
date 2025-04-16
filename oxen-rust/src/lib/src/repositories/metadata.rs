@@ -164,7 +164,7 @@ pub fn get_cli(
 
 /// Returns the file size in bytes.
 pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
-    let metadata = std::fs::metadata(path.as_ref())?;
+    let metadata = util::fs::metadata(path.as_ref())?;
     Ok(metadata.len())
 }
 

@@ -13,13 +13,14 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
 
-use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
+use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core;
 use crate::core::db;
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
+use crate::storage::version_store::VersionStore;
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
@@ -28,6 +29,17 @@ use crate::core::v_latest::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::{
     EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
 };
+
+#[derive(Clone, Debug)]
+pub struct FileStatus {
+    pub data_path: PathBuf,
+    pub status: StagedEntryStatus,
+    pub hash: MerkleHash,
+    pub num_bytes: u64,
+    pub mtime: FileTime,
+    pub previous_metadata: Option<GenericMetadata>,
+    pub previous_file_node: Option<FileNode>,
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
@@ -73,31 +85,29 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         }
     }
 
+    // Get the version store from the repository
+    let version_store = repo.version_store()?;
+
     // Open the staged db once at the beginning and reuse the connection
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let _stats = add_files(repo, &paths, &staged_db)?;
+    let _stats = add_files(repo, &paths, &staged_db, &version_store)?;
 
     Ok(())
 }
 
-fn add_files(
+pub fn add_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
+    version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files: {:?}", paths);
 
     // Start a timer
     let start = std::time::Instant::now();
-
-    // Create the versions dir if it doesn't exist
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
-    if !versions_path.exists() {
-        util::fs::create_dir_all(versions_path)?;
-    }
 
     // Lookup the head commit
     let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
@@ -111,9 +121,15 @@ fn add_files(
         log::debug!("path is {path:?}");
 
         if path.is_dir() {
-            total += add_dir_inner(repo, &maybe_head_commit, path.clone(), staged_db)?;
+            total += add_dir_inner(
+                repo,
+                &maybe_head_commit,
+                path.clone(),
+                staged_db,
+                version_store,
+            )?;
         } else if path.is_file() {
-            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db)?;
+            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, version_store)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type();
@@ -127,9 +143,9 @@ fn add_files(
                 }
             }
         } else {
-            // TODO: Should there be a way to add non-existant dirs? I think it's safer to just require rm for those?
+            // TODO: Should there be a way to add nonexistent dirs? I think it's safer to just require rm for those?
             log::debug!(
-                "Found nonexistant path {path:?}. Staging for removal. Recursive flag not set"
+                "Found nonexistent path {path:?}. Staging for removal. Recursive flag not set"
             );
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
@@ -160,11 +176,9 @@ fn add_dir_inner(
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
+    version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
-    process_add_dir(repo, maybe_head_commit, &versions_path, staged_db, path)
+    process_add_dir(repo, maybe_head_commit, version_store, staged_db, path)
 }
 
 pub fn add_dir(
@@ -177,13 +191,16 @@ pub fn add_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    add_dir_inner(repo, maybe_head_commit, path, &staged_db)
+    // Get the version store from the repository
+    let version_store = repo.version_store()?;
+
+    add_dir_inner(repo, maybe_head_commit, path, &staged_db, &version_store)
 }
 
 pub fn process_add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
-    versions_path: &Path,
+    version_store: &Arc<dyn VersionStore>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
@@ -251,13 +268,24 @@ pub fn process_add_dir(
                     mbps
                 ));
 
+                if path.is_dir() {
+                    return;
+                }
+
+                let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
+                let file_status =
+                    core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
+                        .unwrap();
+                version_store
+                    .store_version_from_path(&file_status.hash.to_string(), &path)
+                    .unwrap();
+
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo,
                     repo_path,
-                    versions_path,
+                    &file_status,
                     staged_db,
-                    &dir_node,
                     &path,
                     &seen_dirs_clone,
                 ) {
@@ -321,11 +349,9 @@ fn add_file_inner(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
+    version_store: &Arc<dyn VersionStore>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let repo_path = &repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, repo_path)?;
@@ -333,68 +359,43 @@ fn add_file_inner(
         maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
     }
 
+    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+    let file_status = determine_file_status(&maybe_dir_node, &file_name, path)?;
+    version_store.store_version_from_path(&file_status.hash.to_string(), path)?;
+
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    process_add_file(
-        repo,
-        repo_path,
-        &versions_path,
-        staged_db,
-        &maybe_dir_node,
-        path,
-        &seen_dirs,
-    )
+    process_add_file(repo, repo_path, &file_status, staged_db, path, &seen_dirs)
 }
 
-pub fn add_file(
-    repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
-    path: &Path,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    add_file_inner(repo, maybe_head_commit, path, &staged_db)
-}
-
-pub fn process_add_file(
-    repo: &LocalRepository,
-    repo_path: &Path,
-    versions_path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+pub fn determine_file_status(
     maybe_dir_node: &Option<MerkleTreeNode>,
-    path: &Path,
-    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    log::debug!("process_add_file {:?}", path);
-    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
-
-    if !full_path.is_file() {
-        // If it's not a file - no need to add it
-        // We handle directories by traversing the parents of files below
-        log::debug!("file is not a file - skipping add on {:?}", full_path);
-        return Ok(Some(StagedMerkleTreeNode {
-            status: StagedEntryStatus::Added,
-            node: MerkleTreeNode::default_dir(),
-        }));
-    }
-
+    file_name: impl AsRef<str>,  // Name of the file in the repository
+    data_path: impl AsRef<Path>, // Path to the data file (maybe in the version store)
+) -> Result<FileStatus, OxenError> {
     // Check if the file is already in the head commit
-    let file_path = relative_path.file_name().unwrap_or_default();
+    let file_path = file_name.as_ref();
+    let data_path = data_path.as_ref();
+    log::debug!(
+        "determine_file_status data_path {:?} file_name {:?}",
+        data_path,
+        file_path
+    );
     let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
     let mut previous_oxen_metadata: Option<GenericMetadata> = None;
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
-    let (mut status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
-        log::debug!("got existing file_node: {}", file_node);
+    let (status, hash, num_bytes, mtime) = if let Some(file_node) = &maybe_file_node {
+        log::debug!(
+            "got existing file_node: {} data_path {:?}",
+            file_node,
+            data_path
+        );
         // first check if the file timestamp is different
-        let metadata = std::fs::metadata(path)?;
+        let metadata = util::fs::metadata(data_path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         previous_oxen_metadata = file_node.metadata();
         if has_different_modification_time(file_node, &mtime) {
             log::debug!("has_different_modification_time true {}", file_node);
-            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+            let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
             if file_node.hash().to_u128() != hash {
                 log::debug!(
                     "has_different_modification_time hash is different true {}",
@@ -416,7 +417,7 @@ pub fn process_add_file(
                 )
             }
         } else {
-            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+            let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
 
             if file_node.hash().to_u128() != hash {
                 log::debug!("hash is different true {}", file_node);
@@ -436,9 +437,9 @@ pub fn process_add_file(
             }
         }
     } else {
-        let metadata = std::fs::metadata(path)?;
+        let metadata = util::fs::metadata(data_path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+        let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
         (
             StagedEntryStatus::Added,
             MerkleHash::new(hash),
@@ -446,6 +447,47 @@ pub fn process_add_file(
             mtime,
         )
     };
+
+    Ok(FileStatus {
+        data_path: data_path.to_path_buf(),
+        status,
+        hash,
+        num_bytes,
+        mtime,
+        previous_metadata: previous_oxen_metadata,
+        previous_file_node: maybe_file_node,
+    })
+}
+
+pub fn process_add_file(
+    repo: &LocalRepository,
+    repo_path: &Path,         // Path to the repository
+    file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    path: &Path, // Path to the file in the repository, or path defined by the user
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("process_add_file {:?}", path);
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    let full_path = repo_path.join(&relative_path);
+
+    if !full_path.is_file() {
+        // If it's not a file - no need to add it
+        // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
+        return Ok(Some(StagedMerkleTreeNode {
+            status: StagedEntryStatus::Added,
+            node: MerkleTreeNode::default_dir(),
+        }));
+    }
+
+    let mut status = file_status.status.clone();
+    let hash = file_status.hash;
+    let num_bytes = file_status.num_bytes;
+    let mtime = file_status.mtime;
+    let maybe_file_node = file_status.previous_file_node.clone();
+    let previous_metadata = file_status.previous_metadata.clone();
+
     log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
 
     // TODO: Move this out of this function so we don't check for conflicts on every file
@@ -471,7 +513,7 @@ pub fn process_add_file(
     // Get the data type of the file
     let mime_type = util::fs::file_mime_type(path);
     let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = match &previous_oxen_metadata {
+    let metadata = match &previous_metadata {
         Some(previous_oxen_metadata) => {
             let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
             maybe_construct_generic_metadata_for_tabular(
@@ -488,26 +530,89 @@ pub fn process_add_file(
         data_type = EntryDataType::Binary;
     }
 
-    // Add the file to the versions db
-    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dir_prefix_len = 2;
-    let dir_name = hash.to_string();
-    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
-
-    if !dst_dir.exists() {
-        util::fs::create_dir_all(&dst_dir)?;
-    }
-
-    let dst = dst_dir.join("data");
-    util::fs::copy(&full_path, &dst)?;
-
     let file_extension = relative_path
         .extension()
         .unwrap_or_default()
         .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap_or_default();
+    let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
+        let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
+        let metadata_hash = MerkleHash::new(metadata_hash);
+        let combined_hash =
+            util::hasher::get_combined_hash(Some(metadata_hash.to_u128()), hash.to_u128())?;
+        let combined_hash = MerkleHash::new(combined_hash);
+        (hash, Some(metadata_hash), combined_hash)
+    } else {
+        (hash, None, hash)
+    };
+    let file_node = FileNode::new(
+        repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
+
+    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+}
+
+pub fn process_add_version_file(
+    repo: &LocalRepository,
+    file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    version_path: &Path, // Path to the file in the repository, or path defined by the user
+    dst_path: &Path,     // Path to the file in the workspace
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("process_add_version_file version_path {:?}", version_path);
+    log::debug!("process_add_version_file dst_path {:?}", dst_path);
+
+    let status = file_status.status.clone();
+    let hash = file_status.hash;
+    let num_bytes = file_status.num_bytes;
+    let mtime = file_status.mtime;
+    let maybe_file_node = file_status.previous_file_node.clone();
+    let previous_metadata = file_status.previous_metadata.clone();
+
+    log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
+
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
+        return Ok(None);
+    }
+
+    // Get the data type of the file
+    let mime_type = util::fs::file_mime_type(version_path);
+    let mut data_type = util::fs::datatype_from_mimetype(version_path, &mime_type);
+    let metadata = match &previous_metadata {
+        Some(previous_oxen_metadata) => {
+            let df_metadata = repositories::metadata::get_file_metadata(version_path, &data_type)?;
+            maybe_construct_generic_metadata_for_tabular(
+                df_metadata,
+                previous_oxen_metadata.clone(),
+            )
+        }
+        None => repositories::metadata::get_file_metadata(version_path, &data_type)?,
+    };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
+
+    let file_extension = dst_path.extension().unwrap_or_default().to_string_lossy();
+    let relative_path_str = dst_path.to_str().unwrap_or_default();
     let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
         let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
         let metadata_hash = MerkleHash::new(metadata_hash);
