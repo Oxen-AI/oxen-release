@@ -4,13 +4,18 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
+use actix_web::web::BytesMut;
 use actix_web::{web, HttpRequest, HttpResponse};
+use futures_util::stream::StreamExt as _;
 use liboxen::core;
 use liboxen::repositories;
 use liboxen::view::versions::CompleteVersionUploadRequest;
 use liboxen::view::StatusMessage;
 
-pub async fn upload(req: HttpRequest, body: web::Payload) -> Result<HttpResponse, OxenHttpError> {
+pub async fn upload(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -32,8 +37,13 @@ pub async fn upload(req: HttpRequest, body: web::Payload) -> Result<HttpResponse
     );
 
     let version_store = repo.version_store()?;
-    let body = body.to_bytes().await?;
-    version_store.store_version_chunk(&version_id, chunk_number, &body)?;
+    // Stream payload in smaller chunks
+    let mut buffered = BytesMut::new();
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?;
+        buffered.extend_from_slice(&chunk);
+    }
+    version_store.store_version_chunk(&version_id, chunk_number, &buffered)?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }

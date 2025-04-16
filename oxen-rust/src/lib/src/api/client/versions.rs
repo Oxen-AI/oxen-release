@@ -247,7 +247,13 @@ async fn upload_chunk(
     let response = response.error_for_status()?;
     let mut headers = HashMap::new();
     for (name, value) in response.headers().into_iter() {
-        headers.insert(name.to_string(), value.to_str().unwrap().to_owned());
+        headers.insert(
+            name.to_string(),
+            value
+                .to_str()
+                .map_err(|e| OxenError::basic_str(format!("Invalid header value: {}", e)))?
+                .to_owned(),
+        );
     }
     Ok(headers)
 }
