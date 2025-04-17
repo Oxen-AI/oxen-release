@@ -165,7 +165,7 @@ class RemoteRepo:
                 Whether to create a new branch if it doesn't exist. Default: False
         """
         if create:
-            return self._repo.create_branch(revision)
+            self._repo.create_branch(revision)
 
         return self._repo.checkout(revision)
 
@@ -245,14 +245,20 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, src: str, dst_dir: Optional[str] = "", branch: Optional[str] = None):
+    def add(
+        self,
+        src: str,
+        dst: Optional[str] = "",
+        branch: Optional[str] = None,
+        workspace_name: Optional[str] = None,
+    ):
         """
         Stage a file to a workspace in the remote repo.
 
         Args:
             src: `str`
                 The path to the local file to upload
-            dst_dir: `str | None`
+            dst: `str | None`
                 The directory to upload the file to. If None, will upload to the root directory.
             branch: `str | None`
                 The branch to upload the file to. Defaults to `self.revision`
@@ -264,10 +270,13 @@ class RemoteRepo:
             if branch is None or branch == "":
                 branch = self.revision
             print(f"Creating workspace for branch {branch}")
-            self._workspace = Workspace(self, branch)
+            self._workspace = Workspace(self, branch, workspace_name=workspace_name)
+            print(
+                f"Workspace '{self._workspace.id}' created from commit '{self._workspace.commit_id}'"
+            )
+            self._repo.set_commit_id(self._workspace.commit_id)
 
-        # Add a file to the workspace
-        self._workspace.add(src, dst_dir)
+        self._workspace.add(src, dst)
         return self._workspace
 
     def status(self):
@@ -286,7 +295,13 @@ class RemoteRepo:
         if self._workspace is None:
             raise ValueError("No workspace found. Please call add() first.")
 
-        return self._workspace.commit(message)
+        commit = self._workspace.commit(message, self.branch().name)
+        self._repo.set_commit_id(commit.id)
+
+        # If it's not a named workspace, it's deleted after commit
+        if self._workspace.name is None:
+            self._workspace = None
+        return commit
 
     def upload(
         self,
@@ -358,6 +373,10 @@ class RemoteRepo:
         if revision is None:
             revision = self.revision
 
+        # If the file doesn't exist on the remote repo, it's a new file, hence has changes
+        if not self.file_exists(remote_path, revision):
+            return True
+
         return self._repo.file_has_changes(local_path, remote_path, revision)
 
     def log(self):
@@ -365,6 +384,23 @@ class RemoteRepo:
         Get the commit history for a remote repo
         """
         return self._repo.log()
+
+    def branch_exists(self, name: str) -> bool:
+        """
+        Check if a branch exists in the remote repo.
+
+        Args:
+            name: `str`
+                The name of the branch to check
+        """
+        branches = set([b.name for b in self.branches()])
+        return name in branches
+
+    def branch(self):
+        """
+        Get the current branch for a remote repo
+        """
+        return self.get_branch(self.revision)
 
     def branches(self):
         """
@@ -397,6 +433,7 @@ class RemoteRepo:
             branch: `str`
                 The name to assign to the created branch
         """
+        print(f"Creating branch '{branch}' from commit '{self._repo.commit_id}'")
         return self._repo.create_branch(branch)
 
     def create_checkout_branch(self, branch: str):
@@ -408,7 +445,8 @@ class RemoteRepo:
             branch: `str`
                 The name to assign to the created branch
         """
-        self.create_branch(branch)
+        if not self.branch_exists(branch):
+            self.create_branch(branch)
         return self.checkout(branch)
 
     def merge(self, base_branch: str, head_branch: str):
@@ -421,7 +459,8 @@ class RemoteRepo:
             head_branch: `str`
                 The head branch to merge
         """
-        self._repo.merge(base_branch, head_branch)
+        commit = self._repo.merge(base_branch, head_branch)
+        return commit
 
     @property
     def namespace(self) -> str:

@@ -19,7 +19,7 @@ def test_commit_to_named_workspace(
     workspace.commit("Adding a new image to the feature branch")
     assert len(remote_repo.list_workspaces()) == 1
     workspace = Workspace(remote_repo, branch="main", workspace_name="my-workspace")
-    assert workspace.name() == "my-workspace"
+    assert workspace.name == "my-workspace"
     assert len(remote_repo.list_workspaces()) == 1
     workspace.delete()
     assert len(remote_repo.list_workspaces()) == 0
@@ -30,10 +30,10 @@ def test_named_workspace_naming_collision(
 ):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     workspace = Workspace(remote_repo, branch="main", workspace_name="my-workspace")
-    workspace = Workspace(remote_repo, branch="main", workspace_name=workspace.id())
-    workspace = Workspace(remote_repo, branch="main", workspace_id=workspace.id())
-    workspace = Workspace(remote_repo, branch="main", workspace_name=workspace.id())
-    assert workspace.name() == "my-workspace"
+    workspace = Workspace(remote_repo, branch="main", workspace_name=workspace.id)
+    workspace = Workspace(remote_repo, branch="main", workspace_id=workspace.id)
+    workspace = Workspace(remote_repo, branch="main", workspace_name=workspace.id)
+    assert workspace.name == "my-workspace"
     assert len(remote_repo.list_workspaces()) == 1
 
 

@@ -16,20 +16,26 @@ pub fn get_repo(
     host: String,
     scheme: &str,
 ) -> Result<Option<PyRemoteRepo>, PyOxenError> {
-    let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+    let Some(remote_repo) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         liboxen::api::client::repositories::get_by_name_and_host(name, &host).await
-    })?;
+    })? else {
+        return Ok(None)
+    };
 
-    if let Some(repo) = result {
-        return Ok(Some(PyRemoteRepo {
-            repo: repo.clone(),
-            host: host.clone(),
-            revision: DEFAULT_BRANCH_NAME.to_string(),
-            scheme: scheme.to_string(),
-        }));
-    }
+    let branch_name = DEFAULT_BRANCH_NAME.to_string();
+    let Some(revision) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+        liboxen::api::client::revisions::get(&remote_repo, &branch_name).await
+    })? else {
+        return Ok(None)
+    };
 
-    Ok(None)
+    return Ok(Some(PyRemoteRepo {
+        repo: remote_repo.clone(),
+        host: host.clone(),
+        scheme: scheme.to_string(),
+        revision: Some(branch_name.to_string()),
+        commit_id: revision.commit.map(|r| r.id)
+    }));
 }
 
 #[pyfunction]
@@ -49,7 +55,7 @@ pub fn create_repo(
     let namespace = name.split("/").collect::<Vec<&str>>()[0].to_string();
     let repo_name = name.split("/").collect::<Vec<&str>>()[1].to_string();
 
-    let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+    pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         let config = UserConfig::get()?;
         let user = config.to_user();
 
@@ -61,7 +67,15 @@ pub fn create_repo(
             repo.is_public = Some(is_public);
             repo.scheme = Some(scheme.clone());
 
-            liboxen::api::client::repositories::create_empty(repo).await
+            let repo = liboxen::api::client::repositories::create_empty(repo).await?;
+            Ok(PyRemoteRepo {
+                repo: repo.clone(),
+                host: host.clone(),
+                scheme: scheme.to_string(),
+                // Empty repo does not have a revision or commit_id
+                revision: None,
+                commit_id: None
+            })
         } else {
             let files: Vec<FileNew> = files
                 .iter()
@@ -78,13 +92,16 @@ pub fn create_repo(
             repo.is_public = Some(is_public);
             repo.scheme = Some(scheme.clone());
 
-            liboxen::api::client::repositories::create(repo).await
+            let repo = liboxen::api::client::repositories::create(repo).await?;
+            let branch = liboxen::api::client::branches::get_by_name(&repo, &DEFAULT_BRANCH_NAME).await?.unwrap();
+
+            Ok(PyRemoteRepo {
+                repo: repo.clone(),
+                host: host.clone(),
+                scheme: scheme.to_string(),
+                revision: Some(DEFAULT_BRANCH_NAME.to_string()),
+                commit_id: Some(branch.commit_id)
+            })
         }
-    })?;
-    Ok(PyRemoteRepo {
-        repo: result.clone(),
-        host: host.clone(),
-        revision: DEFAULT_BRANCH_NAME.to_string(),
-        scheme: scheme.to_string(),
     })
 }
