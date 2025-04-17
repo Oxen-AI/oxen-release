@@ -36,10 +36,10 @@ jobs:
         rust: [stable]
         platform: [
           {
-            os: "ubuntu-20.04",
+            os: "ubuntu-22.04",
             python-architecture: "x64",
             rust-target: "x86_64-unknown-linux-gnu",
-            name: "Ubuntu 20.04"
+            name: "Ubuntu 22.04"
           },
           {
             os: "ubuntu-latest",
@@ -48,13 +48,13 @@ jobs:
             name: "Ubuntu Latest"
           },
           {
-            os: "macos-13",
+            os: "macos-latest-large",
             python-architecture: "x64",
             rust-target: "aarch64-apple-darwin",
             name: "macOS arm64"
           },
           {
-            os: "macos-13",
+            os: "macos-latest-large",
             python-architecture: "x64",
             rust-target: "x86_64-apple-darwin",
             name: "macOS x64"
@@ -117,7 +117,7 @@ jobs:
 
       # - name: Install dependencies OSX
       #   run: brew install pkg-config ffmpeg imagemagick
-      #   if: matrix.platform.os == 'macos-13'
+      #   if: matrix.platform.os == 'macos-latest-large'
 
       - name: Install Deps Linux
         run: |
@@ -168,13 +168,13 @@ jobs:
           PY_LOCATION: ${{ env.pythonLocation }}
         run: cd oxen && maturin build --out dist --release --interpreter ${env:PY_LOCATION}\python.exe
         if: runner.os == 'Windows'
-      - name: Build Ubuntu 20.04
+      - name: Build Ubuntu 22.04
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
         # This one does not have --sdist because we do it in Ubuntu Latest
         run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
         # run: cd oxen && docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release --out dist
-        if: matrix.platform.name == 'Ubuntu 20.04'
+        if: matrix.platform.name == 'Ubuntu 22.04'
       - name: Build linux package sdist
         env:
           PY_LOCATION: ${{ env.pythonLocation }}

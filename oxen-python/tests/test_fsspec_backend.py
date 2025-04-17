@@ -2,6 +2,7 @@ import os
 import fsspec
 import pandas as pd
 
+from pathlib import PurePath
 from oxen import RemoteRepo
 
 
@@ -17,10 +18,13 @@ def test_fsspec_read_file(
     fs = fsspec.filesystem(
         "oxen", namespace=namespace, repo=repo_name, host=host, scheme=scheme
     )
-    with fs.open("images/1.jpg", mode="rb") as f:
+
+    image = str(PurePath("images", "1.jpg"))
+    with fs.open(image, mode="rb") as f:
         remote_image_file = f.read()
 
-    with open(os.path.join(shared_datadir, "CelebA/images/1.jpg"), "rb") as f:
+    celeb_path = str(PurePath("CelebA", "images", "1.jpg"))
+    with open(os.path.join(shared_datadir, celeb_path), "rb") as f:
         assert remote_image_file == f.read()
 
 
@@ -75,7 +79,8 @@ def test_fsspec_write_file_with_pandas_csv(
     )
 
     local_repo.pull()
-    with open(os.path.join(local_repo.path, "test/examples.csv"), "rb") as f:
+    examples_path = str(PurePath("test", "examples.csv"))
+    with open(os.path.join(local_repo.path, examples_path), "rb") as f:
         df_new = pd.read_csv(f)
         assert df_new.equals(df)
 
@@ -103,8 +108,9 @@ def test_fsspec_write_file_with_pandas_parquet(
         storage_options={"host": host, "scheme": scheme},
     )
 
+    examples_path = str(PurePath("test", "examples.parquet"))
     local_repo.pull()
-    with open(os.path.join(local_repo.path, "test/examples.parquet"), "rb") as f:
+    with open(os.path.join(local_repo.path, examples_path), "rb") as f:
         df_new = pd.read_parquet(f)
         assert df_new.equals(df)
 
@@ -121,7 +127,8 @@ def test_fsspec_write_file_to_new_dir(
     fs = fsspec.filesystem(
         "oxen", namespace=namespace, repo=repo_name, host=host, scheme=scheme
     )
-    with fs.open("new_dir/prompt.txt", mode="wb") as f:
+    prompt_path = str(PurePath("new_dir", "prompt.txt"))
+    with fs.open(prompt_path, mode="wb") as f:
         f.commit_message = "Updated prompt"
         f.write("This is an updated prompt!")
 
@@ -129,5 +136,5 @@ def test_fsspec_write_file_to_new_dir(
     assert len(remote_repo.log()) == 2
 
     local_repo.pull()
-    with open(os.path.join(local_repo.path, "new_dir/prompt.txt"), "r") as f:
+    with open(os.path.join(local_repo.path, prompt_path), "r") as f:
         assert f.read() == "This is an updated prompt!"
