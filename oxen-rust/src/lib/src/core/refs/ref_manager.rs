@@ -20,6 +20,15 @@ const DB_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(100).unwrap();
 static DB_INSTANCES: LazyLock<Mutex<LruCache<PathBuf, Arc<DB>>>> =
     LazyLock::new(|| Mutex::new(LruCache::new(DB_CACHE_SIZE)));
 
+/// Removes a repository's DB instance from the cache.
+/// This is particularly useful in test cleanup to allow repository deletion.
+pub fn remove_from_cache(repository_path: impl AsRef<std::path::Path>) -> Result<(), OxenError> {
+    let refs_dir = util::fs::oxen_hidden_dir(repository_path).join(REFS_DIR);
+    let mut instances = DB_INSTANCES.lock();
+    let _ = instances.pop(&refs_dir); // drop immediately
+    Ok(())
+}
+
 pub struct RefManager {
     refs_db: Arc<DB>,
     head_file: PathBuf,

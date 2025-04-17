@@ -204,7 +204,7 @@ mod tests {
 
                 // Fork creates new repo
                 if forked_repo_path.exists() {
-                    std::fs::remove_dir_all(&forked_repo_path)?;
+                    test::maybe_cleanup_repo(&forked_repo_path)?;
                 }
 
                 let dir_path = original_repo_path.join("dir");
@@ -262,7 +262,7 @@ mod tests {
                     .join("forked")
                     .join(Uuid::new_v4().to_string());
                 if new_repo_path_1.exists() {
-                    std::fs::remove_dir_all(&new_repo_path_1)?;
+                    test::maybe_cleanup_repo(&new_repo_path_1)?;
                 }
                 std::fs::create_dir_all(&new_repo_path_1)?;
 
@@ -311,6 +311,8 @@ mod tests {
                     !new_workspaces_path.exists(),
                     ".oxen/workspaces should not be copied"
                 );
+
+                test::maybe_cleanup_repo(&new_repo_path_2)?;
                 // Get prefix of new repo path 2 for cleanup
                 let new_repo_path_2_prefix = new_repo_path_2.parent().unwrap();
                 if new_repo_path_2_prefix.exists() {

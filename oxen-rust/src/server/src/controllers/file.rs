@@ -372,7 +372,7 @@ mod tests {
         assert_eq!(updated_content, "Updated Content!");
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -434,7 +434,7 @@ mod tests {
         assert!(version_path.exists());
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }

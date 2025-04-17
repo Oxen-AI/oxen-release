@@ -108,7 +108,7 @@ mod tests {
         assert_eq!(entries_resp.total_entries, num_entries);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }

@@ -7,6 +7,7 @@ use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
 
+use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
@@ -200,7 +201,7 @@ where
     let result = match test(repo_dir).await {
         Ok(repo_dir) => {
             // Remove repo dir
-            util::fs::remove_dir_all(repo_dir)?;
+            maybe_cleanup_repo(&repo_dir)?;
             true
         }
         Err(err) => {
@@ -235,7 +236,7 @@ where
 
     // Remove forked dir
     if new_repo_dir.exists() {
-        std::fs::remove_dir_all(&new_repo_dir)?;
+        maybe_cleanup_repo(&new_repo_dir)?;
     }
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
@@ -325,7 +326,7 @@ where
 
     // Remove forked dir
     if new_repo_dir.exists() {
-        std::fs::remove_dir_all(&new_repo_dir)?;
+        maybe_cleanup_repo(&new_repo_dir)?;
     }
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
@@ -1556,16 +1557,21 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 // This function conditionally removes the repo dir given a CLEANUP_REPOS environment variable
-fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
+pub fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
     let no_cleanup = std::env::var("NO_CLEANUP") == Ok("true".to_string())
         || std::env::var("NO_CLEANUP") == Ok("1".to_string());
-    log::debug!("maybe_cleanup_repo: no_cleanup: {no_cleanup}");
     if !no_cleanup {
+        log::debug!("maybe_cleanup_repo: cleaning up repo: {:?}", repo_dir);
+        // Close refs DB before trying to delete the directory
+        core::refs::ref_manager::remove_from_cache(repo_dir)?;
         util::fs::remove_dir_all(repo_dir)?;
+    } else {
+        log::debug!("maybe_cleanup_repo: *NOT* cleaning up repo: {:?}", repo_dir);
     }
     Ok(())
 }
 
+// This function conditionally removes the repo dir given a CLEANUP_REPOS environment variable
 pub fn user_cfg_file() -> PathBuf {
     Path::new("data")
         .join("test")
