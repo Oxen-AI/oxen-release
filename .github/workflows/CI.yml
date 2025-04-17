@@ -48,13 +48,13 @@ jobs:
             name: "Ubuntu Latest"
           },
           {
-            os: "macos-latest-large",
+            os: "macos-13-large",
             python-architecture: "x64",
             rust-target: "aarch64-apple-darwin",
             name: "macOS arm64"
           },
           {
-            os: "macos-latest-large",
+            os: "macos-13-large",
             python-architecture: "x64",
             rust-target: "x86_64-apple-darwin",
             name: "macOS x64"
@@ -117,7 +117,7 @@ jobs:
 
       # - name: Install dependencies OSX
       #   run: brew install pkg-config ffmpeg imagemagick
-      #   if: matrix.platform.os == 'macos-latest-large'
+      #   if: matrix.platform.os == 'macos-13-large'
 
       - name: Install Deps Linux
         run: |
