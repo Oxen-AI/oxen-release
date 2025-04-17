@@ -88,3 +88,15 @@ def test_remote_repo_file_has_changes(
     assert remote_repo.file_has_changes(
         full_path, remote_path=file_path, revision="test-branch"
     )
+
+def test_remote_repo_file_has_changes_file_does_not_exist(
+    celeba_remote_repo_one_image_pushed: Tuple[Repo, RemoteRepo], shared_datadir
+):
+    _local_repo, remote_repo = celeba_remote_repo_one_image_pushed
+    file_path = "non-existent-file.tsv"
+    relative_path = os.path.join("ChatBot", file_path)
+    full_path = os.path.join(shared_datadir, relative_path)
+    remote_repo.create_checkout_branch("test-branch")
+
+    # Make sure the file has no changes
+    assert remote_repo.file_has_changes(full_path, remote_path=file_path)
