@@ -26,7 +26,7 @@ pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
 }
 
 pub fn cleanup_sync_dir(sync_dir: &Path) -> Result<(), OxenError> {
-    refs::ref_manager::remove_from_cache(sync_dir)?;
+    refs::ref_manager::remove_from_cache_with_children(sync_dir)?;
     std::fs::remove_dir_all(sync_dir)?;
     Ok(())
 }

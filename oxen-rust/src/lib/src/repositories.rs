@@ -189,6 +189,9 @@ pub fn transfer_namespace(
         )));
     }
 
+    // ensure DB instance is closed before we move the repo
+    core::refs::remove_from_cache(&repo_dir)?;
+
     util::fs::create_dir_all(&new_repo_dir)?;
     util::fs::rename(&repo_dir, &new_repo_dir)?;
 
