@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+from pathlib import PurePath
 
 from oxen import DataFrame, RemoteRepo, Workspace
 
@@ -8,11 +9,13 @@ from oxen import DataFrame, RemoteRepo, Workspace
 def test_data_frame_crud(celeba_remote_repo_fully_pushed):
     _, remote_repo = celeba_remote_repo_fully_pushed
 
-    new_row = {"file": "images/123456.png", "hair_color": "purple"}
+    image = str(PurePath("images", "123456.png"))
+    new_row = {"file": str(image), "hair_color": "purple"}
 
+    train_path = str(PurePath("annotations", "train.csv"))
     df = DataFrame(
         remote_repo.identifier,
-        "annotations/train.csv",
+        train_path,
         host="localhost:3000",
         scheme="http",
     )
@@ -169,11 +172,13 @@ def test_data_frame_create_on_insert_on_branch_instantiated_from_remote_repo(
 def test_data_frame_commit(celeba_remote_repo_fully_pushed):
     _, remote_repo = celeba_remote_repo_fully_pushed
 
-    new_row = {"file": "images/123456.png", "hair_color": "purple"}
+    image = str(PurePath("images", "123456.png"))
+    new_row = {"file": image, "hair_color": "purple"}
 
+    train_path = str(PurePath("annotations", "train.csv"))
     df = DataFrame(
         remote_repo.identifier,
-        "annotations/train.csv",
+        train_path,
         host="localhost:3000",
         scheme="http",
     )
@@ -200,14 +205,16 @@ def test_remove_data_frame_row(
     workspace = Workspace(remote_repo, "main")
     print("Created workspace ", workspace)
 
-    new_row = {"file": "images/123456.png", "hair_color": "purple"}
+    image = str(PurePath("images", "123456.png"))
+    new_row = {"file": image, "hair_color": "purple"}
 
     assert len(workspace.status().added_files()) == 0
     workspace.add(file_path, "csvs")
     workspace.commit("add train.csv")
 
+    train_path = str(PurePath("csvs", "train.csv"))
     workspace = Workspace(remote_repo, "main")
-    df = DataFrame(workspace, "csvs/train.csv")
+    df = DataFrame(workspace, train_path)
     _width, og_height = df.size()
 
     row_id = df.insert_row(new_row)

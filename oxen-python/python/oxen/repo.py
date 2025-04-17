@@ -82,6 +82,10 @@ class Repo:
         """ """
         return self._repo.branch(name, delete)
 
+    def branch_exists(self, name: str):
+        """ """
+        return self._repo.branch_exists(name)
+
     def checkout(self, revision: str, create=False):
         """
         Checkout a branch or commit id.

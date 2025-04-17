@@ -1,5 +1,6 @@
 import os
 from oxen import RemoteRepo, Workspace
+from pathlib import PurePath
 
 
 def test_commit_to_named_workspace(
@@ -10,8 +11,10 @@ def test_commit_to_named_workspace(
     # Create a new workspace on the main branch
     workspace = Workspace(remote_repo, branch="main", workspace_name="my-workspace")
     # Add a file to the new workspace
-    image_path_1 = os.path.join(shared_datadir, "CelebA/images/2.jpg")
-    workspace.add(image_path_1)
+
+    celeb_path = str(PurePath("CelebA", "images", "2.jpg"))
+    image_path = os.path.join(shared_datadir, celeb_path)
+    workspace.add(image_path)
     assert len(remote_repo.list_workspaces()) == 1
     # Commit the changes
     workspace.commit("Adding a new image to the feature branch")

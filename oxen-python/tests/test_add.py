@@ -1,6 +1,7 @@
 import os
 
 from oxen import Repo
+from pathlib import PurePath
 
 
 def test_add(shared_datadir):
@@ -15,8 +16,12 @@ def test_add(shared_datadir):
     added_files = staged_data.added_files()
     added_files.sort()
 
+    test_path = PurePath("annotations", "test.csv")
+    train_path = PurePath("annotations", "train.csv")
+    labels_path = PurePath("annotations", "labels.txt")
+
     assert set(added_files) == {
-        "annotations/test.csv",
-        "annotations/train.csv",
-        "annotations/labels.txt",
+        str(test_path),
+        str(train_path),
+        str(labels_path),
     }
