@@ -3889,7 +3889,7 @@ dependencies = [
 
 [[package]]
 name = "oxen"
-version = "0.32.4"
+version = "0.33.0"
 dependencies = [
  "bindgen 0.71.1",
  "cc",
