@@ -1007,7 +1007,7 @@ mod tests {
         assert_eq!(list.commits.len(), 0);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -1036,7 +1036,7 @@ mod tests {
         assert_eq!(list.commits.len(), 2);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -1078,7 +1078,7 @@ mod tests {
         assert_eq!(list.commits.len(), 2);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -1131,7 +1131,7 @@ mod tests {
         assert_eq!(list.commits.len(), 2);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -1208,7 +1208,7 @@ mod tests {
         );
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
         util::fs::remove_dir_all(commit_dir)?;
 
         Ok(())

@@ -308,11 +308,14 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
     })
 }
 
-pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
+pub fn delete(repo: &LocalRepository) -> Result<&LocalRepository, OxenError> {
     if !repo.path.exists() {
         let err = format!("Repository does not exist {:?}", repo.path);
         return Err(OxenError::basic_str(err));
     }
+
+    // Close refs DB before trying to delete the directory
+    core::refs::ref_manager::remove_from_cache(&repo.path)?;
 
     log::debug!("Deleting repo directory: {:?}", repo);
     util::fs::remove_dir_all(&repo.path)?;

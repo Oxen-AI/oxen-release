@@ -390,7 +390,7 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     };
 
     // Delete in a background thread because it could take awhile
-    std::thread::spawn(move || match repositories::delete(repository) {
+    std::thread::spawn(move || match repositories::delete(&repository) {
         Ok(_) => log::info!("Deleted repo: {}/{}", namespace, name),
         Err(err) => log::error!("Err deleting repo: {}", err),
     });
@@ -481,7 +481,6 @@ mod tests {
     use actix_web::body::to_bytes;
 
     use liboxen::error::OxenError;
-    use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse};
@@ -505,7 +504,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -528,7 +527,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -554,7 +553,7 @@ mod tests {
         assert_eq!(repo_response.repository.name, name);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -592,7 +591,7 @@ mod tests {
         assert_eq!(repo_response.repository.namespace, new_namespace);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
