@@ -15,7 +15,6 @@ def test_remote_create_checkout_branch(celeba_remote_repo_one_image_pushed):
     assert remote_repo.revision == "test-branch"
 
 
-
 def test_remote_repo_add(
     celeba_remote_repo_one_image_pushed: Tuple[Repo, RemoteRepo], shared_datadir
 ):

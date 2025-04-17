@@ -3,6 +3,7 @@ import os
 from oxen import Repo
 from pathlib import PurePath
 
+
 def test_add(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "CelebA")
     repo = Repo(repo_dir)
