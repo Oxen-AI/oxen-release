@@ -2,6 +2,7 @@
 
 import os
 from oxen import RemoteRepo, Workspace
+from pathlib import PurePath
 
 
 def test_commit_to_new_workspace(
@@ -13,7 +14,9 @@ def test_commit_to_new_workspace(
     workspace = Workspace(remote_repo, "main")
 
     # Add a file to the new workspace
-    image_path_1 = os.path.join(shared_datadir, "CelebA/images/2.jpg")
+    images_1 = str(PurePath("CelebA", "images", "2.jpg"))
+
+    image_path_1 = os.path.join(shared_datadir, images_1)
     workspace.add(image_path_1)
     assert len(remote_repo.list_workspaces()) == 1
 
@@ -23,7 +26,8 @@ def test_commit_to_new_workspace(
 
     # Create a second workspace and add another file
     workspace2 = Workspace(remote_repo, "main")
-    image_path_2 = os.path.join(shared_datadir, "CelebA/images/3.jpg")
+    images_2 = str(PurePath("CelebA", "images", "3.jpg"))
+    image_path_2 = os.path.join(shared_datadir, images_2)
     workspace2.add(image_path_2)
     workspace2.commit("Adding a new image to the feature branch")
     workspaces = remote_repo.list_workspaces()
