@@ -373,6 +373,10 @@ class RemoteRepo:
         if revision is None:
             revision = self.revision
 
+        # If the file doesn't exist on the remote repo, it's a new file, hence has changes
+        if not self.file_exists(remote_path, revision):
+            return True
+
         return self._repo.file_has_changes(local_path, remote_path, revision)
 
     def log(self):

@@ -3182,9 +3182,9 @@ checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "liboxen"
-version = "0.32.4"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d01906e1896b7eb2167557512a9c2e87d80842e2aa92adc68c2e0224eb3e4fc8"
+checksum = "b0c48b6010ac8bb13457b0f2d0767bc34b7dfaab6b06f86817508db9448ace84"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3240,6 +3240,7 @@ dependencies = [
  "nom",
  "num_cpus",
  "os_path",
+ "parking_lot",
  "pluralizer",
  "polars",
  "qsv-sniffer",
@@ -3262,6 +3263,7 @@ dependencies = [
  "sqlparser 0.53.0",
  "sysinfo 0.33.1",
  "tar",
+ "tempfile",
  "threadpool",
  "time",
  "tokio",
