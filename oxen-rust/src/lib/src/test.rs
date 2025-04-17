@@ -462,6 +462,9 @@ where
         }
     };
 
+    // Cleanup local repo
+    maybe_cleanup_repo(&repo_dir)?;
+
     assert!(result);
     Ok(())
 }
@@ -486,12 +489,19 @@ where
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_sync_test_no_commits running test");
     let result = match test(local_repo, remote_repo).await {
-        Ok(_remote_repo) => true,
+        Ok(remote_repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&remote_repo).await?;
+            true
+        }
         Err(err) => {
             eprintln!("Error running test. Err: {err}");
             false
         }
     };
+
+    // Cleanup local repo
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -559,12 +569,19 @@ where
     // Run test to see if it panic'd
     log::info!(">>>>> run_training_data_fully_sync_remote running test");
     let result = match test(local_repo, remote_repo).await {
-        Ok(_remote_repo) => true,
+        Ok(remote_repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&remote_repo).await?;
+            true
+        }
         Err(err) => {
             eprintln!("Error running test. Err: {err}");
             false
         }
     };
+
+    // Cleanup local repo
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -600,12 +617,19 @@ where
     // Run test to see if it panic'd
     log::info!(">>>>> run_select_data_sync_remote running test");
     let result = match test(local_repo, remote_repo).await {
-        Ok(_remote_repo) => true,
+        Ok(remote_repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&remote_repo).await?;
+            true
+        }
         Err(err) => {
             eprintln!("Error running test. Err: {err}");
             false
         }
     };
+
+    // Cleanup local repo
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -641,12 +665,19 @@ where
     // Run test to see if it panic'd
     log::info!(">>>>> run_subset_of_data_fully_sync_remote running test");
     let result = match test(local_repo, remote_repo).await {
-        Ok(_remote_repo) => true,
+        Ok(remote_repo) => {
+            // Cleanup remote repo
+            api::client::repositories::delete(&remote_repo).await?;
+            true
+        }
         Err(err) => {
             eprintln!("Error running test. Err: {err}");
             false
         }
     };
+
+    // Cleanup local repo
+    maybe_cleanup_repo(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -1563,7 +1594,7 @@ pub fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
     if !no_cleanup {
         log::debug!("maybe_cleanup_repo: cleaning up repo: {:?}", repo_dir);
         // Close refs DB before trying to delete the directory
-        core::refs::ref_manager::remove_from_cache(repo_dir)?;
+        core::refs::ref_manager::remove_from_cache_with_children(repo_dir)?;
         util::fs::remove_dir_all(repo_dir)?;
     } else {
         log::debug!("maybe_cleanup_repo: *NOT* cleaning up repo: {:?}", repo_dir);
