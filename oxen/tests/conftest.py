@@ -194,6 +194,8 @@ def celeba_remote_repo_one_image_pushed(
     local_repo.set_remote(remote_name, remote_repo.url)
     local_repo.push(remote_name, branch_name)
 
+    remote_repo = RemoteRepo(remote_repo.identifier, host=TEST_HOST, scheme=TEST_SCHEME)
+
     yield local_repo, remote_repo
 
 
@@ -208,5 +210,7 @@ def celeba_remote_repo_fully_pushed(
     branch_name = "main"
     local_repo.set_remote(remote_name, remote_repo.url)
     local_repo.push(remote_name, branch_name)
+
+    remote_repo = RemoteRepo(remote_repo.identifier, host=TEST_HOST, scheme=TEST_SCHEME)
 
     yield local_repo, remote_repo
