@@ -1275,8 +1275,6 @@ mod tests {
 
             assert_eq!(remote_commits.len(), 4);
 
-            api::client::repositories::delete(&remote_repo).await?;
-
             Ok(remote_repo)
         })
         .await

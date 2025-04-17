@@ -5,6 +5,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::io::Write;
 
+use crate::core;
 use crate::{constants::OXEN_HIDDEN_DIR, error::OxenError, model::LocalRepository, util};
 
 pub fn save(repo: &LocalRepository, dst_path: &Path) -> Result<(), OxenError> {
@@ -17,6 +18,9 @@ pub fn save(repo: &LocalRepository, dst_path: &Path) -> Result<(), OxenError> {
             _ => return Err(OxenError::basic_str(dst_path.to_str().unwrap())),
         }
     };
+
+    // Close the refs DB instance before we tar it.
+    core::refs::remove_from_cache(&repo.path)?;
 
     let oxen_dir = util::fs::oxen_hidden_dir(&repo.path);
     let tar_subdir = Path::new(OXEN_HIDDEN_DIR);

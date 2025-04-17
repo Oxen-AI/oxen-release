@@ -77,7 +77,8 @@ mod tests {
         let path = path.replace('\\', "/");
         assert_eq!(path, "to/resource");
 
-        util::fs::remove_dir_all(sync_dir)?;
+        // cleanup
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
