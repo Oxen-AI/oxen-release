@@ -153,7 +153,6 @@ def house_prices_local_repo_fully_committed(house_prices_local_repo_no_commits):
 
 @pytest.fixture
 def empty_remote_repo():
-
     repo_name = f"py-ox/test_repo_{str(uuid.uuid4())}"
     repo = RemoteRepo(repo_name, host=TEST_HOST, scheme=TEST_SCHEME)
     repo.create(empty=True)

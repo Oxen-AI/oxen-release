@@ -2,6 +2,7 @@ import os
 from oxen import RemoteRepo, Workspace
 from pathlib import PurePath
 
+
 def test_remote_status_empty(
     celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
 ):

@@ -81,8 +81,8 @@ class Repo:
     def branch(self, name: str, delete=False):
         """ """
         return self._repo.branch(name, delete)
-    
-    def branch_exists(self, name: str): 
+
+    def branch_exists(self, name: str):
         """ """
         return self._repo.branch_exists(name)
 
