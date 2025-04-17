@@ -18,7 +18,7 @@ def test_workspace_df_sql_query(
     assert sql == "SELECT * FROM df WHERE id = '290' AND title = 'A'"
 
     results = remote_df.query(sql=sql)
-    
+
     assert len(results) == 1
     assert results[0]["id"] == "290"
     assert results[0]["title"] == "A"
