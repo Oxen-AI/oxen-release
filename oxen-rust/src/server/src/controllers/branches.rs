@@ -394,7 +394,7 @@ mod tests {
         assert_eq!(list.branches.first().unwrap().name, DEFAULT_BRANCH_NAME);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -424,7 +424,7 @@ mod tests {
         assert_eq!(list.branches.len(), 3);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -460,7 +460,7 @@ mod tests {
         assert_eq!(branch_resp.branch.name, branch_name);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -497,7 +497,7 @@ mod tests {
         assert_eq!(repo_response.branch.name, "My-Branch-Name");
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }
@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(commit_resp.commit.id, created_branch.commit_id);
 
         // cleanup
-        util::fs::remove_dir_all(sync_dir)?;
+        test::cleanup_sync_dir(&sync_dir)?;
 
         Ok(())
     }

@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
-use crate::core::refs::{with_ref_writer, RefReader};
+use crate::core::refs::with_ref_manager;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository};
@@ -15,15 +15,12 @@ use crate::{core, util};
 
 /// List all the local branches within a repo
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let branches = ref_reader.list_branches()?;
-    Ok(branches)
+    with_ref_manager(repo, |manager| manager.list_branches())
 }
 
 /// Get a branch by name
 pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    ref_reader.get_branch_by_name(name)
+    with_ref_manager(repo, |manager| manager.get_branch_by_name(name))
 }
 
 /// Get branch by name or fall back the current
@@ -50,10 +47,7 @@ pub fn get_by_name_or_current(
 
 /// Get commit id from a branch by name
 pub fn get_commit_id(repo: &LocalRepository, name: &str) -> Result<Option<String>, OxenError> {
-    match RefReader::new(repo) {
-        Ok(ref_reader) => ref_reader.get_commit_id_for_branch(name),
-        _ => Err(OxenError::basic_str("Could not read reference for repo.")),
-    }
+    with_ref_manager(repo, |manager| manager.get_commit_id_for_branch(name))
 }
 
 /// Check if a branch exists
@@ -66,9 +60,7 @@ pub fn exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
 
 /// Get the current branch
 pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let branch = ref_reader.get_current_branch()?;
-    Ok(branch)
+    with_ref_manager(repo, |manager| manager.get_current_branch())
 }
 
 /// # Create a new branch from the head commit
@@ -80,9 +72,7 @@ pub fn create_from_head(
 ) -> Result<Branch, OxenError> {
     let name = name.as_ref();
     let head_commit = repositories::commits::head_commit(repo)?;
-    with_ref_writer(repo, |ref_writer| {
-        ref_writer.create_branch(name, &head_commit.id)
-    })
+    with_ref_manager(repo, |manager| manager.create_branch(name, &head_commit.id))
 }
 
 /// # Create a local branch from a specific commit id
@@ -95,7 +85,7 @@ pub fn create(
     let commit_id = commit_id.as_ref();
 
     if repositories::commits::commit_id_exists(repo, commit_id)? {
-        with_ref_writer(repo, |ref_writer| ref_writer.create_branch(name, commit_id))
+        with_ref_manager(repo, |manager| manager.create_branch(name, commit_id))
     } else {
         Err(OxenError::commit_id_does_not_exist(commit_id))
     }
@@ -110,9 +100,9 @@ pub fn create_checkout(repo: &LocalRepository, name: impl AsRef<str>) -> Result<
     println!("Create and checkout branch: {name}");
     let head_commit = repositories::commits::head_commit(repo)?;
 
-    with_ref_writer(repo, |ref_writer| {
-        let branch = ref_writer.create_branch(&name, &head_commit.id)?;
-        ref_writer.set_head(name);
+    with_ref_manager(repo, |manager| {
+        let branch = manager.create_branch(&name, &head_commit.id)?;
+        manager.set_head(name);
         Ok(branch)
     })
 }
@@ -125,17 +115,15 @@ pub fn update(
 ) -> Result<Branch, OxenError> {
     let name = name.as_ref();
     let commit_id = commit_id.as_ref();
-    let ref_reader = RefReader::new(repo)?;
-    match ref_reader.get_branch_by_name(name)? {
-        Some(branch) => {
+    with_ref_manager(repo, |manager| {
+        if let Some(branch) = manager.get_branch_by_name(name)? {
             // Set the branch to point to the commit
-            with_ref_writer(repo, |ref_writer| {
-                ref_writer.set_branch_commit_id(name, commit_id)?;
-                Ok(branch)
-            })
+            manager.set_branch_commit_id(name, commit_id)?;
+            Ok(branch)
+        } else {
+            create(repo, name, commit_id)
         }
-        None => create(repo, name, commit_id),
-    }
+    })
 }
 
 /// Delete a local branch
@@ -150,7 +138,7 @@ pub fn delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, O
     }
 
     if branch_has_been_merged(repo, name)? {
-        with_ref_writer(repo, |ref_writer| ref_writer.delete_branch(name))
+        with_ref_manager(repo, |manager| manager.delete_branch(name))
     } else {
         let err = format!("Err: The branch '{name}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {name}'.");
         Err(OxenError::basic_str(err))
@@ -168,23 +156,19 @@ pub fn force_delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Bra
         }
     }
 
-    with_ref_writer(repo, |ref_writer| ref_writer.delete_branch(name))
+    with_ref_manager(repo, |manager| manager.delete_branch(name))
 }
 
 /// Check if a branch is checked out
 pub fn is_checked_out(repo: &LocalRepository, name: &str) -> bool {
-    match RefReader::new(repo) {
-        Ok(ref_reader) => {
-            if let Ok(Some(current_branch)) = ref_reader.get_current_branch() {
-                // If we are already on the branch, do nothing
-                if current_branch.name == name {
-                    return true;
-                }
-            }
-            false
+    if let Ok(Some(current_branch)) = with_ref_manager(repo, |manager| manager.get_current_branch())
+    {
+        // If we are already on the branch, do nothing
+        if current_branch.name == name {
+            return true;
         }
-        _ => false,
     }
+    false
 }
 
 /// Lock a branch for pushing
@@ -371,39 +355,40 @@ pub async fn checkout_commit_from_commit(
 
 pub fn set_head(repo: &LocalRepository, value: impl AsRef<str>) -> Result<(), OxenError> {
     log::debug!("set_head {}", value.as_ref());
-    with_ref_writer(repo, |ref_writer| {
-        ref_writer.set_head(value);
+    with_ref_manager(repo, |manager| {
+        manager.set_head(value);
         Ok(())
     })
 }
 
 fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    if let Some(branch_commit_id) = ref_reader.get_commit_id_for_branch(name)? {
-        if let Some(commit_id) = ref_reader.head_commit_id()? {
-            let history = repositories::commits::list_from(repo, &commit_id)?;
-            for commit in history.iter() {
-                if commit.id == branch_commit_id {
-                    return Ok(true);
+    with_ref_manager(repo, |manager| {
+        if let Some(branch_commit_id) = manager.get_commit_id_for_branch(name)? {
+            if let Some(commit_id) = manager.head_commit_id()? {
+                let history = repositories::commits::list_from(repo, &commit_id)?;
+                for commit in history.iter() {
+                    if commit.id == branch_commit_id {
+                        return Ok(true);
+                    }
                 }
+                // We didn't find commit
+                Ok(false)
+            } else {
+                // Cannot check if it has been merged if we are in a detached HEAD state
+                Ok(false)
             }
-            // We didn't find commit
-            Ok(false)
         } else {
-            // Cannot check if it has been merged if we are in a detached HEAD state
-            Ok(false)
+            let err = format!("Err: The branch '{name}' does not exist.");
+            Err(OxenError::basic_str(err))
         }
-    } else {
-        let err = format!("Err: The branch '{name}' does not exist.");
-        Err(OxenError::basic_str(err))
-    }
+    })
 }
 
 pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(), OxenError> {
     if let Ok(Some(branch)) = current_branch(repo) {
-        with_ref_writer(repo, |ref_writer| {
-            ref_writer.rename_branch(&branch.name, new_name)?;
-            ref_writer.set_head(new_name);
+        with_ref_manager(repo, |manager| {
+            manager.rename_branch(&branch.name, new_name)?;
+            manager.set_head(new_name);
             Ok(())
         })
     } else {
@@ -458,7 +443,7 @@ mod tests {
     use std::path::Path;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::refs::with_ref_writer;
+    use crate::core::refs::with_ref_manager;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
@@ -578,8 +563,8 @@ mod tests {
             let commit_5 = repositories::commit(&repo, "adding test file 5")?;
 
             // Back to main - hacky to avoid async checkout
-            with_ref_writer(&repo, |ref_writer| {
-                ref_writer.set_head(DEFAULT_BRANCH_NAME);
+            with_ref_manager(&repo, |manager| {
+                manager.set_head(DEFAULT_BRANCH_NAME);
                 Ok(())
             })?;
 

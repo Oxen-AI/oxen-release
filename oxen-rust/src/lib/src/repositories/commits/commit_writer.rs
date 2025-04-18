@@ -18,7 +18,7 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::db::merkle_node::MerkleNodeDB;
-use crate::core::refs::with_ref_writer;
+use crate::core::refs::with_ref_manager;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::status;
 use crate::error::OxenError;
@@ -174,13 +174,13 @@ pub fn commit_with_cfg(
     let branch_name = maybe_branch_name.unwrap_or(DEFAULT_BRANCH_NAME.to_string());
     let head_path_exists = head_path.exists();
 
-    with_ref_writer(repo, |ref_writer| {
+    with_ref_manager(repo, |manager| {
         if !head_path_exists {
             log::debug!("HEAD file does not exist, creating new branch");
-            ref_writer.set_head(&branch_name);
-            ref_writer.set_branch_commit_id(&branch_name, &commit_id)?;
+            manager.set_head(&branch_name);
+            manager.set_branch_commit_id(&branch_name, &commit_id)?;
         }
-        ref_writer.set_head_commit_id(&commit_id)
+        manager.set_head_commit_id(&commit_id)
     })?;
 
     // Print that we finished
