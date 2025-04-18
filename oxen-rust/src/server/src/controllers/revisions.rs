@@ -33,7 +33,6 @@ mod tests {
 
     use liboxen::error::OxenError;
     use liboxen::repositories;
-    use liboxen::util;
 
     use crate::controllers;
     use crate::test;
