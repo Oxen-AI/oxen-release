@@ -791,6 +791,7 @@ pub fn copy_mkdir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), Ox
 
 /// Recursively check if a file exists within a directory
 pub fn file_exists_in_directory(directory: impl AsRef<Path>, file: impl AsRef<Path>) -> bool {
+    // TODO: Can't this just check if the directory is a substring of the file?
     let mut file = file.as_ref();
     while file.parent().is_some() {
         if directory.as_ref() == file.parent().unwrap() {
@@ -1733,6 +1734,20 @@ mod tests {
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
         assert_eq!(relative, Path::new("other").join("dir"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn path_relative_to_unrelated_dir() -> Result<(), OxenError> {
+        let file = Path::new("data").join("test").join("other").join("dir");
+        let dir = Path::new("some").join("repo");
+
+        let relative = util::fs::path_relative_to_dir(file, dir)?;
+        assert_eq!(
+            relative,
+            Path::new("data").join("test").join("other").join("dir")
+        );
 
         Ok(())
     }
