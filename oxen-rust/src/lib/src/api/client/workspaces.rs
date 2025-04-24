@@ -474,7 +474,7 @@ mod tests {
 
             // Advance head on main branch, leave behind-main behind
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &identifier,
                 main_path,
@@ -496,7 +496,7 @@ mod tests {
 
             // Add a file to behind-main
             let image_path = test::test_1k_parquet();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &identifier,
                 main_path,
@@ -519,7 +519,7 @@ mod tests {
 
             // Add file at images/folder to behind-main, committed to main
             let image_path = test::test_100_parquet();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &identifier,
                 main_path,
@@ -557,9 +557,13 @@ mod tests {
             api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
                 .await?;
             let path = test::test_img_file();
-            let result =
-                api::client::workspaces::files::post_file(&remote_repo, &&workspace_id, "", path)
-                    .await;
+            let result = api::client::workspaces::files::upload_single_file(
+                &remote_repo,
+                &&workspace_id,
+                "",
+                path,
+            )
+            .await;
             assert!(result.is_ok());
 
             let body = NewCommitBody {
@@ -591,9 +595,13 @@ mod tests {
             )
             .await?;
             let path = test::test_img_file();
-            let result =
-                api::client::workspaces::files::post_file(&remote_repo, &workspace_name, "", path)
-                    .await;
+            let result = api::client::workspaces::files::upload_single_file(
+                &remote_repo,
+                &workspace_name,
+                "",
+                path,
+            )
+            .await;
             assert!(result.is_ok());
 
             let body = NewCommitBody {

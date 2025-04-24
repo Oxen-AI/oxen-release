@@ -748,10 +748,20 @@ mod tests {
             // Modify files in each workspace
             util::fs::write_to_path(&file1, "Updated file 1")?;
             util::fs::write_to_path(&file2, "Updated file 2")?;
-            api::client::workspaces::files::post_file(&remote_repo, &workspace1.id, "dir1", file1)
-                .await?;
-            api::client::workspaces::files::post_file(&remote_repo, &workspace2.id, "dir2", file2)
-                .await?;
+            api::client::workspaces::files::upload_single_file(
+                &remote_repo,
+                &workspace1.id,
+                "dir1",
+                file1,
+            )
+            .await?;
+            api::client::workspaces::files::upload_single_file(
+                &remote_repo,
+                &workspace2.id,
+                "dir2",
+                file2,
+            )
+            .await?;
 
             // Create commit bodies
             let commit_body1 = NewCommitBody {
@@ -836,7 +846,7 @@ mod tests {
                     // Add a unique file
                     let file_path = repo.path.join(format!("file-{}.txt", i));
                     util::fs::write_to_path(&file_path, format!("content {}", i))?;
-                    api::client::workspaces::files::post_file(
+                    api::client::workspaces::files::upload_single_file(
                         &remote_repo,
                         &workspace.id,
                         "",
