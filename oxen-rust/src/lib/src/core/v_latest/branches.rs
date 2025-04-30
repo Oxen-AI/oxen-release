@@ -412,9 +412,9 @@ fn r_restore_missing_or_modified_files(
                 progress.increment_restored();
             } else {
                 // File exists, check if it needs to be updated
-                let current_hash = util::hasher::hash_file_contents(&full_path)?;
-                if current_hash != file_node.hash().to_string() {
+                if util::fs::is_modified_from_node(&full_path, file_node)? {
                     let mut from_node: Option<FileNode> = None;
+
                     if let Some(from_tree) = from_tree {
                         if let Some(node_from_tree) = from_tree.get_by_path(&rel_path)? {
                             if let EMerkleTreeNode::File(file_node) = &node_from_tree.node {
