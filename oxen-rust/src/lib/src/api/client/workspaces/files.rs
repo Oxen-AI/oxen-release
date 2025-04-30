@@ -235,6 +235,26 @@ pub async fn rm(
     Ok(())
 }
 
+pub async fn download(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &str,
+    output_path: Option<&Path>,
+) -> Result<(), OxenError> {
+    log::debug!("Downloading file from {workspace_id}/{path} to {output_path:?}");
+    let uri = format!("/workspaces/{workspace_id}/files/{path}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("Downloading file from {url}");
+    let client = client::new_for_url(&url)?;
+    let response = client.get(&url).send().await?;
+    // Save the raw file contents from the response
+    let file_contents = response.bytes().await?;
+    let output_path = output_path.unwrap_or_else(|| Path::new(path));
+    util::fs::write(output_path, file_contents)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 
