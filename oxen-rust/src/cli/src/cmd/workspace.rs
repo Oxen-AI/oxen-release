@@ -19,6 +19,9 @@ pub use df::WorkspaceDfCmd;
 pub mod delete;
 pub use delete::WorkspaceDeleteCmd;
 
+pub mod download;
+pub use download::WorkspaceDownloadCmd;
+
 pub mod list;
 pub use list::WorkspaceListCmd;
 
@@ -91,6 +94,7 @@ impl WorkspaceCmd {
             Box::new(WorkspaceDeleteCmd),
             Box::new(WorkspaceListCmd),
             Box::new(WorkspaceStatusCmd),
+            Box::new(WorkspaceDownloadCmd),
         ];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
         for cmd in commands {
