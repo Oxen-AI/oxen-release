@@ -581,7 +581,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 5);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
+                repositories::fetch_all(&cloned_repo, &FetchOpts::new()).await?;
                 repositories::checkout(&cloned_repo, "main").await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -653,7 +653,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 2);
 
                 // Switch to main branch and pull
-                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
+                repositories::fetch_all(&cloned_repo, &FetchOpts::new()).await?;
 
                 repositories::checkout(&cloned_repo, branch_name).await?;
 
