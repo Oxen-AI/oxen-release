@@ -791,7 +791,6 @@ pub fn copy_mkdir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), Ox
 
 /// Recursively check if a file exists within a directory
 pub fn file_exists_in_directory(directory: impl AsRef<Path>, file: impl AsRef<Path>) -> bool {
-    // TODO: Can't this just check if the directory is a substring of the file?
     let mut file = file.as_ref();
     while file.parent().is_some() {
         if directory.as_ref() == file.parent().unwrap() {
