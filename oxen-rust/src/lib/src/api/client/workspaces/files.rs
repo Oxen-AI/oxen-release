@@ -3,68 +3,12 @@ use crate::api::client;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-
+use crate::util;
 use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
 use std::path::{Path, PathBuf};
-
-use crate::core::oxenignore;
-use crate::model::LocalRepository;
-use crate::util;
-
-pub async fn add_from_local_repo(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    workspace_id: impl AsRef<str>,
-    directory: impl AsRef<str>,
-    paths: Vec<PathBuf>,
-) -> Result<(), OxenError> {
-    let workspace_id = workspace_id.as_ref();
-    let directory = directory.as_ref();
-
-    // If no paths provided, return early
-    if paths.is_empty() {
-        return Ok(());
-    }
-
-    let ignore = oxenignore::create(local_repo);
-
-    for path in &paths {
-        let path = path.as_path();
-
-        // * make sure file is not in .oxenignore
-        if let Some(ignore) = &ignore {
-            if ignore.matched(path, path.is_dir()).is_ignore() {
-                continue;
-            }
-        }
-
-        let (remote_directory, resolved_path) =
-            resolve_remote_add_file_path(local_repo, path, directory)?;
-        let directory_name = remote_directory.to_string_lossy().to_string();
-
-        log::debug!(
-            "repositories::workspaces::add Resolved path: {:?}",
-            resolved_path
-        );
-        log::debug!(
-            "repositories::workspaces::add Remote directory: {:?}",
-            remote_directory
-        );
-        log::debug!(
-            "repositories::workspaces::add Directory name: {:?}",
-            directory_name
-        );
-
-        let result = upload_single_file(remote_repo, workspace_id, directory, path).await?;
-
-        println!("{}", result.to_string_lossy());
-    }
-
-    Ok(())
-}
 
 pub async fn add(
     remote_repo: &RemoteRepository,
@@ -84,35 +28,6 @@ pub async fn add(
     upload_multiple_files(remote_repo, workspace_id, directory, paths).await?;
 
     Ok(())
-}
-
-/// Returns (remote_directory, resolved_path)
-fn resolve_remote_add_file_path(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-    directory: impl AsRef<str>,
-) -> Result<(PathBuf, PathBuf), OxenError> {
-    let path = path.as_ref();
-    match util::fs::canonicalize(path) {
-        Ok(path) => {
-            if util::fs::file_exists_in_directory(&repo.path, &path) {
-                // Path is in the repo, so we get the remote directory from the repo path
-                let relative_to_repo = util::fs::path_relative_to_dir(&path, &repo.path)?;
-                let remote_directory = relative_to_repo
-                    .parent()
-                    .ok_or_else(|| OxenError::file_has_no_parent(&path))?;
-                Ok((remote_directory.to_path_buf(), path))
-            } else {
-                // Use the provided directory
-                let dir_path = PathBuf::from(directory.as_ref());
-                Ok((dir_path, path))
-            }
-        }
-        Err(err) => {
-            log::error!("Err: {err:?}");
-            Err(OxenError::entry_does_not_exist(path))
-        }
-    }
 }
 
 pub async fn upload_single_file(
@@ -247,7 +162,7 @@ async fn sequential_batched_small_file_upload(
         current_batch_size += file_size;
 
         // If the current batch is larger than our target size or we're at the end of the list, upload it
-        if current_batch_size > AVG_CHUNK_SIZE || idx == small_files.len() - 1 {
+        if current_batch_size > AVG_CHUNK_SIZE || idx >= small_files.len() - 1 {
             log::debug!(
                 "Uploading batch of {} files ({} bytes)",
                 current_batch.len(),
@@ -1146,8 +1061,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_add_from_local_repo_multiple_files() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+    async fn test_add_multiple_files() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "add-multiple-files";
             let branch = api::client::branches::create_from_branch(
                 &remote_repo,
@@ -1170,14 +1085,9 @@ mod tests {
             let directory = "test_data";
 
             // Call the add function with multiple files
-            let result = api::client::workspaces::files::add_from_local_repo(
-                &local_repo,
-                &remote_repo,
-                &workspace_id,
-                directory,
-                paths,
-            )
-            .await;
+            let result =
+                api::client::workspaces::files::add(&remote_repo, &workspace_id, directory, paths)
+                    .await;
             assert!(result.is_ok());
 
             // Verify that both files were added
