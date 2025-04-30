@@ -1574,6 +1574,30 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
     }
 }
 
+pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
+    let meta = util::fs::metadata(path)?;
+    let file_last_modified = filetime::FileTime::from_last_modification_time(&meta);
+
+    let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(node.last_modified_seconds() as u64)
+        + std::time::Duration::from_nanos(node.last_modified_nanoseconds() as u64);
+
+    let node_last_modified = filetime::FileTime::from_system_time(node_modified_nanoseconds);
+
+    if file_last_modified == node_last_modified {
+        return Ok(false);
+    }
+
+    let node_hash = node.hash().to_u128();
+    let working_hash = util::hasher::get_hash_given_metadata(path, &meta)?;
+
+    if node_hash == working_hash {
+        Ok(false)
+    } else {
+        Ok(true)
+    }
+}
+
 // Determine if 2 files have the same contents as quickly as possible
 // true == the files are different
 pub fn compare_file_contents(
