@@ -68,8 +68,9 @@ impl VersionStore for LocalVersionStore {
         util::fs::create_dir_all(&version_dir)?;
 
         let version_path = self.version_path(hash);
-        fs::copy(file_path, &version_path)?;
-
+        if !version_path.exists() {
+            fs::copy(file_path, &version_path)?;
+        }
         Ok(())
     }
 
@@ -82,8 +83,11 @@ impl VersionStore for LocalVersionStore {
         util::fs::create_dir_all(&version_dir)?;
 
         let version_path = self.version_path(hash);
-        let mut file = File::create(&version_path)?;
-        io::copy(reader, &mut file)?;
+
+        if !version_path.exists() {
+            let mut file = File::create(&version_path)?;
+            io::copy(reader, &mut file)?;
+        }
 
         Ok(())
     }
@@ -93,8 +97,11 @@ impl VersionStore for LocalVersionStore {
         util::fs::create_dir_all(&version_dir)?;
 
         let version_path = self.version_path(hash);
-        let mut file = File::create(&version_path)?;
-        file.write_all(data)?;
+
+        if !version_path.exists() {
+            let mut file = File::create(&version_path)?;
+            file.write_all(data)?;
+        }
 
         Ok(())
     }
@@ -172,8 +179,11 @@ impl VersionStore for LocalVersionStore {
         util::fs::create_dir_all(&chunk_dir)?;
 
         let chunk_path = self.version_chunk_file(hash, chunk_number);
-        let mut file = File::create(&chunk_path)?;
-        file.write_all(data)?;
+
+        if !chunk_path.exists() {
+            let mut file = File::create(&chunk_path)?;
+            file.write_all(data)?;
+        }
 
         Ok(())
     }
