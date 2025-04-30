@@ -4,13 +4,14 @@
 //!
 
 use crate::api;
+use crate::constants::DEFAULT_NUM_WORKERS;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::fetch_opts::FetchOpts;
 use crate::repositories;
-use futures::future::join_all;
+use futures::{stream, StreamExt};
 
 /// # Fetch the remote branches and objects
 pub async fn fetch_all(
@@ -48,28 +49,30 @@ pub async fn fetch_all(
         .chain(branches_to_create)
         .collect();
     let fetch_opts = fetch_opts.clone();
-    let futures: Vec<_> = branches_to_process
-        .iter()
-        .map(|branch| {
-            let rb = RemoteBranch {
-                remote: remote.name.to_owned(),
-                branch: branch.name.to_owned(),
-            };
 
-            let mut opts = fetch_opts.clone();
-            opts.branch = branch.name.to_owned();
-            log::debug!(
-                "Fetching remote branch: {} -> {}",
-                remote_repo.name,
-                rb.branch
-            );
-            let repo = repo.clone();
-            let remote_repo = remote_repo.clone();
-            async move { fetch_remote_branch(&repo, &remote_repo, &opts).await }
-        })
-        .collect();
+    // Build a stream of fetch futures
+    let stream = stream::iter(branches_to_process.into_iter().map(|branch| {
+        let rb = RemoteBranch {
+            remote: remote.name.to_owned(),
+            branch: branch.name.to_owned(),
+        };
 
-    let branches: Result<Vec<Branch>, OxenError> = join_all(futures).await.into_iter().collect();
+        let mut opts = fetch_opts.clone();
+        opts.branch = branch.name.to_owned();
+        log::debug!(
+            "Fetching remote branch: {} -> {}",
+            remote_repo.name,
+            rb.branch
+        );
+        let repo = repo.clone();
+        let remote_repo = remote_repo.clone();
+        async move { fetch_remote_branch(&repo, &remote_repo, &opts).await }
+    }))
+    // Limit to DEFAULT_NUM_WORKERS concurrent fetches
+    .buffer_unordered(DEFAULT_NUM_WORKERS)
+    .collect::<Vec<_>>();
+
+    let branches: Result<Vec<Branch>, OxenError> = stream.await.into_iter().collect();
 
     api::client::repositories::post_fetch(&remote_repo).await?;
 
