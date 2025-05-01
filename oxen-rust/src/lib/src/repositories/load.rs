@@ -4,8 +4,8 @@ use tar::Archive;
 
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::repositories;
+use crate::util;
 use crate::{error::OxenError, model::LocalRepository};
-
 pub async fn load(
     src_path: &Path,
     dest_path: &Path,
@@ -24,7 +24,7 @@ pub async fn load(
         }
         dest_path.to_path_buf()
     } else {
-        std::fs::create_dir_all(dest_path)?;
+        util::fs::create_dir_all(dest_path)?;
         dest_path.to_path_buf()
     };
 

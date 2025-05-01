@@ -318,7 +318,7 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        std::fs::create_dir_all(repo.path.join("data"))?;
+        util::fs::create_dir_all(repo.path.join("data"))?;
         let hello_file = repo.path.join("data/hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
         repositories::add(&repo, &hello_file)?;
@@ -386,7 +386,7 @@ mod tests {
         let author = "test_user";
         let email = "ox@oxen.ai";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        std::fs::create_dir_all(repo.path.join("data"))?;
+        util::fs::create_dir_all(repo.path.join("data"))?;
         let hello_file = repo.path.join("data/hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
         repositories::add(&repo, &hello_file)?;

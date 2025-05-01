@@ -354,9 +354,7 @@ pub fn write_to_path(path: impl AsRef<Path>, value: impl AsRef<str>) -> Result<(
 
     // Make sure the parent directory exists
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            create_dir_all(parent)?;
-        }
+        create_dir_all(parent)?;
     }
 
     match File::create(path) {
@@ -675,7 +673,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         };
         if util::fs::metadata(&dest).is_err() {
             // log::debug!("copy_dir_all  mkdir: {:?}", dest);
-            std::fs::create_dir_all(&dest)?;
+            util::fs::create_dir_all(&dest)?;
         }
 
         for entry in std::fs::read_dir(working_path)? {
@@ -803,8 +801,13 @@ pub fn file_exists_in_directory(directory: impl AsRef<Path>, file: impl AsRef<Pa
     false
 }
 
-/// Wrapper around the std::fs::create_dir_all command to tell us which file it failed on
+/// Wrapper around the util::fs::create_dir_all command to tell us which file it failed on
+/// creates a directory if they don't exist
 pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
+    if src.as_ref().exists() {
+        return Ok(());
+    }
+
     let src = src.as_ref();
     match std::fs::create_dir_all(src) {
         Ok(_) => Ok(()),
@@ -1539,7 +1542,7 @@ pub fn resize_cache_image(
 
     let resize_parent = resize_path.parent().unwrap_or(Path::new(""));
     if !resize_parent.exists() {
-        std::fs::create_dir_all(resize_parent).unwrap();
+        util::fs::create_dir_all(resize_parent).unwrap();
     }
 
     resized_img.save(resize_path).unwrap();

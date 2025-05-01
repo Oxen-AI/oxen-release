@@ -525,7 +525,7 @@ mod tests {
     fn test_list_branch_versions_branch_off_main() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let dir_path = Path::new("test_dir");
-            std::fs::create_dir_all(repo.path.join(dir_path))?;
+            util::fs::create_dir_all(repo.path.join(dir_path))?;
 
             let file_path = dir_path.join(Path::new("test_file.txt"));
             let file_repo_path = repo.path.join(&file_path);

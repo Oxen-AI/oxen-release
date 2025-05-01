@@ -380,11 +380,11 @@ async fn decompress_zip(zip_filepath: &PathBuf) -> Result<Vec<PathBuf>, OxenErro
         log::debug!("files::decompress_zip unzipping file to: {:?}", outpath);
 
         if let Some(outdir) = outpath.parent() {
-            std::fs::create_dir_all(outdir)?;
+            util::fs::create_dir_all(outdir)?;
         }
 
         if zip_file.is_dir() {
-            std::fs::create_dir_all(&outpath)?;
+            util::fs::create_dir_all(&outpath)?;
         } else {
             let mut outfile = File::create(&outpath)?;
             let mut buffer = vec![0; BUFFER_SIZE_THRESHOLD];
