@@ -193,6 +193,17 @@ jobs:
           default: true
           override: true
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Run Tests
         run: |
           cargo build
@@ -205,9 +216,9 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0'
+          ruby-version: "3.0"
           bundler-cache: true
-  
+
       - name: Run Rspec Tests
         env:
           PATH: ${{ env.PATH }};${{ github.workspace }}/target/debug
@@ -243,7 +254,6 @@ jobs:
           brew install pkg-config || brew upgrade pkg-config
           brew install ffmpeg imagemagick ruby
 
-
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -259,7 +269,7 @@ jobs:
           chmod +x target/debug/oxen-server
           ls -la target/debug/oxen-server
           file target/debug/oxen-server
-      
+
       - name: Run oxen-server
         run: |
           mkdir /tmp/oxen_sync/
@@ -270,7 +280,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.0'
+          ruby-version: "3.0"
           bundler-cache: true
 
       - name: Install Ruby dependencies
@@ -285,4 +295,3 @@ jobs:
         working-directory: ./cli-test
         run: |
           bundle exec rspec spec/test_cases/**/tests.rb
-    
