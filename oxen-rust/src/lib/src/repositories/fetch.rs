@@ -4,7 +4,6 @@
 //!
 
 use crate::api;
-use crate::constants::DEFAULT_NUM_WORKERS;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
