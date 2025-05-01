@@ -223,9 +223,7 @@ pub async fn download_small_entry(
             let dest = dest.as_ref();
             // Create parent directories if they don't exist
             if let Some(parent) = dest.parent() {
-                if !parent.exists() {
-                    util::fs::create_dir_all(parent)?;
-                }
+                util::fs::create_dir_all(parent)?;
             }
 
             let mut dest_file = { util::fs::file_create(dest)? };
@@ -364,9 +362,7 @@ pub async fn download_large_entry(
 
     // Create parent dir if it doesn't exist
     if let Some(parent) = local_path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
-        }
+        util::fs::create_dir_all(parent)?;
     }
 
     let mut combined_file = util::fs::file_create(local_path)?;
@@ -497,10 +493,8 @@ async fn download_entry_chunk(
     let response = client.get(&url).send().await?;
 
     if let Some(parent) = local_path.parent() {
-        if !parent.exists() {
-            log::debug!("Create parent dir {:?}", parent);
-            std::fs::create_dir_all(parent)?;
-        }
+        log::debug!("Create parent dir {:?}", parent);
+        util::fs::create_dir_all(parent)?;
     }
 
     let status = response.status();
@@ -613,9 +607,7 @@ pub async fn try_download_data_from_version_paths(
             };
 
             if let Some(parent) = full_path.parent() {
-                if !parent.exists() {
-                    util::fs::create_dir_all(parent)?;
-                }
+                util::fs::create_dir_all(parent)?;
             }
 
             log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);

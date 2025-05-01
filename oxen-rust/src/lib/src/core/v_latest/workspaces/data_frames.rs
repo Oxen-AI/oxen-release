@@ -145,10 +145,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
             db_path
         )));
     };
-
-    if !parent.exists() {
-        util::fs::create_dir_all(parent)?;
-    }
+    util::fs::create_dir_all(parent)?;
 
     let conn = df_db::get_connection(db_path)?;
     if df_db::table_exists(&conn, TABLE_NAME)? {

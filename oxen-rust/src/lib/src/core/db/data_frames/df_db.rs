@@ -31,9 +31,7 @@ use sql_query_builder as sql;
 pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, OxenError> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
-        }
+        util::fs::create_dir_all(parent)?;
     }
 
     let conn = duckdb::Connection::open(path)?;

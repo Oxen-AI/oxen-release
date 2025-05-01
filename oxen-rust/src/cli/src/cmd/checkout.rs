@@ -73,10 +73,22 @@ impl RunCmd for CheckoutCmd {
 
 impl CheckoutCmd {
     pub async fn checkout(&self, repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-        repositories::checkout(repo, name).await?;
+        match repositories::checkout(repo, name).await {
+            Ok(Some(branch)) => {
+                println!("Checked out branch: {}", branch.name);
+            }
+            Ok(None) => {
+                println!("Checked out commit: {}", name);
+            }
+            Err(OxenError::RevisionNotFound(name)) => {
+                println!("Revision not found: {}\n\nIf the branch exists on the remote, run\n\n  oxen fetch -b {}\n\nto update the local copy, then try again.", name, name);
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
         Ok(())
     }
-
     pub fn checkout_theirs(&self, repo: &LocalRepository, path: &str) -> Result<(), OxenError> {
         repositories::checkout::checkout_theirs(repo, path)?;
         Ok(())

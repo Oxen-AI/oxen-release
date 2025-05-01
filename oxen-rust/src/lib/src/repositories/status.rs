@@ -607,7 +607,7 @@ mod tests {
             let repo_path = &repo.path;
             let training_data_dir = PathBuf::from("training_data");
             let sub_dir = repo_path.join(&training_data_dir);
-            std::fs::create_dir_all(&sub_dir)?;
+            util::fs::create_dir_all(&sub_dir)?;
 
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
@@ -727,19 +727,19 @@ mod tests {
             // Create 2 sub directories, one with  Write two files to a sub directory
             let repo_path = &repo.path;
             let train_dir = repo_path.join("train");
-            std::fs::create_dir_all(&train_dir)?;
+            util::fs::create_dir_all(&train_dir)?;
             let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_1.jpg"))?;
             let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_1.jpg"))?;
             let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_2.jpg"))?;
             let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_2.jpg"))?;
 
             let test_dir = repo_path.join("test");
-            std::fs::create_dir_all(&test_dir)?;
+            util::fs::create_dir_all(&test_dir)?;
             let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/cat_3.jpg"))?;
             let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/dog_3.jpg"))?;
 
             let valid_dir = repo_path.join("valid");
-            std::fs::create_dir_all(&valid_dir)?;
+            util::fs::create_dir_all(&valid_dir)?;
             let _ = test::add_img_file_to_dir(&valid_dir, Path::new("data/test/images/dog_4.jpg"))?;
 
             let base_file_1 = test::add_txt_file_to_dir(repo_path, "Hello 1")?;

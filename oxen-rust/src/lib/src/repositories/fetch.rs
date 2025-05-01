@@ -4,15 +4,17 @@
 //!
 
 use crate::api;
+use crate::constants::DEFAULT_NUM_WORKERS;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::fetch_opts::FetchOpts;
 use crate::repositories;
+use futures::{stream, StreamExt};
 
 /// # Fetch the remote branches and objects
-pub async fn fetch(
+pub async fn fetch_all(
     repo: &LocalRepository,
     fetch_opts: &FetchOpts,
 ) -> Result<Vec<Branch>, OxenError> {
@@ -41,38 +43,64 @@ pub async fn fetch(
     log::debug!("Branches to create: {:?}", branches_to_create);
     log::debug!("Branches to fetch: {:?}", branches_to_fetch);
 
-    // Join the branches to create and branches to fetch
-    let branches_to_process = branches_to_create
-        .into_iter()
-        .chain(branches_to_fetch.into_iter());
-
     // Fetch the new branches
-    for branch in branches_to_process {
+    let branches_to_process: Vec<_> = branches_to_fetch
+        .into_iter()
+        .chain(branches_to_create)
+        .collect();
+    let fetch_opts = fetch_opts.clone();
+
+    // Build a stream of fetch futures
+    let stream = stream::iter(branches_to_process.into_iter().map(|branch| {
         let rb = RemoteBranch {
             remote: remote.name.to_owned(),
             branch: branch.name.to_owned(),
         };
 
-        let mut fetch_opts = fetch_opts.clone();
-        fetch_opts.branch = branch.name.to_owned();
+        let mut opts = fetch_opts.clone();
+        opts.branch = branch.name.to_owned();
         log::debug!(
             "Fetching remote branch: {} -> {}",
             remote_repo.name,
             rb.branch
         );
-        fetch_remote_branch(repo, &remote_repo, &fetch_opts).await?;
-    }
+        let repo = repo.clone();
+        let remote_repo = remote_repo.clone();
+        async move { fetch_remote_branch(&repo, &remote_repo, &opts).await }
+    }))
+    // Limit to DEFAULT_NUM_WORKERS concurrent fetches
+    .buffer_unordered(DEFAULT_NUM_WORKERS)
+    .collect::<Vec<_>>();
+
+    let branches: Result<Vec<Branch>, OxenError> = stream.await.into_iter().collect();
 
     api::client::repositories::post_fetch(&remote_repo).await?;
 
-    Ok(vec![])
+    branches
+}
+
+pub async fn fetch_branch(
+    repo: &LocalRepository,
+    fetch_opts: &FetchOpts,
+) -> Result<Branch, OxenError> {
+    let remote = repo
+        .get_remote(&fetch_opts.remote)
+        .ok_or(OxenError::remote_not_set(fetch_opts.remote.clone()))?;
+    let remote_repo = api::client::repositories::get_by_remote(&remote)
+        .await?
+        .ok_or(OxenError::remote_not_found(remote.clone()))?;
+
+    api::client::repositories::pre_fetch(&remote_repo).await?;
+    let branch = fetch_remote_branch(repo, &remote_repo, fetch_opts).await?;
+    api::client::repositories::post_fetch(&remote_repo).await?;
+    Ok(branch)
 }
 
 pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     fetch_opts: &FetchOpts,
-) -> Result<(), OxenError> {
+) -> Result<Branch, OxenError> {
     println!(
         "Fetch remote branch: {}/{}",
         remote_repo.name, fetch_opts.branch
@@ -80,12 +108,8 @@ pub async fn fetch_remote_branch(
 
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => {
-            core::v_latest::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await?;
-        }
+        _ => core::v_latest::fetch::fetch_remote_branch(repo, remote_repo, fetch_opts).await,
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -134,7 +158,7 @@ mod tests {
 
                 assert_eq!(1, branches.len());
 
-                repositories::fetch(&cloned_repo, &FetchOpts::new()).await?;
+                repositories::fetch_all(&cloned_repo, &FetchOpts::new()).await?;
 
                 let branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(3, branches.len());
