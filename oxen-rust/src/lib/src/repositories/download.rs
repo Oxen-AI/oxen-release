@@ -51,6 +51,8 @@ pub async fn download_dir(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
@@ -99,6 +101,55 @@ mod tests {
                 println!("checking path: {:?}", path);
                 assert!(path.exists());
             }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_remote_download_directory_with_large_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut repo| async move {
+            // write text files to dir
+            let large_file_dir = PathBuf::from("train").join("large_file");
+            let dir = repo.path.join(&large_file_dir);
+            util::fs::create_dir_all(&dir)?;
+
+            // Create a large file (> 4 * AVG_CHUNK_SIZE)
+            let large_file_path = dir.join("large_file.bin");
+            let large_file_size = 4 * constants::AVG_CHUNK_SIZE + 1024 * 1024; // 41MB
+            let large_file_data = vec![0u8; large_file_size as usize];
+            std::fs::write(&large_file_path, large_file_data)?;
+
+            repositories::add(&repo, &dir)?;
+            repositories::commit(&repo, "adding text files and large file")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            repositories::push(&repo).await?;
+
+            // Now list the remote
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
+
+            // Download the directory
+            let output_dir = repo.path.join("output");
+            download(&remote_repo, &large_file_dir, &output_dir, &branch.name).await?;
+
+            // Check that the large file exists and has the correct size
+            let downloaded_large_file = output_dir
+                .join("train")
+                .join("large_file")
+                .join("large_file.bin");
+            println!("downloaded_large_file: {:?}", downloaded_large_file);
+            assert!(downloaded_large_file.exists());
+            let metadata = util::fs::metadata(&downloaded_large_file)?;
+            assert_eq!(metadata.len(), large_file_size);
 
             Ok(())
         })
