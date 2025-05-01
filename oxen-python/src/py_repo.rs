@@ -12,7 +12,7 @@ use liboxen::api;
 use liboxen::opts::FetchOpts;
 use liboxen::repositories;
 
-use liboxen::core::refs::RefReader; 
+use liboxen::core::refs::RefReader;
 
 use std::path::PathBuf;
 
