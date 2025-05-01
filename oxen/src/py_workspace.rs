@@ -164,7 +164,6 @@ impl PyWorkspace {
             Ok(PyCommit { commit })
         });
 
-  
         commit
     }
 }

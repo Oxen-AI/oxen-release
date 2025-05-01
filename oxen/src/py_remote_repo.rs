@@ -37,14 +37,20 @@ pub struct PyRemoteRepo {
 impl PyRemoteRepo {
     #[new]
     #[pyo3(signature = (repo, host, revision="main", scheme="https"))]
-    fn py_new(repo: String, host: String, revision: &str, scheme: &str) -> Result<Self, PyOxenError> {
+    fn py_new(
+        repo: String,
+        host: String,
+        revision: &str,
+        scheme: &str,
+    ) -> Result<Self, PyOxenError> {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
                 return Err(OxenError::basic_str(format!(
                     "Invalid repo name, must be in format namespace/repo_name. Got {}",
                     repo
-                )).into())
+                ))
+                .into())
             }
         };
 
@@ -61,15 +67,16 @@ impl PyRemoteRepo {
             min_version: Some(liboxen::constants::MIN_OXEN_VERSION.to_string()),
         };
 
-        let parsed_revision = pyo3_async_runtimes::tokio::get_runtime()
-            .block_on(async { liboxen::api::client::revisions::get(&remote_repo, revision).await })?;
+        let parsed_revision = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            liboxen::api::client::revisions::get(&remote_repo, revision).await
+        })?;
 
         Ok(Self {
             repo: remote_repo,
             scheme: scheme.to_string(),
             host,
             revision: Some(revision.to_string()),
-            commit_id: parsed_revision.map(|r| r.commit.unwrap().id)
+            commit_id: parsed_revision.map(|r| r.commit.unwrap().id),
         })
     }
 
@@ -185,7 +192,10 @@ impl PyRemoteRepo {
                 if let Some(revision) = &self.revision {
                     repositories::download(&self.repo, &remote_path, &local_path, &revision).await
                 } else {
-                    Err(OxenError::basic_str("Invalid Revision: Cannot download without a version.").into())
+                    Err(OxenError::basic_str(
+                        "Invalid Revision: Cannot download without a version.",
+                    )
+                    .into())
                 }
             }
         })?;
@@ -223,7 +233,7 @@ impl PyRemoteRepo {
     }
 
     fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
-        let Some(revision) = &self.revision else{
+        let Some(revision) = &self.revision else {
             return Ok(vec![]);
         };
 
@@ -248,7 +258,7 @@ impl PyRemoteRepo {
         page_num: usize,
         page_size: usize,
     ) -> Result<PyPaginatedDirEntries, PyOxenError> {
-        let Some(revision) = &self.revision else{
+        let Some(revision) = &self.revision else {
             return Ok(PyPaginatedDirEntries::empty());
         };
 
@@ -302,7 +312,7 @@ impl PyRemoteRepo {
 
     fn metadata(&self, path: PathBuf) -> Result<Option<PyEntry>, PyOxenError> {
         let Some(revision) = &self.revision else {
-            return Ok(None)
+            return Ok(None);
         };
 
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
@@ -337,7 +347,9 @@ impl PyRemoteRepo {
 
     fn create_branch(&self, new_name: String) -> PyResult<PyBranch> {
         let Some(commit_id) = &self.commit_id else {
-            return Err(PyValueError::new_err("Must have commit id to create branch"))
+            return Err(PyValueError::new_err(
+                "Must have commit id to create branch",
+            ));
         };
 
         let branch = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
@@ -354,12 +366,12 @@ impl PyRemoteRepo {
         let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::merger::merge(&self.repo, &base_branch, &head_branch).await
         })?;
-        
+
         // Make sure to advance internal commit id
         self.commit_id = Some(result.merge.id.clone());
 
         Ok(PyCommit {
-            commit: result.merge
+            commit: result.merge,
         })
     }
 
