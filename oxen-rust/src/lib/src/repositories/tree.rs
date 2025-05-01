@@ -925,9 +925,7 @@ pub fn unpack_nodes(
         let dst_path = oxen_hidden_path.join(TREE_DIR).join(NODES_DIR).join(path);
 
         if let Some(parent) = dst_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).expect("Could not create parent dir");
-            }
+            util::fs::create_dir_all(parent).expect("Could not create parent dir");
         }
         // log::debug!("create_node writing {:?}", dst_path);
         file.unpack(&dst_path).unwrap();

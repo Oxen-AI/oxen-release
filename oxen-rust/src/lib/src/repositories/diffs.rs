@@ -790,7 +790,7 @@ fn write_diff_dupes(
     let compare_dir = get_diff_dir(repo, compare_id);
 
     if !compare_dir.exists() {
-        std::fs::create_dir_all(&compare_dir)?;
+        util::fs::create_dir_all(&compare_dir)?;
     }
 
     let dupes_path = compare_dir.join(DUPES_PATH);
@@ -915,7 +915,7 @@ fn write_diff_df_cache(
 ) -> Result<(), OxenError> {
     let compare_dir = get_diff_dir(repo, compare_id);
     if !compare_dir.exists() {
-        std::fs::create_dir_all(&compare_dir)?;
+        util::fs::create_dir_all(&compare_dir)?;
     }
     // TODO: Expensive clone
     let mut df = diff.contents.clone();
@@ -959,7 +959,7 @@ fn write_diff_commit_ids(
     let compare_dir = get_diff_dir(repo, compare_id);
 
     if !compare_dir.exists() {
-        std::fs::create_dir_all(&compare_dir)?;
+        util::fs::create_dir_all(&compare_dir)?;
     }
 
     let left_path = compare_dir.join(LEFT_COMPARE_COMMIT);

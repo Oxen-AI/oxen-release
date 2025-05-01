@@ -66,7 +66,7 @@ where
         } else {
             // Ensure directory exists
             if !refs_dir.exists() {
-                std::fs::create_dir_all(&refs_dir).map_err(|e| {
+                util::fs::create_dir_all(&refs_dir).map_err(|e| {
                     log::error!("Failed to create refs directory: {}", e);
                     OxenError::basic_str(format!("Failed to create refs directory: {}", e))
                 })?;

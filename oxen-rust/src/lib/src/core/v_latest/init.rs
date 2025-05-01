@@ -28,7 +28,7 @@ pub fn init_with_version(
 ) -> Result<LocalRepository, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(path);
 
-    std::fs::create_dir_all(hidden_dir)?;
+    util::fs::create_dir_all(hidden_dir)?;
     if util::fs::config_filepath(path).try_exists()? {
         let err = format!("Oxen repository already exists: {path:?}");
         return Err(OxenError::basic_str(err));
