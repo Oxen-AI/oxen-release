@@ -4,7 +4,6 @@
 //!
 
 use crate::api;
-use crate::constants::DEFAULT_NUM_WORKERS;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
@@ -68,8 +67,9 @@ pub async fn fetch_all(
         let remote_repo = remote_repo.clone();
         async move { fetch_remote_branch(&repo, &remote_repo, &opts).await }
     }))
-    // Limit to DEFAULT_NUM_WORKERS concurrent fetches
-    .buffer_unordered(DEFAULT_NUM_WORKERS)
+    // We were having concurrency issues unpacking the merkle tree tarballs
+    // setting to 1 for now, then we can revisit
+    .buffer_unordered(1)
     .collect::<Vec<_>>();
 
     let branches: Result<Vec<Branch>, OxenError> = stream.await.into_iter().collect();
