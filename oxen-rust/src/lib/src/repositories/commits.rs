@@ -657,14 +657,14 @@ mod tests {
             // Create committer with no commits
             let repo_path = &repo.path;
             let train_dir = repo_path.join("training_data");
-            std::fs::create_dir_all(&train_dir)?;
+            util::fs::create_dir_all(&train_dir)?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
             let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
 
             let test_dir = repo_path.join("test_data");
-            std::fs::create_dir_all(&test_dir)?;
+            util::fs::create_dir_all(&test_dir)?;
             let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
             let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
 

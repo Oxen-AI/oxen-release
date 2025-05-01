@@ -3,6 +3,7 @@ use crate::core::db::merkle_node::merkle_node_db::node_db_prefix;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::model::MerkleHash;
+use crate::util;
 use std::path::PathBuf;
 
 pub fn commit_is_synced(repo: &LocalRepository, commit_hash: &MerkleHash) -> bool {
@@ -26,10 +27,8 @@ pub fn mark_commit_as_synced(
 ) -> Result<(), OxenError> {
     let is_synced_path = commit_is_synced_file_path(repo, commit_hash);
     if let Some(parent) = is_synced_path.parent() {
-        if !parent.exists() {
-            log::debug!("Creating parent directory: {parent:?}");
-            std::fs::create_dir_all(parent)?;
-        }
+        log::debug!("Creating parent directory: {parent:?}");
+        util::fs::create_dir_all(parent)?;
     }
 
     log::debug!("Writing is synced: {is_synced_path:?}");

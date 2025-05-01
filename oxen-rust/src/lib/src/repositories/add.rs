@@ -435,7 +435,7 @@ A: Oxen.ai
             let repo_path = &repo.path;
             let training_data_dir = PathBuf::from("training_data");
             let sub_dir = repo_path.join(&training_data_dir);
-            std::fs::create_dir_all(&sub_dir)?;
+            util::fs::create_dir_all(&sub_dir)?;
 
             let sub_file_1 = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let sub_file_2 = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;

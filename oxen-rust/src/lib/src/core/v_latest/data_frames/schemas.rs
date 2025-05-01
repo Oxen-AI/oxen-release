@@ -487,7 +487,7 @@ pub fn staged_db_path(path: &Path) -> Result<PathBuf, OxenError> {
     let path = util::fs::oxen_hidden_dir(path).join(Path::new(constants::STAGED_DIR));
     log::debug!("staged_db_path {:?}", path);
     if !path.exists() {
-        std::fs::create_dir_all(&path)?;
+        util::fs::create_dir_all(&path)?;
     }
     Ok(path)
 }

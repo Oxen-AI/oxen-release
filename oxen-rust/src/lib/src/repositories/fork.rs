@@ -209,7 +209,7 @@ mod tests {
 
                 let dir_path = original_repo_path.join("dir");
                 // Create a workspace directory and add a file to it
-                std::fs::create_dir_all(&dir_path)?;
+                oxen_fs::create_dir_all(&dir_path)?;
                 let file_path = dir_path.join("test_file.txt");
                 std::fs::write(file_path, "test file content")?;
 
@@ -264,7 +264,7 @@ mod tests {
                 if new_repo_path_1.exists() {
                     test::maybe_cleanup_repo(&new_repo_path_1)?;
                 }
-                std::fs::create_dir_all(&new_repo_path_1)?;
+                oxen_fs::create_dir_all(&new_repo_path_1)?;
 
                 let result = start_fork(original_repo_path.clone(), new_repo_path_1.clone());
                 assert!(
@@ -281,7 +281,7 @@ mod tests {
 
                 let workspaces_path = original_repo_path.join(".oxen/workspaces");
                 // Create a workspace directory and add a file to it
-                std::fs::create_dir_all(&workspaces_path)?;
+                oxen_fs::create_dir_all(&workspaces_path)?;
                 let workspace_file = workspaces_path.join("test_workspace.txt");
                 std::fs::write(workspace_file, "test workspace content")?;
 

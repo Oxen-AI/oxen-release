@@ -749,9 +749,7 @@ fn unpack_to_file(
         util::fs::replace_file_name_keep_extension(&full_path, VERSION_FILE_NAME.to_owned());
     log::debug!("Unpack to {:?}", full_path);
     if let Some(parent) = full_path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| OxenError::dir_create_error(parent, e))?;
-        }
+        util::fs::create_dir_all(parent)?;
     }
 
     let mut outf = std::fs::File::create(&full_path)
@@ -886,9 +884,7 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
                     new_path.push(stripped_path);
 
                     if let Some(parent) = new_path.parent() {
-                        if !parent.exists() {
-                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
-                        }
+                        util::fs::create_dir_all(parent).expect("Could not create parent dir");
                     }
                     log::debug!("unpack_tree_tarball new_path {:?}", path);
                     file.unpack(&new_path).unwrap();
@@ -1145,7 +1141,7 @@ mod tests {
         let path_to_compress = format!("history/{}", commit.id);
         let commit_dir_name = format!("data/test/runs/{}", commit.id);
         let commit_dir = Path::new(&commit_dir_name);
-        std::fs::create_dir_all(commit_dir)?;
+        util::fs::create_dir_all(commit_dir)?;
         // Write a random file to it
         let zipped_filename = "blah.txt";
         let zipped_file_contents = "sup";

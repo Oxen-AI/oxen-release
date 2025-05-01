@@ -383,9 +383,7 @@ pub async fn download_dir_hashes_from_url(
             //     if !target.exists() {
             //         log::debug!("copying {:?} to {:?}", entry.path(), target);
             //         if let Some(parent) = target.parent() {
-            //             if !parent.exists() {
-            //                 util::fs::create_dir_all(parent)?;
-            //             }
+            //             util::fs::create_dir_all(parent)?;
             //         }
             //         util::fs::rename(entry.path(), &target)?;
             //     } else {
@@ -436,9 +434,7 @@ pub async fn download_dir_hashes_db_to_path(
             let tmp_path = path.join("tmp").join(commit_id).join("commits_db");
 
             // create the temp path if it doesn't exist
-            if !tmp_path.exists() {
-                std::fs::create_dir_all(&tmp_path)?;
-            }
+            util::fs::create_dir_all(&tmp_path)?;
 
             let archive_result = archive.unpack(&tmp_path).await;
             log::debug!(
@@ -458,7 +454,7 @@ pub async fn download_dir_hashes_db_to_path(
             } else {
                 log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
                 if let Some(parent) = full_unpacked_path.parent() {
-                    std::fs::create_dir_all(parent)?;
+                    util::fs::create_dir_all(parent)?;
                 } else {
                     log::error!(
                         "{} no parent found for {:?}",

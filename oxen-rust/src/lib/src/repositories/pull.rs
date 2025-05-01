@@ -378,7 +378,7 @@ mod tests {
                 Path::new("data/test/images/dog_1.jpg"),
                 Path::new("data/test/images/dog_2.jpg"),
             ];
-            std::fs::create_dir_all(&train_dir)?;
+            util::fs::create_dir_all(&train_dir)?;
             for path in train_paths.iter() {
                 util::fs::copy(path, train_dir.join(path.file_name().unwrap()))?;
             }
@@ -1157,7 +1157,7 @@ mod tests {
 
                     let dir_3 = "dir_3";
                     let subdir = "subdir";
-                    std::fs::create_dir_all(user_b_repo.path.join(dir_3).join(subdir))?;
+                    util::fs::create_dir_all(user_b_repo.path.join(dir_3).join(subdir))?;
 
                     let subfile = "subfile.txt";
                     test::write_txt_file_to_path(

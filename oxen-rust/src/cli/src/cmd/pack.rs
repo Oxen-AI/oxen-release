@@ -163,9 +163,7 @@ impl RunCmd for PackCmd {
         let output_dir = Path::new("chunks");
         let chunks_db = output_dir.join("db");
         // mkdir if not exists
-        if !output_dir.exists() {
-            std::fs::create_dir_all(output_dir)?;
-        }
+        util::fs::create_dir_all(output_dir)?;
 
         let opts = liboxen::core::db::key_val::opts::default();
         let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, chunks_db)?;

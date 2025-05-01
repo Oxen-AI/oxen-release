@@ -451,9 +451,7 @@ async fn node_download_request(
     );
 
     // create the temp path if it doesn't exist
-    if !full_unpacked_path.exists() {
-        std::fs::create_dir_all(&full_unpacked_path)?;
-    }
+    util::fs::create_dir_all(&full_unpacked_path)?;
 
     archive.unpack(&full_unpacked_path).await?;
 

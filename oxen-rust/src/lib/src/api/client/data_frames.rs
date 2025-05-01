@@ -85,7 +85,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
@@ -201,7 +201,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
@@ -249,7 +249,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
@@ -303,7 +303,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
@@ -394,7 +394,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("csvs");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
             util::fs::copy(from_file, &csv_file)?;
@@ -505,7 +505,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("data");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let test_file = large_dir.join("test.parquet");
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;
@@ -572,7 +572,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("data");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let test_file = large_dir.join("test.parquet");
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;
@@ -635,7 +635,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("data");
-            std::fs::create_dir_all(&large_dir)?;
+            util::fs::create_dir_all(&large_dir)?;
             let test_file = large_dir.join("test.parquet");
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;

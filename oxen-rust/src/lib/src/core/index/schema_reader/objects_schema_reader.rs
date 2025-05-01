@@ -48,7 +48,7 @@ impl ObjectsSchemaReader {
 
         if !dir_hashes_db_path.exists() {
             log::debug!("creating dir hashes db at path {:?}", dir_hashes_db_path);
-            std::fs::create_dir_all(&dir_hashes_db_path)?;
+            util::fs::create_dir_all(&dir_hashes_db_path)?;
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&dir_hashes_db_path))?;
         } else {

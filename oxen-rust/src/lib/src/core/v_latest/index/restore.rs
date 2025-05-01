@@ -266,9 +266,7 @@ pub fn restore_file(
 
     let working_path = repo.path.join(path);
     let parent = working_path.parent().unwrap();
-    if !parent.exists() {
-        util::fs::create_dir_all(parent)?;
-    }
+    util::fs::create_dir_all(parent)?;
 
     // Use the version store to copy the file to the working path
     let hash_str = file_hash.to_string();

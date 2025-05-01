@@ -41,7 +41,7 @@ impl AccessKeyManager {
     fn p_new(sync_dir: &Path, read_only: bool) -> Result<AccessKeyManager, OxenError> {
         let hidden_dir = util::fs::oxen_hidden_dir(sync_dir);
         if !hidden_dir.exists() {
-            std::fs::create_dir_all(&hidden_dir)?;
+            util::fs::create_dir_all(&hidden_dir)?;
         }
 
         let db_dir = hidden_dir.join("keys");
