@@ -66,6 +66,26 @@ pub struct PyWorkspaceDataFrame {
     _first_page: JsonDataFrameViews,
 }
 
+#[pyclass]
+pub struct PyColumn {
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub dtype: String,
+}
+
+// Implement the __repr__ method for PyColumn
+#[pymethods]
+impl PyColumn {
+    fn __repr__(&self) -> String {
+        format!("PyColumn(name={}, dtype={})", self.name, self.dtype)
+    }
+
+    fn __str__(&self) -> String {
+        format!("PyColumn(name={}, dtype={})", self.name, self.dtype)
+    }
+}
+
 #[pymethods]
 impl PyWorkspaceDataFrame {
     #[new]
@@ -91,6 +111,19 @@ impl PyWorkspaceDataFrame {
         let height = size.height;
         self._first_page = df;
         Ok((width, height))
+    }
+
+    fn get_columns(&self) -> Result<Vec<PyColumn>, PyOxenError> {
+        let df = _get(&self.workspace.repo.repo, &self.workspace.id, &self.path)?;
+        let columns = &df.view.schema.fields;
+        let columns = columns
+            .iter()
+            .map(|c| PyColumn {
+                name: c.name.clone(),
+                dtype: c.dtype.clone(),
+            })
+            .collect();
+        Ok(columns)
     }
 
     fn page_size(&self) -> usize {
@@ -361,6 +394,25 @@ impl PyWorkspaceDataFrame {
                 &self.workspace.id,
                 &self.path,
                 id.as_str(),
+            )
+            .await
+        })?;
+        Ok(())
+    }
+
+    fn add_column(&self, name: String, data_type: String) -> Result<(), PyOxenError> {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            let data = serde_json::json!({
+                "name": name,
+                "data_type": data_type,
+            });
+
+            let data = data.to_string();
+            api::client::workspaces::data_frames::columns::create(
+                &self.workspace.repo.repo,
+                &self.workspace.id,
+                &self.path,
+                data,
             )
             .await
         })?;

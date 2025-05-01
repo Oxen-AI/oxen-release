@@ -30,7 +30,7 @@ impl PyPaginatedDirEntries {
     #[staticmethod]
     pub fn empty() -> PyPaginatedDirEntries {
         Self {
-            _entries: PaginatedDirEntries::empty()
+            _entries: PaginatedDirEntries::empty(),
         }
     }
 

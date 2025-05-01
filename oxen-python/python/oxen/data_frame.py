@@ -1,6 +1,6 @@
 from oxen.workspace import Workspace
 from oxen.remote_repo import RemoteRepo
-from .oxen import PyWorkspaceDataFrame
+from .oxen import PyWorkspaceDataFrame, PyColumn
 import json
 from typing import List, Union, Optional
 import os
@@ -193,6 +193,22 @@ class DataFrame:
             # this is not the most efficient but gets it working
             data = json.dumps(data)
             return self.data_frame.insert_row(data)
+
+    def get_columns(self) -> List[PyColumn]:
+        """
+        Get the columns of the data frame.
+        """
+        # filter out the columns that are in the filter_keys list
+        columns = [
+            c for c in self.data_frame.get_columns() if c.name not in self.filter_keys
+        ]
+        return columns
+
+    def add_column(self, name: str, data_type: str):
+        """
+        Add a column to the data frame.
+        """
+        return self.data_frame.add_column(name, data_type)
 
     def _write_first_row(self, data: dict):
         """
