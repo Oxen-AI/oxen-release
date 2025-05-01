@@ -75,8 +75,17 @@ impl RunCmd for PushCmd {
             check_remote_version_blocking(host.clone()).await?;
             check_remote_version(host).await?;
 
-            repositories::push::push_remote_branch(&repository, remote, branch).await?;
-            Ok(())
+            match repositories::push::push_remote_branch(&repository, remote, branch).await {
+                Ok(_) => Ok(()),
+                Err(OxenError::BranchNotFound(branch)) => {
+                    let msg = format!("{}\nMake sure you are on the correct branch and have committed your changes.", branch);
+                    Err(OxenError::basic_str(msg))
+                }
+                Err(e) => {
+                    println!("Error pushing: {}", e);
+                    Err(e)
+                }
+            }
         }
     }
 }
