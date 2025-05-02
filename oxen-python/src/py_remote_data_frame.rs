@@ -26,7 +26,7 @@ impl PyRemoteDataFrame {
 
     fn size(&self) -> Result<(usize, usize), PyOxenError> {
         let Some(revision) = &self.repo.revision else {
-            return Err(OxenError::no_commits_found().into())
+            return Err(OxenError::no_commits_found().into());
         };
 
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
@@ -50,20 +50,15 @@ impl PyRemoteDataFrame {
 
     fn get_row_by_index(&self, row: usize) -> Result<String, PyOxenError> {
         let Some(revision) = &self.repo.revision else {
-            return Err(OxenError::no_commits_found().into())
+            return Err(OxenError::no_commits_found().into());
         };
 
         let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let mut opts = DFOpts::empty();
             opts.slice = Some(format!("{}..{}", row, row + 1));
 
-            let response = api::client::data_frames::get(
-                &self.repo.repo,
-                &revision,
-                &self.path,
-                opts,
-            )
-            .await?;
+            let response =
+                api::client::data_frames::get(&self.repo.repo, &revision, &self.path, opts).await?;
 
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {
@@ -84,7 +79,7 @@ impl PyRemoteDataFrame {
         columns: Vec<String>,
     ) -> Result<String, PyOxenError> {
         let Some(revision) = &self.repo.revision else {
-            return Err(OxenError::no_commits_found().into())
+            return Err(OxenError::no_commits_found().into());
         };
 
         let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
@@ -97,13 +92,8 @@ impl PyRemoteDataFrame {
                 opts.columns = Some(columns);
             }
 
-            let response = api::client::data_frames::get(
-                &self.repo.repo,
-                &revision,
-                &self.path,
-                opts,
-            )
-            .await?;
+            let response =
+                api::client::data_frames::get(&self.repo.repo, &revision, &self.path, opts).await?;
 
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {

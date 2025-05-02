@@ -9,6 +9,7 @@ from .oxen import (
     PyDataset,
     PyWorkspace,
     PyWorkspaceDataFrame,
+    PyColumn,
 )
 from .oxen import util
 
@@ -32,6 +33,7 @@ __all__ = [
     "PyDataset",
     "PyWorkspace",
     "PyWorkspaceDataFrame",
+    "PyColumn",
     "PyRemoteRepo",
     "PyRepo",
     "PyStagedData",
