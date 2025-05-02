@@ -45,9 +45,14 @@ pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
 }
 
 pub fn oxen_tmp_dir() -> Result<PathBuf, OxenError> {
-    match dirs::home_dir() {
-        Some(home_dir) => Ok(home_dir.join(constants::TMP_DIR).join(constants::OXEN)),
-        None => Err(OxenError::home_dir_not_found()),
+    // Override the cache dir with the OXEN_TMP_DIR env var if it is set
+    if let Ok(tmp_dir) = std::env::var("OXEN_TMP_DIR") {
+        return Ok(PathBuf::from(tmp_dir));
+    }
+
+    match dirs::cache_dir() {
+        Some(cache_dir) => Ok(cache_dir.join(constants::OXEN)),
+        None => Err(OxenError::cache_dir_not_found()),
     }
 }
 
