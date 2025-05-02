@@ -98,6 +98,36 @@ def question_embeddings_remote_repo_fully_pushed(
 
 
 @pytest.fixture
+def parquet_files_local_repo_no_commits(shared_datadir):
+    repo_dir = os.path.join(shared_datadir, "parquet")
+    repo = Repo(repo_dir)
+    repo.init()
+
+    yield repo
+
+@pytest.fixture
+def parquet_files_local_repo_fully_committed(parquet_files_local_repo_no_commits):
+    repo = parquet_files_local_repo_no_commits
+
+    repo.add(repo.path)
+    repo.commit("Adding parquet files")
+    yield repo
+
+
+@pytest.fixture
+def parquet_files_remote_repo_fully_pushed(parquet_files_local_repo_fully_committed, empty_remote_repo):
+    local_repo = parquet_files_local_repo_fully_committed
+    remote_repo = empty_remote_repo
+
+    remote_name = "origin"
+    branch_name = "main"
+    local_repo.set_remote(remote_name, remote_repo.url)
+    local_repo.push(remote_name, branch_name)
+
+    yield local_repo, remote_repo
+
+
+@pytest.fixture
 def chat_bot_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "ChatBot")
     repo = Repo(repo_dir)
