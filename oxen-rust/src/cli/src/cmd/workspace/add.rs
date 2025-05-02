@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::{api, error::OxenError, model::LocalRepository, opts::AddOpts};
+use liboxen::{api, core::oxenignore, error::OxenError, model::LocalRepository};
 
 use crate::cmd::{add::add_args, RunCmd};
 pub const NAME: &str = "add";
@@ -45,7 +45,7 @@ impl RunCmd for WorkspaceAddCmd {
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let paths: Vec<PathBuf> = args
+        let mut paths: Vec<PathBuf> = args
             .get_many::<String>("files")
             .expect("Must supply files")
             .map(PathBuf::from)
@@ -53,7 +53,7 @@ impl RunCmd for WorkspaceAddCmd {
 
         let workspace_name = args.get_one::<String>("workspace-name");
         let workspace_id = args.get_one::<String>("workspace-id");
-        let directory = args.get_one::<String>("directory").map(PathBuf::from);
+        let directory = args.get_one::<String>("directory").unwrap(); // safe to unwrap because we have a default value
 
         let workspace_identifier = match workspace_id {
             Some(id) => id,
@@ -69,24 +69,24 @@ impl RunCmd for WorkspaceAddCmd {
             }
         };
 
-        let opts = AddOpts {
-            paths,
-            is_remote: false,
-            directory,
-        };
-
         let repository = LocalRepository::from_current_dir()?;
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
-        for path in opts.paths.iter() {
-            api::client::workspaces::files::add(
-                &repository,
-                &remote_repo,
-                workspace_identifier,
-                path,
-                &opts,
-            )
-            .await?;
+
+        // Handle .oxenignore filtering
+        let ignore = oxenignore::create(&repository);
+        if let Some(ignore) = &ignore {
+            paths.retain(|path| !ignore.matched(path, path.is_dir()).is_ignore());
         }
+
+        // If no paths left after filtering, return early
+        if paths.is_empty() {
+            return Err(OxenError::basic_str(
+                "No files to add after filtering with .oxenignore.",
+            ));
+        }
+
+        api::client::workspaces::files::add(&remote_repo, workspace_identifier, directory, paths)
+            .await?;
 
         Ok(())
     }

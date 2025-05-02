@@ -144,7 +144,7 @@ mod tests {
             util::fs::file_create(&full_path)?;
             util::fs::write(&full_path, b"test content")?;
 
-            let _result = api::client::workspaces::files::post_file(
+            let _result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,

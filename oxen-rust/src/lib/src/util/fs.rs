@@ -1743,6 +1743,20 @@ mod tests {
     }
 
     #[test]
+    fn path_relative_to_unrelated_dir() -> Result<(), OxenError> {
+        let file = Path::new("data").join("test").join("other").join("dir");
+        let dir = Path::new("some").join("repo");
+
+        let relative = util::fs::path_relative_to_dir(file, dir)?;
+        assert_eq!(
+            relative,
+            Path::new("data").join("test").join("other").join("dir")
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn version_path() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let entry = CommitEntry {
