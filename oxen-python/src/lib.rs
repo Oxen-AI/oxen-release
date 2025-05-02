@@ -58,6 +58,7 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<py_workspace::PyWorkspace>()?;
     m.add_class::<py_remote_data_frame::PyRemoteDataFrame>()?;
     m.add_class::<py_workspace_data_frame::PyWorkspaceDataFrame>()?;
+    m.add_class::<py_workspace_data_frame::PyColumn>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_user::PyUser>()?;

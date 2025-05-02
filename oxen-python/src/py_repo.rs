@@ -12,7 +12,7 @@ use liboxen::api;
 use liboxen::opts::FetchOpts;
 use liboxen::repositories;
 
-use liboxen::core::refs::RefReader; 
+use liboxen::core::refs::with_ref_manager;
 
 use std::path::PathBuf;
 
@@ -142,9 +142,8 @@ impl PyRepo {
 
     pub fn branch_exists(&self, name: &str) -> Result<bool, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let ref_reader = RefReader::new(&repo)?;
-
-        Ok(ref_reader.has_branch(name))
+        let has_branch = with_ref_manager(&repo, |manager| Ok(manager.has_branch(name)))?;
+        Ok(has_branch)
     }
 
     pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {

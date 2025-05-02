@@ -223,3 +223,33 @@ def test_remove_data_frame_row(
     df.delete_row(row_id)
     _width, height = df.size()
     assert height == og_height, "Error removing row"
+
+
+def test_data_frame_add_column(celeba_remote_repo_fully_pushed):
+    _, remote_repo = celeba_remote_repo_fully_pushed
+
+    new_file = "logs/prompts.jsonl"
+    new_row = {
+        "prompt": "what is the best data version control tool?",
+        "response": "You should check out Oxen.ai",
+    }
+
+    remote_repo.create_checkout_branch("test-branch")
+    df = DataFrame(remote_repo, new_file)
+
+    # Add a row
+    df.insert_row(new_row)
+    # Get the columns
+    columns = df.get_columns()
+    assert (
+        len(columns) == 3
+    ), "DataFrame should have 3 columns (plus the _oxen_id column)"
+
+    # Add a column
+    df.add_column("new_column", "str")
+
+    # Get the columns again
+    columns = df.get_columns()
+    assert len(columns) == 4, "DataFrame should have 4 columns"
+    # make sure we have the new column
+    assert "new_column" in [c.name for c in columns], "New column should be added"

@@ -18,15 +18,17 @@ pub fn get_repo(
 ) -> Result<Option<PyRemoteRepo>, PyOxenError> {
     let Some(remote_repo) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         liboxen::api::client::repositories::get_by_name_and_host(name, &host).await
-    })? else {
-        return Ok(None)
+    })?
+    else {
+        return Ok(None);
     };
 
     let branch_name = DEFAULT_BRANCH_NAME.to_string();
     let Some(revision) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
         liboxen::api::client::revisions::get(&remote_repo, &branch_name).await
-    })? else {
-        return Ok(None)
+    })?
+    else {
+        return Ok(None);
     };
 
     return Ok(Some(PyRemoteRepo {
@@ -34,7 +36,7 @@ pub fn get_repo(
         host: host.clone(),
         scheme: scheme.to_string(),
         revision: Some(branch_name.to_string()),
-        commit_id: revision.commit.map(|r| r.id)
+        commit_id: revision.commit.map(|r| r.id),
     }));
 }
 
@@ -74,7 +76,7 @@ pub fn create_repo(
                 scheme: scheme.to_string(),
                 // Empty repo does not have a revision or commit_id
                 revision: None,
-                commit_id: None
+                commit_id: None,
             })
         } else {
             let files: Vec<FileNew> = files
@@ -93,14 +95,16 @@ pub fn create_repo(
             repo.scheme = Some(scheme.clone());
 
             let repo = liboxen::api::client::repositories::create(repo).await?;
-            let branch = liboxen::api::client::branches::get_by_name(&repo, &DEFAULT_BRANCH_NAME).await?.unwrap();
+            let branch = liboxen::api::client::branches::get_by_name(&repo, &DEFAULT_BRANCH_NAME)
+                .await?
+                .unwrap();
 
             Ok(PyRemoteRepo {
                 repo: repo.clone(),
                 host: host.clone(),
                 scheme: scheme.to_string(),
                 revision: Some(DEFAULT_BRANCH_NAME.to_string()),
-                commit_id: Some(branch.commit_id)
+                commit_id: Some(branch.commit_id),
             })
         }
     })
