@@ -213,6 +213,7 @@ pub async fn set_working_repo_to_commit(
             "Cannot get root node for target commit",
         ));
     };
+
     let from_node = if let Some(from_commit) = maybe_from_commit {
         if from_commit.id == to_commit.id {
             return Ok(());
@@ -319,14 +320,12 @@ fn r_remove_if_not_in_target(
         EMerkleTreeNode::File(file_node) => {
             let file_path = current_path.join(file_node.name());
             let target_node = target_tree_root.get_by_path(&file_path)?;
-            let from_node = from_tree_root.get_by_path(&file_path)?;
 
-            if target_node.is_none() && from_node.is_some() {
+            if target_node.is_none() {
                 let full_path = repo.path.join(&file_path);
                 if full_path.exists() {
                     // Verify that the file is not in a modified state
-                    let current_hash = util::hasher::hash_file_contents(&full_path)?;
-                    if current_hash != head_node.node.hash().to_string() {
+                    if util::fs::is_modified_from_node(&full_path, file_node)? {
                         cannot_overwrite_entries.push(file_path.clone());
                     } else {
                         log::debug!("Removing file: {:?}", full_path);
@@ -401,6 +400,7 @@ fn r_restore_missing_or_modified_files(
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
+
                 if index::restore::should_restore_file(repo, None, file_node, &rel_path)? {
                     files_to_restore.push(FileToRestore {
                         file_node: file_node.clone(),

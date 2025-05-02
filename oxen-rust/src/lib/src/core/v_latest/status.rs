@@ -547,7 +547,6 @@ fn find_changes(
 }
 
 // Traverse the merkle tree to count removed entries under a dir node
-// This is faster than adding every removed file, as we don't have to perform additional
 fn count_removed_entries(
     repo: &LocalRepository,
     relative_path: &Path,
