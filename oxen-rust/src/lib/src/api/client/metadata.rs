@@ -189,7 +189,7 @@ mod tests {
             util::fs::file_create(&full_path)?;
             util::fs::write(&full_path, b"test content")?;
 
-            let _result = api::client::workspaces::files::post_file(
+            let _result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -216,7 +216,7 @@ mod tests {
             let full_path = local_repo.path.join(file_path.clone());
             util::fs::write(&full_path, "name,age\nAlice,30\nBob,25\n")?;
 
-            let _result = api::client::workspaces::files::post_file(
+            let _result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,

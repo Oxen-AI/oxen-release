@@ -3,90 +3,34 @@ use crate::api::client;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-
+use crate::util;
 use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
 use std::path::{Path, PathBuf};
 
-use crate::core::oxenignore;
-use crate::model::LocalRepository;
-use crate::opts::AddOpts;
-use crate::util;
-
 pub async fn add(
-    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
-    path: impl AsRef<Path>,
-    opts: &AddOpts,
+    directory: impl AsRef<str>,
+    paths: Vec<PathBuf>,
 ) -> Result<(), OxenError> {
     let workspace_id = workspace_id.as_ref();
-    let path = path.as_ref();
+    let directory = directory.as_ref();
 
-    // * make sure file is not in .oxenignore
-    let ignore = oxenignore::create(local_repo);
-    if let Some(ignore) = ignore {
-        if ignore.matched(path, path.is_dir()).is_ignore() {
-            return Ok(());
-        }
+    // If no paths provided, return early
+    if paths.is_empty() {
+        return Ok(());
     }
 
-    let (remote_directory, resolved_path) = resolve_remote_add_file_path(local_repo, path, opts)?;
-    let directory_name = remote_directory.to_string_lossy().to_string();
-
-    log::debug!(
-        "repositories::workspaces::add Resolved path: {:?}",
-        resolved_path
-    );
-    log::debug!(
-        "repositories::workspaces::add Remote directory: {:?}",
-        remote_directory
-    );
-    log::debug!(
-        "repositories::workspaces::add Directory name: {:?}",
-        directory_name
-    );
-
-    let result = post_file(remote_repo, workspace_id, &directory_name, resolved_path).await?;
-
-    println!("{}", result.to_string_lossy());
+    // TODO: add a progress bar
+    upload_multiple_files(remote_repo, workspace_id, directory, paths).await?;
 
     Ok(())
 }
 
-/// Returns (remote_directory, resolved_path)
-fn resolve_remote_add_file_path(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-    opts: &AddOpts,
-) -> Result<(PathBuf, PathBuf), OxenError> {
-    let path = path.as_ref();
-    match util::fs::canonicalize(path) {
-        Ok(path) => {
-            if util::fs::file_exists_in_directory(&repo.path, &path) {
-                // Path is in the repo, so we get the remote directory from the repo path
-                let relative_to_repo = util::fs::path_relative_to_dir(&path, &repo.path)?;
-                let remote_directory = relative_to_repo
-                    .parent()
-                    .ok_or_else(|| OxenError::file_has_no_parent(&path))?;
-                Ok((remote_directory.to_path_buf(), path))
-            } else if opts.directory.is_some() {
-                // We have to get the remote directory from the opts
-                Ok((opts.directory.clone().unwrap(), path))
-            } else {
-                return Err(OxenError::workspace_add_file_not_in_repo(path));
-            }
-        }
-        Err(err) => {
-            log::error!("Err: {err:?}");
-            Err(OxenError::entry_does_not_exist(path))
-        }
-    }
-}
-
-pub async fn post_file(
+pub async fn upload_single_file(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
     directory: impl AsRef<Path>,
@@ -115,11 +59,128 @@ pub async fn post_file(
         }
     } else {
         // Single multipart request
-        multipart_file_upload(remote_repo, workspace_id, directory, path).await
+        p_upload_single_file(remote_repo, workspace_id, directory, path).await
     }
 }
 
-async fn multipart_file_upload(
+async fn upload_multiple_files(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    directory: impl AsRef<Path>,
+    paths: Vec<PathBuf>,
+) -> Result<(), OxenError> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let workspace_id = workspace_id.as_ref();
+    let directory = directory.as_ref();
+
+    // Separate files by size, storing the file size with each path
+    let mut large_files = Vec::new();
+    let mut small_files = Vec::new();
+    let mut small_files_size = 0;
+
+    // Group files by size
+    for path in paths {
+        if !path.exists() {
+            log::warn!("File does not exist: {:?}", path);
+            continue;
+        }
+
+        match path.metadata() {
+            Ok(metadata) => {
+                let file_size = metadata.len();
+                if file_size > AVG_CHUNK_SIZE {
+                    // Large file goes directly to parallel upload
+                    large_files.push((path, file_size));
+                } else {
+                    // Small file goes to batch
+                    small_files.push((path, file_size));
+                    small_files_size += file_size;
+                }
+            }
+            Err(err) => {
+                log::warn!("Failed to get metadata for file {:?}: {}", path, err);
+                continue;
+            }
+        }
+    }
+
+    // Process large files individually with parallel upload
+    for (path, size) in large_files {
+        log::info!("Uploading large file: {:?} ({} bytes)", path, size);
+        match api::client::versions::parallel_large_file_upload(
+            remote_repo,
+            &path,
+            Some(directory),
+            Some(workspace_id.to_string()),
+        )
+        .await
+        {
+            Ok(_) => log::debug!("Successfully uploaded large file: {:?}", path),
+            Err(err) => log::error!("Failed to upload large file {:?}: {}", path, err),
+        }
+    }
+
+    // Upload small files in batches
+    sequential_batched_small_file_upload(
+        remote_repo,
+        workspace_id,
+        directory,
+        small_files,
+        small_files_size,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn sequential_batched_small_file_upload(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    directory: impl AsRef<Path>,
+    small_files: Vec<(PathBuf, u64)>,
+    small_files_size: u64,
+) -> Result<(), OxenError> {
+    // Batch small files in chunks of ~AVG_CHUNK_SIZE
+    log::info!(
+        "Uploading {} small files (total {} bytes)",
+        small_files.len(),
+        small_files_size
+    );
+
+    let workspace_id = workspace_id.as_ref();
+    let directory_str = directory.as_ref().to_string_lossy();
+
+    let mut current_batch = Vec::new();
+    let mut current_batch_size = 0;
+
+    for (idx, (path, file_size)) in small_files.iter().enumerate() {
+        // Add the file to the current batch
+        current_batch.push(path.clone());
+        current_batch_size += file_size;
+
+        // If the current batch is larger than our target size or we're at the end of the list, upload it
+        if current_batch_size > AVG_CHUNK_SIZE || idx >= small_files.len() - 1 {
+            log::debug!(
+                "Uploading batch of {} files ({} bytes)",
+                current_batch.len(),
+                current_batch_size
+            );
+            match multipart_upload(remote_repo, workspace_id, &directory_str, current_batch).await {
+                Ok(_) => log::debug!("Successfully uploaded batch of files"),
+                Err(err) => log::error!("Failed to upload batch of files: {}", err),
+            }
+            current_batch = Vec::new();
+            current_batch_size = 0;
+        }
+    }
+
+    Ok(())
+}
+
+async fn p_upload_single_file(
     remote_repo: &RemoteRepository,
     workspace_id: impl AsRef<str>,
     directory: impl AsRef<Path>,
@@ -164,6 +225,41 @@ async fn multipart_file_upload(
             Err(OxenError::basic_str(err))
         }
     }
+}
+
+async fn multipart_upload(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    directory_name: impl AsRef<str>,
+    paths: Vec<PathBuf>,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let directory_name = directory_name.as_ref();
+
+    log::debug!("Uploading {} files to {}", paths.len(), directory_name);
+
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let mut form = reqwest::multipart::Form::new();
+    for path in paths {
+        let file_name = path
+            .file_name()
+            .unwrap()
+            .to_os_string()
+            .into_string()
+            .ok()
+            .unwrap();
+        let file = std::fs::read(&path).unwrap();
+        let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
+        form = form.part("file[]", file_part);
+    }
+
+    let client = client::new_for_url(&url)?;
+    let response = client.post(&url).multipart(form).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    let response: FilePathsResponse = serde_json::from_str(&body)?;
+    Ok(response.paths)
 }
 
 pub async fn add_many(
@@ -268,6 +364,7 @@ mod tests {
     use crate::{repositories, test};
 
     use std::path::Path;
+    use uuid;
 
     #[tokio::test]
     async fn test_stage_single_file() -> Result<(), OxenError> {
@@ -288,7 +385,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -335,7 +432,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_30k_parquet();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -425,7 +522,7 @@ mod tests {
 
             let file_to_post = test::test_1k_parquet();
             let directory_name = "";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -465,7 +562,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
             let file_to_post = test::test_csv_file_with_name("emojis.csv");
             let directory_name = "moare_data";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -506,7 +603,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
             let file_to_post = test::test_invalid_parquet_file();
             let directory_name = "broken_data";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -556,7 +653,7 @@ mod tests {
 
             let file_to_post = test::test_1k_parquet();
             let directory_name = "";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -596,7 +693,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
             let file_to_post = test::test_csv_file_with_name("emojis.csv");
             let directory_name = "moare_data";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -637,7 +734,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
             let file_to_post = test::test_invalid_parquet_file();
             let directory_name = "broken_data";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -695,7 +792,7 @@ mod tests {
 
             let file_to_post = test::test_img_file();
             let directory_name = "data";
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -774,7 +871,7 @@ mod tests {
 
             // Post a parquet file
             let path = test::test_1k_parquet();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -785,7 +882,7 @@ mod tests {
 
             // Post an image file
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -881,7 +978,7 @@ mod tests {
 
             let directory_name = "images";
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -935,7 +1032,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::post_file(
+            let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -957,6 +1054,56 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 1);
             assert_eq!(entries.added_files.total_entries, 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_add_multiple_files() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let branch_name = "add-multiple-files";
+            let branch = api::client::branches::create_from_branch(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let workspace_id = format!("test-workspace-{}", uuid::Uuid::new_v4());
+            let workspace =
+                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            // Prepare paths and directory
+            let paths = vec![
+                test::test_img_file(),
+                test::test_img_file_with_name("cole_anthony.jpeg"),
+            ];
+            let directory = "test_data";
+
+            // Call the add function with multiple files
+            let result =
+                api::client::workspaces::files::add(&remote_repo, &workspace_id, directory, paths)
+                    .await;
+            assert!(result.is_ok());
+
+            // Verify that both files were added
+            let page_num = constants::DEFAULT_PAGE_NUM;
+            let page_size = constants::DEFAULT_PAGE_SIZE;
+            let path = Path::new(directory);
+            let entries = api::client::workspaces::changes::list(
+                &remote_repo,
+                &workspace_id,
+                path,
+                page_num,
+                page_size,
+            )
+            .await?;
+            assert_eq!(entries.added_files.entries.len(), 2);
+            assert_eq!(entries.added_files.total_entries, 2);
 
             Ok(remote_repo)
         })
