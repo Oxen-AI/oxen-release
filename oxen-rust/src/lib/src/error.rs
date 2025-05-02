@@ -303,6 +303,10 @@ impl OxenError {
         OxenError::basic_str("Home directory not found")
     }
 
+    pub fn cache_dir_not_found() -> OxenError {
+        OxenError::basic_str("Cache directory not found")
+    }
+
     pub fn must_be_on_valid_branch() -> OxenError {
         OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
     }
