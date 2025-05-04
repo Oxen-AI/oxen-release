@@ -332,7 +332,6 @@ fn cleanup_removed_files(
     Ok(())
 }
 
-// Read_depth 0? 
 fn r_remove_if_not_in_target(
     repo: &LocalRepository,
     head_node: &MerkleTreeNode,
@@ -363,7 +362,6 @@ fn r_remove_if_not_in_target(
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = current_path.join(dir_node.name());
             let children = if let Some(target_node) = target_tree_root.get_by_path(&dir_path)? {
-
                 // Check if the same directory is in target trees
                 if target_node.node.hash() == dir_node.hash() {
                     return Ok(());
@@ -456,7 +454,9 @@ fn r_restore_missing_or_modified_files(
                 progress.increment_restored();
             } else {
                 // File exists, check if it needs to be updated
-                if util::fs::is_modified_from_node(&full_path, file_node)? {
+                if let Some(file_hash) =
+                    util::fs::hash_if_modified_from_node(&full_path, file_node)?
+                {
                     let mut from_node: Option<FileNode> = None;
 
                     if let Some(from_tree) = from_tree {
@@ -467,7 +467,9 @@ fn r_restore_missing_or_modified_files(
                         }
                     }
 
-                    if index::restore::should_restore_file(repo, from_node, file_node, &rel_path)? {
+                    if index::restore::should_restore_hashed_file(
+                        repo, from_node, file_node, &rel_path, file_hash,
+                    )? {
                         log::debug!("Updating modified file: {:?}", rel_path);
                         files_to_restore.push(FileToRestore {
                             file_node: file_node.clone(),
@@ -490,7 +492,7 @@ fn r_restore_missing_or_modified_files(
                     if from_node.node.hash() == dir_node.hash() {
                         log::debug!("r_restore_missing_or_modified_files path {:?} is the same as from_tree", path);
                         return Ok(());
-                    } 
+                    }
                     Some(from_node)
                 } else {
                     None
@@ -502,12 +504,8 @@ fn r_restore_missing_or_modified_files(
             // Recursively call for each file and directory
             let dir_path = path.join(dir_node.name());
             let children = if from_node.is_some() {
-
                 // Get vnodes for the from dir node
                 let dir_vnodes = &node.children;
-              
-                println!("dir_vnodes: {dir_vnodes:?}");
-                println!("from tree: {from_tree:?}");
 
                 // Get vnode hashes for the target dir node
                 let mut from_hashes = HashSet::new();
@@ -524,7 +522,6 @@ fn r_restore_missing_or_modified_files(
                         unique_nodes.extend(vnode.children.iter().cloned());
                     }
                 }
-
 
                 unique_nodes
             } else {
