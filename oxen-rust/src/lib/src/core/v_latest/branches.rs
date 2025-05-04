@@ -1,7 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::core::v_latest::index::restore::{self, FileToRestore};
-use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::v_latest::{fetch, index};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
@@ -9,7 +8,7 @@ use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash};
 use crate::repositories;
 use crate::util;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -233,6 +232,17 @@ pub async fn set_working_repo_to_commit(
         None => None,
     };
 
+    /*
+    // Potential Optimization
+    // Collect hashset of every dir and vnode shared between the commits
+    let mut shared_dirs_and_vnodes: HashSet<MerkleHash> = if from_node.is_some() {
+        let from_hashes = from_node.list_dir_and_vnode_hashes(PathBuf::from(""))?;
+        from_hashes.extend(&target_node.list_dir_and_vnode_hashes(PathBuf::from(""))?)
+    } else {
+        target_node.list_dir_and_vnode_hashes(PathBuf::from(""))?
+    };
+    */
+
     // You may be thinking, why do we not do this in one pass?
     // It's because when removing files, we are iterating over the from tree
     // And when we restore files, we are iterating over the target tree
@@ -257,7 +267,6 @@ pub async fn set_working_repo_to_commit(
             &target_node,
             &from_node.unwrap(),
             &mut progress,
-            to_commit,
             &mut seen_files,
         )?;
     }
@@ -285,7 +294,6 @@ fn cleanup_removed_files(
     target_node: &MerkleTreeNode,
     from_node: &MerkleTreeNode,
     progress: &mut CheckoutProgressBar,
-    to_commit: &Commit,
     seen: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     // Compare the nodes in the from tree to the nodes in the target tree
@@ -293,7 +301,6 @@ fn cleanup_removed_files(
     let from_root_dir_node = repositories::tree::get_root_dir(from_node)?;
     log::debug!("cleanup_removed_files from_commit {}", from_root_dir_node);
 
-    let dir_hashes = CommitMerkleTree::dir_hashes(repo, to_commit)?;
     let mut paths_to_remove: Vec<PathBuf> = vec![];
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
     r_remove_if_not_in_target(
@@ -303,7 +310,6 @@ fn cleanup_removed_files(
         Path::new(""),
         &mut paths_to_remove,
         &mut cannot_overwrite_entries,
-        &dir_hashes,
         seen,
     )?;
 
@@ -326,6 +332,7 @@ fn cleanup_removed_files(
     Ok(())
 }
 
+// Read_depth 0? 
 fn r_remove_if_not_in_target(
     repo: &LocalRepository,
     head_node: &MerkleTreeNode,
@@ -333,7 +340,6 @@ fn r_remove_if_not_in_target(
     current_path: &Path,
     paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
-    dir_hashes: &HashMap<PathBuf, MerkleHash>,
     seen_files: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     match &head_node.node {
@@ -356,8 +362,7 @@ fn r_remove_if_not_in_target(
 
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = current_path.join(dir_node.name());
-            let children = if let Some(target_hash) = dir_hashes.get(&dir_path) {
-                let target_node = CommitMerkleTree::read_node(repo, target_hash, false)?.unwrap();
+            let children = if let Some(target_node) = target_tree_root.get_by_path(&dir_path)? {
 
                 // Check if the same directory is in target trees
                 if target_node.node.hash() == dir_node.hash() {
@@ -397,7 +402,6 @@ fn r_remove_if_not_in_target(
                     &dir_path,
                     paths_to_remove,
                     cannot_overwrite_entries,
-                    dir_hashes,
                     seen_files,
                 )?;
             }
@@ -481,18 +485,53 @@ fn r_restore_missing_or_modified_files(
         // MATCH VNODES
         EMerkleTreeNode::Directory(dir_node) => {
             // Early exit if the directory is the same in the from and target trees
-            if let Some(from_tree) = from_tree {
+            let from_node = if let Some(from_tree) = from_tree {
                 if let Some(from_node) = from_tree.get_by_path(path)? {
                     if from_node.node.hash() == dir_node.hash() {
                         log::debug!("r_restore_missing_or_modified_files path {:?} is the same as from_tree", path);
                         return Ok(());
-                    }
+                    } 
+                    Some(from_node)
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
 
             // Recursively call for each file and directory
-            let children = repositories::tree::list_files_and_folders(node)?;
             let dir_path = path.join(dir_node.name());
+            let children = if from_node.is_some() {
+
+                // Get vnodes for the from dir node
+                let dir_vnodes = &node.children;
+              
+                println!("dir_vnodes: {dir_vnodes:?}");
+                println!("from tree: {from_tree:?}");
+
+                // Get vnode hashes for the target dir node
+                let mut from_hashes = HashSet::new();
+                for child in &from_tree.as_ref().unwrap().get_vnodes_for_dir(&path)? {
+                    if let EMerkleTreeNode::VNode(_) = &child.node {
+                        from_hashes.insert(child.hash);
+                    }
+                }
+
+                // Filter out vnodes that are present in the target tree
+                let mut unique_nodes = Vec::new();
+                for vnode in dir_vnodes {
+                    if !from_hashes.contains(&vnode.hash) {
+                        unique_nodes.extend(vnode.children.iter().cloned());
+                    }
+                }
+
+
+                unique_nodes
+            } else {
+                // Dir not found in target tree; need to check every file/folder
+                repositories::tree::list_files_and_folders(node)?
+            };
+
             for child_node in children {
                 r_restore_missing_or_modified_files(
                     repo,
