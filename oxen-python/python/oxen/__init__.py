@@ -23,30 +23,32 @@ from oxen import datasets
 from oxen.clone import clone
 from oxen.diff.diff import diff
 from oxen.init import init
+from oxen.notebooks import notebooks
 from oxen.config import is_configured
 from oxen.oxen_fs import OxenFS
 
 # Names of public modules we want to expose
 __all__ = [
+    "auth",
+    "DataFrame",
     "Dataset",
+    "diff",
+    "init",
+    "is_configured",
+    "notebooks",
+    "OxenFS",
+    "PyColumn",
     "PyCommit",
     "PyDataset",
-    "PyWorkspace",
-    "PyWorkspaceDataFrame",
-    "PyColumn",
     "PyRemoteRepo",
     "PyRepo",
     "PyStagedData",
-    "clone",
-    "init",
-    "is_configured",
+    "PyWorkspace",
+    "PyWorkspaceDataFrame",
     "RemoteRepo",
-    "Workspace",
-    "DataFrame",
     "Repo",
-    "auth",
-    "datasets",
     "util",
-    "diff",
-    "OxenFS",
+    "clone",
+    "datasets",
+    "Workspace",
 ]

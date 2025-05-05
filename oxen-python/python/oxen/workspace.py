@@ -75,9 +75,17 @@ class Workspace:
         """
         self._repo = repo
         self._repo.create_checkout_branch(branch)
-        self._workspace = PyWorkspace(
-            repo._repo, branch, workspace_id, workspace_name, path
-        )
+        try:
+            self._workspace = PyWorkspace(
+                repo._repo, branch, workspace_id, workspace_name, path
+            )
+        except ValueError as e:
+            print(e)
+            # Print this error in red
+            print(
+                f"\033[91mMake sure that you have write access to `{repo.namespace}/{repo.name}`\033[0m\n"
+            )
+            raise e
 
     def __repr__(self):
         return f"Workspace(id={self._workspace.id()}, branch={self._workspace.branch()}, commit_id={self._workspace.commit_id()})"
@@ -139,10 +147,12 @@ class Workspace:
         """
         # Add a file to the workspace
         if os.path.isdir(src):
+            paths = []
             for dir_path, _, files in os.walk(src):
                 for file_name in files:
                     path = os.path.join(dir_path, file_name)
-                    self._workspace.add(path, dst)
+                    paths.append(path)
+            self._workspace.add_many(paths, dst)
         else:
             # Add a single file
             self._workspace.add(src, dst)
