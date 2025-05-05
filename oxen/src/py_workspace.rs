@@ -126,7 +126,15 @@ impl PyWorkspace {
 
     fn add(&self, src: PathBuf, dst: String) -> Result<(), PyOxenError> {
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::workspaces::files::post_file(&self.repo.repo, &self.id, &dst, src).await
+            let paths = vec![src];
+            api::client::workspaces::files::add(&self.repo.repo, &self.id, &dst, paths).await
+        })?;
+        Ok(())
+    }
+
+    fn add_many(&self, src: Vec<PathBuf>, dst: String) -> Result<(), PyOxenError> {
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::workspaces::files::add(&self.repo.repo, &self.id, &dst, src).await
         })?;
         Ok(())
     }

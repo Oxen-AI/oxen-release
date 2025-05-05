@@ -187,7 +187,7 @@ impl PyWorkspaceDataFrame {
         let mut opts = DFOpts::empty();
         opts.sql = Some(sql);
 
-        let data = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+        match pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::data_frames::get(
                 &self.workspace.repo.repo,
                 &self.workspace.id,
@@ -195,14 +195,20 @@ impl PyWorkspaceDataFrame {
                 &opts,
             )
             .await
-        })?;
+        }) {
+            Ok(data) => {
+                // Extract the serde_json::Value from the JsonDataFrameView
+                let view = data.data_frame.unwrap().view.data;
 
-        // Extract the serde_json::Value from the JsonDataFrameView
-        let view = data.data_frame.unwrap().view.data;
-
-        // convert json to String
-        let result: String = serde_json::to_string(&view).unwrap();
-        Ok(result)
+                // convert json to String
+                let result: String = serde_json::to_string(&view).unwrap();
+                Ok(result)
+            }
+            Err(e) => Err(OxenError::basic_str(format!(
+                "Failed to query data frame: {}",
+                e
+            )).into()),
+        }
     }
 
     fn is_nearest_neighbors_enabled(&self, column: String) -> Result<bool, PyOxenError> {
