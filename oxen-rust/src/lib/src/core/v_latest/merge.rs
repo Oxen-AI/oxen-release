@@ -196,16 +196,13 @@ pub fn merge(
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
     let base_commit = repositories::commits::head_commit(repo)?;
-
     let merge_commit = get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
-
     let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)?;
     let commits = MergeCommits {
         lca,
         base: base_commit,
         merge: merge_commit,
     };
-
     merge_commits(repo, &commits)
 }
 
@@ -321,8 +318,6 @@ fn merge_commits_on_branch(
 
     // Check which type of merge we need to do
     if merge_commits.is_fast_forward_merge() {
-        // User output
-        println!("Fast-forward");
         let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge)?;
         Ok(Some(commit))
     } else {
@@ -553,7 +548,6 @@ fn r_ff_base_dir(
     entries_to_remove: &mut Vec<FileToRestore>,
     cannot_remove_entries: &mut Vec<PathBuf>,
 ) -> Result<(), OxenError> {
-    log::debug!("r_ff_base_dir!");
     let path = path.as_ref();
     match &base_node.node {
         EMerkleTreeNode::File(base_file_node) => {
@@ -632,7 +626,6 @@ fn merge_commits(
     // Check which type of merge we need to do
     if merge_commits.is_fast_forward_merge() {
         // User output
-        println!("Fast-forward");
         let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge)?;
         Ok(Some(commit))
     } else {
@@ -819,22 +812,27 @@ pub fn find_merge_conflicts(
     let merge_commit_tree =
         repositories::tree::from_commit_or_subtree(repo, &merge_commits.merge)?.unwrap();
 
+        
+
+    
+
+
     // TODO: Remove this unless debugging
-    // println!("lca_commit_tree");
-    // lca_commit_tree.print();
-    // println!("base_commit_tree");
-    // base_commit_tree.print();
-    // println!("merge_commit_tree");
-    // merge_commit_tree.print();
+    //println!("lca_commit_tree");
+    //lca_commit_tree.print();
+    //println!("base_commit_tree");
+    //base_commit_tree.print();
+    //println!("merge_commit_tree");
+    //merge_commit_tree.print();
 
     let default_starting_path = PathBuf::from("");
     let subtree_paths = repo.subtree_paths().unwrap_or_default();
     let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
-    let lca_entries = repositories::tree::dir_entries_with_paths(&lca_commit_tree, starting_path)?;
+    let lca_entries = repositories::tree::dir_entries_paths_hashmap(starting_path, &lca_commit_tree)?;
     let base_entries =
-        repositories::tree::dir_entries_with_paths(&base_commit_tree, starting_path)?;
+        repositories::tree::dir_entries_paths_hashmap(starting_path, &base_commit_tree)?;
     let merge_entries =
-        repositories::tree::dir_entries_with_paths(&merge_commit_tree, starting_path)?;
+        repositories::tree::dir_entries_paths_hashmap(starting_path, &merge_commit_tree)?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());
@@ -842,14 +840,17 @@ pub fn find_merge_conflicts(
 
     // Check all the entries in the candidate merge
     for merge_entry in merge_entries.iter() {
-        log::debug!("Considering entry {}", merge_entry.1.to_string_lossy());
+
+        let entry_path = merge_entry.0;
+        let merge_file_node = merge_entry.1;
+        log::debug!("Considering entry {}", entry_path.to_string_lossy());
         // Check if the entry exists in all 3 commits
-        if let Some(base_entry) = base_entries.iter().find(|(_, path)| path == &merge_entry.1) {
-            let (base_file_node, _base_path) = base_entry;
+        if base_entries.contains_key(entry_path) {
 
-            if let Some(lca_entry) = lca_entries.iter().find(|(_, path)| path == &merge_entry.1) {
-                let (lca_file_node, _lca_path) = lca_entry;
+            let base_file_node = &base_entries[entry_path];
+            if lca_entries.contains_key(entry_path)  {
 
+                let lca_file_node = &lca_entries[entry_path];
                 // If Base and LCA are the same but Merge is different, take merge
                 // log::debug!(
                 //     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
@@ -859,56 +860,56 @@ pub fn find_merge_conflicts(
                 //     merge_entry.hash
                 // );
                 if base_file_node.hash() == lca_file_node.hash()
-                    && base_file_node.hash() != merge_entry.0.hash()
+                    && base_file_node.hash() != merge_file_node.hash()
                     && write_to_disk
                 {
                     log::debug!("top update entry");
                     if restore::should_restore_file(
                         repo,
                         Some(base_file_node.clone()),
-                        &merge_entry.0,
-                        &merge_entry.1,
+                        &merge_file_node,
+                        &entry_path,
                     )? {
                         entries_to_restore.push(FileToRestore {
-                            file_node: merge_entry.0.clone(),
-                            path: merge_entry.1.clone(),
+                            file_node: merge_file_node.clone(),
+                            path: entry_path.clone(),
                         });
                     } else {
-                        cannot_overwrite_entries.push(merge_entry.1.clone());
+                        cannot_overwrite_entries.push(merge_entry.0.clone());
                     }
                 }
 
                 // If all three are different, mark as conflict
                 if base_file_node.hash() != lca_file_node.hash()
-                    && lca_file_node.hash() != merge_entry.0.hash()
-                    && base_file_node.hash() != merge_entry.0.hash()
+                    && lca_file_node.hash() != merge_file_node.hash()
+                    && base_file_node.hash() != merge_file_node.hash()
                 {
                     conflicts.push(NodeMergeConflict {
-                        lca_entry: lca_entry.to_owned(),
-                        base_entry: base_entry.to_owned(),
-                        merge_entry: merge_entry.to_owned(),
+                        lca_entry: (lca_file_node.to_owned(), entry_path.to_path_buf()),
+                        base_entry: (base_file_node.to_owned(), entry_path.to_path_buf()),
+                        merge_entry: (merge_file_node.to_owned(), entry_path.to_path_buf()),
                     });
                 }
             } else {
                 // merge entry doesn't exist in LCA, so just check if it's different from base
-                if base_file_node.hash() != merge_entry.0.hash() {
+                if base_file_node.hash() != merge_file_node.hash() {
                     conflicts.push(NodeMergeConflict {
-                        lca_entry: base_entry.to_owned(),
-                        base_entry: base_entry.to_owned(),
-                        merge_entry: merge_entry.to_owned(),
+                        lca_entry: (base_file_node.to_owned(), entry_path.to_path_buf()),
+                        base_entry: (base_file_node.to_owned(), entry_path.to_path_buf()),
+                        merge_entry: (merge_file_node.to_owned(), entry_path.to_path_buf()),
                     });
                 }
             }
         } else if write_to_disk {
             // merge entry does not exist in base, so create it
             log::debug!("bottom update entry");
-            if restore::should_restore_file(repo, None, &merge_entry.0, &merge_entry.1)? {
+            if restore::should_restore_file(repo, None, &merge_file_node, &entry_path)? {
                 entries_to_restore.push(FileToRestore {
-                    file_node: merge_entry.0.clone(),
-                    path: merge_entry.1.clone(),
+                    file_node: merge_file_node.clone(),
+                    path: entry_path.to_path_buf(),
                 });
             } else {
-                cannot_overwrite_entries.push(merge_entry.1.clone());
+                cannot_overwrite_entries.push(entry_path.clone());
             }
         }
     }
