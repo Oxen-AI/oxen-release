@@ -812,38 +812,38 @@ pub fn find_merge_conflicts(
     let merge_commit_tree =
         repositories::tree::from_commit_or_subtree(repo, &merge_commits.merge)?.unwrap();
 
-        
-
-    
-
+    // Filter out entries that are the same across all commits
+    let lca_hashes = lca_commit_tree.list_dir_and_vnode_hashes()?;
+    let base_hashes = base_commit_tree.list_shared_dir_and_vnode_hashes(&lca_hashes)?;
+    let merge_hashes = merge_commit_tree.list_shared_dir_and_vnode_hashes(&base_hashes)?;
 
     // TODO: Remove this unless debugging
-    //println!("lca_commit_tree");
+    println!("lca_hashes: {lca_hashes:?}");
     //lca_commit_tree.print();
-    //println!("base_commit_tree");
+    println!("base_hashes: {base_hashes:?}");
     //base_commit_tree.print();
-    //println!("merge_commit_tree");
+    println!("merge_hashes: {merge_hashes:?}");
     //merge_commit_tree.print();
 
     let default_starting_path = PathBuf::from("");
     let subtree_paths = repo.subtree_paths().unwrap_or_default();
     let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
-    let lca_entries = repositories::tree::dir_entries_paths_hashmap(starting_path, &lca_commit_tree)?;
+    let lca_entries = repositories::tree::unique_dir_entries(starting_path, &lca_commit_tree, &merge_hashes)?;
     let base_entries =
-        repositories::tree::dir_entries_paths_hashmap(starting_path, &base_commit_tree)?;
+        repositories::tree::unique_dir_entries(starting_path, &base_commit_tree, &merge_hashes)?;
     let merge_entries =
-        repositories::tree::dir_entries_paths_hashmap(starting_path, &merge_commit_tree)?;
+        repositories::tree::unique_dir_entries(starting_path, &merge_commit_tree, &merge_hashes)?;
 
-    log::debug!("lca_entries.len() {}", lca_entries.len());
-    log::debug!("base_entries.len() {}", base_entries.len());
-    log::debug!("merge_entries.len() {}", merge_entries.len());
+    println!("lca_entries.len() {}", lca_entries.len());
+    println!("base_entries.len() {}", base_entries.len());
+    println!("merge_entries.len() {}", merge_entries.len());
 
     // Check all the entries in the candidate merge
     for merge_entry in merge_entries.iter() {
 
         let entry_path = merge_entry.0;
         let merge_file_node = merge_entry.1;
-        log::debug!("Considering entry {}", entry_path.to_string_lossy());
+        println!("Considering entry {}", entry_path.to_string_lossy());
         // Check if the entry exists in all 3 commits
         if base_entries.contains_key(entry_path) {
 
@@ -852,13 +852,14 @@ pub fn find_merge_conflicts(
 
                 let lca_file_node = &lca_entries[entry_path];
                 // If Base and LCA are the same but Merge is different, take merge
-                // log::debug!(
-                //     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
-                //     merge_entry.path,
-                //     base_entry.hash,
-                //     lca_entry.hash,
-                //     merge_entry.hash
-                // );
+                println!(
+                     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
+                     entry_path,
+                     merge_file_node,
+                     base_file_node,
+                     lca_file_node,
+
+                 );
                 if base_file_node.hash() == lca_file_node.hash()
                     && base_file_node.hash() != merge_file_node.hash()
                     && write_to_disk
