@@ -105,6 +105,7 @@ def parquet_files_local_repo_no_commits(shared_datadir):
 
     yield repo
 
+
 @pytest.fixture
 def parquet_files_local_repo_fully_committed(parquet_files_local_repo_no_commits):
     repo = parquet_files_local_repo_no_commits
@@ -115,7 +116,9 @@ def parquet_files_local_repo_fully_committed(parquet_files_local_repo_no_commits
 
 
 @pytest.fixture
-def parquet_files_remote_repo_fully_pushed(parquet_files_local_repo_fully_committed, empty_remote_repo):
+def parquet_files_remote_repo_fully_pushed(
+    parquet_files_local_repo_fully_committed, empty_remote_repo
+):
     local_repo = parquet_files_local_repo_fully_committed
     remote_repo = empty_remote_repo
 

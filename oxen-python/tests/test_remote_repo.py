@@ -105,7 +105,9 @@ def test_remote_repo_file_has_changes_file_does_not_exist(
     assert remote_repo.file_has_changes(full_path, remote_path=file_path)
 
 
-def test_remote_repo_dir_download_with_large_files(parquet_files_remote_repo_fully_pushed: Tuple[Repo, RemoteRepo]):
+def test_remote_repo_dir_download_with_large_files(
+    parquet_files_remote_repo_fully_pushed: Tuple[Repo, RemoteRepo]
+):
     local_repo, remote_repo = parquet_files_remote_repo_fully_pushed
     tmp_dir = os.path.join(local_repo.path, "tmp")
     os.makedirs(tmp_dir, exist_ok=True)
@@ -119,6 +121,8 @@ def test_remote_repo_dir_download_with_large_files(parquet_files_remote_repo_ful
     # make sure that the file is the same as the original
     with open(download_path, "rb") as f:
         original_file = f.read()
-    with open(os.path.join(local_repo.path, "one", "two", "three", "wiki_30k.parquet"), "rb") as f:
+    with open(
+        os.path.join(local_repo.path, "one", "two", "three", "wiki_30k.parquet"), "rb"
+    ) as f:
         downloaded_file = f.read()
     assert len(original_file) == len(downloaded_file)
