@@ -6,6 +6,7 @@ pub mod py_branch;
 pub mod auth;
 pub mod df_utils;
 pub mod diff;
+pub mod notebooks;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
@@ -109,6 +110,12 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     df_module.add_function(wrap_pyfunction!(df_utils::save, &df_module)?)?;
     df_module.add_function(wrap_pyfunction!(df_utils::load, &df_module)?)?;
     m.add_submodule(&df_module)?;
+
+    // Notebooks Module
+    let notebooks_module = PyModule::new_bound(m.py(), "notebooks")?;
+    notebooks_module.add_function(wrap_pyfunction!(notebooks::start_notebook, &notebooks_module)?)?;
+    notebooks_module.add_function(wrap_pyfunction!(notebooks::stop_notebook, &notebooks_module)?)?;
+    m.add_submodule(&notebooks_module)?;
 
     Ok(())
 }
