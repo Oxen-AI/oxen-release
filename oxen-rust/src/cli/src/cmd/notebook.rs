@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use clap::{Arg, Command, ValueEnum};
 use liboxen::api;
-use liboxen::constants::DEFAULT_REMOTE_NAME;
+use liboxen::constants::{DEFAULT_NOTEBOOK_BASE_IMAGE, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, RemoteRepository};
 
@@ -62,7 +62,40 @@ impl RunCmd for NotebookCmd {
                 Arg::new("base_image")
                     .long("base-image")
                     .help("Base Docker image to use")
-                    .default_value("debian:bookworm-slim")
+                    .default_value(DEFAULT_NOTEBOOK_BASE_IMAGE)
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("gpu_model")
+                    .long("gpu-model")
+                    .help("GPU model to use (A10G, H100, A100-40GB, A100-80GB)")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("cpu_cores")
+                    .long("cpu-cores")
+                    .help("Number of CPU cores to allocate")
+                    .default_value("1")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("memory_mb")
+                    .long("memory-mb")
+                    .help("Amount of memory to allocate in MB")
+                    .default_value("1024")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("timeout_secs")
+                    .long("timeout-secs")
+                    .help("Timeout in seconds")
+                    .default_value("3600")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("build_script")
+                    .long("build-script")
+                    .help("Path to build script to run before starting notebook")
                     .action(clap::ArgAction::Set),
             )
             .arg(
@@ -110,13 +143,35 @@ impl RunCmd for NotebookCmd {
             .get_one::<NotebookMode>("mode")
             .expect("Must supply mode");
         let script_args = args.get_one::<String>("script_args");
+        let gpu_model = args.get_one::<String>("gpu_model");
+        let cpu_cores = args
+            .get_one::<String>("cpu_cores")
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        let memory_mb = args
+            .get_one::<String>("memory_mb")
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        let timeout_secs = args
+            .get_one::<String>("timeout_secs")
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        let build_script = args.get_one::<String>("build_script");
 
         log::debug!("{:?} notebook with:", action);
         log::debug!("  Notebook: {}", notebook);
         log::debug!("  Branch: {}", branch);
         log::debug!("  Base Image: {}", base_image);
         log::debug!("  Mode: {:?}", mode);
-        log::debug!("  Script Args: {:?}", args);
+        log::debug!("  Script Args: {:?}", script_args);
+        log::debug!("  GPU Model: {:?}", gpu_model);
+        log::debug!("  CPU Cores: {}", cpu_cores);
+        log::debug!("  Memory MB: {}", memory_mb);
+        log::debug!("  Timeout Secs: {}", timeout_secs);
+        log::debug!("  Build Script: {:?}", build_script);
 
         let repository = LocalRepository::from_current_dir()?;
 
@@ -135,7 +190,13 @@ impl RunCmd for NotebookCmd {
             mode: match mode {
                 NotebookMode::Edit => String::from("edit"),
                 NotebookMode::Script => String::from("script"),
-            }, // "edit", "script"
+            },
+            gpu_model: gpu_model.map(|s| s.to_owned()),
+            cpu_cores,
+            memory_mb,
+            timeout_secs,
+            notebook_base_image_id: None,
+            build_script: build_script.map(|s| s.to_owned()),
             script_args: script_args.map(|s| s.to_owned()),
         };
 
@@ -175,10 +236,13 @@ impl NotebookCmd {
 
         let notebook = api::client::notebooks::create(repository, opts).await?;
         api::client::notebooks::run(repository, &notebook).await?;
-        let url = format!("{}/notebooks/{}", repository.url(), notebook.id);
+        let url = format!(
+            "https://hub.oxen.ai/{}/{}/notebooks/{}",
+            repository.namespace, repository.name, notebook.id
+        );
         println!("✅ Notebook {} successfully started", notebook.id);
         if "edit" == opts.mode {
-            println!("Visit the notebook at:\n  {}", url)
+            println!("\nVisit the notebook at:\n\n  {}\n\nTo stop the notebook run:\n\n  oxen notebook stop -n {}\n", url, notebook.id)
         }
         Ok(())
     }

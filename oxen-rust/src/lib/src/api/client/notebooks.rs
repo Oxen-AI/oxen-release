@@ -18,15 +18,16 @@ pub async fn create(
     let url =
         api::endpoint::url_from_repo(repository, &format!("/notebooks/file/{}/{}", branch, path))?;
 
-    let params = serde_json::to_string(&NotebookRequest {
-        run_as_script: &opts.mode == "script",
-        notebook_base_image_id: opts.base_image.to_owned(),
-        script_args: opts.script_args.clone(),
-    })?;
+    let params = serde_json::to_string(&NotebookRequest::new(opts))?;
     log::debug!("notebooks::create {}\n{}", url, params);
 
     let client = client::new_for_url(&url)?;
-    let res = client.post(&url).body(params).send().await?;
+    let res = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(params)
+        .send()
+        .await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: NotebookResponse = serde_json::from_str(&body)?;
     Ok(response.notebook)
