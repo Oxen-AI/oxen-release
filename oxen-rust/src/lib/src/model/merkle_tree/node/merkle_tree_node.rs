@@ -195,6 +195,77 @@ impl MerkleTreeNode {
         Ok(())
     }
 
+    
+    /// List all the directory and vnode hashes in the tree
+    pub fn list_dir_and_vnode_hashes(&self) -> Result<HashSet<MerkleHash>, OxenError> {
+        let mut hashes = HashSet::new();
+        let current_path = Path::new("");
+        self.list_dir_and_vnode_hashes_helper(current_path, &mut hashes)?;
+        Ok(hashes)
+    }
+
+    fn list_dir_and_vnode_hashes_helper(
+        &self,
+        current_path: &Path,
+        hashes: &mut HashSet<MerkleHash>,
+    ) -> Result<(), OxenError> {
+       
+        match &self.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                hashes.insert(self.hash);
+            }
+            _ => {}
+        }; 
+
+        for child in &self.children {
+            if let EMerkleTreeNode::Directory(dir) = &child.node {
+                let new_path = current_path.join(dir.name());
+                child.list_dir_and_vnode_hashes_helper(&new_path, hashes)?;
+            } else {
+                child.list_dir_and_vnode_hashes_helper(current_path, hashes)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// List all the directory and vnode hashes in the tree that aren't in old_hashes
+    pub fn list_shared_dir_and_vnode_hashes(&self, old_hashes: &HashSet<MerkleHash>) -> Result<HashSet<MerkleHash>, OxenError> {
+        let mut new_hashes = HashSet::new();
+        let current_path = Path::new("");
+        self.list_shared_dir_and_vnode_hashes_helper(current_path, &mut new_hashes, &old_hashes)?;
+        Ok(new_hashes)
+    }
+
+    fn list_shared_dir_and_vnode_hashes_helper(
+        &self,
+        current_path: &Path,
+        new_hashes: &mut HashSet<MerkleHash>,
+        old_hashes: &HashSet<MerkleHash>,
+    ) -> Result<(), OxenError> {
+
+        match &self.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+            // If the dir is in old_hashes, no need to search further
+                if old_hashes.contains(&self.hash) {
+                    new_hashes.insert(self.hash);
+                    return Ok(());
+                }
+            }
+            _ => {}
+        };
+
+        for child in &self.children {
+            if let EMerkleTreeNode::Directory(dir) = &child.node {
+                let new_path = current_path.join(dir.name());
+                child.list_shared_dir_and_vnode_hashes_helper(&new_path, new_hashes, old_hashes)?;
+            } else {
+                child.list_shared_dir_and_vnode_hashes_helper(current_path, new_hashes, old_hashes)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// List missing file hashes
     pub fn list_missing_file_hashes(
         &self,
