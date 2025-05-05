@@ -69,6 +69,9 @@ pub use merge::MergeCmd;
 pub mod node;
 pub use node::NodeCmd;
 
+pub mod notebook;
+pub use notebook::NotebookCmd;
+
 pub mod pack;
 pub use pack::PackCmd;
 

@@ -5,7 +5,7 @@ use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository, RepoNew};
 use url::Url;
 
-const API_NAMESPACE: &str = "/api/repos";
+pub const API_NAMESPACE: &str = "/api/repos";
 
 pub fn get_scheme(host: impl AsRef<str>) -> String {
     RepoNew::scheme_default(host.as_ref())
