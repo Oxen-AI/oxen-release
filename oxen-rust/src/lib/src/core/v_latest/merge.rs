@@ -17,7 +17,7 @@ use crate::repositories::merge::MergeCommits;
 use crate::util;
 
 use rocksdb::DB;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -401,6 +401,11 @@ fn fast_forward_merge(
     // Stop early if there are conflicts
     let mut entries_to_restore: Vec<FileToRestore> = vec![];
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
+
+    // TODO: Is it possible to make this work without copying the entire MerkleTreeNodes?
+    //
+    let base_files = base_tree.list_files()?;
+
     r_ff_merge_commit(
         repo,
         &base_tree,
@@ -408,6 +413,7 @@ fn fast_forward_merge(
         PathBuf::from(""),
         &mut entries_to_restore,
         &mut cannot_overwrite_entries,
+        &base_files,
     )?;
     // If there are no conflicts, restore the entries
     if cannot_overwrite_entries.is_empty() {
@@ -419,9 +425,10 @@ fn fast_forward_merge(
         // If there are conflicts, return an error without restoring anything
         return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
     }
-
     let mut entries_to_remove: Vec<FileToRestore> = vec![];
     let mut cannot_remove_entries: Vec<PathBuf> = vec![];
+    let merge_files = merge_tree.list_file_paths()?;
+
     r_ff_base_dir(
         repo,
         &merge_tree,
@@ -429,6 +436,7 @@ fn fast_forward_merge(
         PathBuf::from(""),
         &mut entries_to_remove,
         &mut cannot_remove_entries,
+        &merge_files,
     )?;
 
     // If there are no conflicts, remove the entries
@@ -456,22 +464,24 @@ fn r_ff_merge_commit(
     path: impl AsRef<Path>,
     entries_to_restore: &mut Vec<FileToRestore>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
+    base_files: &HashMap<PathBuf, MerkleTreeNode>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    log::debug!("r_ff_merge_commit! path {:?}", path);
 
     match &merge_node.node {
         EMerkleTreeNode::File(merge_file_node) => {
             let file_path = path.join(merge_file_node.name());
-            log::debug!("r_ff_merge_commit file_path {:?}", file_path);
-            log::debug!("merge_node {}", merge_node);
-            log::debug!("merge_file_node {}", merge_file_node);
+            // log::debug!("r_ff_merge_commit file_path {:?}", file_path);
+            // log::debug!("merge_node {}", merge_node);
+            // log::debug!("merge_file_node {}", merge_file_node);
 
-            if let Some(base_file_node) = base_tree.get_by_path(&file_path)? {
+            // if file_path found in base_tree, construct a node with the necessary fields filled out
+            if base_files.contains_key(&file_path) {
+                let base_file_node = &base_files[&file_path];
                 log::debug!("base_file_node {}", base_file_node);
                 let should_restore = restore::should_restore_file(
                     repo,
-                    Some(base_file_node.file()?.clone()),
+                    Some(base_file_node.file()?),
                     merge_file_node,
                     &file_path,
                 )?;
@@ -508,9 +518,7 @@ fn r_ff_merge_commit(
         }
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = path.join(dir_node.name());
-            let merge_children = repositories::tree::list_files_and_folders(merge_node)?;
-
-            if let Some(base_node) = base_tree.get_by_path(&dir_path)? {
+            let base_node = if let Some(base_node) = base_tree.get_by_path(&dir_path)? {
                 if base_node.node.hash() == dir_node.hash() {
                     log::debug!(
                         "r_ff_merge_commit dir_path {:?} is the same as base_tree",
@@ -518,7 +526,36 @@ fn r_ff_merge_commit(
                     );
                     return Ok(());
                 }
-            }
+
+                Some(base_node)
+            } else {
+                None
+            };
+
+            let merge_children = if base_node.is_some() {
+                // Get vnodes for the from merge dir node
+                let dir_vnodes = &merge_node.children;
+
+                // Get vnode hashes for the base dir node
+                let mut base_hashes = HashSet::new();
+                for child in &base_tree.get_vnodes_for_dir(path)? {
+                    if let EMerkleTreeNode::VNode(_) = &child.node {
+                        base_hashes.insert(child.hash);
+                    }
+                }
+
+                // Filter out vnodes that are present in the target tree
+                let mut unique_nodes = Vec::new();
+                for vnode in dir_vnodes {
+                    if !base_hashes.contains(&vnode.hash) {
+                        unique_nodes.extend(vnode.children.iter().cloned());
+                    }
+                }
+
+                unique_nodes
+            } else {
+                repositories::tree::list_files_and_folders(merge_node)?
+            };
 
             for child in merge_children.iter() {
                 log::debug!("r_ff_merge_commit child_path {}", child);
@@ -529,6 +566,7 @@ fn r_ff_merge_commit(
                     &dir_path,
                     entries_to_restore,
                     cannot_overwrite_entries,
+                    base_files,
                 )?;
             }
         }
@@ -547,16 +585,16 @@ fn r_ff_base_dir(
     path: impl AsRef<Path>,
     entries_to_remove: &mut Vec<FileToRestore>,
     cannot_remove_entries: &mut Vec<PathBuf>,
+    merge_files: &HashSet<PathBuf>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
     match &base_node.node {
         EMerkleTreeNode::File(base_file_node) => {
             let file_path = path.join(base_file_node.name());
             log::debug!("r_ff_base_dir file_path {:?}", file_path);
-
             // Remove all entries that are in HEAD but not in merge entries
-            if merge_tree.get_by_path(&file_path)?.is_none() {
-                log::debug!("Checking if Can Remove Base Entry: {:?}", file_path);
+            if !merge_files.contains(&file_path) {
+                // log::debug!("Checking if Can Remove Base Entry: {:?}", file_path);
                 let path = repo.path.join(file_path.clone());
                 if path.exists() {
                     if restore::should_restore_file(repo, None, base_file_node, &file_path)? {
@@ -572,9 +610,8 @@ fn r_ff_base_dir(
         }
         EMerkleTreeNode::Directory(dir_node) => {
             let dir_path = path.join(dir_node.name());
-            let base_children = repositories::tree::list_files_and_folders(base_node)?;
 
-            if let Some(merge_node) = merge_tree.get_by_path(&dir_path)? {
+            let merge_node = if let Some(merge_node) = merge_tree.get_by_path(&dir_path)? {
                 if merge_node.node.hash() == dir_node.hash() {
                     log::debug!(
                         "r_ff_base_dir dir_path {:?} is the same as merge_tree",
@@ -582,10 +619,38 @@ fn r_ff_base_dir(
                     );
                     return Ok(());
                 }
-            }
+                Some(merge_node)
+            } else {
+                None
+            };
+
+            let base_children = if merge_node.is_some() {
+                // Get vnodes for the from merge dir node
+                let dir_vnodes = &base_node.children;
+
+                // Get vnode hashes for the base dir node
+                let mut merge_hashes = HashSet::new();
+                for child in &merge_tree.get_vnodes_for_dir(path)? {
+                    if let EMerkleTreeNode::VNode(_) = &child.node {
+                        merge_hashes.insert(child.hash);
+                    }
+                }
+
+                // Filter out vnodes that are present in the target tree
+                let mut unique_nodes = Vec::new();
+                for vnode in dir_vnodes {
+                    if !merge_hashes.contains(&vnode.hash) {
+                        unique_nodes.extend(vnode.children.iter().cloned());
+                    }
+                }
+
+                unique_nodes
+            } else {
+                repositories::tree::list_files_and_folders(base_node)?
+            };
 
             for child in base_children.iter() {
-                log::debug!("r_ff_base_dir child_path {}", child);
+                //log::debug!("r_ff_base_dir child_path {}", child);
                 r_ff_base_dir(
                     repo,
                     merge_tree,
@@ -593,6 +658,7 @@ fn r_ff_base_dir(
                     &dir_path,
                     entries_to_remove,
                     cannot_remove_entries,
+                    merge_files,
                 )?;
             }
         }
@@ -818,48 +884,46 @@ pub fn find_merge_conflicts(
     let merge_hashes = merge_commit_tree.list_shared_dir_and_vnode_hashes(&base_hashes)?;
 
     // TODO: Remove this unless debugging
-    println!("lca_hashes: {lca_hashes:?}");
+    // log::debug!("lca_hashes: {lca_hashes:?}");
     //lca_commit_tree.print();
-    println!("base_hashes: {base_hashes:?}");
+    // log::debug!("base_hashes: {base_hashes:?}");
     //base_commit_tree.print();
-    println!("merge_hashes: {merge_hashes:?}");
+    // log::debug!("merge_hashes: {merge_hashes:?}");
     //merge_commit_tree.print();
 
     let default_starting_path = PathBuf::from("");
     let subtree_paths = repo.subtree_paths().unwrap_or_default();
     let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
-    let lca_entries = repositories::tree::unique_dir_entries(starting_path, &lca_commit_tree, &merge_hashes)?;
+    let lca_entries =
+        repositories::tree::unique_dir_entries(starting_path, &lca_commit_tree, &merge_hashes)?;
     let base_entries =
         repositories::tree::unique_dir_entries(starting_path, &base_commit_tree, &merge_hashes)?;
     let merge_entries =
         repositories::tree::unique_dir_entries(starting_path, &merge_commit_tree, &merge_hashes)?;
 
-    println!("lca_entries.len() {}", lca_entries.len());
-    println!("base_entries.len() {}", base_entries.len());
-    println!("merge_entries.len() {}", merge_entries.len());
+    log::debug!("lca_entries.len() {}", lca_entries.len());
+    log::debug!("base_entries.len() {}", base_entries.len());
+    log::debug!("merge_entries.len() {}", merge_entries.len());
 
     // Check all the entries in the candidate merge
     for merge_entry in merge_entries.iter() {
-
         let entry_path = merge_entry.0;
         let merge_file_node = merge_entry.1;
-        println!("Considering entry {}", entry_path.to_string_lossy());
+        // log::debug!("Considering entry {}", entry_path.to_string_lossy());
         // Check if the entry exists in all 3 commits
         if base_entries.contains_key(entry_path) {
-
             let base_file_node = &base_entries[entry_path];
-            if lca_entries.contains_key(entry_path)  {
-
+            if lca_entries.contains_key(entry_path) {
                 let lca_file_node = &lca_entries[entry_path];
                 // If Base and LCA are the same but Merge is different, take merge
-                println!(
-                     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
-                     entry_path,
-                     merge_file_node,
-                     base_file_node,
-                     lca_file_node,
+                /*log::debug!(
+                    "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
+                    entry_path,
+                    merge_file_node,
+                    base_file_node,
+                    lca_file_node,
 
-                 );
+                );*/
                 if base_file_node.hash() == lca_file_node.hash()
                     && base_file_node.hash() != merge_file_node.hash()
                     && write_to_disk
@@ -868,8 +932,8 @@ pub fn find_merge_conflicts(
                     if restore::should_restore_file(
                         repo,
                         Some(base_file_node.clone()),
-                        &merge_file_node,
-                        &entry_path,
+                        merge_file_node,
+                        entry_path,
                     )? {
                         entries_to_restore.push(FileToRestore {
                             file_node: merge_file_node.clone(),
@@ -904,7 +968,7 @@ pub fn find_merge_conflicts(
         } else if write_to_disk {
             // merge entry does not exist in base, so create it
             log::debug!("bottom update entry");
-            if restore::should_restore_file(repo, None, &merge_file_node, &entry_path)? {
+            if restore::should_restore_file(repo, None, merge_file_node, entry_path)? {
                 entries_to_restore.push(FileToRestore {
                     file_node: merge_file_node.clone(),
                     path: entry_path.to_path_buf(),
