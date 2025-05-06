@@ -569,12 +569,12 @@ pub fn unique_dir_entries(
     shared_hashes: &HashSet<MerkleHash>,
 ) -> Result<HashMap<PathBuf, FileNode>, OxenError> {
     let mut entries = HashMap::new();
-    if !shared_hashes.contains(&node.hash) {  
-
+    if !shared_hashes.contains(&node.hash) {
         match &node.node {
-            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) | EMerkleTreeNode::Commit(_) => {
+            EMerkleTreeNode::Directory(_)
+            | EMerkleTreeNode::VNode(_)
+            | EMerkleTreeNode::Commit(_) => {
                 for child in &node.children {
-                    
                     match &child.node {
                         EMerkleTreeNode::File(file_node) => {
                             let file_path = base_path.join(file_node.name());
@@ -582,16 +582,18 @@ pub fn unique_dir_entries(
                         }
                         EMerkleTreeNode::Directory(dir_node) => {
                             let new_base_path = base_path.join(dir_node.name());
-                            entries.extend(unique_dir_entries(&new_base_path, child, shared_hashes)?);
+                            entries.extend(unique_dir_entries(
+                                &new_base_path,
+                                child,
+                                shared_hashes,
+                            )?);
                         }
                         EMerkleTreeNode::VNode(_vnode) => {
                             entries.extend(unique_dir_entries(base_path, child, shared_hashes)?);
                         }
                         _ => {}
                     }
-                
                 }
-
             }
             EMerkleTreeNode::File(file_node) => {
                 let file_path = base_path.join(file_node.name());
