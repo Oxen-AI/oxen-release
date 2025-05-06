@@ -1,11 +1,11 @@
 import os
 
 from typing import Optional, Union
-from .oxen import notebooks, PyRemoteRepo
+from .oxen import PyRemoteRepo, py_notebooks
 from oxen import RemoteRepo
 
 
-def start_notebook(
+def start(
     repo: Union[str, RemoteRepo],
     notebook: str,
     host: str = "hub.oxen.ai",
@@ -54,7 +54,7 @@ def start_notebook(
     if py_repo is None:
         raise ValueError(f"Repository {py_repo.namespace}/{py_repo.name} not found")
 
-    return notebooks.start_notebook(
+    return py_notebooks.py_start_notebook(
         py_repo,
         notebook,
         branch,
@@ -70,7 +70,7 @@ def start_notebook(
     )
 
 
-def stop_notebook(
+def stop(
     repo: Union[str, RemoteRepo, None] = None,
     notebook_id: Optional[str] = None,
     host: str = "hub.oxen.ai",
@@ -94,4 +94,4 @@ def stop_notebook(
     if notebook_id is None:
         raise ValueError("No notebook id provided")
 
-    return notebooks.stop_notebook(py_repo, notebook_id)
+    return py_notebooks.py_stop_notebook(py_repo, notebook_id)
