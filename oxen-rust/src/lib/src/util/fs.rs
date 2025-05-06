@@ -866,7 +866,7 @@ pub fn metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, OxenError> 
     match std::fs::metadata(path) {
         Ok(file) => Ok(file),
         Err(err) => {
-            log::error!("metadata {:?} {}", path, err);
+            log::debug!("metadata {:?} {}", path, err);
             Err(OxenError::file_metadata_error(path, err))
         }
     }

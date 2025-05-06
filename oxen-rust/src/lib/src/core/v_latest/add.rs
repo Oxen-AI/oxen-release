@@ -273,9 +273,12 @@ pub fn process_add_dir(
                 }
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
-                let file_status =
+                let Ok(file_status) =
                     core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
-                        .unwrap();
+                else {
+                    log::debug!("Could not determine file status for {:?}", path);
+                    return;
+                };
                 version_store
                     .store_version_from_path(&file_status.hash.to_string(), &path)
                     .unwrap();
