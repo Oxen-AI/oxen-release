@@ -264,9 +264,10 @@ impl StagedData {
                 } else {
                     dir_row.push("\n".normal());
                 }
-            }
-            if !dir_row.is_empty() {
-                dirs.push(dir_row);
+
+                if !dir_row.is_empty() {
+                    dirs.push(dir_row.clone());
+                }
             }
         }
 
@@ -274,6 +275,7 @@ impl StagedData {
             return;
         }
 
+        log::debug!("num dirs staged: {}", dirs.len());
         outputs.push("Directories to be committed\n".normal());
         self.__collapse_outputs(&dirs, |dir| dir.to_vec(), outputs, opts);
         outputs.push("\n".normal());
@@ -530,6 +532,11 @@ impl StagedData {
     ) where
         F: Fn(&T) -> Vec<ColoredString>,
     {
+        log::debug!(
+            "__collapse_outputs inputs.len(): {} opts: {:?}",
+            inputs.len(),
+            opts
+        );
         if inputs.is_empty() {
             return;
         }
