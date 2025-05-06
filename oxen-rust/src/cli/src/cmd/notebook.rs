@@ -237,7 +237,7 @@ impl NotebookCmd {
         let notebook = api::client::notebooks::create(repository, opts).await?;
         api::client::notebooks::run(repository, &notebook).await?;
         let url = format!(
-            "https://hub.oxen.ai/{}/{}/notebooks/{}",
+            "https://oxen.ai/{}/{}/notebooks/{}",
             repository.namespace, repository.name, notebook.id
         );
         println!("✅ Notebook {} successfully started", notebook.id);
