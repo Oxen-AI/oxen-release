@@ -241,9 +241,7 @@ impl NotebookCmd {
             repository.namespace, repository.name, notebook.id
         );
         println!("✅ Notebook {} successfully started", notebook.id);
-        if "edit" == opts.mode {
-            println!("\nVisit the notebook at:\n\n  {}\n\nTo stop the notebook run:\n\n  oxen notebook stop -n {}\n", url, notebook.id)
-        }
+        println!("\nVisit the notebook at:\n\n  {}\n\nTo stop the notebook run:\n\n  oxen notebook stop -n {}\n", url, notebook.id);
         Ok(())
     }
 
