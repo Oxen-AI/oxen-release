@@ -59,7 +59,7 @@ impl PyNotebook {
     build_script=None,
     script_args=None
 ))]
-pub fn start_notebook(
+pub fn py_start_notebook(
     repo: PyRemoteRepo,
     notebook: String,
     branch: &str,
@@ -111,7 +111,7 @@ pub fn start_notebook(
 /// Stop a notebook
 #[pyfunction]
 #[pyo3(signature = (repo, notebook_id))]
-pub fn stop_notebook(
+pub fn py_stop_notebook(
     repo: PyRemoteRepo,
     notebook_id: String
 ) -> Result<(), PyOxenError> {
