@@ -151,7 +151,7 @@ pub async fn checkout_subtrees(
         let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
         let mut files_to_restore: Vec<FileToRestore> = vec![];
         let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
-        let mut seen_files: HashSet<MerkleHash> = HashSet::new();
+
         r_restore_missing_or_modified_files(
             repo,
             &target_root,
@@ -160,7 +160,6 @@ pub async fn checkout_subtrees(
             &mut files_to_restore,
             &mut cannot_overwrite_entries,
             &mut progress,
-            &mut seen_files,
         )?;
 
         if !cannot_overwrite_entries.is_empty() {
@@ -218,7 +217,6 @@ pub async fn set_working_repo_to_commit(
 
     let mut files_to_restore: Vec<FileToRestore> = vec![];
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
-    let mut seen_files: HashSet<MerkleHash> = HashSet::new();
 
     let from_node = match maybe_from_commit {
         Some(from_commit) => {
@@ -231,17 +229,6 @@ pub async fn set_working_repo_to_commit(
         }
         None => None,
     };
-
-    /*
-    // Potential Optimization
-    // Collect hashset of every dir and vnode shared between the commits
-    let mut shared_dirs_and_vnodes: HashSet<MerkleHash> = if from_node.is_some() {
-        let from_hashes = from_node.list_dir_and_vnode_hashes(PathBuf::from(""))?;
-        from_hashes.extend(&target_node.list_dir_and_vnode_hashes(PathBuf::from(""))?)
-    } else {
-        target_node.list_dir_and_vnode_hashes(PathBuf::from(""))?
-    };
-    */
 
     // You may be thinking, why do we not do this in one pass?
     // It's because when removing files, we are iterating over the from tree
@@ -257,8 +244,9 @@ pub async fn set_working_repo_to_commit(
         &mut files_to_restore,
         &mut cannot_overwrite_entries,
         &mut progress,
-        &mut seen_files,
     )?;
+
+    let target_files: HashSet<MerkleHash> = target_node.list_file_hashes()?;
 
     // Cleanup files if checking out from another commit
     if maybe_from_commit.is_some() {
@@ -267,7 +255,7 @@ pub async fn set_working_repo_to_commit(
             &target_node,
             &from_node.unwrap(),
             &mut progress,
-            &mut seen_files,
+            &target_files,
         )?;
     }
 
@@ -294,7 +282,7 @@ fn cleanup_removed_files(
     target_node: &MerkleTreeNode,
     from_node: &MerkleTreeNode,
     progress: &mut CheckoutProgressBar,
-    seen: &mut HashSet<MerkleHash>,
+    seen: &HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     // Compare the nodes in the from tree to the nodes in the target tree
     // If the file node is in the from tree, but not in the target tree, remove it
@@ -339,7 +327,7 @@ fn r_remove_if_not_in_target(
     current_path: &Path,
     paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
-    seen_files: &mut HashSet<MerkleHash>,
+    seen_files: &HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     match &head_node.node {
         EMerkleTreeNode::File(file_node) => {
@@ -427,7 +415,6 @@ fn r_restore_missing_or_modified_files(
     files_to_restore: &mut Vec<FileToRestore>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
     progress: &mut CheckoutProgressBar,
-    seen_files: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
     // If the file is not in the working repo, restore it from the commit
@@ -481,10 +468,7 @@ fn r_restore_missing_or_modified_files(
                     progress.increment_modified();
                 }
             }
-
-            seen_files.insert(node.hash);
         }
-        // MATCH VNODES
         EMerkleTreeNode::Directory(dir_node) => {
             // Early exit if the directory is the same in the from and target trees
             let from_node = if let Some(from_tree) = from_tree {
@@ -509,7 +493,7 @@ fn r_restore_missing_or_modified_files(
 
                 // Get vnode hashes for the target dir node
                 let mut from_hashes = HashSet::new();
-                for child in &from_tree.as_ref().unwrap().get_vnodes_for_dir(&path)? {
+                for child in &from_tree.as_ref().unwrap().get_vnodes_for_dir(path)? {
                     if let EMerkleTreeNode::VNode(_) = &child.node {
                         from_hashes.insert(child.hash);
                     }
@@ -538,7 +522,6 @@ fn r_restore_missing_or_modified_files(
                     files_to_restore,
                     cannot_overwrite_entries,
                     progress,
-                    seen_files,
                 )?;
             }
         }
@@ -553,7 +536,6 @@ fn r_restore_missing_or_modified_files(
                 files_to_restore,
                 cannot_overwrite_entries,
                 progress,
-                seen_files,
             )?;
         }
         _ => {
