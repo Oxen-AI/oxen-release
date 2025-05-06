@@ -606,8 +606,6 @@ pub fn unique_dir_entries(
                 )))
             }
         }
-    } else {
-        println!("FAILED: {:?}", node.hash);
     }
 
     Ok(entries)
