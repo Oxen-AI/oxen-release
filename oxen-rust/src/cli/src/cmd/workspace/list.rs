@@ -40,8 +40,13 @@ impl RunCmd for WorkspaceListCmd {
         };
 
         let workspaces = api::client::workspaces::list(&remote_repo).await?;
+        if workspaces.is_empty() {
+            println!("No workspaces found");
+            return Ok(());
+        }
+
+        println!("id\tname\tcommit_id\tcommit_message");
         for workspace in workspaces {
-            println!("id\tname\tcommit_id\tcommit_message");
             println!(
                 "{}\t{}\t{}\t{}",
                 workspace.id,

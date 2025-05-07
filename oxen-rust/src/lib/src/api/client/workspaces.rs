@@ -559,7 +559,7 @@ mod tests {
             let path = test::test_img_file();
             let result = api::client::workspaces::files::upload_single_file(
                 &remote_repo,
-                &&workspace_id,
+                workspace_id,
                 "",
                 path,
             )
