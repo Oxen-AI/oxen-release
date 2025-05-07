@@ -215,7 +215,10 @@ mod tests {
 
                 start_fork(original_repo_path.clone(), forked_repo_path.clone())?;
                 let mut current_status = "in_progress".to_string();
-                while current_status == "in_progress" {
+                let mut attempts = 0;
+                const MAX_ATTEMPTS: u32 = 50; // 5 seconds timeout (50 * 100ms)
+
+                while current_status == "in_progress" && attempts < MAX_ATTEMPTS {
                     tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
                     current_status = match get_fork_status(&forked_repo_path) {
                         Ok(status) => status.status,
@@ -227,14 +230,20 @@ mod tests {
                             }
                         }
                     };
+                    attempts += 1;
                 }
+
+                if attempts >= MAX_ATTEMPTS {
+                    return Err(OxenError::basic_str("Fork operation timed out"));
+                }
+
                 let file_path = original_repo_path.clone().join("dir/test_file.txt");
 
                 assert!(forked_repo_path.exists());
                 // Verify that the content of .oxen/config.toml is the same in both repos
                 let new_file_path = forked_repo_path.join("dir/test_file.txt");
                 let original_content = fs::read_to_string(&file_path)?;
-                let mut retries = 20;
+                let mut retries = 10;
                 let mut sleep_time = 100;
                 let new_content = loop {
                     if new_file_path.exists() {
@@ -287,7 +296,9 @@ mod tests {
 
                 start_fork(original_repo_path.clone(), new_repo_path_2.clone())?;
                 let mut current_status = "in_progress".to_string();
-                while current_status == "in_progress" {
+                let mut attempts = 0;
+
+                while current_status == "in_progress" && attempts < MAX_ATTEMPTS {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     current_status = match get_fork_status(&new_repo_path_2) {
                         Ok(status) => status.status,
@@ -301,7 +312,13 @@ mod tests {
                             }
                         }
                     };
+                    attempts += 1;
                 }
+
+                if attempts >= MAX_ATTEMPTS {
+                    return Err(OxenError::basic_str("Fork operation timed out"));
+                }
+
                 // Check that the new repository exists
                 assert!(new_repo_path_2.clone().exists());
 
