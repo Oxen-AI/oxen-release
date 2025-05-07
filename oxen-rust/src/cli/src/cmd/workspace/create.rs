@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
@@ -47,20 +49,17 @@ impl RunCmd for WorkspaceCreateCmd {
             None => &branch.name,
         };
 
-        let default_name = "".to_string();
-        let name = args
-            .get_one::<String>("name")
-            .unwrap_or(&default_name)
-            .to_string();
+        let name = args.get_one::<String>("name").map(|s| s.to_string());
 
         let remote_repo = api::client::repositories::get_default_remote(&repo).await?;
         // Generate a random workspace id
         let workspace_id = Uuid::new_v4().to_string();
-        let workspace = api::client::workspaces::create_with_name(
+        let workspace = api::client::workspaces::create_with_path(
             &remote_repo,
             &branch_name,
             &workspace_id,
-            &name,
+            Path::new("/"),
+            name,
         )
         .await?;
         match workspace.status.as_str() {
