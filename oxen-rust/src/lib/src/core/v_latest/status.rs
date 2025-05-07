@@ -355,10 +355,12 @@ pub fn read_staged_entries_below_path(
         "read_staged_entries dir_entries.len(): {:?}",
         dir_entries.len()
     );
-    for (dir, entries) in dir_entries.iter() {
-        log::debug!("commit dir_entries dir {:?}", dir);
-        for entry in entries.iter() {
-            log::debug!("\tcommit dir_entries entry {}", entry);
+    if log::max_level() == log::Level::Debug {
+        for (dir, entries) in dir_entries.iter() {
+            log::debug!("commit dir_entries dir {:?}", dir);
+            for entry in entries.iter() {
+                log::debug!("\tcommit dir_entries entry {}", entry);
+            }
         }
     }
 

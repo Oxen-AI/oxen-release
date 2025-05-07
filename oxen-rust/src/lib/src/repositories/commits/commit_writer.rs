@@ -419,12 +419,14 @@ pub fn commit_dir_entries(
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_dir_entries got {} entries", dir_entries.len());
-    for (path, entries) in &dir_entries {
-        log::debug!(
-            "commit_dir_entries entry {:?} with {} nodes",
-            path,
-            entries.len()
-        );
+    if log::max_level() == log::Level::Debug {
+        for (path, entries) in &dir_entries {
+            log::debug!(
+                "commit_dir_entries entry {:?} with {} nodes",
+                path,
+                entries.len()
+            );
+        }
     }
 
     if dir_entries.is_empty() {
@@ -595,12 +597,14 @@ fn split_into_vnodes(
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
-    log::debug!("split_into_vnodes new_commit: {:?}", new_commit.message);
-    log::debug!("split_into_vnodes entries keys: {:?}", entries.keys());
-    log::debug!(
-        "split_into_vnodes existing_nodes keys: {:?}",
-        existing_nodes.keys()
-    );
+    if log::max_level() == log::Level::Debug {
+        log::debug!("split_into_vnodes new_commit: {:?}", new_commit.message);
+        log::debug!("split_into_vnodes entries keys: {:?}", entries.keys());
+        log::debug!(
+            "split_into_vnodes existing_nodes keys: {:?}",
+            existing_nodes.keys()
+        );
+    }
 
     // Create the VNode buckets per directory
     for (directory, new_children) in entries {
@@ -660,13 +664,15 @@ fn split_into_vnodes(
         }
 
         // Log the children
-        for child in children.iter() {
-            log::debug!(
-                "child populated {:?} {:?} status {:?}",
-                child.node.node.node_type(),
-                child.node.maybe_path().unwrap(),
-                child.status
-            );
+        if log::max_level() == log::Level::Debug {
+            for child in children.iter() {
+                log::debug!(
+                    "child populated {:?} {:?} status {:?}",
+                    child.node.node.node_type(),
+                    child.node.maybe_path().unwrap(),
+                    child.status
+                );
+            }
         }
 
         // Compute number of vnodes based on the repo's vnode size and number of children
@@ -752,18 +758,20 @@ fn split_into_vnodes(
         results.len(),
         new_commit.message
     );
-    for (dir, vnodes) in results.iter_mut() {
-        log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
-        for vnode in vnodes.iter_mut() {
-            log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
-            for entry in vnode.entries.iter() {
-                log::debug!(
-                    "    entry {:?} [{}] `{:?}` with status {:?}",
-                    entry.node.node.node_type(),
-                    entry.node.node.hash(),
-                    entry.node.maybe_path(),
-                    entry.status
-                );
+    if log::max_level() == log::Level::Debug {
+        for (dir, vnodes) in results.iter_mut() {
+            log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
+            for vnode in vnodes.iter_mut() {
+                log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
+                for entry in vnode.entries.iter() {
+                    log::debug!(
+                        "    entry {:?} [{}] `{:?}` with status {:?}",
+                        entry.node.node.node_type(),
+                        entry.node.node.hash(),
+                        entry.node.maybe_path(),
+                        entry.status
+                    );
+                }
             }
         }
     }
