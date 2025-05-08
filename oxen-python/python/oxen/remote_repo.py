@@ -429,8 +429,7 @@ class RemoteRepo:
             name: `str`
                 The name of the branch to check
         """
-        branches = set([b.name for b in self.branches()])
-        return name in branches
+        return self._repo.branch_exists(name)
 
     def branch(self):
         """
@@ -471,6 +470,16 @@ class RemoteRepo:
         """
         print(f"Creating branch '{branch}' from commit '{self._repo.commit_id}'")
         return self._repo.create_branch(branch)
+
+    def delete_branch(self, branch: str):
+        """
+        Delete a branch from the remote repo.
+
+        Args:
+            branch: `str`
+                The name of the branch to delete
+        """
+        return self._repo.delete_branch(branch)
 
     def create_checkout_branch(self, branch: str):
         """

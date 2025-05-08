@@ -336,6 +336,20 @@ impl PyRemoteRepo {
         }
     }
 
+    fn branch_exists(&self, branch_name: String) -> PyResult<bool> {
+        let branch = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::branches::get_by_name(&self.repo, &branch_name).await });
+
+        match branch {
+            Ok(Some(_)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Error getting branch: {}",
+                e
+            ))),
+        }
+    }
+
     fn get_commit(&self, commit_id: String) -> PyResult<PyCommit> {
         let commit = pyo3_async_runtimes::tokio::get_runtime()
             .block_on(async { api::client::commits::get_by_id(&self.repo, &commit_id).await });
@@ -359,6 +373,19 @@ impl PyRemoteRepo {
         match branch {
             Ok(branch) => Ok(PyBranch::from(branch)),
             _ => Err(PyValueError::new_err("Could not get or create branch")),
+        }
+    }
+
+    fn delete_branch(&self, branch_name: String) -> PyResult<()> {
+        let result = pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { api::client::branches::delete(&self.repo, &branch_name).await });
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(PyValueError::new_err(format!(
+                "Could not delete branch: {}",
+                e
+            ))),
         }
     }
 

@@ -74,6 +74,8 @@ class Workspace:
                 The path to the workspace. If left empty, the workspace will be created in the root of the remote repo.
         """
         self._repo = repo
+        if not self._repo.revision == branch:
+            self._repo.create_checkout_branch(branch)
         try:
             self._workspace = PyWorkspace(
                 repo._repo, branch, workspace_id, workspace_name, path
