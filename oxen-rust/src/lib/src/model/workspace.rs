@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR};
+use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_CONFIG};
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
@@ -41,6 +41,14 @@ impl Workspace {
     pub fn dir(&self) -> PathBuf {
         let workspace_id_hash = util::hasher::hash_str_sha256(&self.id);
         Self::workspace_dir(&self.base_repo, &workspace_id_hash)
+    }
+
+    pub fn config_path_from_dir(dir: impl AsRef<Path>) -> PathBuf {
+        dir.as_ref().join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG)
+    }
+
+    pub fn config_path(&self) -> PathBuf {
+        Self::config_path_from_dir(self.dir())
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACE_CONFIG};
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
@@ -38,7 +38,7 @@ pub fn get(
     log::debug!("workspace::get workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
 
     let workspace_dir = Workspace::workspace_dir(repo, &workspace_id_hash);
-    let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+    let config_path = Workspace::config_path_from_dir(&workspace_dir);
 
     log::debug!("workspace::get directory: {workspace_dir:?}");
     if config_path.exists() {
@@ -58,7 +58,7 @@ pub fn get_by_dir(
 ) -> Result<Option<Workspace>, OxenError> {
     let workspace_dir = workspace_dir.as_ref();
     let workspace_id = workspace_dir.file_name().unwrap().to_str().unwrap();
-    let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+    let config_path = Workspace::config_path_from_dir(workspace_dir);
 
     if !config_path.exists() {
         log::debug!("workspace::get workspace not found: {:?}", workspace_dir);
@@ -169,15 +169,12 @@ pub fn create_with_name(
     };
 
     // Write the TOML string to WORKSPACE_CONFIG
-    let commit_id_path = workspace_repo
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(WORKSPACE_CONFIG);
+    let workspace_config_path = Workspace::config_path_from_dir(&workspace_dir);
     log::debug!(
         "index::workspaces::create writing workspace config to: {:?}",
-        commit_id_path
+        workspace_config_path
     );
-    util::fs::write_to_path(&commit_id_path, toml_string)?;
+    util::fs::write_to_path(&workspace_config_path, toml_string)?;
 
     Ok(Workspace {
         id: workspace_id.to_owned(),
@@ -327,6 +324,49 @@ pub fn clear(repo: &LocalRepository) -> Result<(), OxenError> {
     }
 
     util::fs::remove_dir_all(&workspaces_dir)?;
+    Ok(())
+}
+
+pub fn update_commit(workspace: &Workspace, new_commit_id: &str) -> Result<(), OxenError> {
+    let config_path = workspace.config_path();
+
+    if !config_path.exists() {
+        log::error!("Workspace config not found: {:?}", config_path);
+        return Err(OxenError::workspace_not_found(workspace.id.clone().into()));
+    }
+
+    let config_contents = util::fs::read_from_path(&config_path)?;
+    let mut config: WorkspaceConfig = toml::from_str(&config_contents).map_err(|e| {
+        log::error!(
+            "Failed to parse workspace config: {:?}, err: {}",
+            config_path,
+            e
+        );
+        OxenError::basic_str(format!("Failed to parse workspace config: {}", e))
+    })?;
+
+    log::debug!(
+        "Updating workspace {} commit from {} to {}",
+        workspace.id,
+        config.workspace_commit_id,
+        new_commit_id
+    );
+    config.workspace_commit_id = new_commit_id.to_string();
+
+    let toml_string = toml::to_string(&config).map_err(|e| {
+        log::error!(
+            "Failed to serialize workspace config to TOML: {:?}, err: {}",
+            config_path,
+            e
+        );
+        OxenError::basic_str(format!(
+            "Failed to serialize workspace config to TOML: {}",
+            e
+        ))
+    })?;
+
+    util::fs::write_to_path(&config_path, toml_string)?;
+
     Ok(())
 }
 
