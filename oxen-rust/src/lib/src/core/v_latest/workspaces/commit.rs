@@ -94,16 +94,13 @@ pub fn commit(
         manager.set_branch_commit_id(branch_name, &commit_id)
     })?;
 
-    // Cleanup workspace on commit
-    repositories::workspaces::delete(workspace)?;
-    if let Some(workspace_name) = &workspace.name {
-        repositories::workspaces::create_with_name(
-            &workspace.base_repo,
-            &commit,
-            workspace.id.clone(),
-            Some(workspace_name.clone()),
-            true,
-        )?;
+    if workspace.name.is_some() {
+        // Named workspaces aren't deleted on commit, instead we
+        // update the workspace config to point to the new commit
+        repositories::workspaces::update_commit(workspace, &commit_id)?;
+    } else {
+        // Unnamed workspaces are deleted on commit
+        repositories::workspaces::delete(workspace)?;
     }
 
     Ok(commit)

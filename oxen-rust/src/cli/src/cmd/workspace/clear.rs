@@ -16,7 +16,7 @@ impl RunCmd for WorkspaceClearCmd {
     }
 
     fn args(&self) -> Command {
-        Command::new(NAME).about("Clears all workspaces").arg(
+        Command::new(NAME).about("Deletes all workspaces").arg(
             clap::Arg::new("remote")
                 .short('r')
                 .long("remote")
@@ -42,14 +42,15 @@ impl RunCmd for WorkspaceClearCmd {
 
         match Confirm::new()
             .with_prompt(format!(
-                "Are you sure you want to clear all workspaces for remote: {}?",
+                "Are you sure you want to delete all workspaces for remote: {}?",
                 remote_repo.name
             ))
             .interact()
         {
             Ok(true) => {
+                println!("Deleting all workspaces for remote: {}", remote_repo.name);
                 api::client::workspaces::clear(&remote_repo).await?;
-                println!("All workspaces cleared");
+                println!("All workspaces deleted");
             }
             Ok(false) => {
                 return Ok(());

@@ -676,7 +676,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         } else {
             output_root.join(&src)
         };
-        if util::fs::metadata(&dest).is_err() {
+        if !dest.exists() {
             // log::debug!("copy_dir_all  mkdir: {:?}", dest);
             util::fs::create_dir_all(&dest)?;
         }
