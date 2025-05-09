@@ -66,8 +66,8 @@ impl RunCmd for NotebookCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
-                Arg::new("gpu_model")
-                    .long("gpu-model")
+                Arg::new("gpu")
+                    .long("gpu")
                     .help("GPU model to use (A10G, H100, A100-40GB, A100-80GB)")
                     .action(clap::ArgAction::Set),
             )
@@ -115,10 +115,10 @@ impl RunCmd for NotebookCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
-                Arg::new("script_args")
-                    .long("script-args")
-                    .help("Arguments to pass to the script when in script mode")
-                    .action(clap::ArgAction::Set),
+                Arg::new("args")
+                    .help("Additional arguments to pass to the notebook/script")
+                    .num_args(0..)
+                    .action(clap::ArgAction::Append),
             )
     }
 
@@ -142,8 +142,12 @@ impl RunCmd for NotebookCmd {
         let mode = args
             .get_one::<NotebookMode>("mode")
             .expect("Must supply mode");
-        let script_args = args.get_one::<String>("script_args");
-        let gpu_model = args.get_one::<String>("gpu_model");
+        let args_vec: Vec<String> = args
+            .get_many::<String>("args")
+            .unwrap_or_default()
+            .map(|s| s.to_string())
+            .collect();
+        let gpu_model = args.get_one::<String>("gpu");
         let cpu_cores = args
             .get_one::<String>("cpu_cores")
             .unwrap()
@@ -166,7 +170,7 @@ impl RunCmd for NotebookCmd {
         log::debug!("  Branch: {}", branch);
         log::debug!("  Base Image: {}", base_image);
         log::debug!("  Mode: {:?}", mode);
-        log::debug!("  Script Args: {:?}", script_args);
+        log::debug!("  Script Args: {:?}", args_vec);
         log::debug!("  GPU Model: {:?}", gpu_model);
         log::debug!("  CPU Cores: {}", cpu_cores);
         log::debug!("  Memory MB: {}", memory_mb);
@@ -197,8 +201,10 @@ impl RunCmd for NotebookCmd {
             timeout_secs,
             notebook_base_image_id: None,
             build_script: build_script.map(|s| s.to_owned()),
-            script_args: script_args.map(|s| s.to_owned()),
+            script_args: if args_vec.is_empty() { None } else { Some(args_vec.join(" ")) },
         };
+
+        log::debug!("notebook opts: {:?}", opts);
 
         match action {
             NotebookAction::Start => {
@@ -235,7 +241,7 @@ impl NotebookCmd {
         opts.base_image = base_image_id.id.to_owned();
 
         let notebook = api::client::notebooks::create(repository, opts).await?;
-        api::client::notebooks::run(repository, &notebook).await?;
+        // api::client::notebooks::run(repository, &notebook).await?;
         let url = format!(
             "https://oxen.ai/{}/{}/notebooks/{}",
             repository.namespace, repository.name, notebook.id
