@@ -245,6 +245,49 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
+    def create_workspace(
+        self, branch: Optional[str] = None, workspace_name: Optional[str] = None
+    ):
+        """
+        Create a new workspace in the remote repo.
+
+        Args:
+            branch: `str | None`
+                The branch to create the workspace on. Defaults to `self.revision`
+            workspace_name: `str | None`
+                The named workspace to use when adding the file. If None, will create a temporary workspace
+
+        Returns:
+            [Workspace](/python-api/workspace)
+        """
+        if branch is None or branch == "":
+            branch = self.revision
+
+        if self._workspace is None:
+            self._workspace = Workspace(self, branch, workspace_name=workspace_name)
+            print(
+                f"Workspace '{self._workspace.id}' created from commit '{self._workspace.commit_id}'"
+            )
+            self._repo.set_commit_id(self._workspace.commit_id)
+            return self._workspace
+        elif (
+            self._workspace.branch == branch and self._workspace.name == workspace_name
+        ):
+            # workspace already exists
+            return self._workspace
+        else:
+            raise ValueError(
+                "A different workspace is already open for this repo, commit or delete it first"
+            )
+
+    def delete_workspace(self):
+        """
+        Delete the current workspace in the remote repo.
+        """
+        if self._workspace is not None:
+            self._workspace.delete()
+            self._workspace = None
+
     def add(
         self,
         src: str,
@@ -262,20 +305,13 @@ class RemoteRepo:
                 The directory to upload the file to. If None, will upload to the root directory.
             branch: `str | None`
                 The branch to upload the file to. Defaults to `self.revision`
+            workspace_name: `str | None`
+                The named workspace to use when adding the file. If None, will create a temporary workspace
 
         Returns:
             [Workspace](/python-api/workspace)
         """
-        if self._workspace is None:
-            if branch is None or branch == "":
-                branch = self.revision
-            print(f"Creating workspace for branch {branch}")
-            self._workspace = Workspace(self, branch, workspace_name=workspace_name)
-            print(
-                f"Workspace '{self._workspace.id}' created from commit '{self._workspace.commit_id}'"
-            )
-            self._repo.set_commit_id(self._workspace.commit_id)
-
+        self.create_workspace(branch, workspace_name)
         self._workspace.add(src, dst)
         return self._workspace
 
@@ -393,8 +429,7 @@ class RemoteRepo:
             name: `str`
                 The name of the branch to check
         """
-        branches = set([b.name for b in self.branches()])
-        return name in branches
+        return self._repo.branch_exists(name)
 
     def branch(self):
         """
@@ -435,6 +470,16 @@ class RemoteRepo:
         """
         print(f"Creating branch '{branch}' from commit '{self._repo.commit_id}'")
         return self._repo.create_branch(branch)
+
+    def delete_branch(self, branch: str):
+        """
+        Delete a branch from the remote repo.
+
+        Args:
+            branch: `str`
+                The name of the branch to delete
+        """
+        return self._repo.delete_branch(branch)
 
     def create_checkout_branch(self, branch: str):
         """
