@@ -201,7 +201,11 @@ impl RunCmd for NotebookCmd {
             timeout_secs,
             notebook_base_image_id: None,
             build_script: build_script.map(|s| s.to_owned()),
-            script_args: if args_vec.is_empty() { None } else { Some(args_vec.join(" ")) },
+            script_args: if args_vec.is_empty() {
+                None
+            } else {
+                Some(args_vec.join(" "))
+            },
         };
 
         log::debug!("notebook opts: {:?}", opts);
