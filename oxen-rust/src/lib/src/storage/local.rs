@@ -423,7 +423,7 @@ mod tests {
         let hash = "abcdef1234567890";
         let offset = 0;
         let data = b"test chunk data";
-        let size = data.len() as u32;
+        let size = data.len() as u64;
 
         // Store the chunk
         store.store_version(hash, data).unwrap();

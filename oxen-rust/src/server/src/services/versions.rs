@@ -11,6 +11,7 @@ pub fn versions() -> Scope {
             "",
             web::get().to(controllers::entries::download_data_from_version_paths),
         )
+        .route("", web::post().to(controllers::versions::batch_upload))
         .route(
             "/{version_id}/metadata",
             web::get().to(controllers::versions::metadata),
@@ -28,7 +29,7 @@ pub fn versions() -> Scope {
             web::get().to(controllers::versions::chunks::download),
         )
         .route(
-            "/{version_id}/download",
+            "/{version_id}",
             web::get().to(controllers::versions::download),
         )
 }
