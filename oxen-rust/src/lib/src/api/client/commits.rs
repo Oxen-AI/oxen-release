@@ -866,11 +866,34 @@ async fn upload_single_tarball_to_server_with_client(
     }
 }
 
-// TODO: Add retry logic with the returned err_files in the response
-pub async fn multipart_batch_upload_with_client(
+pub async fn multipart_batch_upload_with_retry(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     chunk: &Vec<Entry>,
+    client: &reqwest::Client,
+) -> Result<Vec<ErrorFileInfo>, OxenError> {
+    let mut files_to_retry: Vec<ErrorFileInfo> = vec![];
+    let mut first_try = true;
+    let mut retry_count: u64 = 0;
+
+    while (first_try || !files_to_retry.is_empty()) && retry_count < constants::NUM_HTTP_RETRIES {
+        first_try = false;
+        retry_count += 1;
+
+        files_to_retry = multipart_batch_upload(local_repo, remote_repo, chunk, client).await?;
+
+        if !files_to_retry.is_empty() {
+            std::thread::sleep(std::time::Duration::from_secs(retry_count * retry_count));
+        }
+    }
+    Ok(files_to_retry)
+}
+
+pub async fn multipart_batch_upload(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    chunk: &Vec<Entry>,
+    client: &reqwest::Client,
 ) -> Result<Vec<ErrorFileInfo>, OxenError> {
     let version_store = local_repo.version_store()?;
     let mut form = reqwest::multipart::Form::new();
@@ -901,12 +924,11 @@ pub async fn multipart_batch_upload_with_client(
     }
     let uri = ("/versions").to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = client::new_for_url(&url)?;
 
     let response = client.post(&url).multipart(form).send().await?;
     let body = client::parse_json_body(&url, response).await?;
     let response: FilesHashResponse = serde_json::from_str(&body)?;
-    // TODO: return all_err_files to the user
+
     err_files.extend(response.err_files);
 
     Ok(err_files)

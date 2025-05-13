@@ -697,7 +697,7 @@ async fn bundle_and_send_small_entries(
         let bar = Arc::clone(progress);
         tokio::spawn(async move {
             loop {
-                let (chunk, repo, _commit, remote_repo, _client) = queue.pop().await;
+                let (chunk, repo, _commit, remote_repo, client) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
                 log::debug!("Chunk size {}", chunk.len());
                 let chunk_size = match repositories::entries::compute_generic_entries_size(&chunk) {
@@ -708,14 +708,16 @@ async fn bundle_and_send_small_entries(
                     }
                 };
 
-                match api::client::commits::multipart_batch_upload_with_client(
+                match api::client::commits::multipart_batch_upload_with_retry(
                     &repo,
                     &remote_repo,
                     &chunk,
+                    &client,
                 )
                 .await
                 {
                     Ok(_err_files) => {
+                        // TODO: return err files info to the user
                         log::debug!("Successfully uploaded data!")
                     }
                     Err(e) => {
