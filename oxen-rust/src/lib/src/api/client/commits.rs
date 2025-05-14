@@ -3,7 +3,6 @@ use crate::constants::{DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, HISTORY_DIR};
 
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
-use crate::model::entry::commit_entry::Entry;
 use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{Branch, Commit, LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::PaginateOpts;
@@ -14,12 +13,11 @@ use crate::{api, constants, repositories};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
-    CommitResponse, ErrorFileInfo, FilesHashResponse, ListCommitResponse, MerkleHashesResponse,
-    PaginatedCommits, RootCommitResponse, StatusMessage,
+    CommitResponse, ListCommitResponse, MerkleHashesResponse, PaginatedCommits, RootCommitResponse,
+    StatusMessage,
 };
 
 use std::collections::HashSet;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
@@ -864,74 +862,6 @@ async fn upload_single_tarball_to_server_with_client(
             "upload_single_tarball_to_server Err deserializing \n\n{body}"
         ))),
     }
-}
-
-pub async fn multipart_batch_upload_with_retry(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    chunk: &Vec<Entry>,
-    client: &reqwest::Client,
-) -> Result<Vec<ErrorFileInfo>, OxenError> {
-    let mut files_to_retry: Vec<ErrorFileInfo> = vec![];
-    let mut first_try = true;
-    let mut retry_count: u64 = 0;
-
-    while (first_try || !files_to_retry.is_empty()) && retry_count < constants::NUM_HTTP_RETRIES {
-        first_try = false;
-        retry_count += 1;
-
-        files_to_retry = multipart_batch_upload(local_repo, remote_repo, chunk, client).await?;
-
-        if !files_to_retry.is_empty() {
-            std::thread::sleep(std::time::Duration::from_secs(retry_count * retry_count));
-        }
-    }
-    Ok(files_to_retry)
-}
-
-pub async fn multipart_batch_upload(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    chunk: &Vec<Entry>,
-    client: &reqwest::Client,
-) -> Result<Vec<ErrorFileInfo>, OxenError> {
-    let version_store = local_repo.version_store()?;
-    let mut form = reqwest::multipart::Form::new();
-    let mut err_files: Vec<ErrorFileInfo> = vec![];
-
-    for entry in chunk {
-        let file_hash = entry.hash();
-        let file_content = version_store.get_version(&file_hash)?;
-
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&file_content)?;
-        let compressed_bytes = match encoder.finish() {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                log::error!("Failed to finish gzip for file {}: {}", &file_hash, e);
-                err_files.push(ErrorFileInfo {
-                    hash: file_hash.clone(),
-                    error: format!("Failed to finish gzip for file {}: {}", &file_hash, e),
-                });
-                continue;
-            }
-        };
-
-        let file_part = reqwest::multipart::Part::bytes(compressed_bytes)
-            .file_name(entry.hash().to_string())
-            .mime_str("application/gzip")?;
-        form = form.part("file[]", file_part);
-    }
-    let uri = ("/versions").to_string();
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let response = client.post(&url).multipart(form).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    let response: FilesHashResponse = serde_json::from_str(&body)?;
-
-    err_files.extend(response.err_files);
-
-    Ok(err_files)
 }
 
 async fn upload_data_to_server_in_chunks_with_client(

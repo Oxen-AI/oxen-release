@@ -708,7 +708,7 @@ async fn bundle_and_send_small_entries(
                     }
                 };
 
-                match api::client::commits::multipart_batch_upload_with_retry(
+                match api::client::versions::multipart_batch_upload_with_retry(
                     &repo,
                     &remote_repo,
                     &chunk,
