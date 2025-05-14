@@ -5,9 +5,10 @@ use crate::model::commit::NewCommitBody;
 use crate::model::RemoteRepository;
 use crate::view::CommitResponse;
 
-use actix_web::HttpResponse;
 use reqwest::multipart::{Form, Part};
 use std::path::Path;
+
+use bytes::Bytes;
 
 pub async fn put_file(
     remote_repo: &RemoteRepository,
@@ -52,7 +53,7 @@ pub async fn get_file(
     remote_repo: &RemoteRepository,
     branch: impl AsRef<str>,
     file_path: impl AsRef<Path>,
-) -> Result<HttpResponse, OxenError> {
+) -> Result<Bytes, OxenError> {
     let branch = branch.as_ref();
     let file_path = file_path.as_ref().to_str().unwrap();
     let uri = format!("/file/{branch}/{file_path}");
@@ -61,15 +62,12 @@ pub async fn get_file(
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
     let body = res.bytes().await?;
-    Ok(HttpResponse::Ok()
-        .content_type("application/octet-stream")
-        .body(body))
+    Ok(body)
 }
 
 #[cfg(test)]
 mod tests {
 
-    use actix_web::body::to_bytes;
     use actix_web::web::Bytes;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
@@ -118,10 +116,10 @@ mod tests {
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let branch_name = "main";
             let file_path = test::test_bounding_box_csv();
-            let response =
-                api::client::file::get_file(&remote_repo, branch_name, file_path).await?;
+            let bytes = api::client::file::get_file(&remote_repo, branch_name, file_path).await;
 
-            assert_eq!(response.status(), 200);
+            assert!(bytes.is_ok());
+            assert!(bytes.unwrap().len() > 0);
 
             Ok(remote_repo)
         })
@@ -152,12 +150,11 @@ mod tests {
             )
             .await;
 
-            let response =
-                api::client::file::get_file(&remote_repo, workspace_id, file_path).await?;
+            let bytes = api::client::file::get_file(&remote_repo, workspace_id, file_path).await;
 
-            assert_eq!(response.status(), 200);
-            let body_bytes = to_bytes(response.into_body()).await.unwrap();
-            assert_eq!(body_bytes, Bytes::from_static(b"test content"));
+            assert!(bytes.is_ok());
+            assert!(bytes.as_ref().unwrap().len() > 0);
+            assert_eq!(bytes.unwrap(), Bytes::from_static(b"test content"));
 
             Ok(remote_repo)
         })
