@@ -148,6 +148,7 @@ pub async fn download(
 
     let version_store = repo.version_store()?;
 
+    // TODO: Stream the chunk data
     let chunk_data = version_store.get_version_chunk(&version_id, offset, size)?;
     Ok(HttpResponse::Ok().body(chunk_data))
 }

@@ -54,6 +54,7 @@ pub async fn download(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let version_store = repo.version_store()?;
 
+    // TODO: stream the file
     let file_data = version_store.get_version(&version_id)?;
     Ok(HttpResponse::Ok().body(file_data))
 }
@@ -98,43 +99,55 @@ pub async fn save_multiparts(
             if "file[]" == name {
                 let upload_filehash = content_disposition.get_filename().map_or_else(
                     || {
-                        log::warn!("Multipart file part for '{}' missing filename (expected hash). Generating UUID as fallback.", name);
-                        uuid::Uuid::new_v4().to_string()
+                        Err(actix_web::error::ErrorBadRequest(
+                            "Missing filename in multipart request",
+                        ))
                     },
-                    |fhash_os_str| fhash_os_str.to_string()
-                );
+                    |fhash_os_str| Ok(fhash_os_str.to_string()),
+                )?;
 
                 let mut field_bytes = Vec::new();
                 while let Some(chunk) = field.try_next().await? {
                     field_bytes.extend_from_slice(&chunk);
                 }
 
-                let data_to_store = if field.content_type() == Some(&gzip_mime) {
-                    log::debug!("Decompressing gzipped data for hash: {}", &upload_filehash);
-                    let mut decoder = GzDecoder::new(&field_bytes[..]);
-                    let mut decompressed_bytes = Vec::new();
-                    if let Err(e) = decoder.read_to_end(&mut decompressed_bytes) {
-                        log::error!(
-                            "Failed to decompress gzipped data for hash {}: {}",
-                            &upload_filehash,
-                            e
+                let version_store_copy = version_store.clone();
+                let upload_filehash_copy = upload_filehash.clone();
+                let is_gzipped = field
+                    .content_type()
+                    .map(|mime| {
+                        mime.type_() == gzip_mime.type_() && mime.subtype() == gzip_mime.subtype()
+                    })
+                    .unwrap_or(false);
+
+                match actix_web::web::block(move || {
+                    let data_to_store = if is_gzipped {
+                        log::debug!(
+                            "Decompressing gzipped data for hash: {}",
+                            &upload_filehash_copy
                         );
-                        err_files.push(ErrorFileInfo {
-                            hash: upload_filehash.clone(),
-                            error: format!("Failed to decompress gzipped data: {}", e),
-                        });
-                        continue;
-                    }
-                    decompressed_bytes
-                } else {
-                    log::debug!("Data for hash {} is not gzipped.", &upload_filehash);
-                    field_bytes
-                };
-                match version_store.store_version(&upload_filehash, &data_to_store) {
-                    Ok(_) => {
+                        let mut decoder = GzDecoder::new(&field_bytes[..]);
+                        let mut decompressed_bytes = Vec::new();
+                        decoder.read_to_end(&mut decompressed_bytes).map_err(|e| {
+                            OxenError::basic_str(format!(
+                                "Failed to decompress gzipped data: {}",
+                                e
+                            ))
+                        })?;
+                        decompressed_bytes
+                    } else {
+                        log::debug!("Data for hash {} is not gzipped.", &upload_filehash_copy);
+                        field_bytes
+                    };
+
+                    version_store_copy.store_version(&upload_filehash_copy, &data_to_store)
+                })
+                .await
+                {
+                    Ok(Ok(_)) => {
                         log::info!("Successfully stored version for hash: {}", &upload_filehash);
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         log::error!(
                             "Failed to store version for hash {}: {}",
                             &upload_filehash,
@@ -146,9 +159,151 @@ pub async fn save_multiparts(
                         });
                         continue;
                     }
+                    Err(e) => {
+                        log::error!(
+                            "Failed to execute blocking task for hash {}: {}",
+                            &upload_filehash,
+                            e
+                        );
+                        err_files.push(ErrorFileInfo {
+                            hash: upload_filehash.clone(),
+                            error: format!("Failed to execute blocking task: {}", e),
+                        });
+                        continue;
+                    }
                 }
             }
         }
     }
     Ok(err_files)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::app_data::OxenAppData;
+    use crate::controllers;
+    use crate::test;
+    use actix_multipart::test::create_form_data_payload_and_headers;
+    use actix_web::{web, web::Bytes, App};
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use liboxen::error::OxenError;
+    use liboxen::repositories;
+    use liboxen::util;
+    use liboxen::view::FilesHashResponse;
+    use mime;
+    use std::io::Write;
+
+    #[actix_web::test]
+    async fn test_controllers_versions_download() -> Result<(), OxenError> {
+        test::init_test_env();
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+
+        // create test file and commit
+        util::fs::create_dir_all(repo.path.join("data"))?;
+        let hello_file = repo.path.join("data/hello.txt");
+        let file_content = "Hello";
+        util::fs::write_to_path(&hello_file, file_content)?;
+        repositories::add(&repo, &hello_file)?;
+        repositories::commit(&repo, "First commit")?;
+
+        // get file version id
+        let file_hash = util::hasher::hash_str(file_content);
+
+        // test download
+        let uri = format!("/oxen/{namespace}/{repo_name}/versions/{file_hash}");
+        let req = actix_web::test::TestRequest::get()
+            .uri(&uri)
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
+            .to_request();
+
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData::new(sync_dir.clone()))
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions/{version_id}",
+                    web::get().to(controllers::versions::download),
+                ),
+        )
+        .await;
+
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        assert_eq!(bytes, "Hello");
+
+        // cleanup
+        test::cleanup_sync_dir(&sync_dir)?;
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_controllers_versions_batch_upload() -> Result<(), OxenError> {
+        test::init_test_env();
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        repositories::add(&repo, path)?;
+        repositories::commit(&repo, "first commit")?;
+
+        let file_content = "Test Content";
+        let file_hash = util::hasher::hash_str(file_content);
+
+        // compress file content
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(file_content.as_bytes())?;
+        let compressed_bytes = encoder.finish()?;
+
+        // create multipart request
+        let (body, headers) = create_form_data_payload_and_headers(
+            "file[]",
+            Some(file_hash.clone()),
+            Some("application/gzip".parse::<mime::Mime>().unwrap()),
+            Bytes::from(compressed_bytes),
+        );
+        let uri = format!("/oxen/{namespace}/{repo_name}/versions");
+
+        let req = actix_web::test::TestRequest::post()
+            .uri(&uri)
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()));
+
+        let req = headers
+            .into_iter()
+            .fold(req, |req, hdr| req.insert_header(hdr))
+            .set_payload(body)
+            .to_request();
+
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData::new(sync_dir.clone()))
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions",
+                    web::post().to(controllers::versions::batch_upload),
+                ),
+        )
+        .await;
+
+        let resp = actix_web::test::call_service(&app, req).await;
+        println!("resp: {:?}", resp);
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let response: FilesHashResponse = serde_json::from_slice(&bytes)?;
+        assert_eq!(response.status.status, "success");
+        assert!(response.err_files.is_empty());
+
+        // verify file is stored correctly
+        let version_store = repo.version_store()?;
+        let stored_data = version_store.get_version(&file_hash)?;
+        assert_eq!(stored_data, file_content.as_bytes());
+
+        // cleanup
+        test::cleanup_sync_dir(&sync_dir)?;
+        Ok(())
+    }
 }

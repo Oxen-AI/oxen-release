@@ -189,13 +189,26 @@ impl VersionStore for LocalVersionStore {
     }
 
     fn get_version_chunk(&self, hash: &str, offset: u64, size: u64) -> Result<Vec<u8>, OxenError> {
-        // let chunk_path = self.version_chunk_file(hash, chunk_number);
         let version_file_path = self.version_path(hash);
 
         let mut file = File::open(&version_file_path)?;
-        file.seek(std::io::SeekFrom::Start(offset))?;
+        let metadata = file.metadata()?;
+        let file_len = metadata.len();
 
-        let mut buffer = vec![0u8; size as usize];
+        if offset >= file_len || offset + size > file_len {
+            return Err(OxenError::IO(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "beyond end of file",
+            )));
+        }
+
+        let read_len = std::cmp::min(size, file_len - offset);
+        if read_len > usize::MAX as u64 {
+            return Err(OxenError::basic_str("requested chunk too large"));
+        }
+
+        file.seek(std::io::SeekFrom::Start(offset))?;
+        let mut buffer = vec![0u8; read_len as usize];
         file.read_exact(&mut buffer)?;
 
         Ok(buffer)
