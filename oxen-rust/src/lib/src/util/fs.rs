@@ -34,6 +34,7 @@ use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
+use filetime::FileTime;
 use image::ImageFormat;
 
 use crate::repositories;
@@ -1581,13 +1582,12 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
 
 pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
     let meta = util::fs::metadata(path)?;
-    let file_last_modified = filetime::FileTime::from_last_modification_time(&meta);
+    let file_last_modified = FileTime::from_last_modification_time(&meta);
 
-    let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
-        + std::time::Duration::from_secs(node.last_modified_seconds() as u64)
-        + std::time::Duration::from_nanos(node.last_modified_nanoseconds() as u64);
-
-    let node_last_modified = filetime::FileTime::from_system_time(node_modified_nanoseconds);
+    let node_last_modified = util::fs::last_modified_time(
+        node.last_modified_seconds(),
+        node.last_modified_nanoseconds(),
+    );
 
     if file_last_modified == node_last_modified {
         return Ok(false);
@@ -1601,6 +1601,15 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
     } else {
         Ok(true)
     }
+}
+
+// Calculate a node's last modified time
+pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds: u32) -> FileTime {
+    let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(last_modified_seconds as u64)
+        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
+
+    FileTime::from_system_time(node_modified_nanoseconds)
 }
 
 // Determine if 2 files have the same contents as quickly as possible

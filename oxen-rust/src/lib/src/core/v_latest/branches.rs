@@ -1,14 +1,16 @@
 use indicatif::{ProgressBar, ProgressStyle};
 
+use crate::core::v_latest::fetch;
 use crate::core::v_latest::index::restore::{self, FileToRestore};
-use crate::core::v_latest::{fetch, index};
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
+use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash};
 use crate::repositories;
 use crate::util;
 
-use std::collections::HashSet;
+use filetime::FileTime;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -55,6 +57,72 @@ impl CheckoutProgressBar {
             "🐂 checkout '{}' restored {}, modified {}, removed {}",
             self.revision, self.num_restored, self.num_modified, self.num_removed
         ));
+    }
+}
+
+// Structs grouping related fields to reduce the number of arguments fed into the recursive functions
+
+// files_to_restore: files present in the target tree but not the from tree
+// cannot_overwrite_entries: files that would be restored, but are modified from the from_tree, and thus would erase work if overwritten
+struct CheckoutResult {
+    pub files_to_restore: Vec<FileToRestore>,
+    pub cannot_overwrite_entries: Vec<PathBuf>,
+}
+
+impl CheckoutResult {
+    pub fn new() -> Self {
+        CheckoutResult {
+            files_to_restore: vec![],
+            cannot_overwrite_entries: vec![],
+        }
+    }
+}
+
+// seen_files: HashMap of MerkleHashes and PathBufs, removing the need to check files against the target tree in r_remove_if_not_in_target
+// common_nodes: HashSet of the hashes of all the dirs and vnodes that are common between the trees, removing the need to look up dirs and vnodes in the recursive functions
+struct CheckoutHashes {
+    pub seen_hashes: HashSet<MerkleHash>,
+    pub seen_paths: HashSet<PathBuf>,
+    pub common_nodes: HashSet<MerkleHash>,
+}
+
+impl CheckoutHashes {
+    pub fn new() -> Self {
+        CheckoutHashes {
+            seen_hashes: HashSet::new(),
+            seen_paths: HashSet::new(),
+            common_nodes: HashSet::new(),
+        }
+    }
+
+    pub fn from_hashes(common_nodes: HashSet<MerkleHash>) -> Self {
+        CheckoutHashes {
+            seen_hashes: HashSet::new(),
+            seen_paths: HashSet::new(),
+            common_nodes,
+        }
+    }
+}
+
+// Reduced form of the FileNode, used to save space
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub struct PartialNode {
+    pub hash: MerkleHash,
+    pub last_modified: FileTime,
+}
+
+impl PartialNode {
+    pub fn from(
+        hash: MerkleHash,
+        last_modified_seconds: i64,
+        last_modified_nanoseconds: u32,
+    ) -> Self {
+        let last_modified =
+            util::fs::last_modified_time(last_modified_seconds, last_modified_nanoseconds);
+        PartialNode {
+            hash,
+            last_modified,
+        }
     }
 }
 
@@ -147,26 +215,29 @@ pub async fn checkout_subtrees(
         };
 
         let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
-        let from_tree = None;
         let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
-        let mut files_to_restore: Vec<FileToRestore> = vec![];
-        let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
+        let mut results = CheckoutResult::new();
+        let mut hashes = CheckoutHashes::new();
+        let mut partial_nodes = HashMap::new();
+
         r_restore_missing_or_modified_files(
             repo,
             &target_root,
-            &from_tree,
             parent_path,
-            &mut files_to_restore,
-            &mut cannot_overwrite_entries,
+            &mut results,
             &mut progress,
+            &mut partial_nodes,
+            &mut hashes,
         )?;
 
-        if !cannot_overwrite_entries.is_empty() {
-            return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+        if !results.cannot_overwrite_entries.is_empty() {
+            return Err(OxenError::cannot_overwrite_files(
+                &results.cannot_overwrite_entries,
+            ));
         }
 
         let version_store = repo.version_store()?;
-        for file_to_restore in files_to_restore {
+        for file_to_restore in results.files_to_restore {
             restore::restore_file(
                 repo,
                 &file_to_restore.file_node,
@@ -208,52 +279,65 @@ pub async fn set_working_repo_to_commit(
 ) -> Result<(), OxenError> {
     let mut progress = CheckoutProgressBar::new(to_commit.id.clone());
 
-    let Some(target_node) = repositories::tree::get_root_with_children(repo, to_commit)? else {
+    let mut target_hashes = HashSet::new();
+    let Some(target_tree) =
+        CommitMerkleTree::root_with_children_and_hashes(repo, to_commit, &mut target_hashes)?
+    else {
         return Err(OxenError::basic_str(
             "Cannot get root node for target commit",
         ));
     };
 
-    let from_node = if let Some(from_commit) = maybe_from_commit {
+    let mut shared_hashes = HashSet::new();
+    let mut partial_nodes = HashMap::new();
+    let from_tree = if let Some(from_commit) = maybe_from_commit {
         if from_commit.id == to_commit.id {
             return Ok(());
         }
 
-        // Only cleanup removed files if we are checking out from an existing tree
-        let Some(from_node) = repositories::tree::get_root_with_children(repo, from_commit)? else {
-            return Err(OxenError::basic_str("Cannot get root node for base commit"));
-        };
-        cleanup_removed_files(repo, &target_node, &from_node, &mut progress)?;
-        Some(from_node)
+        log::debug!("from id: {:?}", from_commit.id);
+        log::debug!("to id: {:?}", to_commit.id);
+        CommitMerkleTree::root_with_unique_children(
+            repo,
+            from_commit,
+            &mut target_hashes,
+            &mut shared_hashes,
+            &mut partial_nodes,
+        )
+        .map_err(|_| OxenError::basic_str("Cannot get root node for base commit"))?
     } else {
         None
     };
 
-    // You may be thinking, why do we not do this in one pass?
-    // It's because when removing files, we are iterating over the from tree
-    // And when we restore files, we are iterating over the target tree
+    let mut results = CheckoutResult::new();
+    let mut hashes = CheckoutHashes::from_hashes(shared_hashes);
 
-    // If we did it in one pass, we would not know if we should remove the file
-    // or restore it.
-    let mut files_to_restore: Vec<FileToRestore> = vec![];
-    let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
+    log::debug!("restore_missing_or_modified_files");
     r_restore_missing_or_modified_files(
         repo,
-        &target_node,
-        &from_node,
+        &target_tree,
         Path::new(""),
-        &mut files_to_restore,
-        &mut cannot_overwrite_entries,
+        &mut results,
         &mut progress,
+        &mut partial_nodes,
+        &mut hashes,
     )?;
 
     // If there are conflicts, return an error without restoring anything
-    if !cannot_overwrite_entries.is_empty() {
-        return Err(OxenError::cannot_overwrite_files(&cannot_overwrite_entries));
+    if !results.cannot_overwrite_entries.is_empty() {
+        return Err(OxenError::cannot_overwrite_files(
+            &results.cannot_overwrite_entries,
+        ));
+    }
+
+    // Cleanup files if checking out from another commit
+    if maybe_from_commit.is_some() {
+        log::debug!("Cleanup_removed_files");
+        cleanup_removed_files(repo, &from_tree.unwrap(), &mut progress, &mut hashes)?;
     }
 
     let version_store = repo.version_store()?;
-    for file_to_restore in files_to_restore {
+    for file_to_restore in results.files_to_restore {
         restore::restore_file(
             repo,
             &file_to_restore.file_node,
@@ -265,11 +349,13 @@ pub async fn set_working_repo_to_commit(
     Ok(())
 }
 
+// Remove files not present in the target tree
+// Only called if checking out from an existant commit
 fn cleanup_removed_files(
     repo: &LocalRepository,
-    target_node: &MerkleTreeNode,
     from_node: &MerkleTreeNode,
     progress: &mut CheckoutProgressBar,
+    hashes: &mut CheckoutHashes,
 ) -> Result<(), OxenError> {
     // Compare the nodes in the from tree to the nodes in the target tree
     // If the file node is in the from tree, but not in the target tree, remove it
@@ -281,11 +367,10 @@ fn cleanup_removed_files(
     r_remove_if_not_in_target(
         repo,
         from_root_dir_node,
-        from_node,
-        target_node,
         Path::new(""),
         &mut paths_to_remove,
         &mut cannot_overwrite_entries,
+        hashes,
     )?;
 
     if !cannot_overwrite_entries.is_empty() {
@@ -309,64 +394,65 @@ fn cleanup_removed_files(
 
 fn r_remove_if_not_in_target(
     repo: &LocalRepository,
-    head_node: &MerkleTreeNode,
-    from_tree_root: &MerkleTreeNode,
-    target_tree_root: &MerkleTreeNode,
+    from_node: &MerkleTreeNode,
     current_path: &Path,
     paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
+    hashes: &mut CheckoutHashes,
 ) -> Result<(), OxenError> {
-    match &head_node.node {
+    // Iterate through the from tree, removing files not present in the target tree
+    match &from_node.node {
         EMerkleTreeNode::File(file_node) => {
-            let file_path = current_path.join(file_node.name());
-            let target_node = target_tree_root.get_by_path(&file_path)?;
-
-            if target_node.is_none() {
+            // Only consider files not seen while traversing the target tree
+            if !hashes.seen_hashes.contains(&from_node.hash) {
+                let file_path = current_path.join(file_node.name());
                 let full_path = repo.path.join(&file_path);
-                if full_path.exists() {
-                    // Verify that the file is not in a modified state
+                // Before staging for removal, verify the path exists, doesn't refer to a different file in the target tree, and isn't modified
+                if full_path.exists() && !hashes.seen_paths.contains(&file_path) {
                     if util::fs::is_modified_from_node(&full_path, file_node)? {
                         cannot_overwrite_entries.push(file_path.clone());
                     } else {
-                        log::debug!("Removing file: {:?}", full_path);
                         paths_to_remove.push(full_path.clone());
                     }
                 }
             }
         }
+
         EMerkleTreeNode::Directory(dir_node) => {
-            // TODO: can we also check if the directory is in the target tree,
-            // and potentially remove the whole directory?
             let dir_path = current_path.join(dir_node.name());
+            if hashes.common_nodes.contains(&from_node.hash) {
+                return Ok(());
+            };
 
-            // Check if the directory is the same in the from and target trees
-            // If it is, we don't need to do anything
-            if let Some(target_node) = target_tree_root.get_by_path(&dir_path)? {
-                if target_node.node.hash() == dir_node.hash() {
-                    return Ok(());
+            let children = {
+                // Get vnodes for the from dir node
+                let dir_vnodes = &from_node.children;
+
+                // Only iterate through vnodes not shared between the trees
+                let mut unique_nodes = Vec::new();
+                for vnode in dir_vnodes {
+                    if !hashes.common_nodes.contains(&vnode.hash) {
+                        unique_nodes.extend(vnode.children.iter().cloned());
+                    }
                 }
-            }
 
-            let from_dir = from_tree_root
-                .get_by_path(&dir_path)?
-                .ok_or(OxenError::basic_str(format!(
-                    "Could not find directory in from tree: {:?}",
-                    dir_path
-                )))?;
-            let from_children = repositories::tree::list_files_and_folders(&from_dir)?;
-            for child in from_children {
-                // If the hashes match, we don't need to check if we need to remove any children
-                // because the subdirectory will be the same content-wise
+                unique_nodes
+            };
+
+            for child in &children {
                 r_remove_if_not_in_target(
                     repo,
-                    &child,
-                    from_tree_root,
-                    target_tree_root,
+                    child,
                     &dir_path,
                     paths_to_remove,
                     cannot_overwrite_entries,
+                    hashes,
                 )?;
             }
+            log::debug!(
+                "r_remove_if_not_in_target checked {:?} paths",
+                children.len()
+            );
 
             // Remove directory if it's empty
             let full_dir_path = repo.path.join(&dir_path);
@@ -381,98 +467,140 @@ fn r_remove_if_not_in_target(
 
 fn r_restore_missing_or_modified_files(
     repo: &LocalRepository,
-    node: &MerkleTreeNode,
-    from_tree: &Option<MerkleTreeNode>,
+    target_node: &MerkleTreeNode,
     path: &Path, // relative path
-    files_to_restore: &mut Vec<FileToRestore>,
-    cannot_overwrite_entries: &mut Vec<PathBuf>,
+    results: &mut CheckoutResult,
     progress: &mut CheckoutProgressBar,
+    partial_nodes: &mut HashMap<PathBuf, PartialNode>,
+    hashes: &mut CheckoutHashes,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
     // If the file is not in the working repo, restore it from the commit
     // If the file is in the working repo, but the hash does not match, overwrite the file in the working repo with the file from the commit
     // If the file is in the working repo, and the hash matches, do nothing
 
-    match &node.node {
+    match &target_node.node {
         EMerkleTreeNode::File(file_node) => {
-            let rel_path = path.join(file_node.name());
-            let full_path = repo.path.join(&rel_path);
+            let file_path = path.join(file_node.name());
+            let full_path = repo.path.join(&file_path);
+
+            // Collect hash and path for matching in r_remove_if_not_in_target
+            hashes.seen_hashes.insert(target_node.hash);
+            hashes.seen_paths.insert(file_path.clone());
             if !full_path.exists() {
                 // File doesn't exist, restore it
-                log::debug!("Restoring missing file: {:?}", rel_path);
+                log::debug!("Restoring missing file: {:?}", file_path);
+                results.files_to_restore.push(FileToRestore {
+                    file_node: file_node.clone(),
+                    path: file_path.clone(),
+                });
 
-                if index::restore::should_restore_file(repo, None, file_node, &rel_path)? {
-                    files_to_restore.push(FileToRestore {
-                        file_node: file_node.clone(),
-                        path: rel_path.clone(),
-                    });
-                } else {
-                    cannot_overwrite_entries.push(rel_path.clone());
-                }
                 progress.increment_restored();
             } else {
-                // File exists, check if it needs to be updated
-                if util::fs::is_modified_from_node(&full_path, file_node)? {
-                    let mut from_node: Option<FileNode> = None;
+                // File exists, check whether it matches the target node or a from node
+                // First check last modified times
+                let meta = util::fs::metadata(&full_path)?;
+                let last_modified = Some(FileTime::from_last_modification_time(&meta));
 
-                    if let Some(from_tree) = from_tree {
-                        if let Some(node_from_tree) = from_tree.get_by_path(&rel_path)? {
-                            if let EMerkleTreeNode::File(file_node) = &node_from_tree.node {
-                                from_node = Some(file_node.clone());
-                            }
-                        }
-                    }
-
-                    if index::restore::should_restore_file(repo, from_node, file_node, &rel_path)? {
-                        log::debug!("Updating modified file: {:?}", rel_path);
-                        files_to_restore.push(FileToRestore {
-                            file_node: file_node.clone(),
-                            path: rel_path.clone(),
-                        });
-                    } else {
-                        cannot_overwrite_entries.push(rel_path.clone());
-                    }
-                    progress.increment_modified();
+                // If last_modified matches the target, do nothing
+                let target_last_modified = util::fs::last_modified_time(
+                    file_node.last_modified_seconds(),
+                    file_node.last_modified_nanoseconds(),
+                );
+                if last_modified == Some(target_last_modified) {
+                    return Ok(());
                 }
+
+                // If last_modified matches a corresponding from_node, stage it to be restored
+                let (from_node, from_last_modified) =
+                    if let Some(from_node) = partial_nodes.get(&file_path) {
+                        (Some(from_node), Some(from_node.last_modified))
+                    } else {
+                        (None, None)
+                    };
+
+                if last_modified == from_last_modified {
+                    log::debug!("Updating modified file: {:?}", file_path);
+                    results.files_to_restore.push(FileToRestore {
+                        file_node: file_node.clone(),
+                        path: file_path.clone(),
+                    });
+                    progress.increment_modified();
+                    return Ok(());
+                }
+
+                // Otherwise, check hashes
+                let working_hash = Some(util::hasher::get_hash_given_metadata(&full_path, &meta)?);
+                //log::debug!("Working hash: {:?}", working_hash);
+                let target_hash = target_node.hash.to_u128();
+                //log::debug!("Target hash: {:?}", MerkleHash::new(target_hash));
+                if working_hash == Some(target_hash) {
+                    return Ok(());
+                }
+
+                let from_hash = from_node.map(|from_node| from_node.hash.to_u128());
+                //log::debug!("from hash: {from_hash:?}");
+
+                if working_hash == from_hash {
+                    log::debug!("Updating modified file: {:?}", file_path);
+                    results.files_to_restore.push(FileToRestore {
+                        file_node: file_node.clone(),
+                        path: file_path.clone(),
+                    });
+                    progress.increment_modified();
+                    return Ok(());
+                }
+
+                // If neither hash matches, the file is modified in the working directory and cannot be overwritten
+                results.cannot_overwrite_entries.push(file_path.clone());
+                progress.increment_modified();
             }
         }
         EMerkleTreeNode::Directory(dir_node) => {
+            let dir_path = path.join(dir_node.name());
             // Early exit if the directory is the same in the from and target trees
-            if let Some(from_tree) = from_tree {
-                if let Some(from_node) = from_tree.get_by_path(path)? {
-                    if from_node.node.hash() == dir_node.hash() {
-                        log::debug!("r_restore_missing_or_modified_files path {:?} is the same as from_tree", path);
-                        return Ok(());
+            if hashes.common_nodes.contains(&target_node.hash) {
+                return Ok(());
+            };
+
+            let children = {
+                // Get vnodes for the from dir node
+                let dir_vnodes = &target_node.children;
+
+                // Only iterate through vnodes not shared between the trees
+                let mut unique_nodes = Vec::new();
+                for vnode in dir_vnodes {
+                    if !hashes.common_nodes.contains(&vnode.hash) {
+                        unique_nodes.extend(vnode.children.iter().cloned());
                     }
                 }
-            }
 
-            // Recursively call for each file and directory
-            let children = repositories::tree::list_files_and_folders(node)?;
-            let dir_path = path.join(dir_node.name());
+                unique_nodes
+            };
+
             for child_node in children {
                 r_restore_missing_or_modified_files(
                     repo,
                     &child_node,
-                    from_tree,
                     &dir_path,
-                    files_to_restore,
-                    cannot_overwrite_entries,
+                    results,
                     progress,
+                    partial_nodes,
+                    hashes,
                 )?;
             }
         }
         EMerkleTreeNode::Commit(_) => {
             // If we get a commit node, we need to skip to the root directory
-            let root_dir = repositories::tree::get_root_dir(node)?;
+            let root_dir = repositories::tree::get_root_dir(target_node)?;
             r_restore_missing_or_modified_files(
                 repo,
                 root_dir,
-                from_tree,
                 path,
-                files_to_restore,
-                cannot_overwrite_entries,
+                results,
                 progress,
+                partial_nodes,
+                hashes,
             )?;
         }
         _ => {
