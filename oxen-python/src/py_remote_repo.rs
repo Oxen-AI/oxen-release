@@ -1,18 +1,20 @@
-use liboxen::error::OxenError;
-use liboxen::model::file::{FileContents, FileNew};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
+use liboxen::error::OxenError;
 use liboxen::model::commit::NewCommitBody;
+use liboxen::model::file::{FileContents, FileNew};
 use liboxen::model::{Remote, RemoteRepository, RepoNew};
+use liboxen::opts::PaginateOpts;
 use liboxen::{api, repositories};
 
-use pyo3::exceptions::PyValueError;
+use std::borrow::Cow;
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
 use crate::py_branch::PyBranch;
-use crate::py_commit::PyCommit;
+use crate::py_commit::{PyCommit, PyPaginatedCommits};
 use crate::py_entry::PyEntry;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 use crate::py_user::PyUser;
@@ -240,15 +242,34 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
-        let Some(revision) = &self.revision else {
-            return Ok(vec![]);
+    #[pyo3(signature = (revision="main", path=None, page_num=1, page_size=10))]
+    fn log(
+        &self,
+        revision: &str,
+        path: Option<&str>,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<PyPaginatedCommits, PyOxenError> {
+        let page_opts = PaginateOpts {
+            page_num,
+            page_size,
         };
 
-        let log = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::commits::list_commit_history(&self.repo, revision).await
-        })?;
-        Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+        let paginated_commits = if let Some(path) = path {
+            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+                api::client::commits::list_commits_for_path(&self.repo, revision, path, &page_opts)
+                    .await
+            })?
+        } else {
+            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+                api::client::commits::list_commit_history_paginated(
+                    &self.repo, revision, &page_opts,
+                )
+                .await
+            })?
+        };
+
+        Ok(paginated_commits.into())
     }
 
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
