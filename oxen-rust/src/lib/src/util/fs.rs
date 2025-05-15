@@ -885,7 +885,10 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
     }
 }
 
-pub fn is_tabular_from_extension(data_path: &Path, file_path: &Path) -> bool {
+/// Looks at both the extension and the first bytes of the file to determine if it is tabular
+pub fn is_tabular_from_extension(data_path: impl AsRef<Path>, file_path: impl AsRef<Path>) -> bool {
+    let data_path = data_path.as_ref();
+    let file_path = file_path.as_ref();
     if has_ext(file_path, "json") {
         // check if the first character in the file is '['
         // if so it is just a json array we can treat as tabular
@@ -896,6 +899,12 @@ pub fn is_tabular_from_extension(data_path: &Path, file_path: &Path) -> bool {
         }
     }
 
+    has_tabular_extension(file_path)
+}
+
+/// Looks at the extension of the file to determine if it is tabular
+pub fn has_tabular_extension(file_path: impl AsRef<Path>) -> bool {
+    let file_path = file_path.as_ref();
     let exts: HashSet<String> = vec!["csv", "tsv", "parquet", "arrow", "ndjson", "jsonl"]
         .into_iter()
         .map(String::from)
