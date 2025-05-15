@@ -430,11 +430,31 @@ class RemoteRepo:
 
         return self._repo.file_has_changes(local_path, remote_path, revision)
 
-    def log(self):
+    def log(
+        self,
+        revision: Optional[str] = None,
+        path: Optional[str] = None,
+        page_num: int = 1,
+        page_size: int = 10,
+    ):
         """
         Get the commit history for a remote repo
+
+        Args:
+            revision: `str | None`
+                The revision to get the commit history for. Defaults to `self.revision`
+            path: `str | None`
+                The path to the file to get the commit history for. Defaults to
+                None, which will return the commit history for the entire repo
+            page_num: `int`
+                The page number to return. Defaults to 1
+            page_size: `int`
+                The number of items to return per page. Defaults to 10
         """
-        return self._repo.log()
+        if revision is None:
+            revision = self.revision
+
+        return self._repo.log(revision, path, page_num, page_size)
 
     def branch_exists(self, name: str) -> bool:
         """
