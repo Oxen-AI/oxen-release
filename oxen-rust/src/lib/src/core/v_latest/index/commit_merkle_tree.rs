@@ -11,12 +11,11 @@ use crate::core::v_latest::branches::PartialNode;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 
-use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::merkle_tree::node::FileNode;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 
 use crate::error::OxenError;
-use crate::model::Commit;
-use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
+use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType, Commit, PartialNode};
 
 use crate::util::{self, hasher};
 

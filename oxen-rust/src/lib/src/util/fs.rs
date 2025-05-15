@@ -36,7 +36,6 @@ use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
 use filetime::FileTime;
 use image::ImageFormat;
-use filetime::FileTime;
 
 use crate::repositories;
 use crate::util;
@@ -1594,14 +1593,10 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
     let meta = util::fs::metadata(path)?;
     let file_last_modified = FileTime::from_last_modification_time(&meta);
 
-<<<<<<< HEAD
     let node_last_modified = util::fs::last_modified_time(
         node.last_modified_seconds(),
         node.last_modified_nanoseconds(),
     );
-=======
-    let node_last_modified = util::fs::last_modified_time(node.last_modified_seconds(), node.last_modified_nanoseconds());
->>>>>>> 69db2fab (Remove extraneous tree traversals in checkout code)
 
     if file_last_modified == node_last_modified {
         return Ok(false);
@@ -1618,71 +1613,17 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
 }
 
 // Calculate a node's last modified time
-<<<<<<< HEAD
-pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds: u32) -> FileTime {
-=======
+
 pub fn last_modified_time(
     last_modified_seconds: i64,
     last_modified_nanoseconds: u32,
 ) -> FileTime {
->>>>>>> 69db2fab (Remove extraneous tree traversals in checkout code)
     let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
         + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
 
     FileTime::from_system_time(node_modified_nanoseconds)
 }
-
-// Determine if 2 files have the same contents as quickly as possible
-// true == the files are different
-pub fn compare_file_contents(
-    path_1: impl AsRef<Path>,
-    path_2: impl AsRef<Path>,
-) -> Result<bool, OxenError> {
-    let path_1 = path_1.as_ref();
-    let path_2 = path_2.as_ref();
-
-    let file_1 = File::open(path_1).map_err(|err| {
-        eprintln!("Could not open file {:?} due to {:?}", path_1, err);
-        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_1, err))
-    })?;
-
-    let file_2 = File::open(path_2).map_err(|err| {
-        eprintln!("Could not open file {:?} due to {:?}", path_2, err);
-        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_2, err))
-    })?;
-
-    let mut reader_1 = BufReader::new(file_1);
-    let mut buffer_1 = [0; 4096];
-
-    let mut reader_2 = BufReader::new(file_2);
-    let mut buffer_2 = [0; 4096];
-
-    loop {
-        let count_1 = reader_1.read(&mut buffer_1).map_err(|_| {
-            eprintln!("Could not read file_1 for comparison {:?}", path_1);
-            OxenError::basic_str("Could not read file for hashing")
-        })?;
-
-        let count_2 = reader_2.read(&mut buffer_2).map_err(|_| {
-            eprintln!("Could not read file_1 for comparison {:?}", path_2);
-            OxenError::basic_str("Could not read file for hashing")
-        })?;
-
-        if buffer_1 != buffer_2 {
-            return Ok(true);
-        }
-
-        if count_1 == 0 {
-            return Ok(!count_2 == 0);
-        }
-
-        if count_2 == 0 {
-            return Ok(true);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::constants::{self, VERSION_FILE_NAME};
