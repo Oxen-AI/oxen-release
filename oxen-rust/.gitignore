@@ -29,3 +29,6 @@ cli-test/vendor/
 
 # Nix outputs
 result
+
+# Cursor config
+.cursor/
