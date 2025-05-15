@@ -245,6 +245,21 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
+    def get_file(self, src: str, revision: Optional[str] = None):
+        """
+        Get a file from the remote repo.
+
+        Args:
+            src: `str`
+                The path to the remote file
+            revision: `str | None`
+                The branch or commit id to download. Defaults to `self.revision`
+        """
+        if revision is None:
+            return self._repo.get_file(src, self.revision)
+        else:
+            return self._repo.get_file(src, revision)
+
     def create_workspace(
         self, branch: Optional[str] = None, workspace_name: Optional[str] = None
     ):
@@ -372,7 +387,7 @@ class RemoteRepo:
         """
         return self._repo.metadata(path)
 
-    def file_exists(self, path: str, revision: str = None):
+    def file_exists(self, path: str, revision: Optional[str] = None):
         """
         Check if a file exists in the remote repo.
 
