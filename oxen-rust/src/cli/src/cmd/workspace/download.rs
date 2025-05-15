@@ -78,8 +78,6 @@ impl RunCmd for WorkspaceDownloadCmd {
         let repository = LocalRepository::from_current_dir()?;
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
 
-        // TODO: We wrote a notebook here, and cannot download the contents: https://www.oxen.ai/ox/Notebooks/workspaces/a92e6de8-5223-41b5-99ec-de238f1560b9/file/eval-qwen.py
-        //       Workflow improvement: auto commit when the notebook spins down, and be able to navigate to workspaces better from the UI.
         api::client::workspaces::files::download(
             &remote_repo,
             workspace_identifier,
