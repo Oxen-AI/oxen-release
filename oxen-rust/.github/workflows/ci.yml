@@ -69,6 +69,7 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-build-
       - uses: actions-rs/toolchain@v1
+      - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -104,6 +105,7 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-build-
       - uses: actions-rs/toolchain@v1
+      - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
