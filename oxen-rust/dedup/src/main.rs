@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::fs;
 use std::io;
 use std::path::{PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH, Instant};
 use thiserror::Error;
 use crate::chunker::{Algorithm,get_available_chunkers};
 
@@ -119,24 +119,29 @@ fn main() -> FrameworkResult<()> {
                 .map_err(|e| FrameworkError::TimeError {
                     message: "System time went backwards".to_string(),
                     source: e,
-                })? 
+                })?
                 .as_nanos();
 
             let test_dir_name = format!("chunker_test_{}", timestamp_nanos);
             let test_dir = base_dir.join(test_dir_name);
 
             println!("Creating test directory: {:?}", test_dir);
-        
+
             fs::create_dir_all(&test_dir)?;
 
             println!("Packing {:?} into {:?}", input_file, test_dir);
-
+            let pack_start_time = Instant::now();
             chunker.pack(&input_file, &test_dir)?;
+            let pack_elapsed_time = pack_start_time.elapsed();
+            println!("Pack step in test finished in {:?}", pack_elapsed_time);
 
             let unpacked_output_file = test_dir.join("unpacked_output");
             println!("Unpacking from {:?} to {:?}", test_dir, unpacked_output_file);
-        
+
+            let unpack_start_time = Instant::now();
             chunker.unpack(&test_dir, &unpacked_output_file)?;
+            let unpack_elapsed_time = unpack_start_time.elapsed();
+            println!("Unpack step in test finished in {:?}", unpack_elapsed_time);
 
 
             println!("Test completed successfully. Packed and unpacked files are in: {:?}", test_dir);
