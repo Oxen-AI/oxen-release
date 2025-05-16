@@ -1,32 +1,21 @@
 use clap::{Parser, Subcommand};
 use std::fs;
-use std::io;
 use std::path::{PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH, Instant};
-use thiserror::Error;
-use crate::chunker::{Algorithm,get_available_chunkers};
+use std::time::{SystemTime, UNIX_EPOCH, Instant, Duration};
+use crate::chunker::{Algorithm,get_chunker, FrameworkResult, FrameworkError};
+use sysinfo::{ProcessesToUpdate, System, get_current_pid};
 
 pub mod chunker;
 pub mod xhash;
 
-
-#[derive(Error, Debug)]
-enum FrameworkError {
-    #[error("IO error: {0}")]
-    Io(#[from] io::Error),
-    #[error("Bincode serialization/deserialization error: {0}")]
-    Bincode(#[from] bincode::Error),
-    #[error("Chunker '{name}' not found")]
-    ChunkerNotFound { name: String },
-    #[error("System time error: {message}")]
-    TimeError {
-        message: String,
-        source: std::time::SystemTimeError,
-    },
+struct TestMetrics {
+    pack_time: Duration,
+    unpack_time: Duration,
+    _pack_cpu_usage: f32,
+    _pack_memory_usage_bytes: u64,
+    _unpack_cpu_usage: f32,
+    _unpack_memory_usage_bytes: u64,
 }
-
-type FrameworkResult<T> = Result<T, FrameworkError>;
-
 
 
 
@@ -45,7 +34,7 @@ enum Commands {
         algorithm: Algorithm,
 
         #[arg(short, long)]
-        file: PathBuf,
+        input_file: PathBuf,
 
         #[arg(short, long)]
         output_dir: PathBuf,
@@ -81,30 +70,29 @@ fn main() -> FrameworkResult<()> {
     let args = Args::parse();
 
     match args.command {
-        Commands::Pack { algorithm, file, output_dir } => {
-            let available_chunkers = get_available_chunkers();
-            let chunker_name = algorithm.as_str();
-            let chunker = available_chunkers.get(chunker_name)
-                .ok_or_else(|| FrameworkError::ChunkerNotFound { name: chunker_name.to_string() })?;
-
-            chunker.pack(&file, &output_dir)?;
+        Commands::Pack { algorithm, input_file, output_dir } => {
+            let chunker = get_chunker(&algorithm)?;
+            chunker.pack(&input_file, &output_dir)?;
 
             Ok(())
         }
         Commands::Unpack { algorithm, input_dir, output_file } => {
-            let available_chunkers = get_available_chunkers();
-            let chunker_name = algorithm.as_str();
-            let chunker = available_chunkers.get(chunker_name)
-                .ok_or_else(|| FrameworkError::ChunkerNotFound { name: chunker_name.to_string() })?;
-            _ = chunker.unpack(&input_dir, &output_file);
+            let chunker = get_chunker(&algorithm)?;
+            let _ = chunker.unpack(&input_dir, &output_file);
             Ok(())
         }
 
         Commands::Test { algorithm, input_file , use_temp} =>{
-            let available_chunkers = get_available_chunkers();
-            let chunker_name = algorithm.as_str();
-            let chunker = available_chunkers.get(chunker_name)
-                .ok_or_else(|| FrameworkError::ChunkerNotFound { name: chunker_name.to_string() })?;
+
+            let mut metrics = TestMetrics {
+                pack_time: Duration::new(0, 0),
+                unpack_time: Duration::new(0, 0),
+                _pack_cpu_usage: 0.0,
+                _pack_memory_usage_bytes: 0,
+                _unpack_cpu_usage: 0.0,
+                _unpack_memory_usage_bytes: 0,
+            };
+            let chunker = get_chunker(&algorithm)?;
 
 
             let base_dir = if use_temp {
@@ -129,20 +117,46 @@ fn main() -> FrameworkResult<()> {
 
             fs::create_dir_all(&test_dir)?;
 
+            let pid = get_current_pid().expect("Failed to get current PID");
+            let mut sys = System::new();
+            sys.refresh_processes(ProcessesToUpdate::All, true );
+            let _proc_before_pack = sys.process(pid);
+
             println!("Packing {:?} into {:?}", input_file, test_dir);
             let pack_start_time = Instant::now();
             chunker.pack(&input_file, &test_dir)?;
-            let pack_elapsed_time = pack_start_time.elapsed();
-            println!("Pack step in test finished in {:?}", pack_elapsed_time);
+            metrics.pack_time = pack_start_time.elapsed();
+
+            // sys.refresh_processes(ProcessesToUpdate::All, true);
+            let proc_after_pack = sys.process(pid).ok_or_else(|| FrameworkError::InternalError { message: "Current process not found after pack".to_string() })?;
+
+            let pack_cpu_usage = proc_after_pack.cpu_usage(); // CPU usage percentage since last refresh
+            let pack_memory_usage_bytes = proc_after_pack.memory(); 
+        
+            println!("CPU usage during packing: {}%", pack_cpu_usage);
+            println!("Memory usage during packing: {} bytes", pack_memory_usage_bytes);
 
             let unpacked_output_file = test_dir.join("unpacked_output");
             println!("Unpacking from {:?} to {:?}", test_dir, unpacked_output_file);
 
             let unpack_start_time = Instant::now();
-            chunker.unpack(&test_dir, &unpacked_output_file)?;
-            let unpack_elapsed_time = unpack_start_time.elapsed();
-            println!("Unpack step in test finished in {:?}", unpack_elapsed_time);
+            let _ = chunker.unpack(&test_dir, &unpacked_output_file)?;
+            metrics.unpack_time = unpack_start_time.elapsed();
 
+
+            // show metrics
+            println!("Unpack step in test finished in {:?}", metrics.unpack_time);    
+
+            println!("Verifying unpacked file content...");
+            let original_content = fs::read(&input_file)?;
+            let unpacked_content = fs::read(&unpacked_output_file)?;
+
+            if original_content == unpacked_content {
+                println!("Verification successful: Unpacked file matches original.");
+            } else {
+                println!("Verification FAILED: Unpacked file does NOT match original.");
+                return Err(FrameworkError::VerificationFailed); 
+            }
 
             println!("Test completed successfully. Packed and unpacked files are in: {:?}", test_dir);
 

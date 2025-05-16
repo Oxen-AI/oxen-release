@@ -100,9 +100,7 @@ impl Chunker for FixedSizeChunker {
         Ok(output_dir.to_path_buf())
     }
 
-    fn unpack(&self, chunk_dir: &Path, output_dir: &Path) -> Result<PathBuf, io::Error> {
-
-        fs::create_dir_all(output_dir)?;
+    fn unpack(&self, chunk_dir: &Path, output_path: &Path) -> Result<PathBuf, io::Error> {
 
         let metadata_path = chunk_dir.join(METADATA_FILE_NAME);
         let metadata_file = BufReader::new(File::open(&metadata_path)?);
@@ -110,9 +108,7 @@ impl Chunker for FixedSizeChunker {
         let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
             .map_err(map_bincode_error)?;
 
-        let reconstructed_file_path = output_dir.join(&metadata.original_file_name);
-
-        let mut output_file = BufWriter::new(File::create(&reconstructed_file_path)?);
+        let mut output_file = BufWriter::new(File::create(output_path)?);
 
         for chunk_filename in &metadata.chunks {
             let chunk_path = chunk_dir.join(chunk_filename);
@@ -129,6 +125,6 @@ impl Chunker for FixedSizeChunker {
 
         output_file.flush()?;
 
-        Ok(reconstructed_file_path)
+        Ok(output_path.to_path_buf())
     }
 }
