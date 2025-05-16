@@ -59,8 +59,6 @@ jobs:
 
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Install system dependencies
         run: |
@@ -139,8 +137,6 @@ jobs:
 
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Install system dependencies
         run: |
@@ -224,8 +220,6 @@ jobs:
 
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Build
         run: cargo build --release --bins
@@ -312,7 +306,6 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
           target: x86_64-apple-darwin
 
       - name: Build oxen for mac
@@ -355,7 +348,6 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
           target: x86_64-apple-darwin
 
       - name: Build oxen for mac
@@ -398,7 +390,6 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
           target: x86_64-apple-darwin
 
       - name: Build oxen for mac
