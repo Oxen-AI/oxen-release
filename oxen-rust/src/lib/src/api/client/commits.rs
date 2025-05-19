@@ -217,7 +217,7 @@ pub async fn list_commit_history(
     Ok(all_commits)
 }
 
-async fn list_commit_history_paginated(
+pub async fn list_commit_history_paginated(
     remote_repo: &RemoteRepository,
     revision: &str,
     page_opts: &PaginateOpts,

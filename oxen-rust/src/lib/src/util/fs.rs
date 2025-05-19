@@ -34,6 +34,7 @@ use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
+use filetime::FileTime;
 use image::ImageFormat;
 
 use crate::repositories;
@@ -884,7 +885,10 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
     }
 }
 
-pub fn is_tabular_from_extension(data_path: &Path, file_path: &Path) -> bool {
+/// Looks at both the extension and the first bytes of the file to determine if it is tabular
+pub fn is_tabular_from_extension(data_path: impl AsRef<Path>, file_path: impl AsRef<Path>) -> bool {
+    let data_path = data_path.as_ref();
+    let file_path = file_path.as_ref();
     if has_ext(file_path, "json") {
         // check if the first character in the file is '['
         // if so it is just a json array we can treat as tabular
@@ -895,6 +899,12 @@ pub fn is_tabular_from_extension(data_path: &Path, file_path: &Path) -> bool {
         }
     }
 
+    has_tabular_extension(file_path)
+}
+
+/// Looks at the extension of the file to determine if it is tabular
+pub fn has_tabular_extension(file_path: impl AsRef<Path>) -> bool {
+    let file_path = file_path.as_ref();
     let exts: HashSet<String> = vec!["csv", "tsv", "parquet", "arrow", "ndjson", "jsonl"]
         .into_iter()
         .map(String::from)
@@ -1581,13 +1591,12 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
 
 pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
     let meta = util::fs::metadata(path)?;
-    let file_last_modified = filetime::FileTime::from_last_modification_time(&meta);
+    let file_last_modified = FileTime::from_last_modification_time(&meta);
 
-    let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
-        + std::time::Duration::from_secs(node.last_modified_seconds() as u64)
-        + std::time::Duration::from_nanos(node.last_modified_nanoseconds() as u64);
-
-    let node_last_modified = filetime::FileTime::from_system_time(node_modified_nanoseconds);
+    let node_last_modified = util::fs::last_modified_time(
+        node.last_modified_seconds(),
+        node.last_modified_nanoseconds(),
+    );
 
     if file_last_modified == node_last_modified {
         return Ok(false);
@@ -1601,6 +1610,15 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
     } else {
         Ok(true)
     }
+}
+
+// Calculate a node's last modified time
+pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds: u32) -> FileTime {
+    let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(last_modified_seconds as u64)
+        + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);
+
+    FileTime::from_system_time(node_modified_nanoseconds)
 }
 
 // Determine if 2 files have the same contents as quickly as possible

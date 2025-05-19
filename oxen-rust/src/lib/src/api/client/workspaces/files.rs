@@ -337,8 +337,13 @@ pub async fn download(
     path: &str,
     output_path: Option<&Path>,
 ) -> Result<(), OxenError> {
+    let uri = if util::fs::has_tabular_extension(path) {
+        format!("/workspaces/{workspace_id}/data_frames/download/{path}")
+    } else {
+        format!("/workspaces/{workspace_id}/files/{path}")
+    };
+
     log::debug!("Downloading file from {workspace_id}/{path} to {output_path:?}");
-    let uri = format!("/workspaces/{workspace_id}/files/{path}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("Downloading file from {url}");
     let client = client::new_for_url(&url)?;
