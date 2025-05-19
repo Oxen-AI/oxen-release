@@ -176,8 +176,9 @@ impl CommitMerkleTree {
             log::debug!("Look up dir 🗂️ {:?}", node_path);
             CommitMerkleTree::read_node(repo, &node_hash, load_recursive)?.ok_or(
                 OxenError::basic_str(format!(
-                    "Merkle tree hash not found for parent: '{}'",
-                    node_path.to_str().unwrap()
+                    "Merkle tree hash not found for dir: '{}' in commit: '{}'",
+                    node_path.to_str().unwrap(),
+                    commit.id
                 )),
             )?
         } else {
@@ -185,8 +186,9 @@ impl CommitMerkleTree {
             log::debug!("Look up file 📄 {:?}", node_path);
             CommitMerkleTree::read_file(repo, &dir_hashes, node_path)?.ok_or(
                 OxenError::basic_str(format!(
-                    "Merkle tree hash not found for parent: '{}'",
-                    node_path.to_str().unwrap()
+                    "Merkle tree hash not found for file: '{}' in commit: '{}'",
+                    node_path.to_str().unwrap(),
+                    commit.id
                 )),
             )?
         };
