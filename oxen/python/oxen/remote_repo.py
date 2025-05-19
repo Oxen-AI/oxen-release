@@ -2,7 +2,7 @@ import os
 
 from typing import Optional
 from typing import List, Tuple
-from .oxen import PyRemoteRepo, remote
+from .oxen import PyRemoteRepo, remote, PyCommit
 from . import user as oxen_user
 from .workspace import Workspace
 
@@ -541,6 +541,32 @@ class RemoteRepo:
         """
         commit = self._repo.merge(base_branch, head_branch)
         return commit
+
+    def diff(
+        self,
+        base: str | PyCommit,
+        head: str | PyCommit,
+        path: str,
+    ):
+        """
+        Get the diff between two refs on the remote repo.
+
+        Args:
+            base: `str`
+                The base ref to diff (branch or commit)
+            head: `str`
+                The head ref to diff (branch or commit)
+            path: `str`
+                The path to the file to diff
+        """
+        diff = self._repo.diff_file(str(base), str(head), path)
+        print(f"Diff format: {diff.format}")
+        if diff.format == "text":
+            return diff.text
+        else:
+            raise NotImplementedError(
+                "Only text diffs are supported in RemoteRepo right now"
+            )
 
     @property
     def namespace(self) -> str:
