@@ -452,17 +452,11 @@ impl PyRemoteRepo {
         }
     }
 
-    fn diff_file(
-        &self,
-        base: String,
-        head: String,
-        path: String,
-    ) -> Result<PyDiffEntry, PyOxenError> {
+    fn diff_file(&self, base: &str, head: &str, path: &str) -> Result<PyDiffEntry, PyOxenError> {
         let diff = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::diff::diff_entries(&self.repo, &base, &head, path).await
         })?;
 
-        println!("Diff: {:?}", diff);
         Ok(diff.into())
     }
 }
