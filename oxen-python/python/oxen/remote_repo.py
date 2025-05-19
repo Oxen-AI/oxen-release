@@ -560,7 +560,6 @@ class RemoteRepo:
                 The path to the file to diff
         """
         diff = self._repo.diff_file(str(base), str(head), path)
-        print(f"Diff format: {diff.format}")
         if diff.format == "text":
             return diff.text
         else:
