@@ -6,12 +6,13 @@ pub mod py_branch;
 pub mod auth;
 pub mod df_utils;
 pub mod diff;
-pub mod py_notebooks;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
 pub mod py_entry;
+pub mod py_notebooks;
 pub mod py_paginated_dir_entries;
+pub mod py_pagination;
 pub mod py_remote_data_frame;
 pub mod py_remote_repo;
 pub mod py_repo;
@@ -113,8 +114,14 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
 
     // Notebooks Module
     let notebooks_module = PyModule::new_bound(m.py(), "py_notebooks")?;
-    notebooks_module.add_function(wrap_pyfunction!(py_notebooks::py_start_notebook, &notebooks_module)?)?;
-    notebooks_module.add_function(wrap_pyfunction!(py_notebooks::py_stop_notebook, &notebooks_module)?)?;
+    notebooks_module.add_function(wrap_pyfunction!(
+        py_notebooks::py_start_notebook,
+        &notebooks_module
+    )?)?;
+    notebooks_module.add_function(wrap_pyfunction!(
+        py_notebooks::py_stop_notebook,
+        &notebooks_module
+    )?)?;
     m.add_submodule(&notebooks_module)?;
 
     Ok(())
