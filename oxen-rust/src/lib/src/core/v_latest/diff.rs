@@ -496,6 +496,12 @@ pub fn diff_entries(
     head_commit: &Commit,
     df_opts: DFOpts,
 ) -> Result<DiffEntry, OxenError> {
+    if base_entry.is_none() && head_entry.is_none() {
+        return Err(OxenError::basic_str(
+            "Could not calculate diff: neither base nor head entries exist.",
+        ));
+    }
+
     // Assume both entries exist
     let mut status = DiffEntryStatus::Modified;
 
