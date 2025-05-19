@@ -14,6 +14,7 @@ use super::dir_diff_summary::DirDiffSummary;
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
 use super::tabular_diff_summary::TabularDiffWrapper;
+use super::DiffResult;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
@@ -229,6 +230,24 @@ impl DiffEntry {
             }
         }
 
+        // TODO: handle all diff types more generically
+        let diff = if should_do_full_diff && data_type == EntryDataType::Text {
+            if base_entry.is_some() && head_entry.is_some() {
+                match repositories::diffs::diff_text_file_nodes(
+                    repo,
+                    &base_entry.clone().unwrap(),
+                    &head_entry.clone().unwrap(),
+                )? {
+                    DiffResult::Text(diff) => Some(GenericDiff::TextDiff(diff)),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // log::debug!("fall through .... not doing full diff for tabular");
         Ok(DiffEntry {
             status: status.to_string(),
@@ -245,7 +264,7 @@ impl DiffEntry {
                 &base_entry,
                 &head_entry,
             )?,
-            diff: None, // TODO: other full diffs...
+            diff,
         })
     }
 
