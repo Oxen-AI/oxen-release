@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use crate::error::PyOxenError;
 use crate::py_branch::PyBranch;
 use crate::py_commit::{PyCommit, PyPaginatedCommits};
+use crate::py_diff::PyDiffEntry;
 use crate::py_entry::PyEntry;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 use crate::py_user::PyUser;
@@ -449,5 +450,19 @@ impl PyRemoteRepo {
             },
             _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision)))
         }
+    }
+
+    fn diff_file(
+        &self,
+        base: String,
+        head: String,
+        path: String,
+    ) -> Result<PyDiffEntry, PyOxenError> {
+        let diff = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::diff::diff_entries(&self.repo, &base, &head, path).await
+        })?;
+
+        println!("Diff: {:?}", diff);
+        Ok(diff.into())
     }
 }
