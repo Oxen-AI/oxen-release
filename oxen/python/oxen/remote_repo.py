@@ -2,7 +2,7 @@ import os
 
 from typing import Optional
 from typing import List, Tuple
-from .oxen import PyRemoteRepo, remote
+from .oxen import PyRemoteRepo, remote, PyCommit
 from . import user as oxen_user
 from .workspace import Workspace
 
@@ -245,6 +245,21 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
+    def get_file(self, src: str, revision: Optional[str] = None):
+        """
+        Get a file from the remote repo.
+
+        Args:
+            src: `str`
+                The path to the remote file
+            revision: `str | None`
+                The branch or commit id to download. Defaults to `self.revision`
+        """
+        if revision is None:
+            return self._repo.get_file(src, self.revision)
+        else:
+            return self._repo.get_file(src, revision)
+
     def create_workspace(
         self, branch: Optional[str] = None, workspace_name: Optional[str] = None
     ):
@@ -372,7 +387,7 @@ class RemoteRepo:
         """
         return self._repo.metadata(path)
 
-    def file_exists(self, path: str, revision: str = None):
+    def file_exists(self, path: str, revision: Optional[str] = None):
         """
         Check if a file exists in the remote repo.
 
@@ -415,11 +430,31 @@ class RemoteRepo:
 
         return self._repo.file_has_changes(local_path, remote_path, revision)
 
-    def log(self):
+    def log(
+        self,
+        revision: Optional[str] = None,
+        path: Optional[str] = None,
+        page_num: int = 1,
+        page_size: int = 10,
+    ):
         """
         Get the commit history for a remote repo
+
+        Args:
+            revision: `str | None`
+                The revision to get the commit history for. Defaults to `self.revision`
+            path: `str | None`
+                The path to the file to get the commit history for. Defaults to
+                None, which will return the commit history for the entire repo
+            page_num: `int`
+                The page number to return. Defaults to 1
+            page_size: `int`
+                The number of items to return per page. Defaults to 10
         """
-        return self._repo.log()
+        if revision is None:
+            revision = self.revision
+
+        return self._repo.log(revision, path, page_num, page_size)
 
     def branch_exists(self, name: str) -> bool:
         """
@@ -506,6 +541,31 @@ class RemoteRepo:
         """
         commit = self._repo.merge(base_branch, head_branch)
         return commit
+
+    def diff(
+        self,
+        base: str | PyCommit,
+        head: str | PyCommit,
+        path: str,
+    ):
+        """
+        Get the diff between two refs on the remote repo.
+
+        Args:
+            base: `str`
+                The base ref to diff (branch or commit)
+            head: `str`
+                The head ref to diff (branch or commit)
+            path: `str`
+                The path to the file to diff
+        """
+        diff = self._repo.diff_file(str(base), str(head), path)
+        if diff.format == "text":
+            return diff.text
+        else:
+            raise NotImplementedError(
+                "Only text diffs are supported in RemoteRepo right now"
+            )
 
     @property
     def namespace(self) -> str:
