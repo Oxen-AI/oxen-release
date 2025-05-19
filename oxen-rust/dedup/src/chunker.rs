@@ -1,8 +1,13 @@
-pub mod fixedsize;
 use std::{collections::HashMap, io, path::{Path, PathBuf}};
 use clap::ValueEnum;
 use thiserror::Error;
 pub use crate::chunker::fixedsize::FixedSizeChunker;
+pub use crate::chunker::fixedsize_multithreaded::FixedSizeMultiChunker;
+pub use crate::chunker::mover::Mover;
+
+pub mod fixedsize;
+pub mod mover;
+pub mod fixedsize_multithreaded;
 
 #[derive(Error, Debug)]
 pub enum FrameworkError {
@@ -57,6 +62,16 @@ pub enum Algorithm {
     FixedSize4k,
     #[value(name = "fixed-size-64k")]
     FixedSize64k,
+    #[value(name = "fixed-size-256k")]
+    FixedSize256k,
+    #[value(name = "fixed-size-512k")]
+    FixedSize512k,
+    #[value(name = "fixed-size-1m")]
+    FixedSize1M,
+    #[value(name = "fixed-size-64k-multithreaded")]
+    FixedSize64kMultiThreaded,
+    #[value(name = "mover")]
+    Mover,
     
 }
 
@@ -65,6 +80,11 @@ impl Algorithm {
         match self {
             Algorithm::FixedSize4k => "fixed-size-4k",
             Algorithm::FixedSize64k => "fixed-size-64k",
+            Algorithm::FixedSize256k => "fixed-size-256k",
+            Algorithm::FixedSize512k => "fixed-size-512k",
+            Algorithm::FixedSize1M => "fixed-size-1m",
+            Algorithm::Mover => "mover",
+            Algorithm::FixedSize64kMultiThreaded => "fixed-size-64k-multithreaded",
         }
     }
 
@@ -76,6 +96,26 @@ impl Algorithm {
             },
             Algorithm::FixedSize64k => {
                 let chunker = FixedSizeChunker::new(65536).expect("Failed to create FixedSizeChunker");
+                Box::new(chunker)
+            },
+            Algorithm::FixedSize256k => {
+                let chunker = FixedSizeChunker::new(262144).expect("Failed to create FixedSizeChunker");
+                Box::new(chunker)
+            },
+            Algorithm::FixedSize512k => {
+                let chunker = FixedSizeChunker::new(524288).expect("Failed to create FixedSizeChunker");
+                Box::new(chunker)
+            },
+            Algorithm::FixedSize1M => {
+                let chunker = FixedSizeChunker::new(1048576).expect("Failed to create FixedSizeChunker");
+                Box::new(chunker)
+            },
+            Algorithm::Mover => {
+                let chunker = Mover {};
+                Box::new(chunker)
+            },
+            Algorithm::FixedSize64kMultiThreaded => {
+                let chunker = FixedSizeMultiChunker::new(65536, 16).expect("Failed to create FixedSizeMultiChunker");
                 Box::new(chunker)
             },
         }

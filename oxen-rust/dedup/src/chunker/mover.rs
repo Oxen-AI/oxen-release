@@ -1,0 +1,43 @@
+use std::{
+    path::{Path, PathBuf},
+    fs::{self, File},
+    io::{self, BufReader, BufWriter, Read, Write},
+};
+use crate::chunker::Chunker;
+
+pub struct Mover {}
+
+const FILE_NAME: &str = "file_blob";
+
+impl Chunker for Mover {
+
+    fn pack(&self, input_file: &Path, output_dir: &Path) -> Result<PathBuf, io::Error> {
+        println!("Packing file: {:?}", input_file);
+        fs::create_dir_all(output_dir)?;
+        let file_name = input_file
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("unknown_file"))
+            .to_string_lossy()
+            .into_owned();
+        let output_path = output_dir.join(&file_name);
+
+        let mut input = BufReader::new(File::open(input_file)?);
+        let mut output = BufWriter::new(File::create(FILE_NAME)?);
+
+        // Use io::copy for efficient streaming
+        io::copy(&mut input, &mut output)?;
+
+        output.flush()?;
+        println!("Packed file: {:?}", output_path);
+
+        Ok(output_path)
+    }
+
+    fn unpack(&self, input_dir: &Path, output_path: &Path) -> Result<PathBuf, io::Error>{
+        Ok(output_path.to_path_buf())
+    }
+
+    fn name(&self) -> &'static str {
+        "mover"
+    }
+}

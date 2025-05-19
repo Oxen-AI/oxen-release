@@ -126,6 +126,7 @@ fn main() -> FrameworkResult<()> {
             let pack_start_time = Instant::now();
             chunker.pack(&input_file, &test_dir)?;
             metrics.pack_time = pack_start_time.elapsed();
+            println!("Pack step in test finished in {:?}", metrics.pack_time);
 
             // sys.refresh_processes(ProcessesToUpdate::All, true);
             let proc_after_pack = sys.process(pid).ok_or_else(|| FrameworkError::InternalError { message: "Current process not found after pack".to_string() })?;
