@@ -3,11 +3,18 @@ use clap::ValueEnum;
 use thiserror::Error;
 pub use crate::chunker::fixedsize::FixedSizeChunker;
 pub use crate::chunker::fixedsize_multithreaded::FixedSizeMultiChunker;
-pub use crate::chunker::mover::Mover;
+pub use crate::chunker::copier::Copier;
+pub use crate::chunker::fastcdchunker::FastCDChunker;
 
 pub mod fixedsize;
-pub mod mover;
+pub mod copier;
 pub mod fixedsize_multithreaded;
+pub mod oxendedup;
+pub mod fastcdchunker;
+
+fn map_bincode_error(err: bincode::Error) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, format!("Bincode error: {:?}", err))
+}
 
 #[derive(Error, Debug)]
 pub enum FrameworkError {
@@ -70,9 +77,10 @@ pub enum Algorithm {
     FixedSize1M,
     #[value(name = "fixed-size-64k-multithreaded")]
     FixedSize64kMultiThreaded,
-    #[value(name = "mover")]
-    Mover,
-    
+    #[value(name = "copier")]
+    Copier,
+    #[value(name = "fastcdc")]
+    FastCDC,
 }
 
 impl Algorithm {
@@ -83,8 +91,9 @@ impl Algorithm {
             Algorithm::FixedSize256k => "fixed-size-256k",
             Algorithm::FixedSize512k => "fixed-size-512k",
             Algorithm::FixedSize1M => "fixed-size-1m",
-            Algorithm::Mover => "mover",
+            Algorithm::Copier => "copier",
             Algorithm::FixedSize64kMultiThreaded => "fixed-size-64k-multithreaded",
+            Algorithm::FastCDC => "fastcdc",
         }
     }
 
@@ -110,12 +119,16 @@ impl Algorithm {
                 let chunker = FixedSizeChunker::new(1048576).expect("Failed to create FixedSizeChunker");
                 Box::new(chunker)
             },
-            Algorithm::Mover => {
-                let chunker = Mover {};
-                Box::new(chunker)
+            Algorithm::Copier => {
+                let mover = Copier {};
+                Box::new(mover)
             },
             Algorithm::FixedSize64kMultiThreaded => {
                 let chunker = FixedSizeMultiChunker::new(65536, 16).expect("Failed to create FixedSizeMultiChunker");
+                Box::new(chunker)
+            },
+            Algorithm::FastCDC => {
+                let chunker = FastCDChunker::new(65536, 16).expect("Failed to create FastCDChunker");
                 Box::new(chunker)
             },
         }

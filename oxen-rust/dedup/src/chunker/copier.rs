@@ -1,15 +1,19 @@
 use std::{
     path::{Path, PathBuf},
     fs::{self, File},
-    io::{self, BufReader, BufWriter, Read, Write},
+    io::{self, BufReader, BufWriter, Write},
 };
 use crate::chunker::Chunker;
 
-pub struct Mover {}
+/*
+Super simple chunker that just copies the file to a new location.
+Our current baseline implemented in Oxen.
+*/
+pub struct Copier {}
 
 const FILE_NAME: &str = "file_blob";
 
-impl Chunker for Mover {
+impl Chunker for Copier {
 
     fn pack(&self, input_file: &Path, output_dir: &Path) -> Result<PathBuf, io::Error> {
         println!("Packing file: {:?}", input_file);
@@ -24,7 +28,6 @@ impl Chunker for Mover {
         let mut input = BufReader::new(File::open(input_file)?);
         let mut output = BufWriter::new(File::create(FILE_NAME)?);
 
-        // Use io::copy for efficient streaming
         io::copy(&mut input, &mut output)?;
 
         output.flush()?;

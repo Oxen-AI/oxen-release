@@ -6,10 +6,15 @@ use std::{
 use serde::{Serialize, Deserialize};
 use bincode; // Import bincode
 
-use crate::chunker::Chunker;
+use crate::chunker::{Chunker};
 use crate::xhash;
 
 const METADATA_FILE_NAME: &str = "metadata.bin"; 
+
+
+fn map_bincode_error(err: bincode::Error) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, format!("Bincode error: {:?}", err))
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ChunkMetadata {
@@ -21,11 +26,6 @@ struct ChunkMetadata {
 
 pub struct FixedSizeChunker {
     chunk_size: usize,
-}
-
-fn map_bincode_error(err: bincode::Error) -> io::Error {
-
-    io::Error::new(io::ErrorKind::Other, format!("Bincode error: {:?}", err))
 }
 
 impl FixedSizeChunker {

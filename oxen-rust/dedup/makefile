@@ -1,4 +1,4 @@
-ALGORITHM = fixed-size-64k-multithreaded
+ALGORITHM = fastcdc
 FILE = large_filler.csv
 CARGO_RUN = cargo run
 CARGO = cargo 

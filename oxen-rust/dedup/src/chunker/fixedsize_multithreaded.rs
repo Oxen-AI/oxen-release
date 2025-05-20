@@ -1,20 +1,12 @@
 use std::{
     fs::{self, File},
     io::{self, Read, Write, BufReader, BufWriter, Seek, SeekFrom},
-    path::{Path, PathBuf},
-    sync::Arc,
+    path::{Path, PathBuf}
 };
 
-use futures::future::join_all;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    fs::File as AsyncFile,
-    io::{AsyncReadExt, AsyncWriteExt,},
-    sync::Semaphore,
-    task::JoinHandle,
-};
 use std::error::Error;
-use crate::chunker::Chunker;
+use crate::chunker::{Chunker, map_bincode_error};
 use crate::xhash;
 use rayon::prelude::*;
 
@@ -121,7 +113,7 @@ impl FixedSizeMultiChunker {
         for result in results {
             match result {
                 Ok(pair) => indexed_hashes.push(pair),
-                Err(e) => return Err(Box::new(e)), // Propagate the first io::Error
+                Err(e) => return Err(Box::new(e)), 
             }
         }
 
@@ -160,7 +152,7 @@ impl Chunker for FixedSizeMultiChunker {
             original_file_name,
             original_file_size,
             chunk_size: self.chunk_size,
-            chunks: chunk_filenames, // This list is now correctly ordered and contains hashes
+            chunks: chunk_filenames,
         };
 
         let metadata_path = output_dir.join(METADATA_FILE_NAME);
@@ -176,85 +168,29 @@ impl Chunker for FixedSizeMultiChunker {
     }
 
     fn unpack(&self, chunk_dir: &Path, output_path: &Path) -> Result<PathBuf, io::Error> {
-        let concurrency = self.concurrency; // Use configured concurrency for Tokio tasks
+        let metadata_path = chunk_dir.join(METADATA_FILE_NAME);
+        let metadata_file = BufReader::new(File::open(&metadata_path)?);
 
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to build Tokio runtime: {}", e)))?
-            .block_on(async move {
-                let metadata_path = chunk_dir.join(METADATA_FILE_NAME);
-                let metadata_file = BufReader::new(File::open(&metadata_path).map_err(|e| {
-                    io::Error::new(io::ErrorKind::NotFound, format!("Failed to open metadata file '{}': {}", metadata_path.display(), e))
-                })?);
+        let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
+            .map_err(map_bincode_error)?;
 
-                let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("Failed to deserialize metadata: {}", e))
-                })?;
+        let mut output_file = BufWriter::new(File::create(output_path)?);
 
-                if let Some(parent_dir) = output_path.parent() {
-                    if !parent_dir.exists() {
-                        fs::create_dir_all(parent_dir).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to create output directory '{}': {}", parent_dir.display(), e)))?;
-                    }
-                }
-                
-                let mut output_file = AsyncFile::create(output_path).await.map_err(|e| {
-                    io::Error::new(io::ErrorKind::Other, format!("Failed to create output file '{}': {}", output_path.display(), e))
-                })?;
+        for chunk_filename in &metadata.chunks {
+            let chunk_path = chunk_dir.join(chunk_filename);
 
-                if metadata.original_file_size > 0 {
-                    output_file.set_len(metadata.original_file_size).await.map_err(|e| {
-                        io::Error::new(io::ErrorKind::Other, format!("Failed to set output file length: {}", e))
-                    })?;
-                }
-                
+            if !chunk_path.exists() {
+                 return Err(io::Error::new(
+                     io::ErrorKind::NotFound,
+                     format!("Chunk file not found during unpack: {}", chunk_path.display())
+                 ));
+            }
+            let mut chunk_file = BufReader::new(File::open(&chunk_path)?);
+            io::copy(&mut chunk_file, &mut output_file)?;
+        }
 
-                let semaphore = Arc::new(Semaphore::new(concurrency));
-                let mut chunk_read_futures = Vec::new();
+        output_file.flush()?;
 
-                for (index, chunk_filename) in metadata.chunks.iter().enumerate() {
-                    let chunk_path = chunk_dir.join(chunk_filename);
-
-                    if !chunk_path.exists() {
-                        return Err(io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!("Chunk file not found during unpack: {}", chunk_path.display()),
-                        ));
-                    }
-
-                    let chunk_path_clone = chunk_path.clone();
-                    let semaphore_clone = Arc::clone(&semaphore);
-
-                    let future: JoinHandle<Result<(usize, Vec<u8>), io::Error>> = tokio::spawn(async move {
-                        let _permit = semaphore_clone.acquire_owned().await
-                            .map_err(|_| io::Error::new(io::ErrorKind::Other, "Semaphore acquire failed (broken semaphore)"))?;
-
-                        let mut chunk_file = AsyncFile::open(&chunk_path_clone).await?;
-                        let mut buffer = Vec::with_capacity(metadata.chunk_size);
-                        chunk_file.read_to_end(&mut buffer).await?;
-                        Ok((index, buffer))
-                    });
-                    chunk_read_futures.push(future);
-                }
-
-                let mut collected_chunk_data: Vec<(usize, Vec<u8>)> = Vec::with_capacity(metadata.chunks.len());
-                for future_result in join_all(chunk_read_futures).await {
-                    match future_result {
-                        Ok(Ok(data_pair)) => collected_chunk_data.push(data_pair),
-                        Ok(Err(io_err)) => return Err(io_err), 
-                        Err(join_err) => return Err(io::Error::new(io::ErrorKind::Other, format!("Unpack task join error: {}", join_err))),
-                    }
-                }
-
-                collected_chunk_data.sort_by_key(|k| k.0);
-
-                for (_index, data) in collected_chunk_data {
-                    output_file.write_all(&data).await?;
-                }
-
-                output_file.flush().await?;
-
-                Ok(output_path.to_path_buf())
-            })
+        Ok(output_path.to_path_buf())
     }
 }
