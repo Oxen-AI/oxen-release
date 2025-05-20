@@ -91,12 +91,13 @@ impl PyWorkspaceDataFrame {
     #[new]
     #[pyo3(signature = (workspace, path))]
     fn new(workspace: PyWorkspace, path: PathBuf) -> Result<Self, PyOxenError> {
+        let workspace_id = workspace.get_identifier();
         // Index the data frame (will simply return if already indexed)
-        index(workspace.clone(), workspace.id.clone(), path.clone())?;
-
+        index(workspace.clone(), workspace_id.clone(), path.clone())?;
         // Fetch the first page so that it is
         // quick to look up size and other pagination params
-        let df = _get(&workspace.repo.repo, &workspace.id, &path)?;
+
+        let df = _get(&workspace.repo.repo, &workspace_id, &path)?;
         Ok(Self {
             workspace,
             path,
@@ -204,10 +205,9 @@ impl PyWorkspaceDataFrame {
                 let result: String = serde_json::to_string(&view).unwrap();
                 Ok(result)
             }
-            Err(e) => Err(OxenError::basic_str(format!(
-                "Failed to query data frame: {}",
-                e
-            )).into()),
+            Err(e) => {
+                Err(OxenError::basic_str(format!("Failed to query data frame: {}", e)).into())
+            }
         }
     }
 
@@ -354,10 +354,12 @@ impl PyWorkspaceDataFrame {
             );
         };
 
+        let workspace_id = self.workspace.get_identifier();
+
         let (_, Some(row_id)) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::data_frames::rows::add(
                 &self.workspace.repo.repo,
-                &self.workspace.id,
+                &workspace_id,
                 &self.path,
                 data.to_string(),
             )

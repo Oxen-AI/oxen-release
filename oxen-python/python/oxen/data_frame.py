@@ -158,7 +158,7 @@ class DataFrame:
         data = self._filter_keys_arr(data)
         return data
 
-    def insert_row(self, data: dict):
+    def insert_row(self, data: dict, workspace: Optional[Workspace] = None):
         """
         Insert a single row of data into the data frame.
 
@@ -180,7 +180,24 @@ class DataFrame:
             dirname = os.path.dirname(self._path)
             repo.add(tmp_file_path, dst=dirname)
             repo.commit("Adding data frame at " + self._path)
-            self._workspace = Workspace(repo, self._workspace.branch, path=self._path)
+            # This is a temporary hack that allows us to reference the resulting workspace by the
+            # same name as the original workspace. Ideally, we should just be able to create a df
+            # inside a workspace without a commit
+            if workspace is None:
+                self._workspace = Workspace(
+                    repo, self._workspace.branch, path=self._path
+                )
+            else:
+                if workspace.status().is_clean():
+                    workspace.delete()
+                else:
+                    workspace.commit("commit data to open new workspace")
+                self._workspace = Workspace(
+                    repo,
+                    workspace.branch,
+                    path=self._path,
+                    workspace_name=workspace.name,
+                )
             self.data_frame = PyWorkspaceDataFrame(
                 self._workspace._workspace, self._path
             )
