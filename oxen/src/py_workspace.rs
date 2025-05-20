@@ -92,6 +92,14 @@ impl PyWorkspace {
         })
     }
 
+    pub fn get_identifier(&self) -> String {
+        if let Some(name) = &self.name {
+            name.clone()
+        } else {
+            self.id.clone()
+        }
+    }
+
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -112,7 +120,7 @@ impl PyWorkspace {
         let remote_status = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             api::client::workspaces::changes::list(
                 &self.repo.repo,
-                &self.id,
+                &self.get_identifier(),
                 &path,
                 liboxen::constants::DEFAULT_PAGE_NUM,
                 liboxen::constants::DEFAULT_PAGE_SIZE,
@@ -127,14 +135,21 @@ impl PyWorkspace {
     fn add(&self, src: PathBuf, dst: String) -> Result<(), PyOxenError> {
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let paths = vec![src];
-            api::client::workspaces::files::add(&self.repo.repo, &self.id, &dst, paths).await
+            api::client::workspaces::files::add(
+                &self.repo.repo,
+                &self.get_identifier(),
+                &dst,
+                paths,
+            )
+            .await
         })?;
         Ok(())
     }
 
     fn add_many(&self, src: Vec<PathBuf>, dst: String) -> Result<(), PyOxenError> {
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            api::client::workspaces::files::add(&self.repo.repo, &self.id, &dst, src).await
+            api::client::workspaces::files::add(&self.repo.repo, &self.get_identifier(), &dst, src)
+                .await
         })?;
         Ok(())
     }
@@ -165,10 +180,15 @@ impl PyWorkspace {
             author: user.name,
             email: user.email,
         };
+        let workspace_id = self.get_identifier();
         let commit = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-            let commit =
-                api::client::workspaces::commit(&self.repo.repo, &branch_name, &self.id, &commit)
-                    .await?;
+            let commit = api::client::workspaces::commit(
+                &self.repo.repo,
+                &branch_name,
+                &workspace_id,
+                &commit,
+            )
+            .await?;
             Ok(PyCommit { commit })
         });
 
