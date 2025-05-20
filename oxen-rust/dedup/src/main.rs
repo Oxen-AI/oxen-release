@@ -73,6 +73,9 @@ enum Commands {
 
         #[arg(short, long)]
         use_temp: bool,
+
+        #[arg(short, long)]
+        n_commits: u8,
     },
 }
 
@@ -92,7 +95,7 @@ fn main() -> FrameworkResult<()> {
             Ok(())
         }
 
-        Commands::TestOxen { algorithm, input_file, use_temp } => {
+        Commands::TestOxen { algorithm, input_file, use_temp , n_commits} => {
             
             let base_dir = if use_temp {
                 let temp_dir = std::env::temp_dir();
@@ -119,7 +122,7 @@ fn main() -> FrameworkResult<()> {
 
             let test_dir_name = format!("chunker_test_{}", timestamp_nanos);
             let test_dir = base_dir.join(test_dir_name);
-            oxen_dedup.pack(algorithm, &input_file, &test_dir, 2)?;
+            oxen_dedup.pack(algorithm, &input_file, &test_dir, n_commits)?;
             Ok(())
         }
 

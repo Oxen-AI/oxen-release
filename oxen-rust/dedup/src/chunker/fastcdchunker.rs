@@ -125,4 +125,13 @@ impl Chunker for FastCDChunker {
         println!("To Implement: Unpacking files from {:?}", input_dir);
         Ok(output_path.to_path_buf())
     }
+
+    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>{
+        let metadata_path = input_dir.join(METADATA_FILE_NAME);
+        let metadata_file = fs::File::open(&metadata_path)?;
+        let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
+            .map_err(map_bincode_error)?;
+
+        Ok(metadata.chunks)
+    }
 }

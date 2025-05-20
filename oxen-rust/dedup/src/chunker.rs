@@ -38,15 +38,24 @@ pub enum FrameworkError {
     },
 }
 
+struct ChunkMetadata {
+    original_file_name: String,
+    original_file_size: u64,
+    chunk_size: usize,
+    chunks: Vec<String>,
+}
+
 pub type FrameworkResult<T> = Result<T, FrameworkError>;
 
 pub trait Chunker {
+    
+    fn name(&self) -> &'static str;
 
     fn pack(&self, input_file: &Path, output_dir: &Path) -> Result<PathBuf, io::Error>;
 
     fn unpack(&self, input_dir: &Path, output_path: &Path) -> Result<PathBuf, io::Error>;
 
-    fn name(&self) -> &'static str;
+    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>;
 }
 
 pub fn get_chunker(algorithm: &Algorithm) -> FrameworkResult<Box<dyn Chunker>> {
