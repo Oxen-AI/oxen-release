@@ -1,7 +1,6 @@
 use std::{
-    path::{Path, PathBuf},
-    fs::{self, File},
-    io::{self, BufReader, BufWriter, Write},
+    fs::{self, File}, 
+    io::{self, BufReader, BufWriter, Write}, path::{Path, PathBuf}
 };
 use crate::chunker::Chunker;
 
@@ -37,6 +36,11 @@ impl Chunker for Copier {
     }
 
     fn unpack(&self, input_dir: &Path, output_path: &Path) -> Result<PathBuf, io::Error>{
+        let mut input = BufReader::new(File::open(input_dir.join(FILE_NAME))?);
+        let mut output = BufWriter::new(File::create(output_path)?);
+
+        io::copy(&mut input, &mut output)?;
+        
         Ok(output_path.to_path_buf())
     }
 

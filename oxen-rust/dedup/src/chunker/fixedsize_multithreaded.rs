@@ -20,6 +20,10 @@ struct ChunkMetadata {
     chunks: Vec<String>,
 }
 
+/*
+Multi Threaded Chunker operates on fixed size chunks
+*/
+
 pub struct FixedSizeMultiChunker {
     chunk_size: usize,
     concurrency: usize,

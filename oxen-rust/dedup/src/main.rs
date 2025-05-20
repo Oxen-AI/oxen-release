@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH, Instant, Duration};
 use crate::chunker::{Algorithm,get_chunker, FrameworkResult, FrameworkError};
+use chunker::oxendedup::OxenChunker;
 
 pub mod chunker;
 pub mod xhash;
@@ -53,7 +54,6 @@ enum Commands {
 
 
     Test {
-
         #[arg(short, long, value_enum)]
         algorithm: Algorithm,
 
@@ -100,8 +100,8 @@ fn main() -> FrameworkResult<()> {
             } else {
                 std::env::current_dir()?
             };
-            let oxen_dedup = chunker::oxendedup::OxenChunker::new(64 * 1024, algorithm.as_str().to_string(), PathBuf::from(".oxen/versions/files"))?;
-            let mut metrics = TestMetrics {
+            let oxen_dedup = OxenChunker::new(64 * 1024, algorithm.as_str().to_string(), PathBuf::from(".oxen/versions/files"))?;
+            let mut _metrics = TestMetrics {
                 pack_time: Duration::new(0, 0),
                 unpack_time: Duration::new(0, 0),
                 _pack_cpu_usage: 0.0,
@@ -109,20 +109,18 @@ fn main() -> FrameworkResult<()> {
                 _unpack_cpu_usage: 0.0,
                 _unpack_memory_usage_bytes: 0,
             };
-                let timestamp_nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|e| FrameworkError::TimeError {
-                    message: "System time went backwards".to_string(),
-                    source: e,
-                })?
-                .as_nanos();
+            let timestamp_nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| FrameworkError::TimeError {
+                message: "System time went backwards".to_string(),
+                source: e,
+            })?
+            .as_nanos();
 
             let test_dir_name = format!("chunker_test_{}", timestamp_nanos);
             let test_dir = base_dir.join(test_dir_name);
-            oxen_dedup.pack(&input_file, &test_dir, 2)?;
-
+            oxen_dedup.pack(algorithm, &input_file, &test_dir, 2)?;
             Ok(())
-            
         }
 
         Commands::Test { algorithm, input_file , use_temp} =>{

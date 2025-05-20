@@ -1,7 +1,8 @@
-ALGORITHM = fastcdc
+ALGORITHM = fixed-size-64k-multithreaded
 FILE = large_filler.csv
 CARGO_RUN = cargo run
 CARGO = cargo 
+DEDUP_BUILD = "../../Oxen/target/debug/dedup"
 
 
 .PHONY: test unpack pack clean clean-test
@@ -21,3 +22,6 @@ unpack:
 
 pack:
 	$(CARGO_RUN) pack --algorithm $(ALGORITHM) --file $(FILE) --output-dir 4k
+
+test-oxen:
+	$(DEDUP_BUILD) test-oxen --algorithm $(ALGORITHM) --input-file $(FILE)

@@ -1,4 +1,4 @@
-use xxhash_rust::xxh3::{Xxh3, xxh3_128}; // For streaming
+use xxhash_rust::xxh3::{Xxh3, xxh3_128};
 use std::io::{self, BufReader, Read};
 use std::path::Path;
 use std::fs::{File};

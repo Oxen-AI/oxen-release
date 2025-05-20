@@ -1,25 +1,20 @@
-use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{Read, Write, Error};
+use std::fs::File;
+use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
-use async_trait::async_trait;
-use cargo::ops::print;
-use clap::{Arg, Command};
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use liboxen::model::LocalRepository;
 use liboxen::repositories::{self, commits};
 use serde::{Serialize, Deserialize};
 
-use crate::chunker::{Chunker, map_bincode_error};
+use crate::chunker::get_chunker;
 
-pub const NAME: &str = "pack";
-pub const VERSION_FILE_NAME: &str = "data";
+use super::Algorithm;
+
+// const NAME: &str = "pack";
+ 
+const VERSION_FILE_NAME: &str = "data";
 pub struct PackCmd;
 
-const METADATA_FILE_NAME: &str = "metadata.bin";
 pub struct OxenStats {
     pub pack_time: f64,
     pub unpack_time: f64,
@@ -50,75 +45,54 @@ impl OxenChunker {
         self.root_path.join(topdir).join(subdir)
     }
 
-    /// Get the full path for a version file
     fn version_path(&self, hash: &str) -> PathBuf {
         self.version_dir(hash).join(VERSION_FILE_NAME)
     }
 
-    pub fn pack(&self, input_file: &Path, output_dir: &Path, n: u8 ) -> Result<PathBuf, Error> {
-        // Create the output directory if it doesn't exist
+
+    pub fn pack(&self, algo: Algorithm, input_file: &Path, output_dir: &Path, n: u8 ) -> Result<PathBuf, Error> {
+        
         std::fs::create_dir_all(output_dir)?;
 
-        // Open the input file
         let input = File::open(input_file)?;
-        let metadata = input.metadata()?;
-        let paths = vec![input_file]; // Example paths to pack
+        let _metadata = input.metadata()?;
+        let _paths = vec![input_file];
 
-        // Get repository
-        let repo = LocalRepository::from_current_dir().map_err(|e| std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Some error"))?;
+        let repo = LocalRepository::from_current_dir().map_err(|e| Error::new(ErrorKind::NotFound, format!("cannot load local repository {}", e) ))?;
 
-        let latest_commit = commits::latest_commit(&repo).map_err(|e| Error::new(std::io::ErrorKind::AlreadyExists, "Some error"))?;;
+        let chunker = get_chunker(&algo).map_err(|e| Error::new(ErrorKind::NotFound, format!("Chunker not found {}", e)))?;
 
+        let commits = commits::list(&repo).map_err(|e| Error::new(ErrorKind::NotFound, format!("Commit not found {}", e)))?;
 
-        let commits = commits::list(&repo).map_err(|e| Error::new(std::io::ErrorKind::AlreadyExists, "Some error"))?;
+        let latest_n_commits = commits.iter().take(n as usize).collect::<Vec<_>>();
 
-        for commit in commits.iter() {
-            println!("Commit: {:?}", commit);
-        }
+        for commit in latest_n_commits {
 
+            let commit_hash = commit.hash().map_err(|e| Error::new(ErrorKind::NotFound, format!("Commit Hash not found {}", e)))?;
+            let commit_output_dir = output_dir.join(&commit_hash.to_string());
+            
+            std::fs::create_dir_all(&commit_output_dir)?;
 
-
-        for path in paths.iter() {
-            let node_result = repositories::tree::get_node_by_path(&repo, &latest_commit, path);
-    
-            match node_result {
-                Ok(Some(node)) => {
-                    println!("Found node: {:?}", node);
-                }
-                Ok(None) => {
-                    println!("No node found for path: {:?}", path);
-                }
-                Err(e) => {
-                    eprintln!("Error getting node for path {:?}: {:?}", path, e);
-                }
-            }
-
-            // get file location
-            let file_location = repositories::tree::get_file_by_path(&repo, &latest_commit, path);
+            let file_location = repositories::tree::get_file_by_path(&repo, commit, input_file);
 
             match file_location {
                 Ok(Some(file)) => {
                     println!("Found file: {:?}", file);
                     // get file content
-                    let mut file_content = Vec::new();
                     let hash = file.hash().to_string();
                     let file_path = self.version_path(&hash);
                     println!("File path: {:?}", file_path.display());
-                    let mut file = File::open(file_path)?;
-                    file.read_to_end(&mut file_content)?;
+                    chunker.pack(&file_path, &commit_output_dir)?;
                 }
                 Ok(None) => {
-                    println!("No file found for path: {:?}", path);
+                    println!("No file found for path: {:?}", &file_location);
                 }
                 Err(e) => {
-                    eprintln!("Error getting file for path {:?}: {:?}", path, e);
+                    eprintln!("Error getting file for path {:?}: {:?}", input_file, e);
                 }
-            }
-
-            let version_store = repo.version_store().map_err(|e| Error::new(std::io::ErrorKind::AlreadyExists, "Some error"))?;
-
+            }            
         }
-                
+
         println!("Packing repository data with content-defined chunking...");
 
         Ok(output_dir.to_path_buf())
@@ -126,7 +100,7 @@ impl OxenChunker {
 
     pub fn unpack(&self, input_dir: &Path, output_file: &Path) -> Result<PathBuf, std::io::Error> {
 
-
+        println!("Unpacking repository data with content-defined chunking... {}", input_dir.display());
         Ok(output_file.to_path_buf())
     }
 }
