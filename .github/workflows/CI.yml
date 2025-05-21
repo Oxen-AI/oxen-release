@@ -225,6 +225,7 @@ jobs:
         with:
           command: upload
           args: --skip-existing wheels/*
+          maturin-version: v1.8.5
       - name: List downloaded wheels
         run: echo ${{steps.download.outputs.download-path}} && ls -R ${{steps.download.outputs.download-path}}
       - name: Create tarball with wheels
