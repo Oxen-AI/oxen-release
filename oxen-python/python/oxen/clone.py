@@ -8,6 +8,7 @@ def clone(
     host: str = "hub.oxen.ai",
     branch: str = "main",
     scheme: str = "https",
+    filters: Optional[str | list[str]] = None,
     all=False,
 ):
     """
@@ -27,6 +28,10 @@ def clone(
             The scheme to use. Defaults to 'https'
         all: `bool`
             Whether to clone the full commit history or not. Default: False
+        filters: `str | list[str] | None`
+            Filter down the set of directories you want to clone. Useful if
+            you have a large repository and only want to make changes to a
+            specific subset of files. Default: None
      Returns:
         [Repo](/python-api/repo)
             A Repo object that can be used to interact with the cloned repo.
@@ -37,10 +42,10 @@ def clone(
     if path is None:
         path = repo_name
 
-    if repo_id.startswith("http"):
+    if repo_id.startswith("http://") or repo_id.startswith("https://"):
         # Clone repo
         repo = Repo(path)
-        repo.clone(repo_id, branch=branch, all=all)
+        repo.clone(repo_id, branch=branch, all=all, filters=filters)
     else:
         # Verify repo_id format
         if "/" not in repo_id:
@@ -49,5 +54,5 @@ def clone(
         repo_url = f"{scheme}://{host}/{repo_id}"
         # Clone repo
         repo = Repo(path)
-        repo.clone(repo_url, branch=branch, all=all)
+        repo.clone(repo_url, branch=branch, all=all, filters=filters)
     return repo
