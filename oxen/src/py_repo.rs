@@ -44,14 +44,21 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn clone(&mut self, url: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
+    #[pyo3(signature = (url, branch, all, filters=None))]
+    pub fn clone(
+        &mut self,
+        url: &str,
+        branch: &str,
+        all: bool,
+        filters: Option<Vec<String>>,
+    ) -> Result<(), PyOxenError> {
         let repo = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             let opts = CloneOpts {
                 url: url.to_string(),
                 dst: self.path.clone(),
                 fetch_opts: FetchOpts {
                     branch: branch.to_string(),
-                    subtree_paths: None,
+                    subtree_paths: filters.map(|f| f.iter().map(PathBuf::from).collect()),
                     depth: None,
                     all,
                     ..FetchOpts::new()
