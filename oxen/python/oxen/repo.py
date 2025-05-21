@@ -1,5 +1,7 @@
-from oxen import PyRepo
 import os
+from typing import Optional
+
+from oxen import PyRepo
 
 
 class Repo:
@@ -58,7 +60,13 @@ class Repo:
         self._repo.init()
         return self
 
-    def clone(self, url: str, branch: str = "main", all=False):
+    def clone(
+        self,
+        url: str,
+        branch: str = "main",
+        all=False,
+        filters: Optional[str | list[str]] = None,
+    ):
         """
         Clone repository from a remote url.
 
@@ -69,8 +77,14 @@ class Repo:
                 The name of the branch to clone. Default: main
             all: `bool`
                 Whether to clone the full commit history or not. Default: False
+            filters: `str | list[str] | None`
+                Filter down the set of directories you want to clone. Useful if
+                you have a large repository and only want to make changes to a
+                specific subset of files. Default: None
         """
-        return self._repo.clone(url, branch, all)
+        if isinstance(filters, str):
+            filters = [filters]
+        return self._repo.clone(url, branch, all, filters)
 
     def branches(self):
         """
