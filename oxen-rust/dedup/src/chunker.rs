@@ -58,11 +58,11 @@ pub trait Chunker {
     fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>;
 }
 
-pub fn get_chunker(algorithm: &Algorithm) -> FrameworkResult<Box<dyn Chunker>> {
+pub fn get_chunker(algorithm: &Algorithm, chunk_size: usize) -> FrameworkResult<Box<dyn Chunker>> {
     let mut chunkers: HashMap<&'static str, Box<dyn Chunker>> = HashMap::new();
 
     for variant in Algorithm::value_variants() {
-        let chunker = variant.create_chunker(); 
+        let chunker = variant.create_chunker(chunk_size); 
         let name = variant.as_str(); 
 
         chunkers.insert(name, chunker);
@@ -74,18 +74,10 @@ pub fn get_chunker(algorithm: &Algorithm) -> FrameworkResult<Box<dyn Chunker>> {
 
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum Algorithm {
-    #[value(name = "fixed-size-4k")]
-    FixedSize4k,
-    #[value(name = "fixed-size-64k")]
-    FixedSize64k,
-    #[value(name = "fixed-size-256k")]
-    FixedSize256k,
-    #[value(name = "fixed-size-512k")]
-    FixedSize512k,
-    #[value(name = "fixed-size-1m")]
-    FixedSize1M,
-    #[value(name = "fixed-size-64k-multithreaded")]
-    FixedSize64kMultiThreaded,
+    #[value(name = "fixed-size")]
+    FixedSize,
+    #[value(name = "fixed-size-multithreaded")]
+    FixedSizeMultiThreaded,
     #[value(name = "copier")]
     Copier,
     #[value(name = "fastcdc")]
@@ -95,49 +87,29 @@ pub enum Algorithm {
 impl Algorithm {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Algorithm::FixedSize4k => "fixed-size-4k",
-            Algorithm::FixedSize64k => "fixed-size-64k",
-            Algorithm::FixedSize256k => "fixed-size-256k",
-            Algorithm::FixedSize512k => "fixed-size-512k",
-            Algorithm::FixedSize1M => "fixed-size-1m",
+            Algorithm::FixedSize => "fixed-size",
             Algorithm::Copier => "copier",
-            Algorithm::FixedSize64kMultiThreaded => "fixed-size-64k-multithreaded",
+            Algorithm::FixedSizeMultiThreaded => "fixed-size-multithreaded",
             Algorithm::FastCDC => "fastcdc",
         }
     }
 
-    fn create_chunker(&self) -> Box<dyn Chunker> {
+    fn create_chunker(&self, chunk_size: usize) -> Box<dyn Chunker> {
         match self {
-            Algorithm::FixedSize4k => {
-                let chunker = FixedSizeChunker::new(4096).expect("Failed to create FixedSizeChunker");
-                Box::new(chunker)
-            },
-            Algorithm::FixedSize64k => {
-                let chunker = FixedSizeChunker::new(65536).expect("Failed to create FixedSizeChunker");
-                Box::new(chunker)
-            },
-            Algorithm::FixedSize256k => {
-                let chunker = FixedSizeChunker::new(262144).expect("Failed to create FixedSizeChunker");
-                Box::new(chunker)
-            },
-            Algorithm::FixedSize512k => {
-                let chunker = FixedSizeChunker::new(524288).expect("Failed to create FixedSizeChunker");
-                Box::new(chunker)
-            },
-            Algorithm::FixedSize1M => {
-                let chunker = FixedSizeChunker::new(1048576).expect("Failed to create FixedSizeChunker");
+            Algorithm::FixedSize => {
+                let chunker = FixedSizeChunker::new(chunk_size).expect("Failed to create FixedSizeChunker");
                 Box::new(chunker)
             },
             Algorithm::Copier => {
                 let mover = Copier {};
                 Box::new(mover)
             },
-            Algorithm::FixedSize64kMultiThreaded => {
-                let chunker = FixedSizeMultiChunker::new(65536, 16).expect("Failed to create FixedSizeMultiChunker");
+            Algorithm::FixedSizeMultiThreaded => {
+                let chunker = FixedSizeMultiChunker::new(chunk_size, 16).expect("Failed to create FixedSizeMultiChunker");
                 Box::new(chunker)
             },
             Algorithm::FastCDC => {
-                let chunker = FastCDChunker::new(65536, 16).expect("Failed to create FastCDChunker");
+                let chunker = FastCDChunker::new(chunk_size, 16).expect("Failed to create FastCDChunker");
                 Box::new(chunker)
             },
         }

@@ -62,7 +62,7 @@ impl OxenChunker {
     }
 
 
-    pub fn pack(&self, algo: Algorithm, input_file: &Path, output_dir: &Path, n: u8 ) -> Result<PathBuf, Error> {
+    pub fn pack(&self, algo: Algorithm, chunk_size: usize, input_file: &Path, output_dir: &Path, n: u8 ) -> Result<PathBuf, Error> {
         
         std::fs::create_dir_all(output_dir)?;
 
@@ -72,7 +72,7 @@ impl OxenChunker {
 
         let repo = LocalRepository::from_current_dir().map_err(|e| Error::new(ErrorKind::NotFound, format!("error loading repository: {}", e) ))?;
 
-        let chunker = get_chunker(&algo).map_err(|e| Error::new(ErrorKind::NotFound, format!("error fetching chunker:  {}", e)))?;
+        let chunker = get_chunker(&algo, chunk_size).map_err(|e| Error::new(ErrorKind::NotFound, format!("error fetching chunker:  {}", e)))?;
 
         let commits = commits::list(&repo).map_err(|e| Error::new(ErrorKind::NotFound, format!("error listing commit: {}", e)))?;
 

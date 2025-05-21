@@ -33,6 +33,9 @@ enum Commands {
         #[arg(short, long, value_enum)]
         algorithm: Algorithm,
 
+        #[arg(short, long, value_enum)]
+        chunk_size: usize,
+
         #[arg(short, long)]
         input_file: PathBuf,
 
@@ -44,6 +47,9 @@ enum Commands {
 
         #[arg(short, long, value_enum)]
         algorithm: Algorithm,
+
+        #[arg(short, long, value_enum)]
+        chunk_size: usize,
 
         #[arg(short, long)]
         input_dir: PathBuf,
@@ -57,6 +63,9 @@ enum Commands {
         #[arg(short, long, value_enum)]
         algorithm: Algorithm,
 
+        #[arg(short, long, value_enum)]
+        chunk_size: usize,
+
         #[arg(short, long)]
         input_file: PathBuf,
 
@@ -67,6 +76,9 @@ enum Commands {
     TestOxen {
         #[arg(short, long, value_enum)]
         algorithm: Algorithm,
+
+        #[arg(short, long, value_enum)]
+        chunk_size: usize,
 
         #[arg(short, long)]
         input_file: PathBuf,
@@ -83,19 +95,19 @@ fn main() -> FrameworkResult<()> {
     let args = Args::parse();
 
     match args.command {
-        Commands::Pack { algorithm, input_file, output_dir } => {
-            let chunker = get_chunker(&algorithm)?;
+        Commands::Pack { algorithm, chunk_size, input_file, output_dir } => {
+            let chunker = get_chunker(&algorithm, chunk_size)?;
             chunker.pack(&input_file, &output_dir)?;
 
             Ok(())
         }
-        Commands::Unpack { algorithm, input_dir, output_file } => {
-            let chunker = get_chunker(&algorithm)?;
+        Commands::Unpack { algorithm, chunk_size, input_dir, output_file } => {
+            let chunker = get_chunker(&algorithm, chunk_size)?;
             let _ = chunker.unpack(&input_dir, &output_file);
             Ok(())
         }
 
-        Commands::TestOxen { algorithm, input_file, use_temp , n_commits} => {
+        Commands::TestOxen { algorithm, chunk_size, input_file, use_temp , n_commits} => {
             
             let base_dir = if use_temp {
                 let temp_dir = std::env::temp_dir();
@@ -122,11 +134,11 @@ fn main() -> FrameworkResult<()> {
 
             let test_dir_name = format!("chunker_test_{}", timestamp_nanos);
             let test_dir = base_dir.join(test_dir_name);
-            oxen_dedup.pack(algorithm, &input_file, &test_dir, n_commits)?;
+            oxen_dedup.pack(algorithm, chunk_size, &input_file, &test_dir, n_commits)?;
             Ok(())
         }
 
-        Commands::Test { algorithm, input_file , use_temp} =>{
+        Commands::Test { algorithm, chunk_size, input_file , use_temp} =>{
 
             let mut metrics = TestMetrics {
                 pack_time: Duration::new(0, 0),
@@ -136,7 +148,7 @@ fn main() -> FrameworkResult<()> {
                 _unpack_cpu_usage: 0.0,
                 _unpack_memory_usage_bytes: 0,
             };
-            let chunker = get_chunker(&algorithm)?;
+            let chunker = get_chunker(&algorithm, chunk_size)?;
 
 
             let base_dir = if use_temp {

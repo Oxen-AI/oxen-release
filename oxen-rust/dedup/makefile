@@ -1,4 +1,5 @@
-ALGORITHM = fixed-size-64k-multithreaded
+ALGORITHM = fixed-size
+CHUNK_SIZE = 8192
 FILE = large_filler.csv
 CARGO_RUN = cargo run
 CARGO = cargo 
@@ -11,17 +12,17 @@ clean:
 	$(CARGO) clean
 
 test:
-	$(CARGO_RUN) test --algorithm $(ALGORITHM) --input-file $(FILE)
+	$(CARGO_RUN) test --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --input-file $(FILE)
 
 clean-test:
 	$(CARGO) clean
-	$(CARGO_RUN) test --algorithm $(ALGORITHM) --input-file $(FILE)
+	$(CARGO_RUN) test --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --input-file $(FILE)
 
 unpack:
-	$(CARGO_RUN) unpack --algorithm $(ALGORITHM) --output-file $(FILE) --input-dir 4k
+	$(CARGO_RUN) unpack --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --output-file $(FILE) --input-dir 4k
 
 pack:
-	$(CARGO_RUN) pack --algorithm $(ALGORITHM) --file $(FILE) --output-dir 4k
+	$(CARGO_RUN) pack --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --file $(FILE) --output-dir 4k
 
 test-oxen:
-	$(DEDUP_BUILD) test-oxen --algorithm $(ALGORITHM) --input-file $(FILE)
+	$(DEDUP_BUILD) test-oxen --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --input-file $(FILE)
