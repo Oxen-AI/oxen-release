@@ -58,7 +58,9 @@ def create_repo(
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
-    return remote.create_repo(name, description, is_public, host, scheme, files)
+    py_repo = remote.create_repo(name, description, is_public, host, scheme, files)
+    repo_id = f"{py_repo.namespace()}/{py_repo.name()}"
+    return RemoteRepo(repo_id, py_repo.host, "main", py_repo.scheme)
 
 
 class RemoteRepo:
@@ -264,7 +266,7 @@ class RemoteRepo:
         self, branch: Optional[str] = None, workspace_name: Optional[str] = None
     ):
         """
-        Create a new workspace in the remote repo.
+        Create a new workspace in the remote repo. If the workspace already exists, it will just be returned.
 
         Args:
             branch: `str | None`
@@ -326,6 +328,7 @@ class RemoteRepo:
         Returns:
             [Workspace](/python-api/workspace)
         """
+        # If the workspace already exists, this is a no-op
         self.create_workspace(branch, workspace_name)
         self._workspace.add(src, dst)
         return self._workspace
@@ -377,6 +380,8 @@ class RemoteRepo:
         """
         if branch is None:
             branch = self.revision
+        if file_name is None:
+            file_name = os.path.basename(src)
         user = oxen_user.current_user()
 
         self._repo.put_file(branch, dst_dir, src, file_name, commit_message, user)
