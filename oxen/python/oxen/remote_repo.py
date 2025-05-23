@@ -342,14 +342,20 @@ class RemoteRepo:
 
         return self._workspace.status()
 
-    def commit(self, message: str):
+    def commit(self, message: str, branch: Optional[str] = None):
         """
         Commit the workspace to the remote repo.
+
+        Args:
+            message: `str`
+                The message to commit with
+            branch: `str | None`
+                The branch to commit to. Defaults to the branch the workspace was created on.
         """
         if self._workspace is None:
             raise ValueError("No workspace found. Please call add() first.")
 
-        commit = self._workspace.commit(message, self.branch().name)
+        commit = self._workspace.commit(message, branch)
         self._repo.set_commit_id(commit.id)
 
         # If it's not a named workspace, it's deleted after commit
