@@ -355,7 +355,17 @@ fn list_recursive_with_depth(
     results: &mut HashMap<Commit, usize>,
     depth: usize,
 ) -> Result<(), OxenError> {
+    // Check if we've already visited this commit at a shallower or equal depth
+    if let Some(&existing_depth) = results.get(&commit) {
+        if existing_depth <= depth {
+            // We've already processed this commit, skip it
+            return Ok(());
+        }
+    }
+
+    // Insert or update with the current (shallower) depth
     results.insert(commit.clone(), depth);
+
     for parent_id in commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;
         if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
