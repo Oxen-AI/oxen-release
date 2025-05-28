@@ -25,4 +25,4 @@ pack:
 	$(CARGO_RUN) pack --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --file $(FILE) --output-dir 4k
 
 test-oxen:
-	$(DEDUP_BUILD) test-oxen --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --input-file $(FILE)
+	$(DEDUP_BUILD) test-oxen --algorithm $(ALGORITHM) --chunk-size $(CHUNK_SIZE) --input-file $(FILE) --n-commits 10

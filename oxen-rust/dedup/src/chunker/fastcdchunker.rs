@@ -103,7 +103,7 @@ impl Chunker for FastCDChunker {
             let mut chunk_file = BufWriter::new(fs::File::create(&chunk_path)?);
             chunk_file.write_all(chunk_data_slice)?;
             chunk_file.flush()?;
-            println!("Wrote chunk: {}", &chunk_filename);
+            // println!("Wrote chunk: {}", &chunk_filename);
         }
 
         let metadata = ChunkMetadata {

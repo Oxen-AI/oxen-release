@@ -2,3 +2,4 @@
 *.parquet
 *.svg
 chunker_test_*/
+target/

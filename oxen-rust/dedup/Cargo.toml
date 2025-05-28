@@ -25,3 +25,5 @@ fastcdc = "3.2.1"
 [[bin]]
 name = "dedup"
 path = "src/main.rs"
+
+[workspace]
