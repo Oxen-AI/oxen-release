@@ -162,9 +162,10 @@ pub fn merge_into_base(
     merge_branch: &Branch,
     base_branch: &Branch,
 ) -> Result<Option<Commit>, OxenError> {
-    println!(
+    log::debug!(
         "merge_into_base merge {} into {}",
-        merge_branch, base_branch
+        merge_branch,
+        base_branch
     );
 
     if merge_branch.commit_id == base_branch.commit_id {
@@ -176,6 +177,13 @@ pub fn merge_into_base(
     let merge_commit = get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
 
     let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)?;
+    log::debug!(
+        "merge_into_base base: {:?} merge: {:?} lca: {:?}",
+        base_commit,
+        merge_commit,
+        lca
+    );
+
     let commits = MergeCommits {
         lca,
         base: base_commit,
@@ -808,6 +816,11 @@ pub fn lowest_common_ancestor_from_commits(
     base_commit: &Commit,
     merge_commit: &Commit,
 ) -> Result<Commit, OxenError> {
+    log::debug!(
+        "lowest_common_ancestor_from_commits: base: {} merge: {}",
+        base_commit.id,
+        merge_commit.id
+    );
     // Traverse the base commit back to start, keeping map of Commit -> Depth(int)
     let commit_depths_from_head =
         repositories::commits::list_from_with_depth(repo, base_commit.id.as_str())?;
