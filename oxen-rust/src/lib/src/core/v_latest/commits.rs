@@ -121,7 +121,9 @@ pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 
     if let Some(branch) = branches.first() {
         if let Some(commit) = get_by_id(repo, &branch.commit_id)? {
-            let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+            let mut seen = HashSet::new();
+            let root_commit =
+                root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?, &mut seen)?;
             return Ok(Some(root_commit));
         }
     }
@@ -132,7 +134,13 @@ pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 fn root_commit_recursive(
     repo: &LocalRepository,
     commit_id: MerkleHash,
+    seen: &mut HashSet<String>,
 ) -> Result<Commit, OxenError> {
+    // Check if we've already seen this commit
+    if !seen.insert(commit_id.to_string()) {
+        return Err(OxenError::basic_str("Cycle detected in commit history"));
+    }
+
     if let Some(commit) = get_by_hash(repo, &commit_id)? {
         if commit.parent_ids.is_empty() {
             return Ok(commit);
@@ -141,7 +149,7 @@ fn root_commit_recursive(
         // Only need to check the first parent, as all paths lead to the root
         if let Some(parent_id) = commit.parent_ids.first() {
             let parent_id = MerkleHash::from_str(parent_id)?;
-            return root_commit_recursive(repo, parent_id);
+            return root_commit_recursive(repo, parent_id, seen);
         }
     }
     Err(OxenError::basic_str("No root commit found"))

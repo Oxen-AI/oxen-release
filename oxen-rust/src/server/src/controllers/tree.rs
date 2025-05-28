@@ -221,6 +221,7 @@ pub async fn download_tree_nodes(
 
     // Could be a single commit or a range of commits
     let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
+    log::debug!("got {} commits", commits.len());
 
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
