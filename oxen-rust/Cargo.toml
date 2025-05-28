@@ -31,7 +31,6 @@ actix-web = { version = "4.9.0", features = ["rustls"] }
 actix-web-httpauth = "0.8.0"
 approx = "0.5.1"
 async-compression = { version = "0.4.2", features = ["futures-io", "gzip"] }
-async-recursion = "1.0.5"
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.5.0"
 async-trait = "0.1.80"
@@ -130,18 +129,15 @@ sql_query_builder = { version = "2.1.0", features = ["postgresql"] }
 sysinfo = "0.33.0"
 tar = "0.4.44"
 tempfile = "3.8.0"
-thread_local = "1.1.7"
 threadpool = "1.8.1"
 time = { version = "0.3.28", features = ["serde"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-util = "0.7.8"
 toml = "0.8.19"
-unicode-truncate = "2.0.0"
 url = "2.4.1"
 urlencoding = "2.1.3"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
 walkdir = "2.5.0"
-words-count = "0.1.6"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
 zip = "2.4.1"
 
@@ -152,6 +148,9 @@ members = ["src/cli", "src/lib", "src/server"]
 [profile.release]
 codegen-units = 1
 lto = true
+opt-level = 3
+panic = "abort"
+strip = true
 
 [lib]
 name = "liboxen"
