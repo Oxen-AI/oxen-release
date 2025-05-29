@@ -4,8 +4,8 @@ use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{MerkleHash, RemoteRepository};
 use crate::view::versions::{
-    CompleteVersionUploadRequest, CompletedFileUpload, MultipartLargeFileUpload,
-    MultipartLargeFileUploadStatus, VersionFile, VersionFileResponse,
+    CompleteVersionUploadRequest, CompletedFileUpload, CreateVersionUploadRequest,
+    MultipartLargeFileUpload, MultipartLargeFileUploadStatus, VersionFile, VersionFileResponse,
 };
 
 use futures::stream::FuturesUnordered;
@@ -78,7 +78,7 @@ pub async fn parallel_large_file_upload(
     workspace_id: Option<String>,
 ) -> Result<MultipartLargeFileUpload, OxenError> {
     log::debug!("multipart_large_file_upload path: {:?}", file_path.as_ref());
-    let mut upload = create_multipart_large_file_upload(file_path, dst_dir).await?;
+    let mut upload = create_multipart_large_file_upload(remote_repo, file_path, dst_dir).await?;
     log::debug!("multipart_large_file_upload upload: {:?}", upload.hash);
     let results = upload_chunks(
         remote_repo,
@@ -101,6 +101,7 @@ pub async fn parallel_large_file_upload(
 /// The rejection helps prevent duplicate uploads or parallel uploads of the same file.
 /// Returns the `MultipartLargeFileUpload` struct for the created upload
 async fn create_multipart_large_file_upload(
+    remote_repo: &RemoteRepository,
     file_path: impl AsRef<Path>,
     dst_dir: Option<impl AsRef<Path>>,
 ) -> Result<MultipartLargeFileUpload, OxenError> {
@@ -113,6 +114,26 @@ async fn create_multipart_large_file_upload(
     };
     let file_size = metadata.len();
     let hash = MerkleHash::from_str(&util::hasher::hash_file_contents(file_path)?)?;
+
+    let uri = format!("/versions/{hash}/create");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+
+    let body = CreateVersionUploadRequest {
+        hash: hash.to_string(),
+        file_name: file_path.file_name().unwrap().to_string_lossy().to_string(),
+        size: file_size,
+        dst_dir: dst_dir.map(|d| d.as_ref().to_path_buf()),
+    };
+
+    let body = serde_json::to_string(&body)?;
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .body(body)
+        .send()
+        .await?;
+    response.error_for_status()?;
 
     Ok(MultipartLargeFileUpload {
         local_path: file_path.to_path_buf(),
