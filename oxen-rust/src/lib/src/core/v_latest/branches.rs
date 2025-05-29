@@ -12,11 +12,7 @@ use crate::util;
 use filetime::FileTime;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-<<<<<<< HEAD
-
-=======
 use std::time::Duration;
->>>>>>> a4e3099d (Implement partial load for fast forward merge)
 
 struct CheckoutProgressBar {
     revision: String,
@@ -277,7 +273,7 @@ pub async fn set_working_repo_to_commit(
 
     // If the from tree exists, load in the nodes not found in the target tree
     // Also collects a 'PartialNode' of every file node unique to the from tree
-    // This is used to determine missing or modified files in the recursive function 
+    // This is used to determine missing or modified files in the recursive function
     let mut shared_hashes = HashSet::new();
     let mut partial_nodes = HashMap::new();
     let from_tree = if let Some(from_commit) = maybe_from_commit {
@@ -324,13 +320,7 @@ pub async fn set_working_repo_to_commit(
     // Cleanup files if checking out from another commit
     if maybe_from_commit.is_some() {
         log::debug!("Cleanup_removed_files");
-        cleanup_removed_files(
-            repo,
-            &target_tree,
-            &from_tree.unwrap(),
-            &mut progress,
-            &mut hashes,
-        )?;
+        cleanup_removed_files(repo, &from_tree.unwrap(), &mut progress, &mut hashes)?;
     }
 
     let version_store = repo.version_store()?;
