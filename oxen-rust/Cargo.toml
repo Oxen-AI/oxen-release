@@ -148,9 +148,6 @@ members = ["src/cli", "src/lib", "src/server"]
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = 3
-panic = "abort"
-strip = true
 
 [lib]
 name = "liboxen"
