@@ -1590,6 +1590,12 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
 }
 
 pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
+    // Hack?
+    if !path.exists() {
+        log::debug!("is_modified_from_node found non-existant path {path:?}. Returning false");
+        return Ok(false);
+    }
+
     let meta = util::fs::metadata(path)?;
     let file_last_modified = FileTime::from_last_modification_time(&meta);
 
@@ -1614,10 +1620,7 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
 
 // Calculate a node's last modified time
 
-pub fn last_modified_time(
-    last_modified_seconds: i64,
-    last_modified_nanoseconds: u32,
-) -> FileTime {
+pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds: u32) -> FileTime {
     let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
         + std::time::Duration::from_nanos(last_modified_nanoseconds as u64);

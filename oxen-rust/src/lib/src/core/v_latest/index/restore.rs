@@ -242,7 +242,6 @@ pub fn should_restore_partial(
 
         // If there are modifications compared to the base node, we should not restore the file
         if let Some(base_node) = base_node {
-            
             let node_last_modified = base_node.last_modified;
 
             if file_last_modified == node_last_modified {

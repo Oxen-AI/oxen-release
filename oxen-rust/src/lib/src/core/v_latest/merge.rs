@@ -5,13 +5,13 @@ use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::refs::with_ref_manager;
 use crate::core::v_latest::commits::{get_commit_or_head, list_between};
-use crate::core::v_latest::{add, rm};
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_latest::{add, rm};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
-use crate::model::{PartialNode, MerkleHash};
 use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use crate::model::{Branch, Commit, LocalRepository};
+use crate::model::{MerkleHash, PartialNode};
 use crate::opts::RmOpts;
 use crate::repositories;
 use crate::repositories::commits::commit_writer;
@@ -27,7 +27,7 @@ use super::index::restore;
 use super::index::restore::FileToRestore;
 
 // entries_to_restore: files that ought to be restored from the currently traversed tree
-// I.e., In r_ff_merge_commit, it contains merge commit files that are not present in or have changed from the base tree 
+// I.e., In r_ff_merge_commit, it contains merge commit files that are not present in or have changed from the base tree
 // cannot_overwrite_entries: files that would be restored, but are modified from the from_tree, and thus would erase work if overwritten
 
 // for r_ff_base_dir, the 'entries to restore' are actually entries being removed
@@ -415,18 +415,16 @@ fn fast_forward_merge(
     base_commit: &Commit,
     merge_commit: &Commit,
 ) -> Result<Commit, OxenError> {
-    println!("FF merge!");
+    log::debug!("FF merge!");
 
     // Collect all dir and vnode hashes while loading the merge tree
     // This is done to identify shared dirs/vnodes between the merge and base trees while loading the base tree
     let mut merge_hashes = HashSet::new();
-    let Some(merge_tree) = CommitMerkleTree::root_with_children_and_hashes(repo, merge_commit, &mut merge_hashes)?
+    let Some(merge_tree) =
+        CommitMerkleTree::root_with_children_and_hashes(repo, merge_commit, &mut merge_hashes)?
     else {
-        return Err(OxenError::basic_str(
-            "Cannot get root node for base commit",
-        ));
+        return Err(OxenError::basic_str("Cannot get root node for base commit"));
     };
-
 
     // Collect every shared dir/vnode hash between the trees, load the base tree's unique nodes and collect them as 'partial nodes'
     // These are done to skip checks for shared dirs/vnodes and avoid slow tree traversals when comparing files in the recursvie functions respectively
@@ -438,7 +436,8 @@ fn fast_forward_merge(
         &mut merge_hashes,
         &mut shared_hashes,
         &mut partial_nodes,
-    )? else {
+    )?
+    else {
         return Err(OxenError::basic_str(
             "Cannot get root node for merge commit",
         ));
@@ -465,7 +464,9 @@ fn fast_forward_merge(
         }
     } else {
         // If there are conflicts, return an error without restoring anything
-        return Err(OxenError::cannot_overwrite_files(&merge_tree_results.cannot_overwrite_entries));
+        return Err(OxenError::cannot_overwrite_files(
+            &merge_tree_results.cannot_overwrite_entries,
+        ));
     }
 
     let mut base_tree_results = MergeResult::new();
@@ -486,7 +487,9 @@ fn fast_forward_merge(
         }
     } else {
         // If there are conflicts, return an error without removing anything
-        return Err(OxenError::cannot_overwrite_files(&base_tree_results.cannot_overwrite_entries));
+        return Err(OxenError::cannot_overwrite_files(
+            &base_tree_results.cannot_overwrite_entries,
+        ));
     }
 
     // Move the HEAD forward to this commit
@@ -505,7 +508,7 @@ fn r_ff_merge_commit(
     seen_files: &mut HashSet<PathBuf>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    match &merge_node.node {    
+    match &merge_node.node {
         EMerkleTreeNode::File(merge_file_node) => {
             let file_path = path.join(merge_file_node.name());
             seen_files.insert(file_path.clone());
@@ -517,7 +520,7 @@ fn r_ff_merge_commit(
             // A PartialNode is the minimal representation of a file necessary to determine whether it should be restored
             // To properly handle moved files, the partial nodes are associated with their path in the base tree
             // I.e., if a file has been moved in the merge tree, this code will find that it shouldn't be restored
-     
+
             if base_files.contains_key(&file_path) {
                 // if found, use to determine whether the file should be restored
                 let base_file_node = &base_files[&file_path];
@@ -530,7 +533,6 @@ fn r_ff_merge_commit(
                     &file_path,
                 )?;
                 if merge_node.hash != base_file_node.hash {
-                    log::debug!("Merge entry has changed, restore: {:?}", file_path);
                     if should_restore {
                         results.entries_to_restore.push(FileToRestore {
                             file_node: merge_file_node.clone(),
@@ -548,16 +550,13 @@ fn r_ff_merge_commit(
                         results.cannot_overwrite_entries.push(file_path.clone());
                     }
                 }
+            } else if restore::should_restore_file(repo, None, merge_file_node, &file_path)? {
+                results.entries_to_restore.push(FileToRestore {
+                    file_node: merge_file_node.clone(),
+                    path: file_path.clone(),
+                });
             } else {
-                log::debug!("Merge entry is new, restore: {:?}", file_path);
-                if restore::should_restore_file(repo, None, merge_file_node, &file_path)? {
-                    results.entries_to_restore.push(FileToRestore {
-                        file_node: merge_file_node.clone(),
-                        path: file_path.clone(),
-                    });
-                } else {
-                    results.cannot_overwrite_entries.push(file_path.clone());
-                }
+                results.cannot_overwrite_entries.push(file_path.clone());
             }
         }
         EMerkleTreeNode::Directory(dir_node) => {
@@ -629,11 +628,9 @@ fn r_ff_base_dir(
     match &base_node.node {
         EMerkleTreeNode::File(base_file_node) => {
             let file_path = path.join(base_file_node.name());
-            log::debug!("r_ff_base_dir file_path {:?}", file_path);
             // Remove all entries that are in HEAD but not in merge entries
             if !merge_files.contains(&file_path) {
-                
-                // Here, we don't need partial node representation, as we're only concerned with restoring files that aren't in the merge tree 
+                // Here, we don't need partial node representation, as we're only concerned with restoring files that aren't in the merge tree
                 let path = repo.path.join(file_path.clone());
                 if path.exists() {
                     if restore::should_restore_file(repo, None, base_file_node, &file_path)? {
@@ -671,27 +668,13 @@ fn r_ff_base_dir(
 
             for child in base_children.iter() {
                 //log::debug!("r_ff_base_dir child_path {}", child);
-                r_ff_base_dir(
-                    repo,
-                    child,
-                    &dir_path,
-                    results,
-                    shared_hashes,
-                    merge_files,
-                )?;
+                r_ff_base_dir(repo, child, &dir_path, results, shared_hashes, merge_files)?;
             }
         }
         EMerkleTreeNode::Commit(_) => {
             // If we get a commit node, we need to skip to the root directory
             let root_dir = repositories::tree::get_root_dir(base_node)?;
-            r_ff_base_dir(
-                repo,
-                root_dir,
-                path,
-                results,
-                shared_hashes,
-                merge_files,
-            )?;
+            r_ff_base_dir(repo, root_dir, path, results, shared_hashes, merge_files)?;
         }
         _ => {
             log::debug!("r_ff_base_dir unknown node type");
@@ -877,7 +860,7 @@ pub fn find_merge_conflicts(
     merge_commits: &MergeCommits,
     write_to_disk: bool,
 ) -> Result<Vec<NodeMergeConflict>, OxenError> {
-    println!("finding merge conflicts");
+    log::debug!("finding merge conflicts");
     /*
     https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
 
@@ -907,17 +890,39 @@ pub fn find_merge_conflicts(
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
 
     // Read all the entries from each commit into sets we can compare to one another
-    let lca_commit_tree =
-        repositories::tree::from_commit_or_subtree(repo, &merge_commits.lca)?.unwrap();
-    let base_commit_tree =
-        repositories::tree::from_commit_or_subtree(repo, &merge_commits.base)?.unwrap();
-    let merge_commit_tree =
-        repositories::tree::from_commit_or_subtree(repo, &merge_commits.merge)?.unwrap();
+    let mut lca_hashes = HashSet::new();
+    let mut base_hashes = HashSet::new();
+    let mut shared_hashes = HashSet::new();
 
-    // Filter out entries that are the same across all commits
-    let lca_hashes = lca_commit_tree.list_dir_and_vnode_hashes()?;
-    let base_hashes = base_commit_tree.list_shared_dir_and_vnode_hashes(&lca_hashes)?;
-    let merge_hashes = merge_commit_tree.list_shared_dir_and_vnode_hashes(&base_hashes)?;
+    let mut _partial_nodes = HashMap::new();
+
+    // Use the same functions from the fast forward merge to load in only the entries found to be unique to each tree
+    // First, we load in every node from the LCA tree
+    let lca_commit_tree =
+        CommitMerkleTree::root_with_children_and_hashes(repo, &merge_commits.lca, &mut lca_hashes)?
+            .unwrap();
+
+    // Then, we load in only the nodes of the base commit tree that weren't in the LCA tree
+    // We also track the shared hashes between them
+    let base_commit_tree = CommitMerkleTree::root_with_unique_children(
+        repo,
+        &merge_commits.base,
+        &mut lca_hashes,
+        &mut base_hashes,
+        &mut _partial_nodes,
+    )?
+    .unwrap();
+
+    // Then, we load in only the nodes of the merge tree that weren't in the Base tree (or the LCA tree)
+    // After this, 'shared hashes' will have all the dir/vnode hashes shared between all 3 trees
+    let merge_commit_tree = CommitMerkleTree::root_with_unique_children(
+        repo,
+        &merge_commits.merge,
+        &mut base_hashes,
+        &mut shared_hashes,
+        &mut _partial_nodes,
+    )?
+    .unwrap();
 
     // TODO: Remove this unless debugging
     // log::debug!("lca_hashes: {lca_hashes:?}");
@@ -925,17 +930,15 @@ pub fn find_merge_conflicts(
     // log::debug!("base_hashes: {base_hashes:?}");
     //base_commit_tree.print();
     // log::debug!("merge_hashes: {merge_hashes:?}");
-    //merge_commit_tree.print();
 
-    let default_starting_path = PathBuf::from("");
-    let subtree_paths = repo.subtree_paths().unwrap_or_default();
-    let starting_path = subtree_paths.first().unwrap_or(&default_starting_path);
+    let starting_path = PathBuf::from("");
+
     let lca_entries =
-        repositories::tree::unique_dir_entries(starting_path, &lca_commit_tree, &merge_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &lca_commit_tree, &shared_hashes)?;
     let base_entries =
-        repositories::tree::unique_dir_entries(starting_path, &base_commit_tree, &merge_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &base_commit_tree, &shared_hashes)?;
     let merge_entries =
-        repositories::tree::unique_dir_entries(starting_path, &merge_commit_tree, &merge_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &merge_commit_tree, &shared_hashes)?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());

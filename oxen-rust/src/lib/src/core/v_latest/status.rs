@@ -457,13 +457,12 @@ fn find_changes(
             // Either way, we know the directory is not all_untracked
             untracked.all_untracked = false;
             if let EMerkleTreeNode::File(file_node) = &node.node {
-                let is_modified = util::fs::is_modified_from_node(&path, &file_node)?;
+                let is_modified = util::fs::is_modified_from_node(&path, file_node)?;
                 log::debug!("is_modified {} {:?}", is_modified, relative_path);
                 if is_modified {
-                modified.insert(relative_path.clone());
+                    modified.insert(relative_path.clone());
                 }
             }
-
         } else {
             log::debug!("find_changes entry is not a child node {:?}", path);
             // If it's none of the above conditions
@@ -472,7 +471,7 @@ fn find_changes(
             if let Some(search_node) = &search_node {
                 if let EMerkleTreeNode::File(file_node) = &search_node.node {
                     found_file = true;
-                    if util::fs::is_modified_from_node(&path, &file_node)? {
+                    if util::fs::is_modified_from_node(&path, file_node)? {
                         modified.insert(relative_path.clone());
                     }
                 }
