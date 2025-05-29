@@ -221,6 +221,7 @@ pub async fn download_tree_nodes(
 
     // Could be a single commit or a range of commits
     let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
+    log::debug!("got {} commits", commits.len());
 
     // Collect the unique node hashes for all the commits
     let unique_node_hashes =
@@ -339,8 +340,13 @@ fn get_unique_node_hashes_for_subtree(
     depth: &Option<i32>,
     unique_node_hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
-    let tree = repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)?
-        .ok_or(OxenError::basic_str("subtree not found"))?;
+    // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
+    let Ok(Some(tree)) =
+        repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)
+    else {
+        return Ok(());
+    };
+
     tree.walk_tree_without_leaves(|node| {
         unique_node_hashes.insert(node.hash);
     });

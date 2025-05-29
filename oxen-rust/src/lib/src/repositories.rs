@@ -101,9 +101,8 @@ fn is_repo_forked(repo_dir: &Path) -> Result<Option<LocalRepository>, OxenError>
 }
 
 pub fn is_empty(repo: &LocalRepository) -> Result<bool, OxenError> {
-    match commits::root_commit_maybe(repo) {
-        Ok(None) => Ok(true),
-        Ok(Some(_)) => Ok(false),
+    match branches::list(repo) {
+        Ok(branches) => Ok(branches.is_empty()),
         Err(err) => Err(err),
     }
 }
