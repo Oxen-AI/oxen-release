@@ -5,16 +5,16 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_multipart::Multipart;
-use actix_web::Error;
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
 use futures_util::TryStreamExt as _;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::view::versions::{VersionFile, VersionFileResponse};
-use liboxen::view::{ErrorFileInfo, FilesHashResponse, StatusMessage};
+use liboxen::view::{ErrorFileInfo, ErrorFilesResponse, StatusMessage};
 use mime;
 use std::io::Read as StdRead;
+use std::path::PathBuf;
 
 pub async fn metadata(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -70,11 +70,11 @@ pub async fn batch_upload(
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
 
     log::debug!("batch upload file for repo: {:?}", repo.path);
+    let files = save_multiparts(payload, &repo).await?;
 
-    let err_files = save_multiparts(payload, &repo).await?;
-    Ok(HttpResponse::Ok().json(FilesHashResponse {
+    Ok(HttpResponse::Ok().json(ErrorFilesResponse {
         status: StatusMessage::resource_created(),
-        err_files,
+        err_files: files,
     }))
 }
 
@@ -82,6 +82,7 @@ pub async fn save_multiparts(
     mut payload: Multipart,
     repo: &LocalRepository,
 ) -> Result<Vec<ErrorFileInfo>, Error> {
+    // Receive a multipart request and save the files to the version store
     let version_store = repo.version_store().map_err(|oxen_err: OxenError| {
         log::error!("Failed to get version store: {:?}", oxen_err);
         actix_web::error::ErrorInternalServerError(oxen_err.to_string())
@@ -91,16 +92,17 @@ pub async fn save_multiparts(
     let mut err_files: Vec<ErrorFileInfo> = vec![];
 
     while let Some(mut field) = payload.try_next().await? {
-        let Some(content_disposition) = field.content_disposition() else {
+        let Some(content_disposition) = field.content_disposition().cloned() else {
             continue;
         };
 
         if let Some(name) = content_disposition.get_name() {
-            if "file[]" == name {
+            if name == "file[]" {
+                // The file hash is passed in as the filename. In version store, the file hash is the identifier.
                 let upload_filehash = content_disposition.get_filename().map_or_else(
                     || {
                         Err(actix_web::error::ErrorBadRequest(
-                            "Missing filename in multipart request",
+                            "Missing hash in multipart request",
                         ))
                     },
                     |fhash_os_str| Ok(fhash_os_str.to_string()),
@@ -111,8 +113,6 @@ pub async fn save_multiparts(
                     field_bytes.extend_from_slice(&chunk);
                 }
 
-                let version_store_copy = version_store.clone();
-                let upload_filehash_copy = upload_filehash.clone();
                 let is_gzipped = field
                     .content_type()
                     .map(|mime| {
@@ -120,7 +120,10 @@ pub async fn save_multiparts(
                     })
                     .unwrap_or(false);
 
-                match actix_web::web::block(move || {
+                let version_store_copy = version_store.clone();
+                let upload_filehash_copy = upload_filehash.clone();
+
+                match actix_web::web::block(move || -> Result<(), OxenError> {
                     let data_to_store = if is_gzipped {
                         log::debug!(
                             "Decompressing gzipped data for hash: {}",
@@ -140,7 +143,12 @@ pub async fn save_multiparts(
                         field_bytes
                     };
 
-                    version_store_copy.store_version(&upload_filehash_copy, &data_to_store)
+                    version_store_copy
+                        .store_version(&upload_filehash_copy, &data_to_store)
+                        .map_err(|e| {
+                            OxenError::basic_str(format!("Failed to store version: {}", e))
+                        })?;
+                    Ok(())
                 })
                 .await
                 {
@@ -153,22 +161,26 @@ pub async fn save_multiparts(
                             &upload_filehash,
                             e
                         );
-                        err_files.push(ErrorFileInfo {
-                            hash: upload_filehash.clone(),
-                            error: format!("Failed to store version: {}", e),
-                        });
+                        record_error_file(
+                            &mut err_files,
+                            upload_filehash.clone(),
+                            None,
+                            format!("Failed to store version: {}", e),
+                        );
                         continue;
                     }
                     Err(e) => {
                         log::error!(
-                            "Failed to execute blocking task for hash {}: {}",
+                            "Failed to execute blocking task when storing version for hash {}: {}",
                             &upload_filehash,
                             e
                         );
-                        err_files.push(ErrorFileInfo {
-                            hash: upload_filehash.clone(),
-                            error: format!("Failed to execute blocking task: {}", e),
-                        });
+                        record_error_file(
+                            &mut err_files,
+                            upload_filehash.clone(),
+                            None,
+                            format!("Failed to execute blocking when storing version: {}", e),
+                        );
                         continue;
                     }
                 }
@@ -176,6 +188,21 @@ pub async fn save_multiparts(
         }
     }
     Ok(err_files)
+}
+
+// Record the error file info for retry
+fn record_error_file(
+    err_files: &mut Vec<ErrorFileInfo>,
+    filehash: String,
+    filepath: Option<PathBuf>,
+    error: String,
+) {
+    let info = ErrorFileInfo {
+        hash: filehash,
+        path: filepath,
+        error,
+    };
+    err_files.push(info);
 }
 
 #[cfg(test)]
@@ -190,7 +217,7 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;
-    use liboxen::view::FilesHashResponse;
+    use liboxen::view::ErrorFilesResponse;
     use mime;
     use std::io::Write;
 
@@ -290,10 +317,9 @@ mod tests {
         .await;
 
         let resp = actix_web::test::call_service(&app, req).await;
-        println!("resp: {:?}", resp);
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
-        let response: FilesHashResponse = serde_json::from_slice(&bytes)?;
+        let response: ErrorFilesResponse = serde_json::from_slice(&bytes)?;
         assert_eq!(response.status.status, "success");
         assert!(response.err_files.is_empty());
 

@@ -112,6 +112,7 @@ pub async fn complete(req: HttpRequest, body: String) -> Result<HttpResponse, Ox
             } else {
                 PathBuf::from(file.file_name.clone())
             };
+
             core::v_latest::workspaces::files::add_version_file(
                 &workspace,
                 &version_path,

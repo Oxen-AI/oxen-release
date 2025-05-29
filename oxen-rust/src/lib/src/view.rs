@@ -37,7 +37,8 @@ pub mod workspaces;
 pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::data_type_count::DataTypeCount;
 pub use crate::view::file_metadata::{
-    ErrorFileInfo, FileMetadata, FileMetadataResponse, FilePathsResponse, FilesHashResponse,
+    ErrorFileInfo, ErrorFilesResponse, FileMetadata, FileMetadataResponse, FilePathsResponse,
+    FileWithHash,
 };
 pub use crate::view::mime_type_count::MimeTypeCount;
 
