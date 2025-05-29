@@ -23,4 +23,8 @@ pub fn versions() -> Scope {
             "/{version_id}/complete",
             web::post().to(controllers::versions::chunks::complete),
         )
+        .route(
+            "/{version_id}/create",
+            web::post().to(controllers::versions::chunks::create),
+        )
 }
