@@ -4,11 +4,12 @@ use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
+use crate::util::hasher;
 use crate::view::versions::{
     CompleteVersionUploadRequest, CompletedFileUpload, MultipartLargeFileUpload,
     MultipartLargeFileUploadStatus, VersionFile, VersionFileResponse,
 };
-use crate::view::{ErrorFileInfo, FilesHashResponse};
+use crate::view::{ErrorFileInfo, ErrorFilesResponse, FileWithHash};
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -20,7 +21,7 @@ use tokio_util::codec::{BytesCodec, FramedRead};
 
 use std::collections::HashMap;
 use std::io::SeekFrom;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,6 +40,12 @@ const MAX_WAIT_TIME: usize = 10_000;
 const MAX_FILES: usize = 64;
 const PARALLEL_FAILURES: usize = 63;
 const MAX_RETRIES: usize = 5;
+
+#[derive(Debug, Default)]
+pub struct UploadResult {
+    pub files_to_add: Vec<FileWithHash>,
+    pub err_files: Vec<ErrorFileInfo>,
+}
 
 /// Check if a file exists in the remote repository by version id
 pub async fn has_version(
@@ -361,6 +368,7 @@ pub async fn multipart_batch_upload(
                 log::error!("Failed to finish gzip for file {}: {}", &file_hash, e);
                 err_files.push(ErrorFileInfo {
                     hash: file_hash.clone(),
+                    path: None,
                     error: format!("Failed to finish gzip for file {}: {}", &file_hash, e),
                 });
                 continue;
@@ -377,11 +385,131 @@ pub async fn multipart_batch_upload(
 
     let response = client.post(&url).multipart(form).send().await?;
     let body = client::parse_json_body(&url, response).await?;
-    let response: FilesHashResponse = serde_json::from_str(&body)?;
+    let response: ErrorFilesResponse = serde_json::from_str(&body)?;
 
     err_files.extend(response.err_files);
 
     Ok(err_files)
+}
+
+pub async fn workspace_multipart_batch_upload_versions_with_retry(
+    remote_repo: &RemoteRepository,
+    client: Arc<reqwest::Client>,
+    directory_name: impl AsRef<str>,
+    paths: Vec<PathBuf>,
+) -> Result<UploadResult, OxenError> {
+    let mut result: UploadResult = UploadResult {
+        files_to_add: vec![],
+        err_files: vec![],
+    };
+    let mut first_try = true;
+    let mut retry_count: usize = 0;
+
+    while (first_try || !result.err_files.is_empty()) && retry_count < MAX_RETRIES {
+        first_try = false;
+        retry_count += 1;
+
+        result = workspace_multipart_batch_upload_versions(
+            remote_repo,
+            client.clone(),
+            paths.clone(),
+            &directory_name,
+            result,
+        )
+        .await?;
+
+        if !result.err_files.is_empty() {
+            let wait_time = exponential_backoff(BASE_WAIT_TIME, retry_count, MAX_WAIT_TIME);
+            sleep(Duration::from_millis(wait_time as u64)).await;
+        }
+    }
+    Ok(result)
+}
+
+pub async fn workspace_multipart_batch_upload_versions(
+    remote_repo: &RemoteRepository,
+    client: Arc<reqwest::Client>,
+    paths: Vec<PathBuf>,
+    directory: impl AsRef<str>,
+    result: UploadResult,
+) -> Result<UploadResult, OxenError> {
+    let directory = directory.as_ref();
+    // save the errorred files info for retry
+    let mut err_files: Vec<ErrorFileInfo> = vec![];
+    // keep track of the files hash
+    let mut files_to_add: Vec<FileWithHash> = vec![];
+    log::debug!("Uploading {} files to {}", paths.len(), directory);
+
+    // generate retry hashes if it's not the first try
+    let retry_hashes: std::collections::HashSet<String> = if result.err_files.is_empty() {
+        std::collections::HashSet::new()
+    } else {
+        result.err_files.iter().map(|f| f.hash.clone()).collect()
+    };
+    // generate a map of the files hash to the path
+    let path_to_hash: HashMap<PathBuf, String> = result
+        .files_to_add
+        .iter()
+        .map(|f| (f.path.clone(), f.hash.clone()))
+        .collect();
+
+    let mut form = reqwest::multipart::Form::new();
+    for path in paths {
+        // if it's not the first try
+        if !result.err_files.is_empty() {
+            let hash = path_to_hash.get(&path).unwrap();
+            // check if the file is in the retry list. if not, skip
+            if !retry_hashes.contains(hash) {
+                continue;
+            }
+        }
+
+        let file = std::fs::read(&path).unwrap();
+        let hash = hasher::hash_buffer(&file);
+        let full_path = PathBuf::from(&directory).join(&path);
+
+        files_to_add.push(FileWithHash {
+            hash: hash.clone(),
+            path: full_path.clone(),
+        });
+
+        // gzip the file
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        std::io::copy(&mut file.as_slice(), &mut encoder)?;
+        let compressed_bytes = match encoder.finish() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                log::error!("Failed to finish gzip for file {}: {}", &hash, e);
+                // When uploading to the version store, we use the hash as the file identifier. The path is not needed.
+                err_files.push(ErrorFileInfo {
+                    hash: hash.clone(),
+                    path: None,
+                    error: format!("Failed to finish gzip for file {}: {}", &hash, e),
+                });
+                continue;
+            }
+        };
+
+        let file_part = reqwest::multipart::Part::bytes(compressed_bytes)
+            .file_name(hash)
+            .mime_str("application/gzip")?;
+
+        form = form.part("file[]", file_part);
+    }
+
+    let uri = ("/versions").to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let response = client.post(&url).multipart(form).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    let response: ErrorFilesResponse = serde_json::from_str(&body)?;
+
+    err_files.extend(response.err_files);
+    let result = UploadResult {
+        files_to_add,
+        err_files,
+    };
+    Ok(result)
 }
 
 pub fn exponential_backoff(base_wait_time: usize, n: usize, max: usize) -> usize {
