@@ -11,8 +11,8 @@ use crate::core::v_latest::branches::PartialNode;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 
-use crate::model::merkle_tree::node::FileNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::FileNode;
 
 use crate::error::OxenError;
 use crate::model::Commit;

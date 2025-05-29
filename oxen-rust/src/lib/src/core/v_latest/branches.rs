@@ -5,14 +5,14 @@ use crate::core::v_latest::index::restore::{self, FileToRestore};
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
-use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash};
+use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash, PartialNode};
 use crate::repositories;
 use crate::util;
 
-use filetime::FileTime;
-use std::collections::{HashMap, HashSet};
+
+use std::collections::{HashSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+
 
 struct CheckoutProgressBar {
     revision: String,
@@ -100,28 +100,6 @@ impl CheckoutHashes {
             seen_hashes: HashSet::new(),
             seen_paths: HashSet::new(),
             common_nodes,
-        }
-    }
-}
-
-// Reduced form of the FileNode, used to save space
-#[derive(Eq, Hash, PartialEq, Debug)]
-pub struct PartialNode {
-    pub hash: MerkleHash,
-    pub last_modified: FileTime,
-}
-
-impl PartialNode {
-    pub fn from(
-        hash: MerkleHash,
-        last_modified_seconds: i64,
-        last_modified_nanoseconds: u32,
-    ) -> Self {
-        let last_modified =
-            util::fs::last_modified_time(last_modified_seconds, last_modified_nanoseconds);
-        PartialNode {
-            hash,
-            last_modified,
         }
     }
 }
@@ -333,7 +311,13 @@ pub async fn set_working_repo_to_commit(
     // Cleanup files if checking out from another commit
     if maybe_from_commit.is_some() {
         log::debug!("Cleanup_removed_files");
-        cleanup_removed_files(repo, &from_tree.unwrap(), &mut progress, &mut hashes)?;
+        cleanup_removed_files(
+            repo,
+            &target_tree,
+            &from_tree.unwrap(),
+            &mut progress,
+            &mut hashes,
+        )?;
     }
 
     let version_store = repo.version_store()?;
@@ -419,6 +403,7 @@ fn r_remove_if_not_in_target(
         }
 
         EMerkleTreeNode::Directory(dir_node) => {
+
             let dir_path = current_path.join(dir_node.name());
             if hashes.common_nodes.contains(&from_node.hash) {
                 return Ok(());
