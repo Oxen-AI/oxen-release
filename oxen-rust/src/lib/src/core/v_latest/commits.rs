@@ -423,6 +423,44 @@ pub fn search_entries(
     Ok(results)
 }
 
+/// List commits by path (directory or file) recursively
+pub fn list_by_path_recursive(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    commits: &mut Vec<Commit>,
+) -> Result<(), OxenError> {
+
+    let node = repositories::tree::get_node_by_path(repo, commit, path)?;
+    
+    let last_commit = match node {
+        Some(node) => {
+            let last_commit_id = node.latest_commit_id()?;
+            
+            let last_commit = repositories::revisions::get(repo, last_commit_id.to_string())?.ok_or_else(|| OxenError::basic_str(format!("Commit not found for last_commit_id: {}", last_commit_id)))?;
+
+            last_commit
+        },
+        None => {
+            return Ok(());
+        }
+    };
+
+    commits.push(last_commit.clone());
+
+    let parent_ids = last_commit.parent_ids; 
+
+    for parent_id in parent_ids {
+        let parent_commit = repositories::revisions::get(repo, parent_id)?;
+        if let Some(parent_commit_obj) = parent_commit {
+            list_by_path_recursive(repo, path, &parent_commit_obj, commits)?;
+        }
+    }
+    
+    Ok(())
+}
+
+
 /// Get paginated list of commits by path (directory or file)
 pub fn list_by_path_from_paginated(
     repo: &LocalRepository,
@@ -445,7 +483,8 @@ pub fn list_by_path_from_paginated(
         }
     };
     let last_commit_id = last_commit_id.to_string();
-    let commits = list_from(repo, &last_commit_id)?;
+    let mut commits : Vec<Commit> = Vec::new();
+    list_by_path_recursive(repo, path, commit, &mut commits)?;
     log::info!(
         "list_by_path_from_paginated {} got {} commits before pagination",
         last_commit_id,
