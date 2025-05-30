@@ -417,15 +417,11 @@ pub fn list_by_path_recursive(
     
     let last_commit = match node {
         Some(node) => {
+            let last_commit_id = node.latest_commit_id()?;
+            
+            let last_commit = repositories::revisions::get(repo, last_commit_id.to_string())?.ok_or_else(|| OxenError::basic_str(format!("Commit not found for last_commit_id: {}", last_commit_id)))?;
 
-            let last_commit_id = match &node.node {
-                EMerkleTreeNode::File(file_node) => file_node.last_commit_id(),
-                EMerkleTreeNode::Directory(dir_node) => dir_node.last_commit_id(),
-                _ => {
-                    return Ok(());
-                }
-            };
-            repositories::revisions::get(repo, last_commit_id.to_string())?.unwrap()
+            last_commit
         },
         None => {
             return Ok(());
@@ -436,17 +432,14 @@ pub fn list_by_path_recursive(
 
     let parent_ids = last_commit.parent_ids; 
 
-    if parent_ids.is_empty() {
-        return Ok(());
-    } else {
-        for parent_id in parent_ids {
-            let parent_commit = repositories::revisions::get(repo, parent_id)?;
-            if let Some(parent_commit_obj) = parent_commit {
-                list_by_path_recursive(repo, path, &parent_commit_obj, commits)?;
-            }
+    for parent_id in parent_ids {
+        let parent_commit = repositories::revisions::get(repo, parent_id)?;
+        if let Some(parent_commit_obj) = parent_commit {
+            list_by_path_recursive(repo, path, &parent_commit_obj, commits)?;
         }
-        }
-        Ok(())
+    }
+    
+    Ok(())
 }
 
 
