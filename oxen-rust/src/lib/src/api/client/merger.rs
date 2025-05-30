@@ -9,7 +9,7 @@ use crate::view::merge::{MergeResult, MergeSuccessResponse, Mergeable, Mergeable
 
 /// Can check the mergeability of head into base
 /// base or head are strings that can be branch names or commit ids
-pub async fn mergeability(
+pub async fn mergeable(
     remote_repo: &RemoteRepository,
     base: &str,
     head: &str,
@@ -61,7 +61,7 @@ mod tests {
             repositories::branches::create_checkout(&local_repo, head)?;
             repositories::push::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
-            let mergeability = api::client::merger::mergeability(&remote_repo, base, head).await?;
+            let mergeability = api::client::merger::mergeable(&remote_repo, base, head).await?;
 
             assert!(mergeability.is_mergeable);
             // Only one commit in the history, the head
@@ -89,7 +89,7 @@ mod tests {
             repositories::commit(&local_repo, "adding file 1")?;
             repositories::push::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
-            let mergeability = api::client::merger::mergeability(&remote_repo, base, head).await?;
+            let mergeability = api::client::merger::mergeable(&remote_repo, base, head).await?;
 
             assert!(mergeability.is_mergeable);
             assert_eq!(mergeability.commits.len(), 1);
@@ -127,7 +127,7 @@ mod tests {
             // Push commits
             repositories::push::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
-            let mergeability = api::client::merger::mergeability(&remote_repo, base, head).await?;
+            let mergeability = api::client::merger::mergeable(&remote_repo, base, head).await?;
 
             println!("Got {} commits", mergeability.commits.len());
             for commit in &mergeability.commits {
@@ -181,7 +181,7 @@ mod tests {
 
             repositories::push::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
-            let mergeability = api::client::merger::mergeability(&remote_repo, base, head).await?;
+            let mergeability = api::client::merger::mergeable(&remote_repo, base, head).await?;
 
             assert!(!mergeability.is_mergeable);
             assert_eq!(mergeability.commits.len(), 3);
