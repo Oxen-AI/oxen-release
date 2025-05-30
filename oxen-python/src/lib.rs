@@ -1,15 +1,15 @@
 use pyo3::prelude::*;
 
-pub mod error;
-pub mod py_branch;
-
 pub mod auth;
 pub mod df_utils;
 pub mod diff;
+pub mod error;
+pub mod py_branch;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
 pub mod py_entry;
+pub mod py_merge;
 pub mod py_notebooks;
 pub mod py_paginated_dir_entries;
 pub mod py_pagination;
@@ -47,24 +47,25 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     // https://docs.rs/pyo3-log/latest/pyo3_log/#interaction-with-python-gil
     // pyo3_log::init();
 
+    m.add_class::<diff::py_tabular_diff::PyTabularDiff>()?;
+    m.add_class::<diff::py_text_diff::PyChangeType>()?;
+    m.add_class::<diff::py_text_diff::PyLineDiff>()?;
+    m.add_class::<diff::py_text_diff::PyTextDiff>()?;
     m.add_class::<py_branch::PyBranch>()?;
     m.add_class::<py_commit::PyCommit>()?;
     m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_diff::PyDiff>()?;
     m.add_class::<py_entry::PyEntry>()?;
-    m.add_class::<diff::py_tabular_diff::PyTabularDiff>()?;
-    m.add_class::<diff::py_text_diff::PyTextDiff>()?;
-    m.add_class::<diff::py_text_diff::PyLineDiff>()?;
-    m.add_class::<diff::py_text_diff::PyChangeType>()?;
-    m.add_class::<py_repo::PyRepo>()?;
-    m.add_class::<py_workspace::PyWorkspace>()?;
+    m.add_class::<py_merge::PyMergeable>()?;
     m.add_class::<py_remote_data_frame::PyRemoteDataFrame>()?;
-    m.add_class::<py_workspace_data_frame::PyWorkspaceDataFrame>()?;
-    m.add_class::<py_workspace_data_frame::PyColumn>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
+    m.add_class::<py_repo::PyRepo>()?;
+    m.add_class::<py_schema::PySchema>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_user::PyUser>()?;
-    m.add_class::<py_schema::PySchema>()?;
+    m.add_class::<py_workspace::PyWorkspace>()?;
+    m.add_class::<py_workspace_data_frame::PyColumn>()?;
+    m.add_class::<py_workspace_data_frame::PyWorkspaceDataFrame>()?;
 
     // Workspace
     let workspace_module = PyModule::new_bound(m.py(), "workspace")?;

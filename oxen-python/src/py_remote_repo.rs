@@ -17,6 +17,7 @@ use crate::py_branch::PyBranch;
 use crate::py_commit::{PyCommit, PyPaginatedCommits};
 use crate::py_diff::PyDiffEntry;
 use crate::py_entry::PyEntry;
+use crate::py_merge::PyMergeable;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 use crate::py_user::PyUser;
 use crate::py_workspace::PyWorkspaceResponse;
@@ -430,6 +431,18 @@ impl PyRemoteRepo {
         Ok(PyCommit {
             commit: result.merge,
         })
+    }
+
+    fn mergeable(
+        &self,
+        base_branch: String,
+        head_branch: String,
+    ) -> Result<PyMergeable, PyOxenError> {
+        let result = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            api::client::merger::mergeable(&self.repo, &base_branch, &head_branch).await
+        })?;
+
+        Ok(result.into())
     }
 
     fn checkout(&mut self, revision: String) -> PyResult<String> {
