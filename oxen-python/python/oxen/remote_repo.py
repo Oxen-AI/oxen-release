@@ -553,6 +553,18 @@ class RemoteRepo:
         commit = self._repo.merge(base_branch, head_branch)
         return commit
 
+    def mergeable(self, base_branch: str, head_branch: str):
+        """
+        Check if a branch is mergeable into another branch.
+
+        Args:
+            base_branch: str
+                The target branch to merge into
+            head_branch: str
+                The source branch to merge from
+        """
+        return self._repo.mergeable(base_branch, head_branch)
+
     def diff(
         self,
         base: str | PyCommit,
