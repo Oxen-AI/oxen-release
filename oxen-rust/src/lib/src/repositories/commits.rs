@@ -1040,30 +1040,26 @@ A: Oxen.ai
         let full_other_path_1 = repo.path.join(&other_file_path_1);
         util::fs::write_to_path(&full_other_path_1, "Some other content")?;
         repositories::add(&repo, &full_other_path_1)?;
-        let commit_b = repositories::commit(&repo, "Add other_file_1.txt")?; 
-        println!("Commit B ID: {}", commit_b.id);
+        let _commit_b = repositories::commit(&repo, "Add other_file_1.txt")?; 
 
 
         // Commit c: Modify target_file
         util::fs::write_to_path(&full_target_path, "Modified content 1")?;
         repositories::add(&repo, &full_target_path)?;
         let commit_c = repositories::commit(&repo, "Modify target_file.txt first time")?;
-            println!("Commit C ID: {}", commit_c.id);
 
 
         // Commit d: without impacting target_file
         let full_dummy_dir_path = repo.path.join(&dummy_dir_path);
         util::fs::create_dir_all(&full_dummy_dir_path)?;
         repositories::add(&repo, &full_dummy_dir_path)?;
-        let commit_d = repositories::commit(&repo, "Add dummy dir")?;
-            println!("Commit D ID: {}", commit_d.id);
+        let _commit_d = repositories::commit(&repo, "Add dummy dir")?;
 
 
         // Commit e: modify target_file.txt 
         util::fs::write_to_path(&full_target_path, "Modified content 2")?;
         repositories::add(&repo, &full_target_path)?;
         let commit_e = repositories::commit(&repo, "Modify target_file.txt second time")?; 
-            println!("Commit E ID: {}", commit_e.id);
 
         // Get the HEAD commit (should be commit_e)
         let head_commit = repositories::commits::head_commit(&repo)?;
