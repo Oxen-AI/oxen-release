@@ -1590,15 +1590,24 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
 }
 
 pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
-    // Hack?
+    // First, check if the file exists; return false if not
     if !path.exists() {
         log::debug!("is_modified_from_node found non-existant path {path:?}. Returning false");
         return Ok(false);
     }
 
+    // Second, check the length of the file
     let meta = util::fs::metadata(path)?;
-    let file_last_modified = FileTime::from_last_modification_time(&meta);
 
+    let file_size = meta.len();
+    let node_size = node.num_bytes();
+
+    if file_size != node_size {
+        return Ok(true);
+    }
+
+    // Third, check the last modified times
+    let file_last_modified = FileTime::from_last_modification_time(&meta);
     let node_last_modified = util::fs::last_modified_time(
         node.last_modified_seconds(),
         node.last_modified_nanoseconds(),
@@ -1608,6 +1617,7 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
         return Ok(false);
     }
 
+    // Finally, check the hashes
     let node_hash = node.hash().to_u128();
     let working_hash = util::hasher::get_hash_given_metadata(path, &meta)?;
 

@@ -66,6 +66,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let path = path.as_ref();
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
+        // TODO: At least on Windows, this is improperly case sensitive
         if util::fs::is_glob_path(path_str) {
             log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
@@ -73,6 +74,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
                 paths.insert(entry?);
             }
 
+            // For removed files?
             if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
                 let pattern_entries =
                     repositories::commits::search_entries(repo, &commit, path_str)?;
@@ -117,6 +119,7 @@ pub fn add_files(
         total_bytes: 0,
         data_type_counts: HashMap::new(),
     };
+    let excluded_hashes = None;
     for path in paths {
         log::debug!("path is {path:?}");
 
@@ -127,6 +130,7 @@ pub fn add_files(
                 path.clone(),
                 staged_db,
                 version_store,
+                &excluded_hashes,
             )?;
         } else if path.is_file() {
             let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, version_store)?;
@@ -143,15 +147,13 @@ pub fn add_files(
                 }
             }
         } else {
-            // TODO: Should there be a way to add nonexistent dirs? I think it's safer to just require rm for those?
-            log::debug!(
-                "Found nonexistent path {path:?}. Staging for removal. Recursive flag not set"
-            );
+            log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
             core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
 
             // TODO: Make rm_with_staged_db return the stats of the files it removes
+
             return Ok(total);
         }
     }
@@ -177,8 +179,16 @@ fn add_dir_inner(
     path: PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
+    excluded_hashes: &Option<HashSet<MerkleHash>>,
 ) -> Result<CumulativeStats, OxenError> {
-    process_add_dir(repo, maybe_head_commit, version_store, staged_db, path)
+    process_add_dir(
+        repo,
+        maybe_head_commit,
+        version_store,
+        staged_db,
+        path,
+        excluded_hashes,
+    )
 }
 
 pub fn add_dir(
@@ -193,8 +203,41 @@ pub fn add_dir(
 
     // Get the version store from the repository
     let version_store = repo.version_store()?;
+    let excluded_hashes = None;
+    add_dir_inner(
+        repo,
+        maybe_head_commit,
+        path,
+        &staged_db,
+        &version_store,
+        &excluded_hashes,
+    )
+}
 
-    add_dir_inner(repo, maybe_head_commit, path, &staged_db, &version_store)
+// Skip all checks on the subdirs contained in excluded_hashes
+pub fn add_dir_except(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    path: PathBuf,
+    excluded_hashes: HashSet<MerkleHash>,
+) -> Result<CumulativeStats, OxenError> {
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    // Get the version store from the repository
+    let version_store = repo.version_store()?;
+    let excluded_hashes = Some(excluded_hashes);
+
+    add_dir_inner(
+        repo,
+        maybe_head_commit,
+        path,
+        &staged_db,
+        &version_store,
+        &excluded_hashes,
+    )
 }
 
 pub fn process_add_dir(
@@ -203,6 +246,7 @@ pub fn process_add_dir(
     version_store: &Arc<dyn VersionStore>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: PathBuf,
+    excluded_hashes: &Option<HashSet<MerkleHash>>,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
 
@@ -228,7 +272,21 @@ pub fn process_add_dir(
         data_type_counts: HashMap::new(),
     };
 
+    // If any dirs are excluded, get the dir_hashes map from the head commit
+    let dir_hashes = if maybe_head_commit.is_some() && excluded_hashes.is_some() {
+        let head_commit = maybe_head_commit.clone().unwrap();
+        Some(CommitMerkleTree::dir_hashes(&repo, &head_commit)?)
+    } else {
+        None
+    };
+
+    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(&repo)?
+        .into_iter()
+        .map(|conflict| conflict.merge_entry.path)
+        .collect();
+
     let walker = WalkDir::new(&path).into_iter();
+    // TODO: this shouldn't just be 'OXEN_HIDDEN_DIR', but everything in .oxenignore
     walker
         .filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
         .par_bridge()
@@ -236,16 +294,25 @@ pub fn process_add_dir(
             let entry = entry.unwrap();
             let dir = entry.path();
 
-            log::debug!("Entry is: {dir:?}");
+            //println!("Entry is: {dir:?}");
+
+            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
+
+            // Check if the dir is excluded
+            if let Some(dir_hashes) = &dir_hashes {
+                if let Some(dir_hash) = dir_hashes.get(&dir_path) {
+                    if excluded_hashes.clone().unwrap().contains(dir_hash) {
+                        //println!("Previous entry {dir:?} was excldued!");
+                        return Ok(());
+                    }
+                }
+            }
+
+            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
 
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
-
-            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
-            log::debug!("path now: {dir_path:?}");
-
-            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
             // Change the closure to return a Result
@@ -255,8 +322,9 @@ pub fn process_add_dir(
 
             entries.par_iter().for_each(|dir_entry| {
                 log::debug!("Dir Entry is: {dir_entry:?}");
-                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let path = dir_entry.path();
+
+                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let duration = start.elapsed().as_secs_f32();
                 let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
@@ -273,15 +341,9 @@ pub fn process_add_dir(
                 }
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
-                let Ok(file_status) =
+                let file_status =
                     core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
-                else {
-                    log::debug!("Could not determine file status for {:?}", path);
-                    return;
-                };
-                version_store
-                    .store_version_from_path(&file_status.hash.to_string(), &path)
-                    .unwrap();
+                        .unwrap();
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
@@ -291,8 +353,13 @@ pub fn process_add_dir(
                     staged_db,
                     &path,
                     &seen_dirs_clone,
+                    &conflicts,
                 ) {
                     Ok(Some(node)) => {
+                        version_store
+                            .store_version_from_path(&file_status.hash.to_string(), &path)
+                            .unwrap();
+
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
                             byte_counter_clone.fetch_add(file_node.num_bytes(), Ordering::Relaxed);
                             added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
@@ -367,7 +434,20 @@ fn add_file_inner(
     version_store.store_version_from_path(&file_status.hash.to_string(), path)?;
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    process_add_file(repo, repo_path, &file_status, staged_db, path, &seen_dirs)
+    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(repo)?
+        .into_iter()
+        .map(|conflict| conflict.merge_entry.path)
+        .collect();
+
+    process_add_file(
+        repo,
+        repo_path,
+        &file_status,
+        staged_db,
+        path,
+        &seen_dirs,
+        &conflicts,
+    )
 }
 
 pub fn determine_file_status(
@@ -396,7 +476,7 @@ pub fn determine_file_status(
         let metadata = util::fs::metadata(data_path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
         previous_oxen_metadata = file_node.metadata();
-        if has_different_modification_time(file_node, &mtime) {
+        if util::fs::is_modified_from_node(data_path, file_node)? {
             log::debug!("has_different_modification_time true {}", file_node);
             let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
             if file_node.hash().to_u128() != hash {
@@ -420,24 +500,12 @@ pub fn determine_file_status(
                 )
             }
         } else {
-            let hash = util::hasher::get_hash_given_metadata(data_path, &metadata)?;
-
-            if file_node.hash().to_u128() != hash {
-                log::debug!("hash is different true {}", file_node);
-                (
-                    StagedEntryStatus::Modified,
-                    MerkleHash::new(hash),
-                    file_node.num_bytes(),
-                    mtime,
-                )
-            } else {
-                (
-                    StagedEntryStatus::Unmodified,
-                    MerkleHash::new(hash),
-                    file_node.num_bytes(),
-                    mtime,
-                )
-            }
+            (
+                StagedEntryStatus::Unmodified,
+                MerkleHash::new(file_node.hash().to_u128()),
+                file_node.num_bytes(),
+                mtime,
+            )
         }
     } else {
         let metadata = util::fs::metadata(data_path)?;
@@ -469,6 +537,7 @@ pub fn process_add_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: &Path, // Path to the file in the repository, or path defined by the user
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+    merge_conflicts: &HashSet<PathBuf>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     log::debug!("process_add_file {:?}", path);
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
@@ -493,17 +562,11 @@ pub fn process_add_file(
 
     log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
 
-    // TODO: Move this out of this function so we don't check for conflicts on every file
     if let Some(_file_node) = &maybe_file_node {
-        let conflicts = repositories::merge::list_conflicts(repo)?;
-        for conflict in conflicts {
-            let conflict_path = repo.path.join(&conflict.merge_entry.path);
-            log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
-            let relative_conflict_path = util::fs::path_relative_to_dir(&conflict_path, repo_path)?;
-            if relative_conflict_path == relative_path {
-                status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
-                repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
-            }
+        if merge_conflicts.contains(&relative_path) {
+            log::debug!("merge conflict resolved: {relative_path:?}");
+            status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+            repositories::merge::mark_conflict_as_resolved(repo, &relative_path)?;
         }
     }
 

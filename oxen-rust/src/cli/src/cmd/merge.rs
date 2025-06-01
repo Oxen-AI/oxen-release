@@ -31,6 +31,22 @@ impl RunCmd for MergeCmd {
             .expect("Must supply a branch");
 
         let repository = LocalRepository::from_current_dir()?;
+
+        // Return immediately if the merge branch is the current branch
+        let current = if let Some(current) = repositories::branches::current_branch(&repository)? {
+            current
+        } else {
+            return Err(OxenError::basic_str(
+                "Error: Cannot use 'oxen merge' in an empty repository",
+            ));
+        };
+
+        if current.name == *branch {
+            return Err(OxenError::basic_str(
+                "Error: Cannot merge into current branch",
+            ));
+        }
+
         check_repo_migration_needed(&repository)?;
 
         repositories::merge::merge(&repository, branch)?;
