@@ -93,7 +93,8 @@ pub fn can_merge_commits(
     }
 
     let write_to_disk = false;
-    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
+    let mut _hashes = HashSet::new();
+    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk, &mut _hashes)?;
     Ok(conflicts.is_empty())
 }
 
@@ -167,7 +168,8 @@ pub fn list_conflicts_between_commits(
         merge: merge_commit.clone(),
     };
     let write_to_disk = false;
-    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
+    let mut _hashes = HashSet::new();
+    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk, &mut _hashes)?;
     Ok(conflicts
         .iter()
         .map(|c| {
@@ -357,12 +359,14 @@ fn merge_commits_on_branch(
         );
 
         let write_to_disk = true;
-        let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
+        let mut shared_hashes = HashSet::new();
+        let conflicts =
+            find_merge_conflicts(repo, merge_commits, write_to_disk, &mut shared_hashes)?;
         log::debug!("Got {} conflicts", conflicts.len());
 
         if conflicts.is_empty() {
             log::debug!("creating merge commit on branch {:?}", branch);
-            let commit = create_merge_commit_on_branch(repo, merge_commits, branch)?;
+            let commit = create_merge_commit_on_branch(repo, merge_commits, branch, shared_hashes)?;
             Ok(Some(commit))
         } else {
             println!(
@@ -456,14 +460,8 @@ fn fast_forward_merge(
         &mut shared_hashes,
         &mut seen_files,
     )?;
-    // If there are no conflicts, restore the entries
-    if merge_tree_results.cannot_overwrite_entries.is_empty() {
-        let version_store = repo.version_store()?;
-        for entry in merge_tree_results.entries_to_restore.iter() {
-            restore::restore_file(repo, &entry.file_node, &entry.path, &version_store)?;
-        }
-    } else {
-        // If there are conflicts, return an error without restoring anything
+
+    if !merge_tree_results.cannot_overwrite_entries.is_empty() {
         return Err(OxenError::cannot_overwrite_files(
             &merge_tree_results.cannot_overwrite_entries,
         ));
@@ -480,8 +478,15 @@ fn fast_forward_merge(
         &mut seen_files,
     )?;
 
-    // If there are no conflicts, remove the entries
+    // If there are no conflicts, restore the entries
+    // Grouping the processing of merge_tree_results and base_tree_results like this ensures no files are modified if the merge doesn't complete
     if base_tree_results.cannot_overwrite_entries.is_empty() {
+        let version_store = repo.version_store()?;
+        for entry in merge_tree_results.entries_to_restore.iter() {
+            restore::restore_file(repo, &entry.file_node, &entry.path, &version_store)?;
+        }
+
+        // TODO: Make a new struct called 'BaseResults' that's exactly like MergeResults, but with 'entries_to_remove' instead
         for entry in base_tree_results.entries_to_restore.iter() {
             util::fs::remove_file(&entry.path)?;
         }
@@ -716,7 +721,9 @@ fn merge_commits(
         );
 
         let write_to_disk = true;
-        let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
+        let mut shared_hashes = HashSet::new();
+        let conflicts =
+            find_merge_conflicts(repo, merge_commits, write_to_disk, &mut shared_hashes)?;
 
         if !conflicts.is_empty() {
             println!(
@@ -736,7 +743,7 @@ Found {} conflicts, please resolve them before merging.
         log::debug!("Got {} conflicts", conflicts.len());
 
         if conflicts.is_empty() {
-            let commit = create_merge_commit(repo, merge_commits)?;
+            let commit = create_merge_commit(repo, merge_commits, shared_hashes)?;
             Ok(Some(commit))
         } else {
             let db_path = db_path(repo);
@@ -759,12 +766,12 @@ Found {} conflicts, please resolve them before merging.
 fn create_merge_commit(
     repo: &LocalRepository,
     merge_commits: &MergeCommits,
+    shared_hashes: HashSet<MerkleHash>,
 ) -> Result<Commit, OxenError> {
     // Stage changes
-    // let stager = Stager::new(repo)?;
-    // stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
+
     let head_commit = repositories::commits::head_commit(repo)?;
-    add::add_dir(repo, &Some(head_commit), repo.path.clone())?;
+    add::add_dir_except(repo, &Some(head_commit), repo.path.clone(), shared_hashes)?;
 
     let commit_msg = format!(
         "Merge commit {} into {}",
@@ -789,10 +796,11 @@ fn create_merge_commit_on_branch(
     repo: &LocalRepository,
     merge_commits: &MergeCommits,
     branch: &Branch,
+    shared_hashes: HashSet<MerkleHash>,
 ) -> Result<Commit, OxenError> {
     // Stage changes
     let head_commit = repositories::commits::head_commit(repo)?;
-    add::add_dir(repo, &Some(head_commit), repo.path.clone())?;
+    add::add_dir_except(repo, &Some(head_commit), repo.path.clone(), shared_hashes)?;
 
     let commit_msg = format!(
         "Merge commit {} into {} on branch {}",
@@ -859,6 +867,7 @@ pub fn find_merge_conflicts(
     repo: &LocalRepository,
     merge_commits: &MergeCommits,
     write_to_disk: bool,
+    shared_hashes: &mut HashSet<MerkleHash>,
 ) -> Result<Vec<NodeMergeConflict>, OxenError> {
     log::debug!("finding merge conflicts");
     /*
@@ -892,8 +901,8 @@ pub fn find_merge_conflicts(
     // Read all the entries from each commit into sets we can compare to one another
     let mut lca_hashes = HashSet::new();
     let mut base_hashes = HashSet::new();
-    let mut shared_hashes = HashSet::new();
 
+    // TODO: Could the partial nodes be used to replace 'unique_dir_entries' below?
     let mut _partial_nodes = HashMap::new();
 
     // Use the same functions from the fast forward merge to load in only the entries found to be unique to each tree
@@ -901,7 +910,7 @@ pub fn find_merge_conflicts(
     let lca_commit_tree =
         CommitMerkleTree::root_with_children_and_hashes(repo, &merge_commits.lca, &mut lca_hashes)?
             .unwrap();
-
+    println!("1");
     // Then, we load in only the nodes of the base commit tree that weren't in the LCA tree
     // We also track the shared hashes between them
     let base_commit_tree = CommitMerkleTree::root_with_unique_children(
@@ -912,18 +921,21 @@ pub fn find_merge_conflicts(
         &mut _partial_nodes,
     )?
     .unwrap();
+    println!("2");
 
     // Then, we load in only the nodes of the merge tree that weren't in the Base tree (or the LCA tree)
     // After this, 'shared hashes' will have all the dir/vnode hashes shared between all 3 trees
+    // This lets us skip checking these nodes, and also lets us skip adding them when creating the merge commit later
+
     let merge_commit_tree = CommitMerkleTree::root_with_unique_children(
         repo,
         &merge_commits.merge,
         &mut base_hashes,
-        &mut shared_hashes,
+        shared_hashes,
         &mut _partial_nodes,
     )?
     .unwrap();
-
+    println!("3");
     // TODO: Remove this unless debugging
     // log::debug!("lca_hashes: {lca_hashes:?}");
     //lca_commit_tree.print();
@@ -934,11 +946,14 @@ pub fn find_merge_conflicts(
     let starting_path = PathBuf::from("");
 
     let lca_entries =
-        repositories::tree::unique_dir_entries(&starting_path, &lca_commit_tree, &shared_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &lca_commit_tree, shared_hashes)?;
+    println!("4");
     let base_entries =
-        repositories::tree::unique_dir_entries(&starting_path, &base_commit_tree, &shared_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &base_commit_tree, shared_hashes)?;
+    println!("5");
     let merge_entries =
-        repositories::tree::unique_dir_entries(&starting_path, &merge_commit_tree, &shared_hashes)?;
+        repositories::tree::unique_dir_entries(&starting_path, &merge_commit_tree, shared_hashes)?;
+    println!("6");
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());

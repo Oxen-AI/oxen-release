@@ -848,7 +848,7 @@ impl CommitMerkleTree {
                     // TODO: Is this the wrong function? THe wrong check?
                     if let EMerkleTreeNode::File(file_node) = &child.node {
                         let file_path = current_path.join(PathBuf::from(file_node.name()));
-                        println!("Adding path {file_path:?} to partial_nodes");
+                        // println!("Adding path {file_path:?} to partial_nodes");
                         let partial_node = PartialNode::from(
                             *file_node.hash(),
                             file_node.last_modified_seconds(),
