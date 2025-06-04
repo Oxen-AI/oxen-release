@@ -27,6 +27,7 @@ impl RunCmd for CloneCmd {
             .about("Clone a repository by its URL")
             .arg_required_else_help(true)
             .arg(arg!(<URL> "URL of the repository you want to clone"))
+            .arg(arg!([DESTINATION] "Optional name of the directory to clone into").required(false))
             .arg(
                 Arg::new("filter")
                     .long("filter")
@@ -72,10 +73,15 @@ impl RunCmd for CloneCmd {
             .get_one::<String>("depth")
             .map(|s| s.parse().expect("Invalid depth, must be an integer"));
 
-        let dst = std::env::current_dir().expect("Could not get current working directory");
-        // Get the name of the repo from the url
-        let name = url.split('/').next_back().unwrap();
-        let dst = dst.join(name);
+        let current_dir = std::env::current_dir().expect("Could not get current working directory");
+        let dst: PathBuf = match args.get_one::<String>("DESTINATION") {
+            Some(dir_name) => current_dir.join(dir_name),
+            None => {
+                // Get the name of the repo from the url
+                let repo_name = url.split('/').next_back().unwrap_or("repository");
+                current_dir.join(repo_name)
+            }
+        };
 
         let opts = CloneOpts {
             url: url.to_string(),
