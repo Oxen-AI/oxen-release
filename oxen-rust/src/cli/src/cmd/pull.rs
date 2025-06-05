@@ -7,7 +7,7 @@ use liboxen::repositories;
 
 use crate::helpers::{
     check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
-    get_host_from_repo,
+    get_scheme_and_host_from_repo,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -58,10 +58,11 @@ impl RunCmd for PullCmd {
         // Get the repo
         let repository = LocalRepository::from_current_dir()?;
 
-        let host = get_host_from_repo(&repository)?;
+        let (scheme, host) = get_scheme_and_host_from_repo(&repository)?;
+
         check_repo_migration_needed(&repository)?;
-        check_remote_version_blocking(host.clone()).await?;
-        check_remote_version(host).await?;
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
+        check_remote_version(scheme, host).await?;
 
         let mut fetch_opts = FetchOpts::new();
         fetch_opts.branch = branch.to_owned();
