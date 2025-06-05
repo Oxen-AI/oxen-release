@@ -15,7 +15,9 @@ use liboxen::util;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::helpers::{check_remote_version, check_remote_version_blocking, get_host_from_repo};
+use crate::helpers::{
+    check_remote_version, check_remote_version_blocking, get_scheme_and_host_from_repo,
+};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "status";
@@ -96,11 +98,10 @@ impl RunCmd for WorkspaceStatusCmd {
 
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
-        let host = get_host_from_repo(&repository)?;
+        let (scheme, host) = get_scheme_and_host_from_repo(&repository)?;
 
-        check_remote_version_blocking(host.clone()).await?;
-
-        check_remote_version(host).await?;
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
+        check_remote_version(scheme, host).await?;
 
         let directory = directory.unwrap_or(PathBuf::from("."));
 

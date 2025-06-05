@@ -6,7 +6,7 @@ use liboxen::core::versions::MinOxenVersion;
 use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
-use crate::helpers::{check_remote_version, get_host_or_default};
+use crate::helpers::{check_remote_version, get_scheme_and_host_or_default};
 use crate::util;
 use liboxen::repositories;
 
@@ -53,8 +53,9 @@ impl RunCmd for InitCmd {
         let oxen_version = MinOxenVersion::or_latest(version_str)?;
 
         // Make sure the remote version is compatible
-        let host = get_host_or_default()?;
-        check_remote_version(host).await?;
+        let (scheme, host) = get_scheme_and_host_or_default()?;
+
+        check_remote_version(scheme, host).await?;
 
         // Initialize the repository
         let directory = util::fs::canonicalize(PathBuf::from(&path))?;
