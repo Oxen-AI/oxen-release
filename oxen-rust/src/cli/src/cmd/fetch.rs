@@ -6,7 +6,7 @@ use liboxen::opts::fetch_opts::FetchOpts;
 use liboxen::repositories;
 
 use crate::helpers::{
-    check_remote_version_blocking, check_repo_migration_needed, get_host_from_repo,
+    check_remote_version_blocking, check_repo_migration_needed, get_scheme_and_host_from_repo,
 };
 
 use crate::cmd::RunCmd;
@@ -33,10 +33,10 @@ impl RunCmd for FetchCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         let repository = LocalRepository::from_current_dir()?;
-        let host = get_host_from_repo(&repository)?;
+        let (scheme, host) = get_scheme_and_host_from_repo(&repository)?;
 
         check_repo_migration_needed(&repository)?;
-        check_remote_version_blocking(host.clone()).await?;
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
 
         let mut fetch_opts = FetchOpts::new();
         if let Some(branch) = args.get_one::<String>("branch") {

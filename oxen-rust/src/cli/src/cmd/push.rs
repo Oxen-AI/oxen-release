@@ -8,7 +8,7 @@ use liboxen::repositories;
 
 use crate::helpers::{
     check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
-    get_host_from_repo,
+    get_scheme_and_host_from_repo,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -60,8 +60,9 @@ impl RunCmd for PushCmd {
         if args.get_flag("delete") {
             let repository = LocalRepository::from_current_dir()?;
 
-            let host = get_host_from_repo(&repository)?;
-            check_remote_version(host).await?;
+            let (scheme, host) = get_scheme_and_host_from_repo(&repository)?;
+
+            check_remote_version(scheme, host).await?;
 
             api::client::branches::delete_remote(&repository, remote, branch).await?;
             println!("Deleted remote branch: {remote}/{branch}");
@@ -69,11 +70,12 @@ impl RunCmd for PushCmd {
         } else {
             let mut repository = LocalRepository::from_current_dir()?;
             repository.set_remote_name(remote);
-            let host = get_host_from_repo(&repository)?;
+
+            let (scheme, host) = get_scheme_and_host_from_repo(&repository)?;
 
             check_repo_migration_needed(&repository)?;
-            check_remote_version_blocking(host.clone()).await?;
-            check_remote_version(host).await?;
+            check_remote_version_blocking(scheme.clone(), host.clone()).await?;
+            check_remote_version(scheme, host).await?;
 
             match repositories::push::push_remote_branch(&repository, remote, branch).await {
                 Ok(_) => Ok(()),

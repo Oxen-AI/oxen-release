@@ -149,6 +149,10 @@ members = ["src/cli", "src/lib", "src/server"]
 codegen-units = 1
 lto = true
 
+[profile.profiling]
+inherits = "release"
+debug = true
+
 [lib]
 name = "liboxen"
 path = "src/lib/src/lib.rs"
