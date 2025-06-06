@@ -4,6 +4,7 @@ use clap::{Arg, ArgMatches, Command};
 use liboxen::api;
 use liboxen::constants::DEFAULT_HOST;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
+use liboxen::constants::DEFAULT_SCHEME;
 use liboxen::error::OxenError;
 use liboxen::opts::UploadOpts;
 use liboxen::repositories;
@@ -58,9 +59,15 @@ impl RunCmd for UploadCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("scheme")
+                .long("scheme")
+                .help("Scheme for the host to upload the data to, for example: 'https'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("remote")
                 .long("remote")
-                .help("Remote to up the data to, for example: 'origin'")
+                .help("Remote to upload the data to, for example: 'origin'")
                 .action(clap::ArgAction::Set),
         )
     }
@@ -89,6 +96,10 @@ impl RunCmd for UploadCmd {
                 .get_one::<String>("host")
                 .map(String::from)
                 .unwrap_or(DEFAULT_HOST.to_string()),
+            scheme: args
+                .get_one::<String>("scheme")
+                .map(String::from)
+                .unwrap_or(DEFAULT_SCHEME.to_string()),
         };
 
         // `oxen upload $namespace/$repo_name $path`
@@ -99,13 +110,17 @@ impl RunCmd for UploadCmd {
             ));
         }
 
-        check_remote_version_blocking(opts.clone().host).await?;
+        check_remote_version_blocking(&opts.scheme, opts.clone().host).await?;
 
         // Check if the first path is a valid remote repo
         let name = paths[0].to_string_lossy();
-        if let Some(remote_repo) =
-            api::client::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
-                .await?
+        if let Some(remote_repo) = api::client::repositories::get_by_name_host_and_remote(
+            &name,
+            &opts.host,
+            &opts.scheme,
+            &opts.remote,
+        )
+        .await?
         {
             // Remove the repo name from the list of paths
             let remote_paths = paths[1..].to_vec();

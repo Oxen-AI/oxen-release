@@ -13,28 +13,37 @@ use std::str::FromStr;
 
 use liboxen::command::migrate::AddChildCountsToNodesMigration;
 
-pub fn get_host_or_default() -> Result<String, OxenError> {
+pub fn get_scheme_and_host_or_default() -> Result<(String, String), OxenError> {
     let config = AuthConfig::get_or_create()?;
-    let mut default_host = constants::DEFAULT_HOST.to_string();
+    let mut default_host = (
+        constants::DEFAULT_SCHEME.to_string(),
+        constants::DEFAULT_HOST.to_string(),
+    );
     if let Some(host) = config.default_host {
         if !host.is_empty() {
-            default_host = host;
+            default_host.1 = host;
         }
     }
     Ok(default_host)
 }
 
-pub fn get_host_from_repo(repo: &LocalRepository) -> Result<String, OxenError> {
+pub fn get_scheme_and_host_from_repo(
+    repo: &LocalRepository,
+) -> Result<(String, String), OxenError> {
     if let Some(remote) = repo.remote() {
-        let host = api::client::get_host_from_url(remote.url)?;
-        return Ok(host);
+        let host_and_scheme = api::client::get_scheme_and_host_from_url(remote.url)?;
+        return Ok(host_and_scheme);
     }
-    get_host_or_default()
+
+    get_scheme_and_host_or_default()
 }
 
-pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError> {
+pub async fn check_remote_version(
+    scheme: impl AsRef<str>,
+    host: impl AsRef<str>,
+) -> Result<(), OxenError> {
     // Do the version check in the dispatch because it's only really the CLI that needs to do it
-    match api::client::oxen_version::get_remote_version(host.as_ref()).await {
+    match api::client::oxen_version::get_remote_version(scheme.as_ref(), host.as_ref()).await {
         Ok(remote_version) => {
             let local_version: &str = constants::OXEN_VERSION;
 
@@ -51,8 +60,11 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
     Ok(())
 }
 
-pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), OxenError> {
-    match api::client::oxen_version::get_min_oxen_version(host.as_ref()).await {
+pub async fn check_remote_version_blocking(
+    scheme: impl AsRef<str>,
+    host: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    match api::client::oxen_version::get_min_oxen_version(scheme.as_ref(), host.as_ref()).await {
         Ok(remote_version) => {
             let local_version: &str = constants::OXEN_VERSION;
             let min_oxen_version = OxenVersion::from_str(&remote_version)?;

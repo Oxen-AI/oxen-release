@@ -89,9 +89,10 @@ impl RunCmd for CloneCmd {
             },
         };
 
-        let host = api::client::get_host_from_url(&opts.url)?;
-        check_remote_version_blocking(host.clone()).await?;
-        check_remote_version(host).await?;
+        let (scheme, host) = api::client::get_scheme_and_host_from_url(&opts.url)?;
+
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
+        check_remote_version(scheme, host).await?;
 
         repositories::clone(&opts).await?;
         Ok(())

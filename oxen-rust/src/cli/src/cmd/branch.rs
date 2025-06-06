@@ -8,7 +8,9 @@ use liboxen::model::LocalRepository;
 use liboxen::repositories;
 
 use crate::cmd::RunCmd;
-use crate::helpers::{check_remote_version, check_remote_version_blocking, get_host_from_repo};
+use crate::helpers::{
+    check_remote_version, check_remote_version_blocking, get_scheme_and_host_from_repo,
+};
 
 pub mod unlock;
 
@@ -171,9 +173,10 @@ impl BranchCmd {
         repo: &LocalRepository,
         remote_name: &str,
     ) -> Result<(), OxenError> {
-        let host = get_host_from_repo(repo)?;
-        check_remote_version_blocking(host.clone()).await?;
-        check_remote_version(host).await?;
+        let (scheme, host) = get_scheme_and_host_from_repo(repo)?;
+
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
+        check_remote_version(scheme, host).await?;
 
         let remote = repo
             .get_remote(remote_name)
@@ -195,8 +198,9 @@ impl BranchCmd {
         remote_name: &str,
         branch_name: &str,
     ) -> Result<(), OxenError> {
-        let host = get_host_from_repo(repo)?;
-        check_remote_version(host).await?;
+        let (scheme, host) = get_scheme_and_host_from_repo(repo)?;
+
+        check_remote_version(scheme, host).await?;
 
         api::client::branches::delete_remote(repo, remote_name, branch_name).await?;
         Ok(())
