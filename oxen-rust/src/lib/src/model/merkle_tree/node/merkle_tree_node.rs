@@ -181,7 +181,6 @@ impl MerkleTreeNode {
         current_path: &Path,
         dirs: &mut Vec<PathBuf>,
     ) -> Result<(), OxenError> {
-        println!("self.node: {:?}", self.node);
         if let EMerkleTreeNode::Directory(_) = &self.node {
             dirs.push(current_path.to_path_buf());
         }
