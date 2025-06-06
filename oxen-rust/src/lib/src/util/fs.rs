@@ -1590,9 +1590,24 @@ pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
 }
 
 pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenError> {
-    let meta = util::fs::metadata(path)?;
-    let file_last_modified = FileTime::from_last_modification_time(&meta);
+    // First, check if the file exists; return false if not
+    if !path.exists() {
+        log::debug!("is_modified_from_node found non-existant path {path:?}. Returning false");
+        return Ok(false);
+    }
 
+    // Second, check the length of the file
+    let meta = util::fs::metadata(path)?;
+
+    let file_size = meta.len();
+    let node_size = node.num_bytes();
+
+    if file_size != node_size {
+        return Ok(true);
+    }
+
+    // Third, check the last modified times
+    let file_last_modified = FileTime::from_last_modification_time(&meta);
     let node_last_modified = util::fs::last_modified_time(
         node.last_modified_seconds(),
         node.last_modified_nanoseconds(),
@@ -1602,6 +1617,7 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
         return Ok(false);
     }
 
+    // Finally, check the hashes
     let node_hash = node.hash().to_u128();
     let working_hash = util::hasher::get_hash_given_metadata(path, &meta)?;
 
@@ -1613,6 +1629,7 @@ pub fn is_modified_from_node(path: &Path, node: &FileNode) -> Result<bool, OxenE
 }
 
 // Calculate a node's last modified time
+
 pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds: u32) -> FileTime {
     let node_modified_nanoseconds = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_secs(last_modified_seconds as u64)
@@ -1620,57 +1637,6 @@ pub fn last_modified_time(last_modified_seconds: i64, last_modified_nanoseconds:
 
     FileTime::from_system_time(node_modified_nanoseconds)
 }
-
-// Determine if 2 files have the same contents as quickly as possible
-// true == the files are different
-pub fn compare_file_contents(
-    path_1: impl AsRef<Path>,
-    path_2: impl AsRef<Path>,
-) -> Result<bool, OxenError> {
-    let path_1 = path_1.as_ref();
-    let path_2 = path_2.as_ref();
-
-    let file_1 = File::open(path_1).map_err(|err| {
-        eprintln!("Could not open file {:?} due to {:?}", path_1, err);
-        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_1, err))
-    })?;
-
-    let file_2 = File::open(path_2).map_err(|err| {
-        eprintln!("Could not open file {:?} due to {:?}", path_2, err);
-        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path_2, err))
-    })?;
-
-    let mut reader_1 = BufReader::new(file_1);
-    let mut buffer_1 = [0; 4096];
-
-    let mut reader_2 = BufReader::new(file_2);
-    let mut buffer_2 = [0; 4096];
-
-    loop {
-        let count_1 = reader_1.read(&mut buffer_1).map_err(|_| {
-            eprintln!("Could not read file_1 for comparison {:?}", path_1);
-            OxenError::basic_str("Could not read file for hashing")
-        })?;
-
-        let count_2 = reader_2.read(&mut buffer_2).map_err(|_| {
-            eprintln!("Could not read file_1 for comparison {:?}", path_2);
-            OxenError::basic_str("Could not read file for hashing")
-        })?;
-
-        if buffer_1 != buffer_2 {
-            return Ok(true);
-        }
-
-        if count_1 == 0 {
-            return Ok(!count_2 == 0);
-        }
-
-        if count_2 == 0 {
-            return Ok(true);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::constants::{self, VERSION_FILE_NAME};
