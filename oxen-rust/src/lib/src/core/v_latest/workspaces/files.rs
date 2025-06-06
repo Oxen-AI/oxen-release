@@ -469,6 +469,11 @@ fn p_add_file(
     let hash_str = file_status.hash.to_string();
     version_store.store_version_from_path(&hash_str, &full_path)?;
 
+    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(workspace_repo)?
+        .into_iter()
+        .map(|conflict| conflict.merge_entry.path)
+        .collect();
+
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         workspace_repo,
@@ -477,6 +482,7 @@ fn p_add_file(
         &staged_db,
         path,
         &seen_dirs,
+        &conflicts,
     )
 }
 
