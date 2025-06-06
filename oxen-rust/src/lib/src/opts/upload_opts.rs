@@ -7,5 +7,6 @@ pub struct UploadOpts {
     pub branch: Option<String>,
     pub message: String,
     pub host: String,
+    pub scheme: String,
     pub remote: String,
 }
