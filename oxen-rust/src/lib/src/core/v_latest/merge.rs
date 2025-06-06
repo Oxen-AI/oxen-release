@@ -910,7 +910,7 @@ pub fn find_merge_conflicts(
     let lca_commit_tree =
         CommitMerkleTree::root_with_children_and_hashes(repo, &merge_commits.lca, &mut lca_hashes)?
             .unwrap();
-    println!("1");
+
     // Then, we load in only the nodes of the base commit tree that weren't in the LCA tree
     // We also track the shared hashes between them
     let base_commit_tree = CommitMerkleTree::root_with_unique_children(
@@ -921,7 +921,6 @@ pub fn find_merge_conflicts(
         &mut _partial_nodes,
     )?
     .unwrap();
-    println!("2");
 
     // Then, we load in only the nodes of the merge tree that weren't in the Base tree (or the LCA tree)
     // After this, 'shared hashes' will have all the dir/vnode hashes shared between all 3 trees
@@ -935,7 +934,6 @@ pub fn find_merge_conflicts(
         &mut _partial_nodes,
     )?
     .unwrap();
-    println!("3");
     // TODO: Remove this unless debugging
     // log::debug!("lca_hashes: {lca_hashes:?}");
     //lca_commit_tree.print();
@@ -947,13 +945,10 @@ pub fn find_merge_conflicts(
 
     let lca_entries =
         repositories::tree::unique_dir_entries(&starting_path, &lca_commit_tree, shared_hashes)?;
-    println!("4");
     let base_entries =
         repositories::tree::unique_dir_entries(&starting_path, &base_commit_tree, shared_hashes)?;
-    println!("5");
     let merge_entries =
         repositories::tree::unique_dir_entries(&starting_path, &merge_commit_tree, shared_hashes)?;
-    println!("6");
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());
