@@ -564,7 +564,7 @@ fn count_removed_entries(
     gitignore: &Option<Gitignore>,
     removed_entries: &mut usize,
 ) -> Result<(), OxenError> {
-    if oxenignore::is_ignored(relative_path, gitignore, relative_path.is_dir()) {
+    if oxenignore::is_ignored(relative_path, gitignore, true) {
         return Ok(());
     }
 
