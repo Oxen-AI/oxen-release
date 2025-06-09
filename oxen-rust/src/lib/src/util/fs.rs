@@ -1077,7 +1077,7 @@ pub fn datatype_from_mimetype_from_extension(
             // Catch text and dataframe types from file extension
             if is_tabular_from_extension(data_path, file_path) {
                 EntryDataType::Tabular
-            } else if "text/plain" == mime_type || "text/markdown" == mime_type {
+            } else if mime_type.starts_with("text/") {
                 EntryDataType::Text
             } else {
                 // split on the first half of the mime type to fall back to audio, video, image
@@ -1769,6 +1769,38 @@ mod tests {
     #[test]
     fn detect_file_type() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
+            let python_file = "add_1.py";
+            let python_with_interpreter_file = "add_2.py";
+
+            test::write_txt_file_to_path(
+                repo.path.join(python_file),
+                r"import os
+
+
+def add(a, b):
+    return a + b",
+            )?;
+
+            test::write_txt_file_to_path(
+                repo.path.join(python_with_interpreter_file),
+                r"#!/usr/bin/env python3
+import os
+
+
+def add(a, b):
+    return a + b",
+            )?;
+
+            assert_eq!(
+                EntryDataType::Text,
+                util::fs::file_data_type(&repo.path.join(python_file))
+            );
+
+            assert_eq!(
+                EntryDataType::Text,
+                util::fs::file_data_type(&repo.path.join(python_with_interpreter_file))
+            );
+
             assert_eq!(
                 EntryDataType::Tabular,
                 util::fs::file_data_type(
