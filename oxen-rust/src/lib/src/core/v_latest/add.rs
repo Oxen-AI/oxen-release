@@ -865,4 +865,71 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_add_respects_dir_ignore_patterns() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let dir_to_ignore = "ignored_dir";
+            let normal_dir = "normal_dir";
+
+            let ignored_dir_path = repo.path.join(dir_to_ignore);
+            let normal_dir_path = repo.path.join(normal_dir);
+
+            std::fs::create_dir(&ignored_dir_path)?;
+            std::fs::create_dir(&normal_dir_path)?;
+
+            // Add files to both directories
+            test::write_txt_file_to_path(
+                ignored_dir_path.join("file1.txt"),
+                "This should be ignored",
+            )?;
+            test::write_txt_file_to_path(
+                ignored_dir_path.join("file2.txt"),
+                "This should also be ignored",
+            )?;
+            test::write_txt_file_to_path(
+                normal_dir_path.join("file1.txt"),
+                "This should be added",
+            )?;
+            test::write_txt_file_to_path(
+                normal_dir_path.join("file2.txt"),
+                "This should also be added",
+            )?;
+
+            let oxenignore_path = repo.path.join(".oxenignore");
+            test::write_txt_file_to_path(&oxenignore_path, format!("{}/", dir_to_ignore))?;
+
+            add(&repo, Path::new(&repo.path))?;
+
+            let status = repositories::status(&repo)?;
+
+            // Files in normal_dir should be staged
+            assert!(status
+                .staged_files
+                .iter()
+                .any(|path| path.0.ends_with(format!("{}/file1.txt", normal_dir))));
+            assert!(status
+                .staged_files
+                .iter()
+                .any(|path| path.0.ends_with(format!("{}/file2.txt", normal_dir))));
+
+            // Files in ignored_dir should not be staged
+            assert!(!status
+                .staged_files
+                .iter()
+                .any(|path| path.0.ends_with(format!("{}/file1.txt", dir_to_ignore))));
+            assert!(!status
+                .staged_files
+                .iter()
+                .any(|path| path.0.ends_with(format!("{}/file2.txt", dir_to_ignore))));
+
+            // The oxenignore file itself should be staged
+            assert!(status
+                .staged_files
+                .iter()
+                .any(|path| path.0.ends_with(".oxenignore")));
+
+            Ok(())
+        })
+    }
 }
