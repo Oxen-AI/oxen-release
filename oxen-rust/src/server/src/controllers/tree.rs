@@ -222,7 +222,7 @@ pub async fn download_tree_nodes(
     log::debug!("got {} commits", commits.len());
 
     // Collect the new node hashes between the base and head commits
-    let unique_node_hashes = repositories::tree::get_unique_node_hashes(
+    let unique_node_hashes = repositories::tree::get_new_node_hashes_between_commits(
         &repository,
         &commits,
         &subtrees,
