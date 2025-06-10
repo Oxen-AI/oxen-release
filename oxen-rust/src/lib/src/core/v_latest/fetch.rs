@@ -102,7 +102,10 @@ pub async fn fetch_remote_branch(
 
     let missing_entries =
         collect_missing_entries(repo, &commits, &fetch_opts.subtree_paths, &fetch_opts.depth)?;
-    log::debug!("Fetch got {} missing entries", missing_entries.len());
+    log::debug!(
+        "Fetch got {} potentially missing entries",
+        missing_entries.len()
+    );
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
     pull_progress.finish();
     let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();
@@ -150,7 +153,7 @@ async fn sync_from_head(
     log::debug!("sync_from_head head_commit: {}", head_commit);
     log::debug!("sync_from_head branch: {}", branch);
 
-    // If HEAD commit is not on the remote server, that means we are ahead of the remote branch
+    // If HEAD commit IS on the remote server, that means we are behind the remote branch
     if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
         log::debug!("sync_from_head has head commit: {}", head_commit);
         pull_progress.set_message(format!(
@@ -165,6 +168,7 @@ async fn sync_from_head(
             fetch_opts,
         )
         .await?;
+        // TODO: are we also pulling too many dir hashes?
         api::client::commits::download_base_head_dir_hashes(
             remote_repo,
             &head_commit.id,
@@ -173,8 +177,10 @@ async fn sync_from_head(
         )
         .await?;
     } else {
+        // If HEAD commit is NOT on the remote server, that means we are ahead of the remote branch
         // If the node does not exist on the remote server,
         // we need to sync all the commits from the commit id and their parents
+        // TODO: This logic doesn't seem correct. Revisit this.
         sync_tree_from_commit(
             repo,
             remote_repo,
@@ -507,7 +513,7 @@ pub async fn pull_entries(
     }
 
     let missing_entries = get_missing_entries(entries, dst);
-    // log::debug!("Pulling missing entries {:?}", missing_entries);
+    log::debug!("Pulling {} missing entries", missing_entries.len());
 
     if missing_entries.is_empty() {
         return Ok(());
@@ -689,7 +695,7 @@ async fn pull_small_entries(
     }
 
     log::debug!(
-        "pull_entries_for_commit got {} missing content IDs",
+        "pull_small_entries got {} missing content IDs",
         content_ids.len()
     );
 
