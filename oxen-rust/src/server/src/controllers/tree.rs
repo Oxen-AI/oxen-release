@@ -9,8 +9,6 @@ use liboxen::view::tree::MerkleHashResponse;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
-use std::collections::HashSet;
-
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -223,9 +221,14 @@ pub async fn download_tree_nodes(
     let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
     log::debug!("got {} commits", commits.len());
 
-    // Collect the unique node hashes for all the commits
-    let unique_node_hashes =
-        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth, is_download)?;
+    // Collect the new node hashes between the base and head commits
+    let unique_node_hashes = repositories::tree::get_unique_node_hashes(
+        &repository,
+        &commits,
+        &subtrees,
+        &query.depth,
+        is_download,
+    )?;
 
     let buffer = repositories::tree::compress_nodes(&repository, &unique_node_hashes)?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
@@ -262,96 +265,6 @@ fn get_commit_list(
     };
 
     Ok(commits)
-}
-
-fn get_unique_node_hashes(
-    repository: &LocalRepository,
-    commits: &[Commit],
-    maybe_subtrees: &Option<Vec<PathBuf>>,
-    maybe_depth: &Option<i32>,
-    is_download: bool,
-) -> Result<HashSet<MerkleHash>, OxenError> {
-    // Collect the unique node hashes for all the commits
-    // There could be duplicate nodes across commits, hence the need to dedup
-    let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
-    log::debug!(
-        "Getting unique node hashes for {} commits... and subtree paths {:?}",
-        commits.len(),
-        maybe_subtrees
-    );
-    for commit in commits {
-        if let Some(subtrees) = maybe_subtrees {
-            // Traverse up the tree to get all the parent directories
-            let mut all_parent_paths: Vec<PathBuf> = Vec::new();
-            for subtree_path in subtrees {
-                let path = subtree_path.clone();
-                let mut current_path = path.clone();
-
-                // Add the original subtree path first
-                all_parent_paths.push(current_path.clone());
-
-                // Traverse up the tree to add parent paths
-                while let Some(parent) = current_path.parent() {
-                    all_parent_paths.push(parent.to_path_buf());
-                    current_path = parent.to_path_buf();
-                }
-                all_parent_paths.reverse();
-            }
-
-            for subtree in subtrees {
-                get_unique_node_hashes_for_subtree(
-                    repository,
-                    commit,
-                    &Some(subtree.clone()),
-                    maybe_depth,
-                    &mut unique_node_hashes,
-                )?;
-            }
-
-            if !is_download {
-                repositories::tree::collect_nodes_along_path(
-                    repository,
-                    commit,
-                    all_parent_paths,
-                    &mut unique_node_hashes,
-                )?;
-            }
-        } else {
-            get_unique_node_hashes_for_subtree(
-                repository,
-                commit,
-                &None,
-                maybe_depth,
-                &mut unique_node_hashes,
-            )?;
-        }
-        // Add the commit hash itself
-        unique_node_hashes.insert(commit.hash()?);
-    }
-    log::debug!("Unique node hashes: {}", unique_node_hashes.len());
-
-    Ok(unique_node_hashes)
-}
-
-fn get_unique_node_hashes_for_subtree(
-    repository: &LocalRepository,
-    commit: &Commit,
-    subtree_path: &Option<PathBuf>,
-    depth: &Option<i32>,
-    unique_node_hashes: &mut HashSet<MerkleHash>,
-) -> Result<(), OxenError> {
-    // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
-    let Ok(Some(tree)) =
-        repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)
-    else {
-        return Ok(());
-    };
-
-    tree.walk_tree_without_leaves(|node| {
-        unique_node_hashes.insert(node.hash);
-    });
-
-    Ok(())
 }
 
 pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
