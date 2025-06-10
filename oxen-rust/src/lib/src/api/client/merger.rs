@@ -193,7 +193,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_remote_merger_merge() -> Result<(), OxenError> {
+    async fn test_remote_merger_merge_unique() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let base = "main";
             let head = "add-data";
@@ -208,12 +208,10 @@ mod tests {
             repositories::add(&local_repo, &path)?;
             repositories::commit(&local_repo, "adding file")?;
             repositories::push::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
-
             // Merge the head branch into base
             api::client::merger::merge(&remote_repo, base, head).await?;
 
-            // Verify the merge commit exists on the base branch
-            repositories::checkout(&local_repo, base).await?;
+            repositories::checkout::checkout(&local_repo, base).await?;
             let commits_before = repositories::commits::list(&local_repo)?;
             let fetch_opts = FetchOpts::new();
             repositories::pull::pull_remote_branch(&local_repo, &fetch_opts).await?;
@@ -221,7 +219,6 @@ mod tests {
             let commits_after = repositories::commits::list(&local_repo)?;
             assert!(commits_after.len() > commits_before.len());
 
-            // verify the added file is in the base branch
             let path = local_repo.path.join(new_file_name);
             assert!(path.exists());
 
