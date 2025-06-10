@@ -176,26 +176,52 @@ pub async fn checkout(
 
 pub async fn checkout_subtrees(
     repo: &LocalRepository,
-    from_commit: &Commit,
+    to_commit: &Commit,
     subtree_paths: &[PathBuf],
     depth: i32,
 ) -> Result<(), OxenError> {
     for subtree_path in subtree_paths {
         let Some(target_root) = repositories::tree::get_subtree_by_depth(
             repo,
-            from_commit,
+            to_commit,
             &Some(subtree_path.to_path_buf()),
             &Some(depth),
         )?
         else {
-            log::error!("Cannot get subtree for commit: {}", from_commit);
+            log::error!("Cannot get subtree for commit: {}", to_commit);
             continue;
         };
-        let mut progress = CheckoutProgressBar::new(from_commit.id.clone());
+
+        // Load in the target tree, collecting every dir and vnode hash for comparison with the from tree
+        let mut target_hashes = HashSet::new();
+        CommitMerkleTree::root_with_children_and_hashes(repo, to_commit, &mut target_hashes)?;
+        let mut shared_hashes = HashSet::new();
+        let mut partial_nodes = HashMap::new();
+
+        let maybe_from_commit = repositories::commits::head_commit_maybe(repo)?;
+
+        match maybe_from_commit {
+            Some(ref head_commit) => {
+                CommitMerkleTree::root_with_unique_children(
+                    repo,
+                    head_commit,
+                    &mut target_hashes,
+                    &mut shared_hashes,
+                    &mut partial_nodes,
+                )
+                .map_err(|_| OxenError::basic_str("Cannot get root node for base commit"))?;
+            }
+            None => {
+                log::debug!("head commit missing, might be a clone");
+            }
+        };
+
+        // TODO: The below logic (probably) can be merged with using set_working_repo_to_commit
+        let mut progress = CheckoutProgressBar::new(to_commit.id.clone());
         let parent_path = subtree_path.parent().unwrap_or(Path::new(""));
         let mut results = CheckoutResult::new();
         let mut hashes = CheckoutHashes::new();
-        let mut partial_nodes = HashMap::new();
+
         r_restore_missing_or_modified_files(
             repo,
             &target_root,
@@ -204,14 +230,14 @@ pub async fn checkout_subtrees(
             &mut progress,
             &mut partial_nodes,
             &mut hashes,
+            depth,
         )?;
 
-        match repositories::commits::head_commit_maybe(repo)? {
+        match maybe_from_commit {
             Some(head_commit) => {
-                log::debug!("💯 head_commit: {:?}", head_commit);
                 match repositories::tree::get_root_with_children(repo, &head_commit)? {
                     Some(from_root_node) => {
-                        log::debug!("from node: {:?}", from_root_node);
+                        log::debug!("🔥 from node: {:?}", from_root_node);
                         cleanup_removed_files(repo, &from_root_node, &mut progress, &mut hashes)?;
                     }
                     None => {
@@ -220,10 +246,9 @@ pub async fn checkout_subtrees(
                 }
             }
             None => {
-                log::debug!("No head commit found");
+                log::debug!("head commit missing, might be a clone");
             }
         }
-
         if !results.cannot_overwrite_entries.is_empty() {
             return Err(OxenError::cannot_overwrite_files(
                 &results.cannot_overwrite_entries,
@@ -324,6 +349,7 @@ pub async fn set_working_repo_to_commit(
         &mut progress,
         &mut partial_nodes,
         &mut hashes,
+        i32::MAX,
     )?;
 
     // If there are conflicts, return an error without restoring anything
@@ -480,6 +506,7 @@ fn r_remove_if_not_in_target(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn r_restore_missing_or_modified_files(
     repo: &LocalRepository,
     target_node: &MerkleTreeNode,
@@ -488,11 +515,15 @@ fn r_restore_missing_or_modified_files(
     progress: &mut CheckoutProgressBar,
     partial_nodes: &mut HashMap<PathBuf, PartialNode>,
     hashes: &mut CheckoutHashes,
+    depth: i32,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
     // If the file is not in the working repo, restore it from the commit
     // If the file is in the working repo, but the hash does not match, overwrite the file in the working repo with the file from the commit
     // If the file is in the working repo, and the hash matches, do nothing
+    if depth < 0 {
+        return Ok(());
+    }
 
     match &target_node.node {
         EMerkleTreeNode::File(file_node) => {
@@ -602,6 +633,7 @@ fn r_restore_missing_or_modified_files(
                     progress,
                     partial_nodes,
                     hashes,
+                    depth - 1,
                 )?;
             }
         }
@@ -616,6 +648,7 @@ fn r_restore_missing_or_modified_files(
                 progress,
                 partial_nodes,
                 hashes,
+                depth - 1,
             )?;
         }
         _ => {

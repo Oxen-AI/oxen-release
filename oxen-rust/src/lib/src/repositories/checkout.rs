@@ -33,7 +33,11 @@ pub async fn checkout(
             Some(paths_vec) => paths_vec, // If Some(vec), take the inner vector
             None => vec![Path::new("").to_path_buf()],
         };
-        repositories::branches::checkout_subtrees_from_commit(repo, &commit, &subtree_paths, -1)
+        let depth = match repo.depth() {
+            Some(d) => d,
+            None => i32::MAX,
+        }; //TODO: make repo depth not an option so that we use depth from the repo consistently.
+        repositories::branches::checkout_subtrees_to_commit(repo, &commit, &subtree_paths, depth)
             .await?;
         repositories::branches::set_head(repo, value)?;
         repositories::branches::get_by_name(repo, value)

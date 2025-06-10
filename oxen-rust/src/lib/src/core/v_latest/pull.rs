@@ -49,11 +49,12 @@ pub async fn pull_remote_branch(
     fetch_opts.should_update_branch_head = false;
     let remote_branch = fetch::fetch_remote_branch(repo, &remote_repo, &fetch_opts).await?;
 
+    // let merge_commit = repositories::merge::merge(repo,  remote_branch.name)?.ok_or(OxenError::merge_conflict("There was an error with the merge"))?;
+
     let mut new_head_commit = repositories::revisions::get(repo, &remote_branch.commit_id)?.ok_or(
         OxenError::revision_not_found(remote_branch.commit_id.to_owned().into()),
     )?;
 
-    // Merge if there are changes
     if let Some(previous_head_commit) = &previous_head_commit {
         log::debug!(
             "checking if we need to merge previous {} new {}",
@@ -78,24 +79,18 @@ pub async fn pull_remote_branch(
         }
     }
 
-    if let Some(subtree_paths) = &fetch_opts.subtree_paths {
-        let depth = fetch_opts.depth.unwrap_or(-1);
-        repositories::branches::checkout_subtrees_from_commit(
-            repo,
-            &new_head_commit,
-            subtree_paths,
-            depth,
-        )
-        .await?
-    } else {
-        repositories::branches::checkout_commit_from_commit(
-            repo,
-            &new_head_commit,
-            &previous_head_commit,
-        )
-        .await?
-    }
+    // let subtree_paths = match fetch_opts.subtree_paths {
+    //     Some(subtree_paths) => subtree_paths,
+    //     None => vec![Path::new("").to_path_buf()]
+    // };
 
+    // repositories::branches::checkout_subtrees_from_commit(
+    //             repo,
+    //             &new_head_commit,
+    //             &subtree_paths,
+    //             fetch_opts.depth.unwrap_or(-1),
+    //         )
+    //         .await?;
     // Write the new branch commit id to the local repo
     log::debug!(
         "Setting branch {} commit id to {}",
@@ -103,8 +98,8 @@ pub async fn pull_remote_branch(
         remote_branch.commit_id
     );
 
-    repositories::branches::update(repo, branch, &remote_branch.commit_id)?;
-    repositories::branches::set_head(repo, branch)?;
+    repositories::branches::update(repo, branch, new_head_commit.id)?;
+    // repositories::branches::set_head(repo, branch)?;
     api::client::repositories::post_pull(&remote_repo).await?;
 
     Ok(())

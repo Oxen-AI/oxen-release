@@ -41,7 +41,9 @@ pub async fn clone_repo(
         return Ok(local_repo);
     }
 
-    repositories::pull::pull_remote_branch(&local_repo, &opts.fetch_opts).await?;
+    // repositories::pull::pull_remote_branch(&local_repo, &opts.fetch_opts).await?;
+    repositories::fetch::fetch_branch(&local_repo, &opts.fetch_opts).await?;
+    repositories::checkout::checkout(&local_repo, opts.fetch_opts.branch.as_str()).await?;
 
     // Notify the server that we are done cloning
     api::client::repositories::post_clone(&remote_repo).await?;
