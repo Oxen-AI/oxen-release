@@ -41,7 +41,6 @@ pub async fn clone_repo(
         return Ok(local_repo);
     }
 
-    // repositories::pull::pull_remote_branch(&local_repo, &opts.fetch_opts).await?;
     repositories::fetch::fetch_branch(&local_repo, &opts.fetch_opts).await?;
     repositories::checkout::checkout(&local_repo, opts.fetch_opts.branch.as_str()).await?;
 
