@@ -37,7 +37,7 @@ where
     D: bytevec::ByteDecodable,
 {
     let key = key.as_ref();
-    log::debug!("str_val_db::get({:?}) from db {:?}", key, db.path());
+    log::trace!("str_val_db::get({:?}) from db {:?}", key, db.path());
 
     let key_bytes = key.as_bytes();
     match db.get(key_bytes) {
@@ -77,7 +77,7 @@ where
 {
     let key = key.as_ref();
 
-    log::debug!(
+    log::trace!(
         "str_val_db::put {:?} -> {:?} db: {:?}",
         key,
         entry,
