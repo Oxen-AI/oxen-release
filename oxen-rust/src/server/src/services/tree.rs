@@ -31,10 +31,6 @@ pub fn tree() -> Scope {
                 ),
         )
         .route(
-            "/commits/{base_head}/download",
-            web::get().to(controllers::tree::download_commits),
-        )
-        .route(
             "/download/{base_head}",
             web::get().to(controllers::tree::download_tree_nodes),
         )

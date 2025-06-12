@@ -212,7 +212,7 @@ pub async fn download_tree_nodes(
     );
 
     let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
-        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
+        .ok_or(OxenError::revision_not_found(base_commit_id.into()))?;
 
     // Parse the subtrees
     let subtrees = get_subtree_paths(&query.subtrees)?;
