@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use dotenv::from_filename;
 use liboxen::config::UserConfig;
+use liboxen::constants::OXEN_VERSION;
 use liboxen::model::User;
 use liboxen::util;
 
@@ -18,7 +19,7 @@ pub mod test;
 extern crate log;
 extern crate lru;
 
-use actix_web::middleware::{Condition, Logger};
+use actix_web::middleware::{Condition, DefaultHeaders, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 
@@ -174,6 +175,7 @@ async fn main() -> std::io::Result<()> {
                             ))
                             .service(web::scope("/api/repos").configure(routes::config))
                             .default_service(web::route().to(controllers::not_found::index))
+                            .wrap(DefaultHeaders::new().add(("oxen-version", OXEN_VERSION)))
                             .wrap(Logger::default())
                             .wrap(Logger::new("user agent is %a %{User-Agent}i"))
                     })
