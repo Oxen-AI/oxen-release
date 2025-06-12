@@ -409,7 +409,6 @@ pub fn collect_nodes_along_path(
     if let Some(starting_node_hashes) = starting_node_hashes {
         for node in nodes {
             if !starting_node_hashes.contains(&node.hash) {
-                log::debug!("Adding node from path to new node hashes: {}", node);
                 hashes.insert(node.hash);
             }
         }
@@ -1208,7 +1207,6 @@ fn get_node_hashes_for_subtree(
         // Only add nodes that are NOT in the starting hashes
         tree.walk_tree_without_leaves(|node| {
             if !starting_node_hashes.contains(&node.hash) {
-                log::debug!("Adding node to new node hashes: {}", node);
                 new_node_hashes.insert(node.hash);
             }
         });
