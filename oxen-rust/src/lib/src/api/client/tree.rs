@@ -426,13 +426,7 @@ async fn node_download_request(
     let client = client::new_for_url(url)?;
     log::debug!("node_download_request about to send request {}", url);
     let res = client.get(url).send().await?;
-    let status = res.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(OxenError::must_supply_valid_api_key());
-    }
-    if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(OxenError::path_does_not_exist(url));
-    }
+    let res = client::handle_non_json_response(url, res).await?;
 
     let reader = res
         .bytes_stream()

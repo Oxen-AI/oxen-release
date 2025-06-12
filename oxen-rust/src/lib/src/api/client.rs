@@ -131,7 +131,7 @@ fn builder_no_user_agent() -> ClientBuilder {
 /// Performs an extra parse to validate that the response is success
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
     let type_override = "unauthenticated";
-    let err_msg = "You are unauthenticated.\n\nObtain an API Key at https://oxen.ai or ask you system admin. Set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
+    let err_msg = "You are unauthenticated.\n\nObtain an API Key at https://oxen.ai or ask your system admin. Set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
 
     // Raise auth token error for user if unauthorized and no token set
     if res.status() == reqwest::StatusCode::FORBIDDEN {
@@ -221,4 +221,18 @@ fn parse_status_and_message(
         }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
+}
+
+pub async fn handle_non_json_response(
+    url: &str,
+    res: reqwest::Response,
+) -> Result<reqwest::Response, OxenError> {
+    if res.status().is_success() {
+        // If the response is successful, return it as-is. We don't want to do any parsing here.
+        return Ok(res);
+    }
+
+    // If the response was an error, try to handle it as a standard json response.
+    let err = parse_json_body(url, res).await.unwrap_err();
+    Err(err)
 }
