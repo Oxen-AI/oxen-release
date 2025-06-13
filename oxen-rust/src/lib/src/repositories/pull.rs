@@ -313,17 +313,15 @@ mod tests {
                 )
                 .await?;
 
-                // Pull it on the OG side
-                repositories::pull_remote_branch(
-                    &repo,
-                    &FetchOpts {
-                        remote: constants::DEFAULT_REMOTE_NAME.to_string(),
-                        branch: branch_name.to_string(),
-                        all: true,
-                        ..FetchOpts::new()
-                    },
-                )
-                .await?;
+                let fetch_opts = &FetchOpts {
+                    remote: constants::DEFAULT_REMOTE_NAME.to_string(),
+                    branch: branch_name.to_string(),
+                    all: true,
+                    ..FetchOpts::new()
+                };
+                repositories::fetch::fetch_branch(&repo, fetch_opts).await?;
+                repositories::checkout::checkout(&repo, branch_name).await?;
+
                 let num_new_files = util::fs::rcount_files_in_dir(&repo.path);
                 // Now there should be a new hotdog file
                 assert_eq!(og_num_files + 1, num_new_files);
@@ -426,7 +424,6 @@ mod tests {
                     branch_name,
                 )
                 .await?;
-
                 // Pull it on the OG side
                 repositories::pull_remote_branch(
                     &repo,
@@ -443,7 +440,6 @@ mod tests {
                 assert_eq!(train_paths.len(), og_num_files);
 
                 api::client::repositories::delete(&remote_repo).await?;
-
                 Ok(new_repo_dir)
             })
             .await
