@@ -263,6 +263,7 @@ pub async fn download_tree_from_path(
     }
 }
 
+/// Download ALL the trees starting from the given commit id
 pub async fn download_trees_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -372,7 +373,6 @@ async fn node_download_request(
         .bytes_stream()
         .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
         .into_async_read();
-    log::debug!("node_download_request about to iterate over archive");
     let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
     let archive = Archive::new(decoder);
 

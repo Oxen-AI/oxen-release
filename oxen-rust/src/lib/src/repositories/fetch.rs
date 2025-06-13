@@ -47,7 +47,6 @@ pub async fn fetch_all(
         .into_iter()
         .chain(branches_to_create)
         .collect();
-    let fetch_opts = fetch_opts.clone();
 
     // Build a stream of fetch futures
     let stream = stream::iter(branches_to_process.into_iter().map(|branch| {

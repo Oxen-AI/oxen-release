@@ -74,14 +74,18 @@ pub async fn fetch_remote_branch(
             "Fetching all commits from remote branch {}",
             remote_branch.commit_id
         );
-        sync_tree_from_commit(
-            repo,
-            remote_repo,
-            &remote_branch.commit_id,
-            fetch_opts,
-            &pull_progress,
-        )
-        .await?;
+        if fetch_opts.all {
+            fetch_full_tree_and_hashes(repo, remote_repo, &remote_branch, &pull_progress).await?;
+        } else {
+            sync_tree_from_commit(
+                repo,
+                remote_repo,
+                &remote_branch.commit_id,
+                fetch_opts,
+                &pull_progress,
+            )
+            .await?;
+        }
     }
 
     // If all, fetch all the missing entries from all the commits
@@ -90,7 +94,8 @@ pub async fn fetch_remote_branch(
         repositories::commits::list_unsynced_from(repo, &remote_branch.commit_id)?
     } else {
         let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
-        let commit_node = repositories::tree::get_node_by_id(repo, &hash)?.unwrap();
+        let commit_node = repositories::tree::get_node_by_id(repo, &hash)?
+            .ok_or(OxenError::basic_str("Commit node not found"))?;
 
         if core::commit_sync_status::commit_is_synced(repo, &hash) {
             HashSet::new()
@@ -300,6 +305,7 @@ pub async fn fetch_full_tree_and_hashes(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     remote_branch: &Branch,
+    pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     // Download the latest merkle tree
     // Must do this before downloading the commit node
@@ -312,6 +318,10 @@ pub async fn fetch_full_tree_and_hashes(
     )
     .await?;
 
+    pull_progress.set_message(format!(
+        "Downloading all commits from {}",
+        remote_branch.commit_id
+    ));
     // Download the latest merkle tree
     // let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
     api::client::tree::download_tree(repo, remote_repo).await?;

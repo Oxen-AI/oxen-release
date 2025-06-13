@@ -205,12 +205,6 @@ pub async fn download_tree_nodes(
     );
 
     let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head_str)?;
-    log::debug!("download_tree_nodes base_commit_id: {}", base_commit_id);
-    log::debug!(
-        "download_tree_nodes maybe_head_commit_id: {:?}",
-        maybe_head_commit_id
-    );
-
     let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
         .ok_or(OxenError::revision_not_found(base_commit_id.into()))?;
 
@@ -218,19 +212,30 @@ pub async fn download_tree_nodes(
     let subtrees = get_subtree_paths(&query.subtrees)?;
 
     // Could be a single commit or a range of commits
-    let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
-    log::debug!("got {} commits", commits.len());
+    let commits = get_commit_list(&repository, &base_commit, &maybe_head_commit_id, &subtrees)?;
+    log::debug!("download_tree_nodes got {} commits", commits.len());
 
-    // Collect the new node hashes between the base and head commits
-    let unique_node_hashes = repositories::tree::get_new_node_hashes_between_commits(
-        &repository,
-        &commits,
-        &subtrees,
-        &query.depth,
-        is_download,
-    )?;
+    let node_hashes = if maybe_head_commit_id.is_some() {
+        // Collect the new node hashes between the base and head commits
+        repositories::tree::get_node_hashes_between_commits(
+            &repository,
+            &commits,
+            &subtrees,
+            &query.depth,
+            is_download,
+        )?
+    } else {
+        // Collect all the node hashes for the commits
+        repositories::tree::get_all_node_hashes_for_commits(
+            &repository,
+            &commits,
+            &subtrees,
+            &query.depth,
+            is_download,
+        )?
+    };
 
-    let buffer = repositories::tree::compress_nodes(&repository, &unique_node_hashes)?;
+    let buffer = repositories::tree::compress_nodes(&repository, &node_hashes)?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
     log::debug!(
         "Compressed {} commits size is {}",
@@ -244,16 +249,16 @@ pub async fn download_tree_nodes(
 fn get_commit_list(
     repository: &LocalRepository,
     base_commit: &Commit,
-    maybe_head_commit_id: Option<String>,
+    maybe_head_commit_id: &Option<String>,
     maybe_subtrees: &Option<Vec<PathBuf>>,
 ) -> Result<Vec<Commit>, OxenError> {
     // If we have a head commit, then we are downloading a range of commits
     // Otherwise, we are downloading all commits from the base commit back to the first commit
     // This is the difference between the first pull and subsequent pulls
     // The first pull doesn't have a head commit, but subsequent pulls do
-    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
-        let head_commit = repositories::commits::get_by_id(repository, &head_commit_id)?
-            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
+    let mut commits = if let Some(head_commit_id) = maybe_head_commit_id {
+        let head_commit = repositories::commits::get_by_id(repository, head_commit_id)?
+            .ok_or(OxenError::resource_not_found(head_commit_id))?;
         repositories::commits::list_between(repository, base_commit, &head_commit)?
     } else {
         // If the subtree is specified, we only want to get the latest commit
@@ -264,6 +269,8 @@ fn get_commit_list(
         }
     };
 
+    // Reverse the list so we get the commits in *chronological* order
+    commits.reverse();
     Ok(commits)
 }
 
@@ -276,41 +283,6 @@ pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let repository = get_repo(&app_data.path, namespace, name)?;
 
     let buffer = repositories::tree::compress_node(&repository, &hash)?;
-
-    Ok(HttpResponse::Ok().body(buffer))
-}
-
-pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let base_head = path_param(&req, "base_head")?;
-    let repository = get_repo(&app_data.path, namespace, name)?;
-
-    let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head)?;
-
-    let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
-        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
-
-    // If we have a head commit, then we are downloading a range of commits
-    // Otherwise, we are downloading all commits from the base commit back to the first commit
-    // This is the difference between the first pull and subsequent pulls
-    // The first pull doesn't have a head commit, but subsequent pulls do
-    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
-        let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
-            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
-        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
-    } else {
-        repositories::commits::list_from(&repository, &base_commit_id)?
-    };
-
-    let buffer = repositories::tree::compress_commits(&repository, &commits)?;
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-    log::debug!(
-        "Compressed {} commits size is {}",
-        commits.len(),
-        ByteSize::b(total_size)
-    );
 
     Ok(HttpResponse::Ok().body(buffer))
 }
