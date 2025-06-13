@@ -1078,8 +1078,41 @@ pub fn dir_hashes(
     Ok(dir_hashes)
 }
 
+/// Collect all the node hashes for the given commits
+pub fn get_all_node_hashes_for_commits(
+    repository: &LocalRepository,
+    commits: &[Commit],
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+    maybe_depth: &Option<i32>,
+    is_download: bool,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    log::debug!(
+        "Getting ALL node hashes for {} commits... and subtree paths {:?}",
+        commits.len(),
+        maybe_subtrees
+    );
+
+    let mut all_node_hashes: HashSet<MerkleHash> = HashSet::new();
+
+    for commit in commits {
+        get_node_hashes_for_commit(
+            repository,
+            commit,
+            maybe_subtrees,
+            maybe_depth,
+            is_download,
+            &None,
+            &mut all_node_hashes,
+        )?;
+    }
+    log::debug!("All node hashes: {}", all_node_hashes.len());
+
+    Ok(all_node_hashes)
+}
+
 /// Collect the new node hashes between the first and last commits in the given list
-pub fn get_new_node_hashes_between_commits(
+/// If only one commit is provided, then it will return all the node hashes for that commit.
+pub fn get_node_hashes_between_commits(
     repository: &LocalRepository,
     commits: &[Commit],
     maybe_subtrees: &Option<Vec<PathBuf>>,
@@ -1093,10 +1126,9 @@ pub fn get_new_node_hashes_between_commits(
         commits.len(),
         maybe_subtrees
     );
-    if commits.len() < 2 {
-        return Err(OxenError::basic_str("Must provide at least two commits"));
-    }
-    let (first_commit, new_commits) = commits.split_first().unwrap(); // safe to unwrap because we checked the length above
+    let (first_commit, new_commits) = commits
+        .split_first()
+        .ok_or(OxenError::basic_str("Must provide at least one commit"))?;
 
     let mut starting_node_hashes: HashSet<MerkleHash> = HashSet::new();
     get_node_hashes_for_commit(
@@ -1108,6 +1140,11 @@ pub fn get_new_node_hashes_between_commits(
         &None,
         &mut starting_node_hashes,
     )?;
+
+    if new_commits.is_empty() {
+        // If there are no new commits, then we just return the node hashes for the first commit
+        return Ok(starting_node_hashes);
+    }
 
     let mut new_node_hashes: HashSet<MerkleHash> = HashSet::new();
 
@@ -1128,7 +1165,7 @@ pub fn get_new_node_hashes_between_commits(
     Ok(new_node_hashes)
 }
 
-fn get_node_hashes_for_commit(
+pub fn get_node_hashes_for_commit(
     repository: &LocalRepository,
     commit: &Commit,
     maybe_subtrees: &Option<Vec<PathBuf>>,
@@ -1428,7 +1465,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_unique_node_hashes() -> Result<(), OxenError> {
+    fn test_get_node_hashes_between_commits() -> Result<(), OxenError> {
         test::run_local_repo_training_data_committed(|repo| {
             // Get the initial commit from training data to use as baseline
             let starting_commit = repositories::commits::head_commit(&repo)?;
@@ -1455,7 +1492,7 @@ mod tests {
 
             // Test get_unique_node_hashes with all commits (baseline + new commits)
             let commit_list = vec![starting_commit, commit1.clone(), commit2.clone()];
-            let new_hashes = super::get_new_node_hashes_between_commits(
+            let new_hashes = super::get_node_hashes_between_commits(
                 &repo,
                 &commit_list,
                 &None, // no subtree filter
@@ -1485,7 +1522,7 @@ mod tests {
 
             // Test with subtree filter
             let subtree_path = PathBuf::from("new_dir1");
-            let subtree_hashes = super::get_new_node_hashes_between_commits(
+            let subtree_hashes = super::get_node_hashes_between_commits(
                 &repo,
                 &commit_list,
                 &Some(vec![subtree_path]),
@@ -1504,7 +1541,7 @@ mod tests {
             );
 
             // Test with depth limit
-            let depth_limited_hashes = super::get_new_node_hashes_between_commits(
+            let depth_limited_hashes = super::get_node_hashes_between_commits(
                 &repo,
                 &commit_list,
                 &None,
