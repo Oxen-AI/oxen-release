@@ -235,6 +235,8 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(results)
 }
 
+/// List commits recursively from the head commit
+/// Commits will be returned in reverse chronological order
 fn list_recursive(
     repo: &LocalRepository,
     head_commit: Commit,
@@ -247,7 +249,6 @@ fn list_recursive(
         return Ok(());
     }
 
-    // log::debug!("list_recursive: commit: {}", head_commit);
     results.push(head_commit.clone());
 
     if stop_at_base.is_some() && &head_commit == stop_at_base.unwrap() {

@@ -276,6 +276,14 @@ pub fn get_subtree_by_depth(
             );
             get_subtree(repo, commit, subtree, -1)
         }
+        (None, Some(depth)) => {
+            log::debug!(
+                "Getting tree from root with depth {} for commit {}",
+                depth,
+                commit
+            );
+            get_subtree(repo, commit, PathBuf::from("."), *depth)
+        }
         _ => {
             log::debug!("Getting full tree for commit {}", commit);
             get_root_with_children(repo, commit)
@@ -381,10 +389,12 @@ pub fn list_files_and_folders_map(
 }
 
 /// Will traverse the given paths and return the node hashes in the `hashes` HashSet<MerkleHash>
+/// If starting_node_hashes is provided, it will only add nodes that are not in the starting_node_hashes
 pub fn collect_nodes_along_path(
     repo: &LocalRepository,
     commit: &Commit,
     paths: Vec<PathBuf>,
+    starting_node_hashes: &Option<HashSet<MerkleHash>>,
     hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     // Grab the first path or error if empty
@@ -395,8 +405,17 @@ pub fn collect_nodes_along_path(
         .ok_or(OxenError::basic_str("Node not found"))?;
 
     let (_root_node, nodes) = node.get_nodes_along_paths(paths)?;
-    for node in nodes {
-        hashes.insert(node.hash);
+
+    if let Some(starting_node_hashes) = starting_node_hashes {
+        for node in nodes {
+            if !starting_node_hashes.contains(&node.hash) {
+                hashes.insert(node.hash);
+            }
+        }
+    } else {
+        for node in nodes {
+            hashes.insert(node.hash);
+        }
     }
     Ok(())
 }
@@ -1059,6 +1078,184 @@ pub fn dir_hashes(
     Ok(dir_hashes)
 }
 
+/// Collect all the node hashes for the given commits
+pub fn get_all_node_hashes_for_commits(
+    repository: &LocalRepository,
+    commits: &[Commit],
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+    maybe_depth: &Option<i32>,
+    is_download: bool,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    log::debug!(
+        "Getting ALL node hashes for {} commits... and subtree paths {:?}",
+        commits.len(),
+        maybe_subtrees
+    );
+
+    let mut all_node_hashes: HashSet<MerkleHash> = HashSet::new();
+
+    for commit in commits {
+        get_node_hashes_for_commit(
+            repository,
+            commit,
+            maybe_subtrees,
+            maybe_depth,
+            is_download,
+            &None,
+            &mut all_node_hashes,
+        )?;
+    }
+    log::debug!("All node hashes: {}", all_node_hashes.len());
+
+    Ok(all_node_hashes)
+}
+
+/// Collect the new node hashes between the first and last commits in the given list
+/// If only one commit is provided, then it will return all the node hashes for that commit.
+pub fn get_node_hashes_between_commits(
+    repository: &LocalRepository,
+    commits: &[Commit],
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+    maybe_depth: &Option<i32>,
+    is_download: bool,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    // (the nodes that are NOT in the base commit, but ARE in any of the later commits)
+    // There will be duplicate nodes across commits, hence the need to dedup
+    log::debug!(
+        "Getting new node hashes for {} commits... and subtree paths {:?}",
+        commits.len(),
+        maybe_subtrees
+    );
+    let (first_commit, new_commits) = commits
+        .split_first()
+        .ok_or(OxenError::basic_str("Must provide at least one commit"))?;
+
+    let mut starting_node_hashes: HashSet<MerkleHash> = HashSet::new();
+    get_node_hashes_for_commit(
+        repository,
+        first_commit,
+        maybe_subtrees,
+        maybe_depth,
+        is_download,
+        &None,
+        &mut starting_node_hashes,
+    )?;
+
+    if new_commits.is_empty() {
+        // If there are no new commits, then we just return the node hashes for the first commit
+        return Ok(starting_node_hashes);
+    }
+
+    let mut new_node_hashes: HashSet<MerkleHash> = HashSet::new();
+
+    let maybe_starting_node_hashes = Some(starting_node_hashes);
+    for commit in new_commits {
+        get_node_hashes_for_commit(
+            repository,
+            commit,
+            maybe_subtrees,
+            maybe_depth,
+            is_download,
+            &maybe_starting_node_hashes,
+            &mut new_node_hashes,
+        )?;
+    }
+    log::debug!("New node hashes: {}", new_node_hashes.len());
+
+    Ok(new_node_hashes)
+}
+
+pub fn get_node_hashes_for_commit(
+    repository: &LocalRepository,
+    commit: &Commit,
+    maybe_subtrees: &Option<Vec<PathBuf>>,
+    maybe_depth: &Option<i32>,
+    is_download: bool,
+    starting_node_hashes: &Option<HashSet<MerkleHash>>,
+    new_node_hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    if let Some(subtrees) = maybe_subtrees {
+        // Traverse up the tree to get all the parent directories
+        let mut all_parent_paths: Vec<PathBuf> = Vec::new();
+        for subtree_path in subtrees {
+            let path = subtree_path.clone();
+            let mut current_path = path.clone();
+
+            // Add the original subtree path first
+            all_parent_paths.push(current_path.clone());
+
+            // Traverse up the tree to add parent paths
+            while let Some(parent) = current_path.parent() {
+                all_parent_paths.push(parent.to_path_buf());
+                current_path = parent.to_path_buf();
+            }
+            all_parent_paths.reverse();
+        }
+
+        for subtree in subtrees {
+            get_node_hashes_for_subtree(
+                repository,
+                commit,
+                &Some(subtree.clone()),
+                maybe_depth,
+                starting_node_hashes,
+                new_node_hashes,
+            )?;
+        }
+
+        if !is_download {
+            collect_nodes_along_path(
+                repository,
+                commit,
+                all_parent_paths,
+                starting_node_hashes,
+                new_node_hashes,
+            )?;
+        }
+    } else {
+        get_node_hashes_for_subtree(
+            repository,
+            commit,
+            &None,
+            maybe_depth,
+            starting_node_hashes,
+            new_node_hashes,
+        )?;
+    }
+    // Add the commit hash itself
+    new_node_hashes.insert(commit.hash()?);
+    Ok(())
+}
+
+fn get_node_hashes_for_subtree(
+    repository: &LocalRepository,
+    commit: &Commit,
+    subtree_path: &Option<PathBuf>,
+    depth: &Option<i32>,
+    starting_node_hashes: &Option<HashSet<MerkleHash>>,
+    new_node_hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    let Ok(Some(tree)) = get_subtree_by_depth(repository, commit, subtree_path, depth) else {
+        // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
+        return Ok(());
+    };
+
+    if let Some(starting_node_hashes) = starting_node_hashes {
+        // Only add nodes that are NOT in the starting hashes
+        tree.walk_tree_without_leaves(|node| {
+            if !starting_node_hashes.contains(&node.hash) {
+                new_node_hashes.insert(node.hash);
+            }
+        });
+    } else {
+        tree.walk_tree_without_leaves(|node| {
+            new_node_hashes.insert(node.hash);
+        });
+    }
+
+    Ok(())
+}
+
 // Commit db is the directories per commit
 // This helps us skip to a directory in the tree
 // .oxen/history/{COMMIT_ID}/dir_hashes
@@ -1265,5 +1462,104 @@ mod tests {
             Ok(())
         })
         .await
+    }
+
+    #[test]
+    fn test_get_node_hashes_between_commits() -> Result<(), OxenError> {
+        test::run_local_repo_training_data_committed(|repo| {
+            // Get the initial commit from training data to use as baseline
+            let starting_commit = repositories::commits::head_commit(&repo)?;
+
+            // Add some new files and make first new commit
+            let new_file1 = repo.path.join("new_file1.txt");
+            let new_file2 = repo.path.join("new_dir1").join("new_file2.txt");
+            util::fs::create_dir_all(new_file2.parent().unwrap())?;
+
+            util::fs::write(&new_file1, "This is new file 1 content")?;
+            util::fs::write(&new_file2, "This is new file 2 content")?;
+
+            repositories::add(&repo, &new_file1)?;
+            repositories::add(&repo, &new_file2)?;
+            let commit1 = repositories::commit(&repo, "Add first batch of new files")?;
+
+            // Add more files and make second new commit
+            let new_file3 = repo.path.join("new_dir2").join("new_file3.csv");
+            util::fs::create_dir_all(new_file3.parent().unwrap())?;
+            util::fs::write(&new_file3, "col1,col2,col3\nval1,val2,val3\n")?;
+
+            repositories::add(&repo, &new_file3)?;
+            let commit2 = repositories::commit(&repo, "Add second batch of new files")?;
+
+            // Test get_unique_node_hashes with all commits (baseline + new commits)
+            let commit_list = vec![starting_commit, commit1.clone(), commit2.clone()];
+            let new_hashes = super::get_node_hashes_between_commits(
+                &repo,
+                &commit_list,
+                &None, // no subtree filter
+                &None, // no depth limit
+                false, // not a download operation
+            )?;
+
+            // Verify that we got the correct number of unique hashes
+            // commit1, root dir (v1), root vnode (v1), new_dir1, new_dir1 vnode
+            // commit2, root dir (v2), root vnode (v2), new_dir2, new_dir2 vnode
+            // = 10 nodes
+            assert!(
+                new_hashes.len() == 10,
+                "Should have found 10 unique node hashes for new commits, got {}",
+                new_hashes.len()
+            );
+
+            // Verify that the unique hashes include the commit hashes themselves
+            assert!(
+                new_hashes.contains(&commit1.hash()?),
+                "Should include first new commit hash"
+            );
+            assert!(
+                new_hashes.contains(&commit2.hash()?),
+                "Should include second new commit hash"
+            );
+
+            // Test with subtree filter
+            let subtree_path = PathBuf::from("new_dir1");
+            let subtree_hashes = super::get_node_hashes_between_commits(
+                &repo,
+                &commit_list,
+                &Some(vec![subtree_path]),
+                &None,
+                false,
+            )?;
+
+            // Subtree filter should return fewer hashes since it's only looking at new_dir1
+            // commit1, root dir (v1), root vnode (v1), new_dir1, new_dir1 vnode
+            // commit2, root dir (v2), root vnode (v2)
+            // = 8 nodes
+            assert!(
+                subtree_hashes.len() == 8,
+                "Subtree filter should return 8 hashes, got {}",
+                subtree_hashes.len()
+            );
+
+            // Test with depth limit
+            let depth_limited_hashes = super::get_node_hashes_between_commits(
+                &repo,
+                &commit_list,
+                &None,
+                &Some(0), // depth of 0
+                false,
+            )?;
+
+            // Depth filter should return fewer hashes
+            // commit1, root dir (v1), root vnode (v1)
+            // commit2, root dir (v2), root vnode (v2)
+            // = 6 nodes
+            assert!(
+                depth_limited_hashes.len() == 6,
+                "Depth filter should return 6 hashes, got {}",
+                depth_limited_hashes.len()
+            );
+
+            Ok(())
+        })
     }
 }
