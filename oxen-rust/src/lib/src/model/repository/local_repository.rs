@@ -300,9 +300,9 @@ impl LocalRepository {
 
     pub fn get_remote(&self, name: impl AsRef<str>) -> Option<Remote> {
         let name = name.as_ref();
-        log::debug!("Checking for remote {name} have {}", self.remotes.len());
+        log::trace!("Checking for remote {name} have {}", self.remotes.len());
         for remote in self.remotes.iter() {
-            log::debug!("comparing: {name} -> {}", remote.name);
+            log::trace!("comparing: {name} -> {}", remote.name);
             if remote.name == name {
                 return Some(remote.clone());
             }

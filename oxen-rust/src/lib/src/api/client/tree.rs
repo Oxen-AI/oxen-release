@@ -15,13 +15,13 @@ use crate::core::progress::push_progress::PushProgress;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
+use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::download_tree_opts::DownloadTreeOpts;
 use crate::opts::fetch_opts::FetchOpts;
 use crate::view::tree::merkle_hashes::MerkleHashes;
 use crate::view::tree::MerkleHashResponse;
 use crate::view::{MerkleHashesResponse, StatusMessage};
-use crate::{api, repositories, util};
+use crate::{api, util};
 
 /// Check if a node exists in the remote repository merkle tree by hash
 pub async fn has_node(
@@ -207,32 +207,6 @@ pub async fn download_tree_from(
     Ok(node)
 }
 
-pub async fn download_commits_between(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    base_id: impl AsRef<str>,
-    head_id: impl AsRef<str>,
-) -> Result<Vec<Commit>, OxenError> {
-    let base_id = base_id.as_ref();
-    let head_id = head_id.as_ref();
-    let base_head = format!("{base_id}..{head_id}");
-    let uri = format!("/tree/commits/{base_head}/download");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    log::debug!("downloading commits {} from {}", base_head, url);
-
-    node_download_request(local_repo, &url).await?;
-
-    log::debug!("unpacked commits {}", base_head);
-
-    // Return the commits we downloaded
-    let base_commit = repositories::commits::get_by_id(local_repo, base_id)?.unwrap();
-    let head_commit = repositories::commits::get_by_id(local_repo, head_id)?.unwrap();
-    let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
-
-    Ok(commits)
-}
-
 pub async fn get_node_hash_by_path(
     remote_repo: &RemoteRepository,
     commit_id: impl AsRef<str>,
@@ -289,12 +263,13 @@ pub async fn download_tree_from_path(
     }
 }
 
+/// Download ALL the trees starting from the given commit id
 pub async fn download_trees_from(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: impl AsRef<str>,
     fetch_opts: &FetchOpts,
-) -> Result<Vec<Commit>, OxenError> {
+) -> Result<(), OxenError> {
     let commit_id = commit_id.as_ref();
     let uri = append_fetch_opts_to_uri(format!("/tree/download/{commit_id}"), fetch_opts);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -305,10 +280,7 @@ pub async fn download_trees_from(
 
     log::debug!("unpacked trees {}", commit_id);
 
-    // Return the commits we downloaded
-    let commits = repositories::commits::list_from(local_repo, commit_id)?;
-
-    Ok(commits)
+    Ok(())
 }
 
 fn append_fetch_opts_to_uri(uri: String, fetch_opts: &FetchOpts) -> String {
@@ -371,7 +343,7 @@ pub async fn download_trees_between(
     base_id: impl AsRef<str>,
     head_id: impl AsRef<str>,
     fetch_opts: &FetchOpts,
-) -> Result<Vec<Commit>, OxenError> {
+) -> Result<(), OxenError> {
     let base_id = base_id.as_ref();
     let head_id = head_id.as_ref();
     let base_head = format!("{base_id}..{head_id}");
@@ -384,38 +356,7 @@ pub async fn download_trees_between(
 
     log::debug!("unpacked trees {}", base_head);
 
-    // Return the commits we downloaded
-    let Some(head_commit) = repositories::commits::get_by_id(local_repo, head_id)? else {
-        return Err(OxenError::revision_not_found(head_id.to_string().into()));
-    };
-    let Some(base_commit) = repositories::commits::get_by_id(local_repo, base_id)? else {
-        return Err(OxenError::revision_not_found(base_id.to_string().into()));
-    };
-    let commits = repositories::commits::list_between(local_repo, &base_commit, &head_commit)?;
-    log::debug!("download_trees_between commits: {:?}", commits.len());
-    log::debug!("download_trees_between commits: {:?}", commits);
-
-    Ok(commits)
-}
-
-pub async fn download_commits_from(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    base_id: impl AsRef<str>,
-) -> Result<Vec<Commit>, OxenError> {
-    let base_id = base_id.as_ref();
-    let uri = format!("/tree/commits/{base_id}/download");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    log::debug!("downloading commits {} from {}", base_id, url);
-
-    node_download_request(local_repo, &url).await?;
-
-    log::debug!("unpacked commits {}", base_id);
-
-    // Return the commits we downloaded
-    let commits = repositories::commits::list_from(local_repo, base_id)?;
-    Ok(commits)
+    Ok(())
 }
 
 async fn node_download_request(
@@ -426,19 +367,12 @@ async fn node_download_request(
     let client = client::new_for_url(url)?;
     log::debug!("node_download_request about to send request {}", url);
     let res = client.get(url).send().await?;
-    let status = res.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(OxenError::must_supply_valid_api_key());
-    }
-    if status == reqwest::StatusCode::NOT_FOUND {
-        return Err(OxenError::path_does_not_exist(url));
-    }
+    let res = client::handle_non_json_response(url, res).await?;
 
     let reader = res
         .bytes_stream()
         .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
         .into_async_read();
-    log::debug!("node_download_request about to iterate over archive");
     let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
     let archive = Archive::new(decoder);
 

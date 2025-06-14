@@ -633,7 +633,7 @@ impl CommitMerkleTree {
             //     child
             // );
             match &child.node.node_type() {
-                // Directories, VNodes, and Files have children
+                // Commits, Directories, and VNodes have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
                 | MerkleTreeNodeType::VNode => {

@@ -300,6 +300,10 @@ pub fn commit_history_is_complete(
     let maybe_initial_commit = history.last().unwrap();
     if !maybe_initial_commit.parent_ids.is_empty() {
         // If it has parents, it isn't an initial commit
+        log::debug!(
+            "commit_history_is_complete ❌ last commit has parents: {}",
+            maybe_initial_commit
+        );
         return Ok(false);
     }
 
