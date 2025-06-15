@@ -87,15 +87,12 @@ impl RunCmd for CloneCmd {
                 }
 
                 let joined = current_dir.join(path);
-                let canon = joined
-                    .canonicalize()
-                    .map_err(|_| OxenError::basic_str("Failed to resolve destination"))?;
-                if !canon.starts_with(&current_dir) {
+                if !joined.starts_with(&current_dir) {
                     return Err(OxenError::basic_str(
                         "Invalid destination: path escapes base directory",
                     ));
                 }
-                canon
+                joined
             }
             None => {
                 // Get the name of the repo from the url
