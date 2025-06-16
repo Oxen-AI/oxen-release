@@ -1,11 +1,12 @@
 use filetime::FileTime;
 use glob::glob;
 // use jwalk::WalkDirGeneric;
+use parking_lot::Mutex;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
@@ -16,6 +17,7 @@ use serde::Serialize;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core;
 use crate::core::db;
+use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
@@ -568,17 +570,199 @@ pub fn process_add_file(
     p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
 }
 
-pub fn process_add_version_file(
+/// Add this function in replace of process_add_file for workspaces staged db to handle concurrent add_file calls
+/// TODO: Migrate all staged db actions to use the manager
+pub fn process_add_file_with_staged_db_manager(
     repo: &LocalRepository,
+    repo_path: &Path,         // Path to the repository
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-    version_path: &Path, // Path to the file in the version store
-    dst_path: &Path,     // Path to the file in the workspace
+    path: &Path,              // Path to the file in the repository, or path defined by the user
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    log::debug!("process_add_version_file version_path {:?}", version_path);
-    log::debug!("process_add_version_file dst_path {:?}", dst_path);
+) -> Result<(), OxenError> {
+    log::debug!("process_add_file {:?}", path);
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
+    let full_path = repo_path.join(&relative_path);
 
+    if !full_path.is_file() {
+        // If it's not a file - no need to add it
+        // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
+        return Ok(());
+    }
+
+    let mut status = file_status.status.clone();
+    let hash = file_status.hash;
+    let num_bytes = file_status.num_bytes;
+    let mtime = file_status.mtime;
+    let maybe_file_node = file_status.previous_file_node.clone();
+    let previous_metadata = file_status.previous_metadata.clone();
+
+    log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
+
+    // TODO: Move this out of this function so we don't check for conflicts on every file
+    if let Some(_file_node) = &maybe_file_node {
+        let conflicts = repositories::merge::list_conflicts(repo)?;
+        for conflict in conflicts {
+            let conflict_path = repo.path.join(&conflict.merge_entry.path);
+            log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
+            let relative_conflict_path = util::fs::path_relative_to_dir(&conflict_path, repo_path)?;
+            if relative_conflict_path == relative_path {
+                status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+                repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
+            }
+        }
+    }
+
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
+        return Ok(());
+    }
+
+    // Get the data type of the file
+    let mime_type = util::fs::file_mime_type(path);
+    let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    let metadata = match &previous_metadata {
+        Some(previous_oxen_metadata) => {
+            let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
+            maybe_construct_generic_metadata_for_tabular(
+                df_metadata,
+                previous_oxen_metadata.clone(),
+            )
+        }
+        None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
+    };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
+
+    let file_extension = relative_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let relative_path_str = relative_path.to_str().unwrap_or_default();
+    let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
+        let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
+        let metadata_hash = MerkleHash::new(metadata_hash);
+        let combined_hash =
+            util::hasher::get_combined_hash(Some(metadata_hash.to_u128()), hash.to_u128())?;
+        let combined_hash = MerkleHash::new(combined_hash);
+        (hash, Some(metadata_hash), combined_hash)
+    } else {
+        (hash, None, hash)
+    };
+    let file_node = FileNode::new(
+        repo,
+        FileNodeOpts {
+            name: relative_path_str.to_string(),
+            hash,
+            combined_hash,
+            metadata_hash,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            data_type,
+            metadata,
+            mime_type: mime_type.clone(),
+            extension: file_extension.to_string(),
+        },
+    )?;
+
+    add_file_node_to_staged_db(repo, relative_path_str, status, &file_node, seen_dirs)
+}
+
+/// Stage file node with staged db manager
+pub fn add_file_node_to_staged_db(
+    repo: &LocalRepository,
+    relative_path: impl AsRef<Path>,
+    status: StagedEntryStatus,
+    file_node: &FileNode,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<(), OxenError> {
+    with_staged_db_manager(repo, |staged_db_manager| {
+        add_file_node_and_parent_dir(
+            file_node,
+            status,
+            relative_path,
+            staged_db_manager,
+            seen_dirs,
+        )?;
+        Ok(())
+    })
+}
+
+// seperate data path and dst path in case it's in the version store
+pub fn get_status_and_add_file(
+    repo: &LocalRepository,
+    data_path: &Path,
+    dst_path: &Path,
+    staged_db_manager: &StagedDBManager,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<(), OxenError> {
+    let relative_path = util::fs::path_relative_to_dir(dst_path, &repo.path)?;
+    if let Some(parent) = dst_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let file_name = dst_path.file_name().unwrap().to_string_lossy();
+    let maybe_dir_node = None;
+    let file_status =
+        core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, data_path)?;
+    let status = file_status.status.clone();
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
+        return Ok(());
+    }
+    let file_node = generate_file_node(repo, data_path, dst_path, &file_status)?;
+
+    // Only add the file to the staged db if it has changed
+    if let Some(file_node) = file_node {
+        let status = file_status.status.clone();
+        add_file_node_and_parent_dir(
+            &file_node,
+            status,
+            &relative_path,
+            staged_db_manager,
+            seen_dirs,
+        )?;
+    }
+    Ok(())
+}
+
+/// Stage file node and parent dirs with staged db manager
+pub fn add_file_node_and_parent_dir(
+    file_node: &FileNode,
+    status: StagedEntryStatus,
+    relative_path: impl AsRef<Path>,
+    staged_db_manager: &StagedDBManager,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<(), OxenError> {
+    // Stage the file node
+    staged_db_manager.upsert_file_node(&relative_path, status, file_node)?;
+
+    // Add all the parent dirs to the staged db
+    let mut parent_path = relative_path.as_ref().to_path_buf();
+    while let Some(parent) = parent_path.parent() {
+        parent_path = parent.to_path_buf();
+
+        staged_db_manager.add_directory(&parent_path, seen_dirs)?;
+        if parent_path == Path::new("") {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn generate_file_node(
+    repo: &LocalRepository,
+    version_path: &Path,
+    dst_path: &Path,
+    file_status: &FileStatus,
+) -> Result<Option<FileNode>, OxenError> {
     let status = file_status.status.clone();
     let hash = file_status.hash;
     let num_bytes = file_status.num_bytes;
@@ -593,14 +777,7 @@ pub fn process_add_version_file(
         .unwrap_or_default()
         .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap_or_default();
-
     log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
-
-    // Don't have to add the file to the staged db if it hasn't changed
-    if status == StagedEntryStatus::Unmodified {
-        log::debug!("file has not changed - skipping add");
-        return Ok(None);
-    }
 
     // version_path is where the file is stored, relative_path is the working directory path that contains the file extension
     let mime_type = util::fs::file_mime_type_from_extension(version_path, &relative_path);
@@ -657,8 +834,7 @@ pub fn process_add_version_file(
             extension: file_extension.to_string(),
         },
     )?;
-
-    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+    Ok(Some(file_node))
 }
 
 pub fn maybe_construct_generic_metadata_for_tabular(
@@ -694,17 +870,6 @@ pub fn maybe_construct_generic_metadata_for_tabular(
     df_metadata
 }
 
-/// Used to add a file node to the staged db in a workspace
-pub fn add_file_node_to_staged_db(
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-    relative_path: impl AsRef<Path>,
-    status: StagedEntryStatus,
-    file_node: &FileNode,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    p_add_file_node_to_staged_db(staged_db, relative_path, status, file_node, &seen_dirs)
-}
-
 pub fn p_add_file_node_to_staged_db(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     relative_path: impl AsRef<Path>,
@@ -731,6 +896,7 @@ pub fn p_add_file_node_to_staged_db(
         .unwrap();
 
     let relative_path_str = relative_path.to_str().unwrap_or_default();
+    log::debug!("writing to staged db {:?}", relative_path_str);
     staged_db.put(relative_path_str, &buf)?;
 
     // Add all the parent dirs to the staged db
@@ -755,7 +921,7 @@ pub fn add_dir_to_staged_db(
 ) -> Result<(), OxenError> {
     let relative_path = relative_path.as_ref();
     let relative_path_str = relative_path.to_str().unwrap();
-    let mut seen_dirs = seen_dirs.lock().unwrap();
+    let mut seen_dirs = seen_dirs.lock();
     if !seen_dirs.insert(relative_path.to_path_buf()) {
         return Ok(());
     }

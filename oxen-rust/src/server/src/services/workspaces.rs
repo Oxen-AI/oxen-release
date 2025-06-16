@@ -29,7 +29,7 @@ pub fn workspace() -> Scope {
                 )
                 .route(
                     "/versions",
-                    web::post().to(controllers::workspaces::files::add_version_file),
+                    web::post().to(controllers::workspaces::files::add_version_files),
                 )
                 .route(
                     "/files/{path:.*}",

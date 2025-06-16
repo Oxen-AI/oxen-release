@@ -10,8 +10,7 @@ use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::{
-    ErrorFileInfo, ErrorFilesResponse, FilePathsResponse, FileWithHash, StatusMessage,
-    StatusMessageDescription,
+    ErrorFilesResponse, FilePathsResponse, FileWithHash, StatusMessage, StatusMessageDescription,
 };
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -88,7 +87,7 @@ pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, O
     }))
 }
 
-pub async fn add_version_file(
+pub async fn add_version_files(
     req: HttpRequest,
     payload: web::Json<Vec<FileWithHash>>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -99,41 +98,16 @@ pub async fn add_version_file(
     let workspace_id = path_param(&req, "workspace_id")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let version_store = repo.version_store()?;
+
     let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    let mut err_files: Vec<ErrorFileInfo> = vec![];
     let files_with_hash: Vec<FileWithHash> = payload.into_inner();
 
-    for item in files_with_hash.iter() {
-        let version_path = version_store.get_version_path(&item.hash)?;
-        let file_path = &item.path;
-
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        match core::v_latest::workspaces::files::add_version_file(
-            &workspace,
-            &version_path,
-            file_path,
-        ) {
-            Ok(_path) => {
-                log::debug!("add_version_file ✅ success! staged file {:?}", file_path);
-            }
-            Err(e) => {
-                log::error!("add_version_file ❌ failed! error: {:?}", e);
-                err_files.push(ErrorFileInfo {
-                    hash: item.hash.clone(),
-                    path: Some(version_path),
-                    error: format!("add_version_file ❌ failed! error: {:?}", e),
-                });
-            }
-        }
-    }
+    let err_files =
+        core::v_latest::workspaces::files::add_version_files(&repo, &workspace, &files_with_hash)?;
 
     // Return the error files for retry
     Ok(HttpResponse::Ok().json(ErrorFilesResponse {

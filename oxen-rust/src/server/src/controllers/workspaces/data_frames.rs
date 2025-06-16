@@ -163,8 +163,10 @@ pub async fn get(
         &mut df_views,
     )?;
 
-    let new_schema =
-        repositories::data_frames::schemas::get_staged(&workspace.workspace_repo, &file_path)?;
+    let new_schema = repositories::data_frames::schemas::get_staged_schema_with_staged_db_manager(
+        &workspace.workspace_repo,
+        &file_path,
+    )?;
     repositories::workspaces::data_frames::columns::update_column_schemas(
         new_schema,
         &mut df_views,

@@ -137,14 +137,16 @@ async fn upload_multiple_files(
     }
 
     // Upload small files in batches
-    parallel_batched_small_file_upload(
-        remote_repo,
-        workspace_id,
-        directory,
-        small_files,
-        small_files_size,
-    )
-    .await?;
+    if !small_files.is_empty() {
+        parallel_batched_small_file_upload(
+            remote_repo,
+            workspace_id,
+            directory,
+            small_files,
+            small_files_size,
+        )
+        .await?;
+    }
 
     Ok(())
 }
