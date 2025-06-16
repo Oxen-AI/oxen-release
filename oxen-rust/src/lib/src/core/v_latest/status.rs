@@ -2,6 +2,7 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::STAGED_DIR;
 use crate::core::db;
 use crate::core::oxenignore;
+use crate::core::staged::staged_db_manager::with_staged_db_manager;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::merkle_tree::node::StagedMerkleTreeNode;
@@ -290,6 +291,25 @@ pub fn read_staged_entries(
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
     read_staged_entries_below_path(repo, db, Path::new(""), read_progress)
+}
+
+/// Duplicate function using staged db manager in workspaces
+pub fn read_staged_entries_with_staged_db_manager(
+    repo: &LocalRepository,
+    read_progress: &ProgressBar,
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
+    read_staged_entries_below_path_with_staged_db_manager(repo, Path::new(""), read_progress)
+}
+
+/// Duplicate function using staged db manager in workspaces
+pub fn read_staged_entries_below_path_with_staged_db_manager(
+    repo: &LocalRepository,
+    start_path: impl AsRef<Path>,
+    read_progress: &ProgressBar,
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
+    with_staged_db_manager(repo, |staged_db_manager| {
+        staged_db_manager.read_staged_entries_below_path(start_path, read_progress)
+    })
 }
 
 pub fn read_staged_entries_below_path(

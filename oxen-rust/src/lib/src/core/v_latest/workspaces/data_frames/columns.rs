@@ -5,7 +5,7 @@ use crate::constants::TABLE_NAME;
 use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::db::data_frames::{column_changes_db, columns, df_db};
-use crate::core::v_latest::data_frames;
+use crate::core::staged::staged_db_manager::with_staged_db_manager;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
@@ -14,8 +14,6 @@ use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{LocalRepository, MerkleHash, Schema, StagedEntryStatus, Workspace};
 use crate::repositories::workspaces::data_frames::columns::get_column_diff;
-use rmp_serde::Serializer;
-use serde::Serialize;
 
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
@@ -336,116 +334,108 @@ pub fn add_column_metadata(
     column: impl AsRef<str>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    let db = data_frames::schemas::get_staged_db(&workspace.workspace_repo)?;
-    let path = file_path.as_ref();
-    let path = util::fs::path_relative_to_dir(path, &workspace.workspace_repo.path)?;
-    let column = column.as_ref();
+    with_staged_db_manager(&workspace.workspace_repo, |staged_db_manager| {
+        let path = file_path.as_ref();
+        let path = util::fs::path_relative_to_dir(path, &workspace.workspace_repo.path)?;
+        let column = column.as_ref();
 
-    let key = path.to_string_lossy();
+        let staged_merkle_tree_node = staged_db_manager.read_from_staged_db(&path)?;
+        let mut staged_nodes: HashMap<PathBuf, StagedMerkleTreeNode> = HashMap::new();
 
-    let staged_merkle_tree_node = db.get(key.as_bytes())?;
-    let mut staged_nodes: HashMap<PathBuf, StagedMerkleTreeNode> = HashMap::new();
+        let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
+            staged_merkle_tree_node.node.file()?
+        } else {
+            // Get the FileNode from the CommitMerkleTree
+            let commit = workspace.commit.clone();
+            let node = repositories::tree::get_node_by_path(repo, &commit, &path)?.ok_or(
+                OxenError::basic_str("Node does not exist at the specified path"),
+            )?;
+            let mut parent_id = node.parent_id;
+            let mut dir_path = path.clone();
 
-    let mut file_node = if let Some(staged_merkle_tree_node) = staged_merkle_tree_node {
-        let staged_merkle_tree_node: StagedMerkleTreeNode =
-            rmp_serde::from_slice(&staged_merkle_tree_node)?;
-        staged_merkle_tree_node.node.file()?
-    } else {
-        // Get the FileNode from the CommitMerkleTree
-        let commit = workspace.commit.clone();
-        let node = repositories::tree::get_node_by_path(repo, &commit, &path)?.ok_or(
-            OxenError::basic_str("Node does not exist at the specified path"),
-        )?;
-        let mut parent_id = node.parent_id;
-        let mut dir_path = path.clone();
-        while let Some(current_parent_id) = parent_id {
-            if current_parent_id == MerkleHash::new(0) {
-                break;
-            }
-            let mut parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
-            parent_id = parent_node.parent_id;
-            let EMerkleTreeNode::Directory(mut dir_node) = parent_node.node.clone() else {
-                continue;
-            };
-            dir_path = dir_path.parent().unwrap().to_path_buf();
-            dir_node.set_name(dir_path.to_string_lossy());
-            parent_node.node = EMerkleTreeNode::Directory(dir_node);
-            let staged_parent_node = StagedMerkleTreeNode {
-                status: StagedEntryStatus::Modified,
-                node: parent_node,
-            };
-            staged_nodes.insert(dir_path.clone(), staged_parent_node);
-        }
-
-        let Some(file_node) = repositories::tree::get_file_by_path(repo, &commit, &path)? else {
-            return Err(OxenError::path_does_not_exist(&path));
-        };
-        file_node
-    };
-    let column_diff = get_column_diff(workspace, &file_path)?;
-
-    update_column_names_in_metadata(&column_diff, file_node.get_mut_metadata());
-
-    // Update the column metadata
-    let mut results = HashMap::new();
-    match file_node.get_mut_metadata() {
-        Some(GenericMetadata::MetadataTabular(m)) => {
-            log::debug!("add_column_metadata: {m:?}");
-            let mut column_found = false;
-            for f in m.tabular.schema.fields.iter_mut() {
-                log::debug!("add_column_metadata: checking column {f:?} == {column}");
-
-                if f.name == column {
-                    log::debug!("add_column_metadata: found column {f:?}");
-                    f.metadata = Some(metadata.to_owned());
-                    column_found = true;
+            // Add parent nodes to staged nodes
+            while let Some(current_parent_id) = parent_id {
+                if current_parent_id == MerkleHash::new(0) {
+                    break;
                 }
+                let mut parent_node = MerkleTreeNode::from_hash(repo, &current_parent_id)?;
+                parent_id = parent_node.parent_id;
+                let EMerkleTreeNode::Directory(mut dir_node) = parent_node.node.clone() else {
+                    continue;
+                };
+
+                dir_path = dir_path.parent().unwrap().to_path_buf();
+                dir_node.set_name(dir_path.to_string_lossy());
+                parent_node.node = EMerkleTreeNode::Directory(dir_node);
+                let staged_parent_node = StagedMerkleTreeNode {
+                    status: StagedEntryStatus::Modified,
+                    node: parent_node,
+                };
+                staged_nodes.insert(dir_path.clone(), staged_parent_node);
             }
-            if !column_found {
-                return Err(OxenError::ColumnNameNotFound(column.to_string().into()));
+
+            let Some(file_node) = repositories::tree::get_file_by_path(repo, &commit, &path)?
+            else {
+                return Err(OxenError::path_does_not_exist(&path));
+            };
+            file_node
+        };
+
+        // Stage parent nodes
+        staged_db_manager.upsert_staged_nodes(&staged_nodes)?;
+
+        let column_diff = get_column_diff(workspace, &file_path)?;
+
+        update_column_names_in_metadata(&column_diff, file_node.get_mut_metadata());
+
+        // Update the column metadata
+        let mut results = HashMap::new();
+        match file_node.get_mut_metadata() {
+            Some(GenericMetadata::MetadataTabular(m)) => {
+                log::debug!("add_column_metadata: {m:?}");
+                let mut column_found = false;
+                for f in m.tabular.schema.fields.iter_mut() {
+                    log::debug!("add_column_metadata: checking column {f:?} == {column}");
+
+                    if f.name == column {
+                        log::debug!("add_column_metadata: found column {f:?}");
+                        f.metadata = Some(metadata.to_owned());
+                        column_found = true;
+                    }
+                }
+                if !column_found {
+                    return Err(OxenError::ColumnNameNotFound(column.to_string().into()));
+                }
+                results.insert(path.clone(), m.tabular.schema.clone());
             }
-            results.insert(path.clone(), m.tabular.schema.clone());
+            _ => {
+                return Err(OxenError::path_does_not_exist(path));
+            }
         }
-        _ => {
-            return Err(OxenError::path_does_not_exist(path));
-        }
-    }
 
-    let mut staged_entry = StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
-        node: MerkleTreeNode::from_file(file_node.clone()),
-    };
+        // Stage the file node with the updated metadata
+        let mut staged_entry = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Modified,
+            node: MerkleTreeNode::from_file(file_node.clone()),
+        };
 
-    for (path, staged_node) in staged_nodes.iter() {
-        let key = path.to_string_lossy();
-        let mut buf = Vec::new();
-        staged_node
-            .serialize(&mut Serializer::new(&mut buf))
-            .unwrap();
-        db.put(key.as_bytes(), &buf)?;
-    }
+        let oxen_metadata = &file_node.metadata();
+        let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
+        let combined_hash =
+            util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash().to_u128())?;
 
-    let oxen_metadata = &file_node.metadata();
-    let oxen_metadata_hash = util::hasher::get_metadata_hash(oxen_metadata)?;
-    let combined_hash =
-        util::hasher::get_combined_hash(Some(oxen_metadata_hash), file_node.hash().to_u128())?;
+        let mut file_node = staged_entry.node.file()?;
 
-    let mut file_node = staged_entry.node.file()?;
+        file_node.set_name(path.to_str().unwrap());
+        file_node.set_combined_hash(&MerkleHash::new(combined_hash));
+        file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 
-    file_node.set_name(path.to_str().unwrap());
-    file_node.set_combined_hash(&MerkleHash::new(combined_hash));
-    file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
+        staged_entry.node = MerkleTreeNode::from_file(file_node);
 
-    staged_entry.node = MerkleTreeNode::from_file(file_node);
+        staged_db_manager.upsert_staged_node(&path, &staged_entry, None)?;
 
-    let mut buf = Vec::new();
-    staged_entry
-        .serialize(&mut Serializer::new(&mut buf))
-        .unwrap();
-
-    db.put(key.as_bytes(), &buf)?;
-
-    Ok(results)
+        Ok(results)
+    })
 }
 
 pub fn update_column_names_in_metadata(
