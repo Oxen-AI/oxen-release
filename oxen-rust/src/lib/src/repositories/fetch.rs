@@ -42,25 +42,30 @@ pub async fn fetch_all(
     log::debug!("Branches to create: {:?}", branches_to_create);
     log::debug!("Branches to fetch: {:?}", branches_to_fetch);
 
-    // Fetch the new branches
-    let branches_to_process: Vec<_> = branches_to_fetch
+    let branches_to_process = branches_to_fetch
         .into_iter()
-        .chain(branches_to_create)
-        .collect();
+        .map(|branch| (branch, false))
+        .chain(branches_to_create.into_iter().map(|branch| (branch, true)));
 
     // Build a stream of fetch futures
-    let stream = stream::iter(branches_to_process.into_iter().map(|branch| {
+    let stream = stream::iter(branches_to_process.map(|(branch, should_update_head)| {
         let rb = RemoteBranch {
             remote: remote.name.to_owned(),
             branch: branch.name.to_owned(),
         };
 
-        let mut opts = fetch_opts.clone();
-        opts.branch = branch.name.to_owned();
+        let opts = FetchOpts {
+            should_update_branch_head: should_update_head,
+            branch: branch.name.to_owned(),
+            remote: remote.name.to_owned(),
+            ..fetch_opts.clone()
+        };
+
         log::debug!(
-            "Fetching remote branch: {} -> {}",
+            "Fetching remote branch: {}/{} (update_head: {})",
             remote_repo.name,
-            rb.branch
+            rb.branch,
+            should_update_head
         );
         let repo = repo.clone();
         let remote_repo = remote_repo.clone();
