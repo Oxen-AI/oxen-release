@@ -342,6 +342,10 @@ pub fn list_from(
     if let Some(commit) = commit {
         list_recursive(repo, commit, &mut results, None, &mut HashSet::new())?;
     }
+    // TODO: Git does something called as a `date-order` traversal which guarantees that the parent never comes before a child
+    // irrespective of the timestamp. We should implement that at a later time.
+    results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
     Ok(results)
 }
 
