@@ -23,13 +23,7 @@ pub async fn fetch_remote_branch(
     remote_repo: &RemoteRepository,
     fetch_opts: &FetchOpts,
 ) -> Result<Branch, OxenError> {
-    log::debug!(
-        "fetching remote branch {} --all {} --subtree {:?} --depth {:?}",
-        fetch_opts.branch,
-        fetch_opts.all,
-        fetch_opts.subtree_paths,
-        fetch_opts.depth,
-    );
+    log::debug!("fetching remote branch with opts {:?}", fetch_opts);
 
     // Start the timer
     let start = std::time::Instant::now();
