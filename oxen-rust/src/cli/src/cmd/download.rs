@@ -95,7 +95,7 @@ impl RunCmd for DownloadCmd {
             .map(String::from)
             .unwrap_or(DEFAULT_SCHEME.to_string());
 
-        check_remote_version_blocking(&host).await?;
+        check_remote_version_blocking(scheme.clone(), host.clone()).await?;
 
         // Check if the first path is a valid remote repo
         if let Some(remote_repo) =

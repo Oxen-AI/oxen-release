@@ -8,8 +8,10 @@ macro_rules! current_function {
         fn type_name_of<T>(_: T) -> &'static str {
             std::any::type_name::<T>()
         }
-        let name = type_name_of(f);
-        &name[..name.len() - 3]
+        type_name_of(f)
+            .rsplit("::")
+            .find(|&part| part != "f" && part != "{{closure}}")
+            .expect("Failed to find function name")
     }};
 }
 

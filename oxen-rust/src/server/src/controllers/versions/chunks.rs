@@ -153,3 +153,7 @@ pub async fn download(
     let chunk_data = version_store.get_version_chunk(&version_id, offset, size)?;
     Ok(HttpResponse::Ok().body(chunk_data))
 }
+
+pub async fn create(_req: HttpRequest, _body: String) -> Result<HttpResponse, OxenHttpError> {
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+}

@@ -62,7 +62,7 @@ impl AuthConfig {
         if std::env::var("TEST").is_ok() {
             config_file = PathBuf::from("data/test/config/auth_config.toml");
         }
-        log::debug!("looking for config file in...{:?}", config_file);
+        log::trace!("looking for config file in...{:?}", config_file);
         if config_file.exists() {
             Ok(AuthConfig::new(&config_file))
         } else {
@@ -116,11 +116,11 @@ impl AuthConfig {
         let host = host.as_ref();
         if let Some(token) = self.host_configs.get(&HostConfig::from_host(host)) {
             if token.auth_token.is_none() {
-                log::debug!("no auth_token found for host \"{}\"", token.host);
+                log::trace!("no auth_token found for host \"{}\"", token.host);
             }
             token.auth_token.clone()
         } else {
-            log::debug!("no host configuration found for {}", host);
+            log::trace!("no host configuration found for {}", host);
             None
         }
     }

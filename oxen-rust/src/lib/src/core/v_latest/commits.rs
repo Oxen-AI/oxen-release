@@ -235,6 +235,8 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(results)
 }
 
+/// List commits recursively from the head commit
+/// Commits will be returned in reverse chronological order
 fn list_recursive(
     repo: &LocalRepository,
     head_commit: Commit,
@@ -247,7 +249,6 @@ fn list_recursive(
         return Ok(());
     }
 
-    // log::debug!("list_recursive: commit: {}", head_commit);
     results.push(head_commit.clone());
 
     if stop_at_base.is_some() && &head_commit == stop_at_base.unwrap() {
@@ -341,6 +342,10 @@ pub fn list_from(
     if let Some(commit) = commit {
         list_recursive(repo, commit, &mut results, None, &mut HashSet::new())?;
     }
+    // TODO: Git does something called as a `date-order` traversal which guarantees that the parent never comes before a child
+    // irrespective of the timestamp. We should implement that at a later time.
+    results.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
     Ok(results)
 }
 
@@ -423,6 +428,60 @@ pub fn search_entries(
     Ok(results)
 }
 
+/// List commits by path (directory or file) recursively
+pub fn list_by_path_recursive(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    commits: &mut Vec<Commit>,
+) -> Result<(), OxenError> {
+    let mut visited = HashSet::new();
+    list_by_path_recursive_impl(repo, path, commit, commits, &mut visited)
+}
+
+fn list_by_path_recursive_impl(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    commits: &mut Vec<Commit>,
+    visited: &mut HashSet<String>,
+) -> Result<(), OxenError> {
+    let node = repositories::tree::get_node_by_path(repo, commit, path)?;
+
+    let last_commit = if let Some(node) = node {
+        let last_commit_id = node.latest_commit_id()?;
+
+        // Check if the commit already exists in the commits vector, if so, skip it
+        if visited.contains(&last_commit_id.to_string()) {
+            return Ok(());
+        }
+
+        repositories::revisions::get(repo, last_commit_id.to_string())?.ok_or_else(|| {
+            OxenError::basic_str(format!(
+                "Commit not found for last_commit_id: {}",
+                last_commit_id
+            ))
+        })?
+    } else {
+        return Ok(());
+    };
+
+    // Mark last_commit as visited and add to results
+    visited.insert(last_commit.id.clone());
+    commits.push(last_commit.clone());
+
+    let parent_ids = last_commit.parent_ids;
+
+    for parent_id in parent_ids {
+        let parent_commit = repositories::revisions::get(repo, parent_id)?;
+        if let Some(parent_commit_obj) = parent_commit {
+            list_by_path_recursive_impl(repo, path, &parent_commit_obj, commits, visited)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Get paginated list of commits by path (directory or file)
 pub fn list_by_path_from_paginated(
     repo: &LocalRepository,
@@ -445,7 +504,8 @@ pub fn list_by_path_from_paginated(
         }
     };
     let last_commit_id = last_commit_id.to_string();
-    let commits = list_from(repo, &last_commit_id)?;
+    let mut commits: Vec<Commit> = Vec::new();
+    list_by_path_recursive(repo, path, commit, &mut commits)?;
     log::info!(
         "list_by_path_from_paginated {} got {} commits before pagination",
         last_commit_id,
