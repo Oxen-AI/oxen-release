@@ -189,6 +189,7 @@ pub fn transfer_namespace(
     }
 
     // ensure DB instance is closed before we move the repo
+    core::staged::remove_from_cache_with_children(&repo_dir)?;
     core::refs::remove_from_cache(&repo_dir)?;
 
     util::fs::create_dir_all(&new_repo_dir)?;
@@ -313,7 +314,8 @@ pub fn delete(repo: &LocalRepository) -> Result<&LocalRepository, OxenError> {
         return Err(OxenError::basic_str(err));
     }
 
-    // Close refs DB before trying to delete the directory
+    // Close DB instances before trying to delete the directory
+    core::staged::remove_from_cache_with_children(&repo.path)?;
     core::refs::ref_manager::remove_from_cache(&repo.path)?;
 
     log::debug!("Deleting repo directory: {:?}", repo);

@@ -19,7 +19,8 @@ pub fn save(repo: &LocalRepository, dst_path: &Path) -> Result<(), OxenError> {
         }
     };
 
-    // Close the refs DB instance before we tar it.
+    // Close DB instances before we tar it.
+    core::staged::remove_from_cache_with_children(&repo.path)?;
     core::refs::remove_from_cache(&repo.path)?;
 
     let oxen_dir = util::fs::oxen_hidden_dir(&repo.path);
