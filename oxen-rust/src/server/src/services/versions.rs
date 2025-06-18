@@ -32,4 +32,8 @@ pub fn versions() -> Scope {
             "/{version_id}",
             web::get().to(controllers::versions::download),
         )
+        .route(
+            "/{version_id}/create",
+            web::post().to(controllers::versions::chunks::create),
+        )
 }

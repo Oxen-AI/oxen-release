@@ -53,7 +53,6 @@ pub async fn pull_remote_branch(
         OxenError::revision_not_found(remote_branch.commit_id.to_owned().into()),
     )?;
 
-    // Merge if there are changes
     if let Some(previous_head_commit) = &previous_head_commit {
         log::debug!(
             "checking if we need to merge previous {} new {}",
@@ -78,33 +77,13 @@ pub async fn pull_remote_branch(
         }
     }
 
-    if let Some(subtree_paths) = &fetch_opts.subtree_paths {
-        let depth = fetch_opts.depth.unwrap_or(-1);
-        repositories::branches::checkout_subtrees_from_commit(
-            repo,
-            &new_head_commit,
-            subtree_paths,
-            depth,
-        )
-        .await?
-    } else {
-        repositories::branches::checkout_commit_from_commit(
-            repo,
-            &new_head_commit,
-            &previous_head_commit,
-        )
-        .await?
-    }
-
-    // Write the new branch commit id to the local repo
     log::debug!(
         "Setting branch {} commit id to {}",
         branch,
         remote_branch.commit_id
     );
 
-    repositories::branches::update(repo, branch, &remote_branch.commit_id)?;
-    repositories::branches::set_head(repo, branch)?;
+    repositories::branches::update(repo, branch, new_head_commit.id)?;
     api::client::repositories::post_pull(&remote_repo).await?;
 
     Ok(())

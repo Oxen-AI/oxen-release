@@ -69,6 +69,11 @@ pub struct ListWorkspaceResponseView {
     pub workspaces: Vec<WorkspaceResponse>,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ValidateUploadFeasibilityRequest {
+    pub size: u64,
+}
+
 #[derive(Deserialize)]
 pub struct RenameRequest {
     pub new_path: String,

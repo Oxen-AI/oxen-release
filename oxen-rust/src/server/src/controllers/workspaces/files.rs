@@ -141,6 +141,10 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     }
 }
 
+pub async fn validate(_req: HttpRequest, _body: String) -> Result<HttpResponse, OxenHttpError> {
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+}
+
 pub async fn save_parts(
     workspace: &Workspace,
     directory: &Path,

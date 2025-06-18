@@ -53,3 +53,11 @@ pub struct CompleteVersionUploadRequest {
     // otherwise, we will just add the file to the versions store
     pub workspace_id: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CreateVersionUploadRequest {
+    pub hash: String,
+    pub file_name: String,
+    pub size: u64,
+    pub dst_dir: Option<PathBuf>,
+}

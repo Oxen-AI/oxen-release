@@ -9,8 +9,6 @@ use liboxen::view::tree::MerkleHashResponse;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
-use std::collections::HashSet;
-
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -207,27 +205,37 @@ pub async fn download_tree_nodes(
     );
 
     let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head_str)?;
-    log::debug!("download_tree_nodes base_commit_id: {}", base_commit_id);
-    log::debug!(
-        "download_tree_nodes maybe_head_commit_id: {:?}",
-        maybe_head_commit_id
-    );
-
     let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
-        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
+        .ok_or(OxenError::revision_not_found(base_commit_id.into()))?;
 
     // Parse the subtrees
     let subtrees = get_subtree_paths(&query.subtrees)?;
 
     // Could be a single commit or a range of commits
-    let commits = get_commit_list(&repository, &base_commit, maybe_head_commit_id, &subtrees)?;
-    log::debug!("got {} commits", commits.len());
+    let commits = get_commit_list(&repository, &base_commit, &maybe_head_commit_id, &subtrees)?;
+    log::debug!("download_tree_nodes got {} commits", commits.len());
 
-    // Collect the unique node hashes for all the commits
-    let unique_node_hashes =
-        get_unique_node_hashes(&repository, &commits, &subtrees, &query.depth, is_download)?;
+    let node_hashes = if maybe_head_commit_id.is_some() {
+        // Collect the new node hashes between the base and head commits
+        repositories::tree::get_node_hashes_between_commits(
+            &repository,
+            &commits,
+            &subtrees,
+            &query.depth,
+            is_download,
+        )?
+    } else {
+        // Collect all the node hashes for the commits
+        repositories::tree::get_all_node_hashes_for_commits(
+            &repository,
+            &commits,
+            &subtrees,
+            &query.depth,
+            is_download,
+        )?
+    };
 
-    let buffer = repositories::tree::compress_nodes(&repository, &unique_node_hashes)?;
+    let buffer = repositories::tree::compress_nodes(&repository, &node_hashes)?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
     log::debug!(
         "Compressed {} commits size is {}",
@@ -241,16 +249,16 @@ pub async fn download_tree_nodes(
 fn get_commit_list(
     repository: &LocalRepository,
     base_commit: &Commit,
-    maybe_head_commit_id: Option<String>,
+    maybe_head_commit_id: &Option<String>,
     maybe_subtrees: &Option<Vec<PathBuf>>,
 ) -> Result<Vec<Commit>, OxenError> {
     // If we have a head commit, then we are downloading a range of commits
     // Otherwise, we are downloading all commits from the base commit back to the first commit
     // This is the difference between the first pull and subsequent pulls
     // The first pull doesn't have a head commit, but subsequent pulls do
-    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
-        let head_commit = repositories::commits::get_by_id(repository, &head_commit_id)?
-            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
+    let mut commits = if let Some(head_commit_id) = maybe_head_commit_id {
+        let head_commit = repositories::commits::get_by_id(repository, head_commit_id)?
+            .ok_or(OxenError::resource_not_found(head_commit_id))?;
         repositories::commits::list_between(repository, base_commit, &head_commit)?
     } else {
         // If the subtree is specified, we only want to get the latest commit
@@ -261,97 +269,9 @@ fn get_commit_list(
         }
     };
 
+    // Reverse the list so we get the commits in *chronological* order
+    commits.reverse();
     Ok(commits)
-}
-
-fn get_unique_node_hashes(
-    repository: &LocalRepository,
-    commits: &[Commit],
-    maybe_subtrees: &Option<Vec<PathBuf>>,
-    maybe_depth: &Option<i32>,
-    is_download: bool,
-) -> Result<HashSet<MerkleHash>, OxenError> {
-    // Collect the unique node hashes for all the commits
-    // There could be duplicate nodes across commits, hence the need to dedup
-    let mut unique_node_hashes: HashSet<MerkleHash> = HashSet::new();
-    log::debug!(
-        "Getting unique node hashes for {} commits... and subtree paths {:?}",
-        commits.len(),
-        maybe_subtrees
-    );
-    for commit in commits {
-        if let Some(subtrees) = maybe_subtrees {
-            // Traverse up the tree to get all the parent directories
-            let mut all_parent_paths: Vec<PathBuf> = Vec::new();
-            for subtree_path in subtrees {
-                let path = subtree_path.clone();
-                let mut current_path = path.clone();
-
-                // Add the original subtree path first
-                all_parent_paths.push(current_path.clone());
-
-                // Traverse up the tree to add parent paths
-                while let Some(parent) = current_path.parent() {
-                    all_parent_paths.push(parent.to_path_buf());
-                    current_path = parent.to_path_buf();
-                }
-                all_parent_paths.reverse();
-            }
-
-            for subtree in subtrees {
-                get_unique_node_hashes_for_subtree(
-                    repository,
-                    commit,
-                    &Some(subtree.clone()),
-                    maybe_depth,
-                    &mut unique_node_hashes,
-                )?;
-            }
-
-            if !is_download {
-                repositories::tree::collect_nodes_along_path(
-                    repository,
-                    commit,
-                    all_parent_paths,
-                    &mut unique_node_hashes,
-                )?;
-            }
-        } else {
-            get_unique_node_hashes_for_subtree(
-                repository,
-                commit,
-                &None,
-                maybe_depth,
-                &mut unique_node_hashes,
-            )?;
-        }
-        // Add the commit hash itself
-        unique_node_hashes.insert(commit.hash()?);
-    }
-    log::debug!("Unique node hashes: {}", unique_node_hashes.len());
-
-    Ok(unique_node_hashes)
-}
-
-fn get_unique_node_hashes_for_subtree(
-    repository: &LocalRepository,
-    commit: &Commit,
-    subtree_path: &Option<PathBuf>,
-    depth: &Option<i32>,
-    unique_node_hashes: &mut HashSet<MerkleHash>,
-) -> Result<(), OxenError> {
-    // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
-    let Ok(Some(tree)) =
-        repositories::tree::get_subtree_by_depth(repository, commit, subtree_path, depth)
-    else {
-        return Ok(());
-    };
-
-    tree.walk_tree_without_leaves(|node| {
-        unique_node_hashes.insert(node.hash);
-    });
-
-    Ok(())
 }
 
 pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -363,41 +283,6 @@ pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let repository = get_repo(&app_data.path, namespace, name)?;
 
     let buffer = repositories::tree::compress_node(&repository, &hash)?;
-
-    Ok(HttpResponse::Ok().body(buffer))
-}
-
-pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let base_head = path_param(&req, "base_head")?;
-    let repository = get_repo(&app_data.path, namespace, name)?;
-
-    let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head)?;
-
-    let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
-        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
-
-    // If we have a head commit, then we are downloading a range of commits
-    // Otherwise, we are downloading all commits from the base commit back to the first commit
-    // This is the difference between the first pull and subsequent pulls
-    // The first pull doesn't have a head commit, but subsequent pulls do
-    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
-        let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
-            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
-        repositories::commits::list_between(&repository, &base_commit, &head_commit)?
-    } else {
-        repositories::commits::list_from(&repository, &base_commit_id)?
-    };
-
-    let buffer = repositories::tree::compress_commits(&repository, &commits)?;
-    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-    log::debug!(
-        "Compressed {} commits size is {}",
-        commits.len(),
-        ByteSize::b(total_size)
-    );
 
     Ok(HttpResponse::Ok().body(buffer))
 }

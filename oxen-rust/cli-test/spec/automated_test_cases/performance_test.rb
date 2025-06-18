@@ -19,7 +19,7 @@ RSpec.describe 'test', type: :aruba do
 
     # Generate image repository
     script_path = File.join('..', 'benchmark', 'generate_image_repo.py')
-    run_system_command("python #{script_path} --output_dir ~/test-small-repo/Data/10k_images --num_images 10000 --num_dirs 10 --image_size 128 128")
+    # run_system_command("python #{script_path} --output_dir ~/test-small-repo/Data/10k_images --num_images 10000 --num_dirs 10 --image_size 128 128")
 
     # Initialize the repository
     init_time = measure_time('oxen init')

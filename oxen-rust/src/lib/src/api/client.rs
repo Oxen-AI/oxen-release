@@ -34,24 +34,24 @@ pub mod workspaces;
 const VERSION: &str = crate::constants::OXEN_VERSION;
 const USER_AGENT: &str = "Oxen";
 
-pub fn get_host_from_url<U: IntoUrl>(url: U) -> Result<String, OxenError> {
+pub fn get_scheme_and_host_from_url<U: IntoUrl>(url: U) -> Result<(String, String), OxenError> {
     let parsed_url = url.into_url()?;
     let mut host_str = parsed_url.host_str().unwrap_or_default().to_string();
     if let Some(port) = parsed_url.port() {
         host_str = format!("{host_str}:{port}");
     }
-    Ok(host_str)
+    Ok((parsed_url.scheme().to_owned(), host_str))
 }
 
 // TODO: we probably want to create a pool of clients instead of constructing a
 // new one for each request so we can take advantage of keep-alive
 pub fn new_for_url<U: IntoUrl>(url: U) -> Result<Client, OxenError> {
-    let host = get_host_from_url(url)?;
+    let (_scheme, host) = get_scheme_and_host_from_url(url)?;
     new_for_host(host, true)
 }
 
 pub fn new_for_url_no_user_agent<U: IntoUrl>(url: U) -> Result<Client, OxenError> {
-    let host = get_host_from_url(url)?;
+    let (_scheme, host) = get_scheme_and_host_from_url(url)?;
     new_for_host(host, false)
 }
 
@@ -66,17 +66,17 @@ fn new_for_host<S: AsRef<str>>(host: S, should_add_user_agent: bool) -> Result<C
 }
 
 pub fn new_for_remote_repo(remote_repo: &RemoteRepository) -> Result<Client, OxenError> {
-    let host = get_host_from_url(remote_repo.url())?;
+    let (_scheme, host) = get_scheme_and_host_from_url(remote_repo.url())?;
     new_for_host(host, true)
 }
 
 pub fn builder_for_remote_repo(remote_repo: &RemoteRepository) -> Result<ClientBuilder, OxenError> {
-    let host = get_host_from_url(remote_repo.url())?;
+    let (_scheme, host) = get_scheme_and_host_from_url(remote_repo.url())?;
     builder_for_host(host, true)
 }
 
 pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
-    let host = get_host_from_url(url)?;
+    let (_scheme, host) = get_scheme_and_host_from_url(url)?;
     builder_for_host(host, true)
 }
 
@@ -115,7 +115,7 @@ fn builder_for_host<S: AsRef<str>>(
         headers.insert(header::AUTHORIZATION, auth_value);
         Ok(builder.default_headers(headers))
     } else {
-        log::debug!("No auth token found for host: {}", host.as_ref());
+        log::trace!("No auth token found for host: {}", host.as_ref());
         Ok(builder)
     }
 }
@@ -131,7 +131,7 @@ fn builder_no_user_agent() -> ClientBuilder {
 /// Performs an extra parse to validate that the response is success
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
     let type_override = "unauthenticated";
-    let err_msg = "You are unauthenticated.\n\nObtain an API Key at https://oxen.ai or ask you system admin. Set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
+    let err_msg = "You are unauthenticated.\n\nObtain an API Key at https://oxen.ai or ask your system admin. Set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
 
     // Raise auth token error for user if unauthorized and no token set
     if res.status() == reqwest::StatusCode::FORBIDDEN {
@@ -221,4 +221,18 @@ fn parse_status_and_message(
         }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
+}
+
+pub async fn handle_non_json_response(
+    url: &str,
+    res: reqwest::Response,
+) -> Result<reqwest::Response, OxenError> {
+    if res.status().is_success() || res.status().is_redirection() {
+        // If the response is successful, return it as-is. We don't want to do any parsing here.
+        return Ok(res);
+    }
+
+    // If the response was an error, try to handle it as a standard json response.
+    // We assume it's an error here because we checked the success status above.
+    Err(parse_json_body(url, res).await.unwrap_err())
 }

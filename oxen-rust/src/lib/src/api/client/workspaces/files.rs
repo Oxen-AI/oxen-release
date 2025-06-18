@@ -1,11 +1,10 @@
-use crate::api;
 use crate::api::client;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::util::{self, concurrency};
-use crate::view::FilePathsResponse;
-use crate::view::{ErrorFileInfo, ErrorFilesResponse, FileWithHash};
+use crate::view::{ErrorFileInfo, ErrorFilesResponse, FilePathsResponse, FileWithHash};
+use crate::{api, view::workspaces::ValidateUploadFeasibilityRequest};
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
@@ -119,6 +118,11 @@ async fn upload_multiple_files(
             }
         }
     }
+
+    let large_files_size = large_files.iter().map(|(_, size)| size).sum::<u64>();
+    let total_size = large_files_size + small_files_size;
+
+    validate_upload_feasibility(remote_repo, workspace_id, total_size).await?;
 
     // Process large files individually with parallel upload
     for (path, size) in large_files {
@@ -468,6 +472,26 @@ pub async fn download(
     let output_path = output_path.unwrap_or_else(|| Path::new(path));
     util::fs::write(output_path, file_contents)?;
 
+    Ok(())
+}
+
+pub async fn validate_upload_feasibility(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    total_size: u64,
+) -> Result<(), OxenError> {
+    let uri = format!("/workspaces/{workspace_id}/validate");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let body = ValidateUploadFeasibilityRequest { size: total_size };
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    client::parse_json_body(&url, response).await?;
     Ok(())
 }
 

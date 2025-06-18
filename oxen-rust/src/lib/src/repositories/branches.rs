@@ -324,9 +324,9 @@ pub async fn checkout_branch_from_commit(
 }
 
 /// Checkout a subtree from a commit
-pub async fn checkout_subtrees_from_commit(
+pub async fn checkout_subtrees_to_commit(
     repo: &LocalRepository,
-    from_commit: &Commit,
+    to_commit: &Commit,
     subtree_paths: &[PathBuf],
     depth: i32,
 ) -> Result<(), OxenError> {
@@ -335,8 +335,7 @@ pub async fn checkout_subtrees_from_commit(
             panic!("checkout_subtree_from_commit not implemented for oxen v0.10.0")
         }
         _ => {
-            core::v_latest::branches::checkout_subtrees(repo, from_commit, subtree_paths, depth)
-                .await
+            core::v_latest::branches::checkout_subtrees(repo, to_commit, subtree_paths, depth).await
         }
     }
 }

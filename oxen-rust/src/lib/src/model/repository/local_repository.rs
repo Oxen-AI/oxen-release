@@ -23,7 +23,7 @@ pub struct LocalRepository {
     remotes: Vec<Remote>,        // List of possible remotes
     vnode_size: Option<u64>,     // Size of the vnodes
     subtree_paths: Option<Vec<PathBuf>>, // If the user clones a subtree, we store the paths here so that we know we don't have the full tree
-    depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
+    pub depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
 
     // Skip this field during serialization/deserialization
     #[serde(skip)]
@@ -300,9 +300,9 @@ impl LocalRepository {
 
     pub fn get_remote(&self, name: impl AsRef<str>) -> Option<Remote> {
         let name = name.as_ref();
-        log::debug!("Checking for remote {name} have {}", self.remotes.len());
+        log::trace!("Checking for remote {name} have {}", self.remotes.len());
         for remote in self.remotes.iter() {
-            log::debug!("comparing: {name} -> {}", remote.name);
+            log::trace!("comparing: {name} -> {}", remote.name);
             if remote.name == name {
                 return Some(remote.clone());
             }

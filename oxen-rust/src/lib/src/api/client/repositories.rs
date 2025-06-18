@@ -1,6 +1,6 @@
 use crate::api;
 use crate::api::client;
-use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
+use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME, DEFAULT_SCHEME};
 use crate::error::OxenError;
 use crate::model::file::{FileContents, FileNew};
 use crate::model::{Branch, LocalRepository, Remote, RemoteRepository, RepoNew};
@@ -58,14 +58,15 @@ pub async fn get_by_remote_repo(
 pub async fn get_by_name_default(
     name: impl AsRef<str>,
 ) -> Result<Option<RemoteRepository>, OxenError> {
-    get_by_name_host_and_remote(name, DEFAULT_HOST, DEFAULT_REMOTE_NAME).await
+    get_by_name_host_and_remote(name, DEFAULT_HOST, DEFAULT_SCHEME, DEFAULT_REMOTE_NAME).await
 }
 
 pub async fn get_by_name_and_host(
     name: impl AsRef<str>,
     host: impl AsRef<str>,
+    scheme: impl AsRef<str>,
 ) -> Result<Option<RemoteRepository>, OxenError> {
-    get_by_name_host_and_remote(name, host, DEFAULT_REMOTE_NAME).await
+    get_by_name_host_and_remote(name, host, scheme, DEFAULT_REMOTE_NAME).await
 }
 
 pub async fn get_by_name_host_and_scheme(
@@ -82,10 +83,12 @@ pub async fn get_by_name_host_and_scheme(
 pub async fn get_by_name_host_and_remote(
     name: impl AsRef<str>,
     host: impl AsRef<str>,
+    scheme: impl AsRef<str>,
     remote: impl AsRef<str>,
 ) -> Result<Option<RemoteRepository>, OxenError> {
     let name = name.as_ref();
-    let url = api::endpoint::remote_url_from_name(host.as_ref(), name);
+    let scheme = scheme.as_ref();
+    let url = api::endpoint::remote_url_from_name_and_scheme(host.as_ref(), name, scheme);
     log::debug!("get_by_name_host_and_remote({}) remote url: {}", name, url);
     let remote = Remote {
         name: String::from(remote.as_ref()),
@@ -403,11 +406,13 @@ pub async fn transfer_namespace(
         match response {
             Ok(response) => {
                 // Update remote to reflect new namespace
-                let host = api::client::get_host_from_url(&repository.remote.url)?;
-                let new_remote_url = api::endpoint::remote_url_from_namespace_name(
+                let (scheme, host) = api::client::get_scheme_and_host_from_url(url)?;
+
+                let new_remote_url = api::endpoint::remote_url_from_namespace_name_scheme(
                     &host,
                     &response.repository.namespace,
                     &repository.name,
+                    &scheme,
                 );
                 let new_remote = Remote {
                     url: new_remote_url,
