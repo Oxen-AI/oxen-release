@@ -478,7 +478,6 @@ fn p_add_file(
     path: &Path,
 ) -> Result<(), OxenError> {
     let version_store = base_repo.version_store()?;
-
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
@@ -503,13 +502,20 @@ fn p_add_file(
     let hash_str = file_status.hash.to_string();
     version_store.store_version_from_path(&hash_str, &full_path)?;
 
+    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(workspace_repo)?
+        .into_iter()
+        .map(|conflict| conflict.merge_entry.path)
+        .collect();
+
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+
     process_add_file_with_staged_db_manager(
         workspace_repo,
         &workspace_repo.path,
         &file_status,
         path,
         &seen_dirs,
+        &conflicts,
     )
 }
 

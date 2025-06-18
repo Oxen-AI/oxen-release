@@ -82,7 +82,8 @@ async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenE
         Err(err) => {
             if !dst_exists_before_clone && opts.dst.exists() {
                 // Cleanup the destination directory if it wasn't there before cloning
-                // Close the refs DB instance before we delete it.
+                // Close DB instances before we delete it.
+                core::staged::remove_from_cache_with_children(&opts.dst)?;
                 core::refs::remove_from_cache(&opts.dst)?;
                 util::fs::remove_dir_all(&opts.dst)?;
             }
@@ -170,6 +171,7 @@ mod tests {
 
                 let new_path = dir.join("new_path");
 
+                core::staged::remove_from_cache_with_children(&local_repo.path)?;
                 core::refs::remove_from_cache(&local_repo.path)?;
                 util::fs::rename(&local_repo.path, &new_path)?;
 

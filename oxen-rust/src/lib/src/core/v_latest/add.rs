@@ -17,8 +17,8 @@ use serde::Serialize;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core;
 use crate::core::db;
-use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
 use crate::core::oxenignore;
+use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
@@ -635,6 +635,7 @@ pub fn process_add_file_with_staged_db_manager(
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
     path: &Path,              // Path to the file in the repository, or path defined by the user
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+    merge_conflicts: &HashSet<PathBuf>,
 ) -> Result<(), OxenError> {
     log::debug!("process_add_file {:?}", path);
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
@@ -656,17 +657,11 @@ pub fn process_add_file_with_staged_db_manager(
 
     log::debug!("status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}");
 
-    // TODO: Move this out of this function so we don't check for conflicts on every file
     if let Some(_file_node) = &maybe_file_node {
-        let conflicts = repositories::merge::list_conflicts(repo)?;
-        for conflict in conflicts {
-            let conflict_path = repo.path.join(&conflict.merge_entry.path);
-            log::debug!("comparing conflict_path {:?} to {:?}", conflict_path, path);
-            let relative_conflict_path = util::fs::path_relative_to_dir(&conflict_path, repo_path)?;
-            if relative_conflict_path == relative_path {
-                status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
-                repositories::merge::mark_conflict_as_resolved(repo, &conflict.merge_entry.path)?;
-            }
+        if merge_conflicts.contains(&relative_path) {
+            log::debug!("merge conflict resolved: {relative_path:?}");
+            status = StagedEntryStatus::Modified; // Mark as modified if there's a conflict
+            repositories::merge::mark_conflict_as_resolved(repo, &relative_path)?;
         }
     }
 
