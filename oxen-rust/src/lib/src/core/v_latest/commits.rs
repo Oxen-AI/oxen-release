@@ -435,10 +435,27 @@ pub fn list_by_path_recursive(
     commit: &Commit,
     commits: &mut Vec<Commit>,
 ) -> Result<(), OxenError> {
+    let mut visited = HashSet::new();
+    list_by_path_recursive_impl(repo, path, commit, commits, &mut visited)
+}
+
+fn list_by_path_recursive_impl(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    commits: &mut Vec<Commit>,
+    visited: &mut HashSet<String>,
+) -> Result<(), OxenError> {
     let node = repositories::tree::get_node_by_path(repo, commit, path)?;
 
     let last_commit = if let Some(node) = node {
         let last_commit_id = node.latest_commit_id()?;
+
+        // Check if the commit already exists in the commits vector, if so, skip it
+        if visited.contains(&last_commit_id.to_string()) {
+            return Ok(());
+        }
+
         repositories::revisions::get(repo, last_commit_id.to_string())?.ok_or_else(|| {
             OxenError::basic_str(format!(
                 "Commit not found for last_commit_id: {}",
@@ -449,6 +466,8 @@ pub fn list_by_path_recursive(
         return Ok(());
     };
 
+    // Mark last_commit as visited and add to results
+    visited.insert(last_commit.id.clone());
     commits.push(last_commit.clone());
 
     let parent_ids = last_commit.parent_ids;
@@ -456,7 +475,7 @@ pub fn list_by_path_recursive(
     for parent_id in parent_ids {
         let parent_commit = repositories::revisions::get(repo, parent_id)?;
         if let Some(parent_commit_obj) = parent_commit {
-            list_by_path_recursive(repo, path, &parent_commit_obj, commits)?;
+            list_by_path_recursive_impl(repo, path, &parent_commit_obj, commits, visited)?;
         }
     }
 
