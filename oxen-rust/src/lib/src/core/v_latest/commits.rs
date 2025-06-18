@@ -263,9 +263,11 @@ fn recurse_commit(
         return Ok(());
     }
 
-    if stop_at_base.is_some() && &head_commit == stop_at_base.unwrap() {
-        results.push(head_commit.clone());
-        return Ok(());
+    if let Some(base) = stop_at_base {
+        if head_commit.id == base.id {
+            results.push(head_commit.clone());
+            return Ok(());
+        }
     }
 
     let mut parent_commits: Vec<Commit> = Vec::new();
