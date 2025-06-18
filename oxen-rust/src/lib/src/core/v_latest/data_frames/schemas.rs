@@ -147,6 +147,7 @@ pub fn restore_schema(
     before_column: &str,
     after_column: &str,
 ) -> Result<(), OxenError> {
+    let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
     with_staged_db_manager(repo, |staged_db_manager| {
         let value = staged_db_manager.read_from_staged_db(&path)?;
         let (mut staged_schema, val) = match value {
