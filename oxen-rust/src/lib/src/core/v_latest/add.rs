@@ -73,7 +73,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
-                log::debug!("🥳 entry: {:?}", entry);
                 paths.insert(entry?);
             }
 
@@ -838,7 +837,6 @@ pub fn add_dir_to_staged_db(
         node: MerkleTreeNode::default_dir_from_path(relative_path),
     };
 
-    log::debug!("🔥 writing dir to staged db: {}", dir_entry);
     let mut buf = Vec::new();
     dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
