@@ -73,6 +73,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
+                log::debug!("🥳 entry: {:?}", entry);
                 paths.insert(entry?);
             }
 
@@ -309,8 +310,13 @@ pub fn process_add_dir(
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-            // Change the closure to return a Result
-            add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
+            // Determine the status of the directory compared to HEAD
+            let dir_status = get_dir_status_compared_to_head(&repo, &maybe_head_commit, &dir_path)?;
+            // Only explicitly add the directory to staged_db if it's a new directory.
+            // If it existed in HEAD, it will be implicitly handled if its children change.
+            if dir_status == StagedEntryStatus::Added {
+                add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
+            }
 
             let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
 
@@ -374,6 +380,31 @@ pub fn process_add_dir(
     cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
     cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
     Ok(cumulative_stats)
+}
+
+// Determines if a directory is new or existed in the head commit.
+// Returns StagedEntryStatus::Added if new, StagedEntryStatus::Unmodified if existed in head (for the purpose of this check).
+fn get_dir_status_compared_to_head(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    dir_path: &Path, // relative to repo root
+) -> Result<StagedEntryStatus, OxenError> {
+    if let Some(head_commit) = maybe_head_commit {
+        // Check if the directory exists in the head commit's tree
+        match CommitMerkleTree::dir_without_children(repo, head_commit, dir_path)? {
+            Some(_) => {
+                // Directory exists in HEAD.
+                Ok(StagedEntryStatus::Unmodified)
+            }
+            None => {
+                // Directory does not exist in HEAD, so it's "Added".
+                Ok(StagedEntryStatus::Added)
+            }
+        }
+    } else {
+        // No head commit, so everything is "Added".
+        Ok(StagedEntryStatus::Added)
+    }
 }
 
 fn maybe_load_directory(
@@ -807,7 +838,7 @@ pub fn add_dir_to_staged_db(
         node: MerkleTreeNode::default_dir_from_path(relative_path),
     };
 
-    log::debug!("writing dir to staged db: {}", dir_entry);
+    log::debug!("🔥 writing dir to staged db: {}", dir_entry);
     let mut buf = Vec::new();
     dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
