@@ -17,7 +17,7 @@ pub fn get_repo(
     scheme: &str,
 ) -> Result<Option<PyRemoteRepo>, PyOxenError> {
     let Some(remote_repo) = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-        liboxen::api::client::repositories::get_by_name_and_host(name, &host).await
+        liboxen::api::client::repositories::get_by_name_host_and_scheme(name, &host, &scheme).await
     })?
     else {
         return Ok(None);
