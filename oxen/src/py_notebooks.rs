@@ -3,13 +3,13 @@
 
 use pyo3::prelude::*;
 
-use liboxen::api;
-use liboxen::error::OxenError;
-use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_NOTEBOOK_BASE_IMAGE};
-use liboxen::opts::NotebookOpts;
-use liboxen::view::notebook::Notebook;
 use crate::error::PyOxenError;
 use crate::py_remote_repo::PyRemoteRepo;
+use liboxen::api;
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_NOTEBOOK_BASE_IMAGE};
+use liboxen::error::OxenError;
+use liboxen::opts::NotebookOpts;
+use liboxen::view::notebook::Notebook;
 
 #[pyclass]
 pub struct PyNotebook {
@@ -25,11 +25,18 @@ pub struct PyNotebook {
 impl PyNotebook {
     #[new]
     fn new(id: String, namespace: String, name: String) -> Self {
-        Self { id, namespace, name }
+        Self {
+            id,
+            namespace,
+            name,
+        }
     }
 
     pub fn url(&self) -> String {
-        format!("https://hub.oxen.ai/{}/{}/notebooks/{}", self.namespace, self.name, self.id)
+        format!(
+            "https://hub.oxen.ai/{}/{}/notebooks/{}",
+            self.namespace, self.name, self.id
+        )
     }
 
     // implement __str__
@@ -103,7 +110,11 @@ pub fn py_start_notebook(
         let notebook = api::client::notebooks::run(&repo.repo, &notebook).await?;
         Ok(notebook)
     })?;
-    let notebook = PyNotebook { id: notebook.id, namespace: repo.repo.namespace, name: repo.repo.name };
+    let notebook = PyNotebook {
+        id: notebook.id,
+        namespace: repo.repo.namespace,
+        name: repo.repo.name,
+    };
     println!("✅ Notebook {} started", notebook.id);
     Ok(notebook)
 }
@@ -111,15 +122,13 @@ pub fn py_start_notebook(
 /// Stop a notebook
 #[pyfunction]
 #[pyo3(signature = (repo, notebook_id))]
-pub fn py_stop_notebook(
-    repo: PyRemoteRepo,
-    notebook_id: String
-) -> Result<(), PyOxenError> {
-    let notebook: Result<Notebook, OxenError> = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-        let notebook = Notebook { id: notebook_id };
-        let notebook = api::client::notebooks::stop(&repo.repo, &notebook).await?;
-        Ok(notebook)
-    });
+pub fn py_stop_notebook(repo: PyRemoteRepo, notebook_id: String) -> Result<(), PyOxenError> {
+    let notebook: Result<Notebook, OxenError> =
+        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+            let notebook = Notebook { id: notebook_id };
+            let notebook = api::client::notebooks::stop(&repo.repo, &notebook).await?;
+            Ok(notebook)
+        });
     println!("🛑 Notebook {} stopped", notebook.unwrap().id);
     Ok(())
 }
