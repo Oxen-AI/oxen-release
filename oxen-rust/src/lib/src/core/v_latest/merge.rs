@@ -447,6 +447,10 @@ fn fast_forward_merge(
         ));
     };
 
+    if merge_tree.hash == base_tree.hash {
+        return Err(OxenError::basic_str("both branches at same commit"));
+    }
+
     // Stop early if there are conflicts
     let mut merge_tree_results = MergeResult::new();
     let mut seen_files = HashSet::new();
