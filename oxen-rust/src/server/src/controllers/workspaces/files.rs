@@ -4,11 +4,14 @@ use crate::params::{app_data, path_param};
 
 use actix_files::NamedFile;
 
+use liboxen::core;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
-use liboxen::view::{FilePathsResponse, StatusMessage, StatusMessageDescription};
+use liboxen::view::{
+    ErrorFilesResponse, FilePathsResponse, FileWithHash, StatusMessage, StatusMessageDescription,
+};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -81,6 +84,35 @@ pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, O
     Ok(HttpResponse::Ok().json(FilePathsResponse {
         status: StatusMessage::resource_created(),
         paths: ret_files,
+    }))
+}
+
+pub async fn add_version_files(
+    req: HttpRequest,
+    payload: web::Json<Vec<FileWithHash>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    // Add version file to staging
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
+
+    let files_with_hash: Vec<FileWithHash> = payload.into_inner();
+
+    let err_files =
+        core::v_latest::workspaces::files::add_version_files(&repo, &workspace, &files_with_hash)?;
+
+    // Return the error files for retry
+    Ok(HttpResponse::Ok().json(ErrorFilesResponse {
+        status: StatusMessage::resource_created(),
+        err_files,
     }))
 }
 

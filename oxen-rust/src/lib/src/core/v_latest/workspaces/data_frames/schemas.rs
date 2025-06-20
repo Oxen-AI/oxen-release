@@ -1,13 +1,9 @@
 use std::path::Path;
 
-use rmp_serde::Serializer;
-use serde::Serialize;
-
+use crate::core::staged::with_staged_db_manager;
 use crate::core::v_latest;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::FileNode;
-use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataTabular;
 use crate::model::Schema;
@@ -24,8 +20,10 @@ pub fn update_schema(
     before_column: &str,
     after_column: &str,
 ) -> Result<(), OxenError> {
-    let staged_schema =
-        v_latest::data_frames::schemas::get_staged(&workspace.workspace_repo, &path)?;
+    let staged_schema = v_latest::data_frames::schemas::get_staged_schema_with_staged_db_manager(
+        &workspace.workspace_repo,
+        &path,
+    )?;
     let ref_schema = if let Some(schema) = staged_schema {
         schema
     } else {
@@ -45,47 +43,37 @@ pub fn update_schema(
         }
     }
 
-    let db = v_latest::data_frames::schemas::get_staged_db(&workspace.workspace_repo)?;
-    let key = path.as_ref().to_string_lossy();
+    with_staged_db_manager(&workspace.workspace_repo, |staged_db_manager| {
+        let data = staged_db_manager.read_from_staged_db(&path)?;
 
-    let data = db.get(key.as_bytes())?;
-    let mut file_node: FileNode;
+        let mut file_node: FileNode;
 
-    if let Some(data) = data {
-        let val: StagedMerkleTreeNode = rmp_serde::from_slice(data.as_slice())?;
-        file_node = val.node.file()?;
-    } else {
-        file_node = repositories::tree::get_file_by_path(
-            &workspace.base_repo,
-            &workspace.commit,
-            path.as_ref(),
-        )?
-        .ok_or(OxenError::basic_str("File not found"))?;
-    }
+        if let Some(data) = data {
+            file_node = data.node.file()?;
+        } else {
+            file_node = repositories::tree::get_file_by_path(
+                &workspace.base_repo,
+                &workspace.commit,
+                path.as_ref(),
+            )?
+            .ok_or(OxenError::basic_str("File not found"))?;
+        }
 
-    if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata() {
-        file_node.set_metadata(Some(GenericMetadata::MetadataTabular(
-            MetadataTabular::new(
-                tabular_metadata.tabular.width,
-                tabular_metadata.tabular.height,
-                schema,
-            ),
-        )));
-    } else {
-        return Err(OxenError::basic_str("Expected tabular metadata"));
-    }
+        if let Some(GenericMetadata::MetadataTabular(tabular_metadata)) = &file_node.metadata() {
+            file_node.set_metadata(Some(GenericMetadata::MetadataTabular(
+                MetadataTabular::new(
+                    tabular_metadata.tabular.width,
+                    tabular_metadata.tabular.height,
+                    schema,
+                ),
+            )));
+        } else {
+            return Err(OxenError::basic_str("Expected tabular metadata"));
+        }
 
-    let staged_entry_node = MerkleTreeNode::from_file(file_node.clone());
-    let staged_entry = StagedMerkleTreeNode {
-        status: StagedEntryStatus::Modified,
-        node: staged_entry_node.clone(),
-    };
-
-    let mut buf = Vec::new();
-    staged_entry
-        .serialize(&mut Serializer::new(&mut buf))
-        .unwrap();
-    db.put(key.as_bytes(), &buf)?;
+        staged_db_manager.upsert_file_node(path, StagedEntryStatus::Modified, &file_node)?;
+        Ok(())
+    })?;
 
     Ok(())
 }

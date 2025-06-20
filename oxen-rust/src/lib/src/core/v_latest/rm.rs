@@ -113,19 +113,6 @@ fn remove_staged_recursively_inner(
     Ok(())
 }
 
-// For external use, but use the inner function when you can to avoid opening the staged db multiple times
-pub fn remove_staged_recursively(
-    repo: &LocalRepository,
-    paths: &HashSet<PathBuf>,
-) -> Result<(), OxenError> {
-    log::debug!("remove_staged_recursively paths: {:?}", paths);
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    remove_staged_recursively_inner(repo, paths, &staged_db)
-}
-
 fn has_modified_files(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<bool, OxenError> {
     let modified = list_modified_files(repo, paths)?;
     Ok(!modified.is_empty())

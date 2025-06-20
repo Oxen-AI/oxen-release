@@ -1,6 +1,6 @@
 use crate::app_data::OxenAppData;
 
-use liboxen::core::refs;
+use liboxen::core::{refs, staged};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::repositories;
@@ -26,6 +26,8 @@ pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
 }
 
 pub fn cleanup_sync_dir(sync_dir: &Path) -> Result<(), OxenError> {
+    // Close DB instances before trying to delete the directory
+    staged::remove_from_cache_with_children(sync_dir)?;
     refs::ref_manager::remove_from_cache_with_children(sync_dir)?;
     std::fs::remove_dir_all(sync_dir)?;
     Ok(())
