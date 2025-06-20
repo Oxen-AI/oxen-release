@@ -262,7 +262,7 @@ mod tests {
             repositories::add(&repo, &world_file)?;
 
             // Commit the world file
-            let second_commit = repositories::commit(&repo, "Adding world")?;
+            let _ = repositories::commit(&repo, "Adding world")?;
 
             // Create and checkout branch
             let branch_name = "feature/my-branch";

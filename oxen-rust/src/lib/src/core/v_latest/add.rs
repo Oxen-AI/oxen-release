@@ -896,6 +896,61 @@ mod tests {
     }
 
     #[test]
+    fn test_add_dot_on_committed_repo() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let dir1 = repo.path.join("dir1");
+            let dir2 = repo.path.join("dir2");
+            std::fs::create_dir_all(&dir1)?;
+            std::fs::create_dir_all(&dir2)?;
+            println!("😂{:?}", repo.path);
+
+            let file1_1 = dir1.join("file1_1.txt");
+            let file1_2 = dir1.join("file1_2.txt");
+            let file2_1 = dir2.join("file2_1.txt");
+            let file_root = repo.path.join("file_root.txt");
+
+            test::write_txt_file_to_path(&file1_1, "dir1/file1_1")?;
+            test::write_txt_file_to_path(&file1_2, "dir1/file1_2")?;
+            test::write_txt_file_to_path(&file2_1, "dir2/file2_1")?;
+            test::write_txt_file_to_path(&file_root, "file_root")?;
+
+            add(&repo, &repo.path)?;
+
+            repositories::commits::commit(&repo, "Initial commit with multiple files and dirs")?;
+
+            add(&repo, &repo.path)?;
+
+            let status = repositories::status(&repo);
+            assert!(status.is_ok());
+            let status = status.unwrap();
+
+            assert!(status.staged_files.is_empty(), "No files should be staged");
+            assert!(
+                status.staged_dirs.is_empty(),
+                "No directories should be staged"
+            );
+            assert!(
+                status.untracked_files.is_empty(),
+                "No files should be untracked"
+            );
+            assert!(
+                status.untracked_dirs.is_empty(),
+                "No directories should be untracked"
+            );
+            assert!(
+                status.modified_files.is_empty(),
+                "No files should be modified"
+            );
+            assert!(
+                status.removed_files.is_empty(),
+                "No files should be removed"
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_add_respects_dir_ignore_patterns() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let dir_to_ignore = "ignored_dir";
