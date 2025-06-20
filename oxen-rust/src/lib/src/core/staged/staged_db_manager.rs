@@ -218,7 +218,11 @@ impl StagedDBManager {
         };
 
         let mut buf = Vec::new();
-        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        dir_entry
+            .serialize(&mut Serializer::new(&mut buf))
+            .map_err(|e| {
+                OxenError::basic_str(format!("Failed to serialize directory entry: {}", e))
+            })?;
         let db_w = self.staged_db.write();
         db_w.put(directory_path_str, &buf)?;
         Ok(())
@@ -265,7 +269,8 @@ impl StagedDBManager {
                 // key = file path, value = EntryMetaData
                 Ok((key, value)) => {
                     // log::debug!("Key is {key:?}, value is {value:?}");
-                    let key = str::from_utf8(&key)?;
+                    let key =
+                        str::from_utf8(&key).map_err(|e| OxenError::basic_str(e.to_string()))?;
                     let path = Path::new(key);
                     if !path.starts_with(&start_path) {
                         continue;
@@ -362,8 +367,11 @@ impl StagedDBManager {
                             }
                         }
                     }
-                    _ => {
-                        return Err(OxenError::basic_str("Could not read utf8 val..."));
+                    Err(e) => {
+                        return Err(OxenError::basic_str(format!(
+                            "Could not read utf8 val: {}",
+                            e
+                        )));
                     }
                 },
                 _ => {
@@ -394,10 +402,11 @@ impl StagedDBManager {
                             total += 1;
                         }
                     }
-                    _ => {
-                        return Err(OxenError::basic_str(
-                            "Could not read iterate over db values",
-                        ));
+                    Err(e) => {
+                        return Err(OxenError::basic_str(format!(
+                            "Could not read utf8 val: {}",
+                            e
+                        )));
                     }
                 },
                 _ => {
@@ -410,7 +419,7 @@ impl StagedDBManager {
         log::debug!("total sub paths for dir {path:?}: {total}");
         if total == 0 {
             log::debug!("removing empty dir: {:?}", path);
-            db_w.delete(path.to_str().unwrap())?;
+            db_w.delete(path.to_string_lossy().as_bytes())?;
         }
         Ok(())
     }

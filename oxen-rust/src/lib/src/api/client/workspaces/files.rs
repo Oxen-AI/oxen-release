@@ -141,16 +141,14 @@ async fn upload_multiple_files(
     }
 
     // Upload small files in batches
-    if !small_files.is_empty() {
-        parallel_batched_small_file_upload(
-            remote_repo,
-            workspace_id,
-            directory,
-            small_files,
-            small_files_size,
-        )
-        .await?;
-    }
+    parallel_batched_small_file_upload(
+        remote_repo,
+        workspace_id,
+        directory,
+        small_files,
+        small_files_size,
+    )
+    .await?;
 
     Ok(())
 }
@@ -162,6 +160,10 @@ async fn parallel_batched_small_file_upload(
     small_files: Vec<(PathBuf, u64)>,
     small_files_size: u64,
 ) -> Result<(), OxenError> {
+    if small_files.is_empty() {
+        return Ok(());
+    }
+
     // Batch small files in chunks of ~AVG_CHUNK_SIZE
     log::info!(
         "Uploading {} small files (total {} bytes)",
