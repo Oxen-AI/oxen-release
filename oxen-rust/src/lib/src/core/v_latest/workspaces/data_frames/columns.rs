@@ -364,7 +364,11 @@ pub fn add_column_metadata(
                     continue;
                 };
 
-                dir_path = dir_path.parent().unwrap().to_path_buf();
+                // if parent() returns None, we've reached the root
+                let Some(parent_dir) = dir_path.parent() else {
+                    break;
+                };
+                dir_path = parent_dir.to_path_buf();
                 dir_node.set_name(dir_path.to_string_lossy());
                 parent_node.node = EMerkleTreeNode::Directory(dir_node);
                 let staged_parent_node = StagedMerkleTreeNode {
@@ -426,7 +430,7 @@ pub fn add_column_metadata(
 
         let mut file_node = staged_entry.node.file()?;
 
-        file_node.set_name(path.to_str().unwrap());
+        file_node.set_name(path.to_string_lossy().as_ref());
         file_node.set_combined_hash(&MerkleHash::new(combined_hash));
         file_node.set_metadata_hash(Some(MerkleHash::new(oxen_metadata_hash)));
 

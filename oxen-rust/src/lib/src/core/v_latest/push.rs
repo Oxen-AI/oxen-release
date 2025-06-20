@@ -743,6 +743,7 @@ async fn bundle_and_send_small_entries(
                         log::debug!("Successfully uploaded data!")
                     }
                     Err(e) => {
+                        // TODO: Surface the error to the user
                         log::error!("Error uploading chunk: {:?}", e)
                     }
                 }
