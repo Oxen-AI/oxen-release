@@ -902,7 +902,6 @@ mod tests {
             let dir2 = repo.path.join("dir2");
             std::fs::create_dir_all(&dir1)?;
             std::fs::create_dir_all(&dir2)?;
-            println!("😂{:?}", repo.path);
 
             let file1_1 = dir1.join("file1_1.txt");
             let file1_2 = dir1.join("file1_2.txt");
