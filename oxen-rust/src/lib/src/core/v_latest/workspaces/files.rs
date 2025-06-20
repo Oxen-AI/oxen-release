@@ -2,28 +2,30 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use actix_web::{web, Error};
 use futures::StreamExt;
+use parking_lot::Mutex;
 use reqwest::header::HeaderValue;
 use reqwest::Client;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use zip::ZipArchive;
 
 use crate::constants::STAGED_DIR;
+use crate::core::staged::staged_db_manager::with_staged_db_manager;
 use crate::core::v_latest::add::{
-    add_file_node_to_staged_db, process_add_file, process_add_version_file,
+    add_file_node_to_staged_db, get_status_and_add_file, process_add_file_with_staged_db_manager,
 };
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::core::{self, db};
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::StagedMerkleTreeNode;
 use crate::model::workspace::Workspace;
 use crate::model::LocalRepository;
 use crate::model::{Commit, StagedEntryStatus};
 use crate::repositories;
 use crate::util;
+use crate::view::{ErrorFileInfo, FileWithHash};
 
 const BUFFER_SIZE_THRESHOLD: usize = 262144; // 256kb
 const MAX_CONTENT_LENGTH: u64 = 1024 * 1024 * 1024; // 1GB limit
@@ -50,20 +52,61 @@ pub fn add_version_file(
     version_path: impl AsRef<Path>,
     dst_path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
+    // version_path is where the file is stored, dst_path is the relative path to the repo path
     let version_path = version_path.as_ref();
     let dst_path = dst_path.as_ref();
 
-    let base_repo = &workspace.base_repo;
     let workspace_repo = &workspace.workspace_repo;
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-    p_add_version_file(
-        base_repo,
-        workspace_repo,
-        &Some(workspace.commit.clone()),
-        version_path,
-        dst_path,
-    )?;
+    with_staged_db_manager(workspace_repo, |staged_db_manager| {
+        get_status_and_add_file(
+            workspace_repo,
+            version_path,
+            dst_path,
+            staged_db_manager,
+            &seen_dirs,
+        )
+    })?;
+
     Ok(dst_path.to_path_buf())
+}
+
+pub fn add_version_files(
+    repo: &LocalRepository,
+    workspace: &Workspace,
+    files_with_hash: &[FileWithHash],
+) -> Result<Vec<ErrorFileInfo>, OxenError> {
+    let version_store = repo.version_store()?;
+
+    let workspace_repo = &workspace.workspace_repo;
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+
+    let mut err_files: Vec<ErrorFileInfo> = vec![];
+    with_staged_db_manager(workspace_repo, |staged_db_manager| {
+        for item in files_with_hash.iter() {
+            let version_path = version_store.get_version_path(&item.hash)?;
+
+            match get_status_and_add_file(
+                workspace_repo,
+                &version_path,
+                &item.path,
+                staged_db_manager,
+                &seen_dirs,
+            ) {
+                Ok(_) => (),
+                Err(e) => {
+                    err_files.push(ErrorFileInfo {
+                        hash: item.hash.clone(),
+                        path: Some(item.path.clone()),
+                        error: format!("Failed to add file to staged db: {}", e),
+                    });
+                    continue;
+                }
+            }
+        }
+        Ok(err_files)
+    })
 }
 
 pub fn track_modified_data_frame(
@@ -87,15 +130,10 @@ pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenE
     let path = path.as_ref();
     let workspace_repo = &workspace.workspace_repo;
 
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
     let path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
-    let relative_path_str = path.to_str().unwrap();
-    staged_db.delete(relative_path_str)?;
-    Ok(())
+    with_staged_db_manager(workspace_repo, |staged_db_manager| {
+        staged_db_manager.delete_entry(&path)
+    })
 }
 
 pub fn exists(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -438,13 +476,8 @@ fn p_add_file(
     workspace_repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+) -> Result<(), OxenError> {
     let version_store = base_repo.version_store()?;
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, &workspace_repo.path)?;
@@ -458,7 +491,7 @@ fn p_add_file(
     let full_path = workspace_repo.path.join(&relative_path);
     if !full_path.is_file() {
         log::debug!("is not a file - skipping add on {:?}", full_path);
-        return Ok(None);
+        return Ok(());
     }
 
     // See if this is a new file or a modified file
@@ -475,51 +508,14 @@ fn p_add_file(
         .collect();
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    process_add_file(
+
+    process_add_file_with_staged_db_manager(
         workspace_repo,
         &workspace_repo.path,
         &file_status,
-        &staged_db,
         path,
         &seen_dirs,
         &conflicts,
-    )
-}
-
-// TODO: Have function to stage file from version store
-fn p_add_version_file(
-    base_repo: &LocalRepository,
-    workspace_repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
-    version_path: impl AsRef<Path>,
-    dst_path: impl AsRef<Path>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let dst_path = dst_path.as_ref();
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    let mut maybe_dir_node = None;
-    if let Some(head_commit) = maybe_head_commit {
-        let parent_path = dst_path.parent().unwrap_or(Path::new(""));
-        maybe_dir_node = CommitMerkleTree::dir_with_children(base_repo, head_commit, parent_path)?;
-    }
-
-    // See if this is a new file or a modified file
-    let full_path = version_path.as_ref();
-    let file_name = dst_path.file_name().unwrap_or_default().to_string_lossy();
-    let file_status =
-        core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, full_path)?;
-
-    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-    process_add_version_file(
-        workspace_repo,
-        &file_status,
-        &staged_db,
-        full_path,
-        dst_path,
-        &seen_dirs,
     )
 }
 
@@ -528,26 +524,23 @@ fn p_modify_file(
     workspace_repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
-    log::debug!(
-        "p_modify_file path: {:?} staged db_path: {:?}",
-        path,
-        db_path
-    );
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
+) -> Result<(), OxenError> {
     let mut maybe_file_node = None;
     if let Some(head_commit) = maybe_head_commit {
         maybe_file_node = repositories::tree::get_file_by_path(base_repo, head_commit, path)?;
     }
 
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     if let Some(mut file_node) = maybe_file_node {
         file_node.set_name(path.to_str().unwrap());
         log::debug!("p_modify_file file_node: {}", file_node);
-        add_file_node_to_staged_db(&staged_db, path, StagedEntryStatus::Modified, &file_node)
+        add_file_node_to_staged_db(
+            workspace_repo,
+            path,
+            StagedEntryStatus::Modified,
+            &file_node,
+            &seen_dirs,
+        )
     } else {
         Err(OxenError::basic_str("file not found in head commit"))
     }

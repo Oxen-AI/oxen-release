@@ -47,6 +47,19 @@ pub fn get_staged(
     }
 }
 
+/// Get staged schema for workspace
+pub fn get_staged_schema_with_staged_db_manager(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<Option<Schema>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::data_frames::schemas::get_staged_schema_with_staged_db_manager(
+            repo, path,
+        ),
+    }
+}
+
 pub fn restore_schema(
     repo: &LocalRepository,
     path: impl AsRef<Path>,

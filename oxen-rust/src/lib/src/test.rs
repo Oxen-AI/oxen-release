@@ -1622,7 +1622,8 @@ pub fn maybe_cleanup_repo(repo_dir: &Path) -> Result<(), OxenError> {
         || std::env::var("NO_CLEANUP") == Ok("1".to_string());
     if !no_cleanup {
         log::debug!("maybe_cleanup_repo: cleaning up repo: {:?}", repo_dir);
-        // Close refs DB before trying to delete the directory
+        // Close DB instances before trying to delete the directory
+        core::staged::remove_from_cache_with_children(repo_dir)?;
         core::refs::ref_manager::remove_from_cache_with_children(repo_dir)?;
         util::fs::remove_dir_all(repo_dir)?;
     } else {
