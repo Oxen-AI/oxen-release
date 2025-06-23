@@ -306,6 +306,9 @@ pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
         "workspace::delete cleaning up workspace dir: {:?}",
         workspace_dir
     );
+
+    // Clean up database connections before deleting the workspace
+    core::staged::remove_from_cache(&workspace.workspace_repo.path)?;
     match util::fs::remove_dir_all(&workspace_dir) {
         Ok(_) => log::debug!(
             "workspace::delete removed workspace dir: {:?}",
