@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use crate::constants::STAGED_DIR;
 use crate::core;
-use crate::core::db;
 use crate::core::refs::with_ref_manager;
+use crate::core::staged::remove_from_cache;
 use crate::core::v_latest::workspaces;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
@@ -21,7 +21,6 @@ use crate::view::merge::{MergeConflictFile, Mergeable};
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
-use rocksdb::{DBWithThreadMode, SingleThreaded};
 
 pub fn commit(
     workspace: &Workspace,
@@ -49,17 +48,12 @@ pub fn commit(
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
 
     log::debug!("workspaces::commit staged db path: {:?}", staged_db_path);
-    let opts = db::key_val::opts::default();
     let commit = {
-        let staged_db: DBWithThreadMode<SingleThreaded> =
-            DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
-
         let commit_progress_bar = ProgressBar::new_spinner();
 
         // Read all the staged entries
-        let (dir_entries, _) = core::v_latest::status::read_staged_entries(
+        let (dir_entries, _) = core::v_latest::status::read_staged_entries_with_staged_db_manager(
             &workspace.workspace_repo,
-            &staged_db,
             &commit_progress_bar,
         )?;
 
@@ -81,6 +75,7 @@ pub fn commit(
 
     // Clear the staged db
     log::debug!("Removing staged_db_path: {staged_db_path:?}");
+    remove_from_cache(&workspace.workspace_repo.path)?;
     util::fs::remove_dir_all(staged_db_path)?;
 
     // DEBUG
@@ -139,16 +134,11 @@ pub fn mergeability(
     let staged_db_path = util::fs::oxen_hidden_dir(&workspace.workspace_repo.path).join(STAGED_DIR);
 
     log::debug!("workspaces::commit staged db path: {:?}", staged_db_path);
-    let opts = db::key_val::opts::default();
-    let staged_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
-
-    let commit_progress_bar = ProgressBar::new_spinner();
 
     // Read all the staged entries
-    let (dir_entries, _) = core::v_latest::status::read_staged_entries(
+    let commit_progress_bar = ProgressBar::new_spinner();
+    let (dir_entries, _) = core::v_latest::status::read_staged_entries_with_staged_db_manager(
         &workspace.workspace_repo,
-        &staged_db,
         &commit_progress_bar,
     )?;
 
@@ -279,21 +269,21 @@ fn export_tabular_data_frames(
                     {
                         node_path = dir_path.join(node_path);
                     }
-                    if *file_node.data_type() == EntryDataType::Tabular {
+
+                    // Only recompute the metadata if the file is tabular and indexed (editable df and eval)
+                    if *file_node.data_type() == EntryDataType::Tabular
+                        && repositories::workspaces::data_frames::is_indexed(workspace, &node_path)?
+                    {
                         log::debug!(
                             "Exporting tabular data frame: {:?} -> {:?}",
                             node_path,
                             file_node.name()
                         );
-                        let exported_path = if repositories::workspaces::data_frames::is_indexed(
-                            workspace, &node_path,
-                        )? {
+
+                        let exported_path =
                             workspaces::data_frames::extract_file_node_to_working_dir(
                                 workspace, &dir_path, file_node,
-                            )?
-                        } else {
-                            workspace.workspace_repo.path.join(node_path)
-                        };
+                            )?;
 
                         log::debug!("exported path: {:?}", exported_path);
 
@@ -352,7 +342,10 @@ fn compute_staged_merkle_tree_node(
 
     // Here we give priority to the staged schema, as it can contained metadata that was changed during the
     if let Ok(Some(staged_schema)) =
-        core::v_latest::data_frames::schemas::get_staged(&workspace.workspace_repo, path)
+        core::v_latest::data_frames::schemas::get_staged_schema_with_staged_db_manager(
+            &workspace.workspace_repo,
+            path,
+        )
     {
         if let Some(GenericMetadata::MetadataTabular(metadata)) = &mut metadata {
             metadata
