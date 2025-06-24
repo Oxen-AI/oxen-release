@@ -62,48 +62,6 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-pub fn add_123(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
-    // Collect paths that match the glob pattern either:
-    // 1. In the repo working directory (untracked or modified files)
-    // 2. In the commit entry db (removed files)
-
-    let path = path.as_ref();
-    let mut paths: HashSet<PathBuf> = HashSet::new();
-    if let Some(path_str) = path.to_str() {
-        // TODO: At least on Windows, this is improperly case sensitive
-        if util::fs::is_glob_path(path_str) {
-            log::debug!("glob path: {}", path_str);
-            // Match against any untracked entries in the current dir
-            for entry in glob(path_str)? {
-                paths.insert(entry?);
-            }
-
-            // For removed files?
-            if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
-                let pattern_entries =
-                    repositories::commits::search_entries(repo, &commit, path_str)?;
-                log::debug!("pattern entries: {:?}", pattern_entries);
-                paths.extend(pattern_entries);
-            }
-        } else {
-            // Non-glob path
-            paths.insert(path.to_owned());
-        }
-    }
-
-    // Get the version store from the repository
-    let version_store = repo.version_store()?;
-
-    // Open the staged db once at the beginning and reuse the connection
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let _stats = add_files(repo, &paths, &staged_db, &version_store)?;
-
-    Ok(())
-}
-
 pub fn add<T: AsRef<Path>>(
     repo: &LocalRepository,
     paths: impl IntoIterator<Item = T>,
