@@ -125,7 +125,7 @@ jobs:
       #     tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
-        uses: svenstaro/upload-release-action@v2
+        uses: actions/upload-artifact@v4
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -134,7 +134,7 @@ jobs:
           tag: ${{ github.ref }}
 
       - name: Upload Oxen Server binary to release
-        uses: svenstaro/upload-release-action@v2
+        uses: actions/upload-artifact@v4
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
