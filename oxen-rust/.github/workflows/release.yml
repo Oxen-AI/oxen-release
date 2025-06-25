@@ -4,7 +4,7 @@ on:
     tags:
       - "*"
     branch:
-      - OXB-154/cli-binaries
+      - "*"
 
 name: 🚀 Release
 
@@ -81,8 +81,8 @@ jobs:
           mkdir -p oxen-linux-server-binary-latest
           cp target/release/oxen oxen-linux-binary-latest/oxen
           cp target/release/oxen-server oxen-linux-server-binary-latest/oxen-server
-          tar czf oxen-linux-binary-latest oxen-linux-binary-latest.tar
-          tar czf oxen-linux-server-binary-latest oxen-linux-server-binary-latest.tar
+          tar czf oxen-linux-binary-latest.tar.gz oxen-linux-binary-latest
+          tar czf oxen-linux-server-binary-latest.tar.gz oxen-linux-server-binary-latest
 
       - name: Package Oxen Server deb
         run: |
