@@ -28,7 +28,7 @@ pub async fn has_node(
     repository: &RemoteRepository,
     node_id: MerkleHash,
 ) -> Result<bool, OxenError> {
-    let uri = format!("/tree/nodes/{node_id}");
+    let uri = format!("/tree/nodes/hash/{node_id}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("api::client::tree::has_node {}", url);
 
@@ -121,7 +121,7 @@ pub async fn download_node(
     node_id: &MerkleHash,
 ) -> Result<MerkleTreeNode, OxenError> {
     let node_hash_str = node_id.to_string();
-    let uri = format!("/tree/nodes/{node_hash_str}");
+    let uri = format!("/tree/nodes/hash/{node_hash_str}/download");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("downloading node {} from {}", node_hash_str, url);
@@ -145,7 +145,7 @@ pub async fn download_node_with_children(
     node_id: &MerkleHash,
 ) -> Result<MerkleTreeNode, OxenError> {
     let node_hash_str = node_id.to_string();
-    let uri = format!("/tree/nodes/{node_hash_str}");
+    let uri = format!("/tree/nodes/hash/{node_hash_str}/download");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!(
@@ -214,7 +214,7 @@ pub async fn get_node_hash_by_path(
 ) -> Result<MerkleHash, OxenError> {
     let commit_id = commit_id.as_ref();
     let path_str = path.to_string_lossy();
-    let uri = format!("/tree/nodes/{commit_id}/{path_str}");
+    let uri = format!("/tree/nodes/resource/{commit_id}/{path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -415,7 +415,7 @@ pub async fn list_missing_file_hashes(
     remote_repo: &RemoteRepository,
     node_id: &MerkleHash,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
-    let uri = format!("/tree/nodes/{node_id}/missing_file_hashes");
+    let uri = format!("/tree/nodes/hash/{node_id}/missing_file_hashes");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;
