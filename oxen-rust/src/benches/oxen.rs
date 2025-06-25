@@ -72,8 +72,8 @@ fn add_benchmark(c: &mut Criterion) {
     util::fs::create_dir_all(&base_dir).unwrap();
 
     let mut group = c.benchmark_group("add");
-    for repo_size in [10, 100, 1000].iter() {
-        let num_files_to_add = repo_size / 10;
+    for repo_size in [1000, 10000, 100000].iter() {
+        let num_files_to_add = repo_size / 100;
         let (repo, _, file_dir) =
             setup_repo_for_add_benchmark(&base_dir, *repo_size, num_files_to_add).unwrap();
 

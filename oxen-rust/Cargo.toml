@@ -157,14 +157,17 @@ debug = true
 name = "liboxen"
 path = "src/lib/src/lib.rs"
 doctest = false
+bench = false
 
 [[bin]]
 name = "oxen"
 path = "src/cli/src/main.rs"
+bench = false
 
 [[bin]]
 name = "oxen-server"
 path = "src/server/src/main.rs"
+bench = false
 
 [package.metadata.docs.rs]
 default-target = "x86_64-unknown-linux-gnu"
