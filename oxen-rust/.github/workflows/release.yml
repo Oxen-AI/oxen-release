@@ -78,51 +78,51 @@ jobs:
           tar czf oxen-linux-binary-latest.tar.gz oxen-linux-binary-latest
           tar czf oxen-linux-server-binary-latest.tar.gz oxen-linux-server-binary-latest
 
-      - name: Package Oxen Server deb
-        run: |
-          fpm \
-            -s dir -t deb \
-            -p oxen-server-ubuntu-latest.deb \
-            -C target/release \
-            --name oxen-server \
-            --version ${{ env.RELEASE_VERSION }} \
-            --architecture all \
-            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
-            --url "https://oxen.ai" \
-            --maintainer "OxenAI hello@oxen.ai" \
-            oxen-server=/usr/bin/oxen-server
+      # - name: Package Oxen Server deb
+      #   run: |
+      #     fpm \
+      #       -s dir -t deb \
+      #       -p oxen-server-ubuntu-latest.deb \
+      #       -C target/release \
+      #       --name oxen-server \
+      #       --version ${{ env.RELEASE_VERSION }} \
+      #       --architecture all \
+      #       --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+      #       --url "https://oxen.ai" \
+      #       --maintainer "OxenAI hello@oxen.ai" \
+      #       oxen-server=/usr/bin/oxen-server
 
-      - name: Package Oxen CLI deb
-        run: |
-          fpm \
-            -s dir -t deb \
-            -p oxen-ubuntu-latest.deb \
-            -C target/release \
-            --name oxen \
-            --version ${{ env.RELEASE_VERSION }} \
-            --architecture all \
-            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
-            --url "https://oxen.ai" \
-            --maintainer "OxenAI hello@oxen.ai" \
-            oxen=/usr/bin/oxen
+      # - name: Package Oxen CLI deb
+      #   run: |
+      #     fpm \
+      #       -s dir -t deb \
+      #       -p oxen-ubuntu-latest.deb \
+      #       -C target/release \
+      #       --name oxen \
+      #       --version ${{ env.RELEASE_VERSION }} \
+      #       --architecture all \
+      #       --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+      #       --url "https://oxen.ai" \
+      #       --maintainer "OxenAI hello@oxen.ai" \
+      #       oxen=/usr/bin/oxen
 
-      - name: Upload Oxen Server deb to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          release_name: "🐂 Release ${{ github.ref }}"
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-ubuntu-latest.deb
-          asset_name: oxen-server-ubuntu-latest.deb
-          tag: ${{ github.ref }}
+      # - name: Upload Oxen Server deb to release
+      #   uses: svenstaro/upload-release-action@v2
+      #   with:
+      #     release_name: "🐂 Release ${{ github.ref }}"
+      #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+      #     file: oxen-server-ubuntu-latest.deb
+      #     asset_name: oxen-server-ubuntu-latest.deb
+      #     tag: ${{ github.ref }}
 
-      - name: Upload Oxen CLI deb to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          release_name: "🐂 Release ${{ github.ref }}"
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-ubuntu-latest.deb
-          asset_name: oxen-ubuntu-latest.deb
-          tag: ${{ github.ref }}
+      # - name: Upload Oxen CLI deb to release
+      #   uses: svenstaro/upload-release-action@v2
+      #   with:
+      #     release_name: "🐂 Release ${{ github.ref }}"
+      #     repo_token: ${{ secrets.GITHUB_TOKEN }}
+      #     file: oxen-ubuntu-latest.deb
+      #     asset_name: oxen-ubuntu-latest.deb
+      #     tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
         uses: svenstaro/upload-release-action@v2
@@ -142,11 +142,11 @@ jobs:
           asset_name: oxen-linux-server-binary-latest.tar
           tag: ${{ github.ref }}
 
-      - name: Upload to crates.io
-        run: |
-          cd src/lib
-          cargo login ${{ secrets.CRATES_IO_TOKEN }}
-          cargo publish
+      # - name: Upload to crates.io
+      #   run: |
+      #     cd src/lib
+      #     cargo login ${{ secrets.CRATES_IO_TOKEN }}
+      #     cargo publish
 
   # release_ubuntu_22_04:
   #   runs-on: ubuntu-22.04
