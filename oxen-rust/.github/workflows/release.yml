@@ -125,21 +125,21 @@ jobs:
       #     tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
-        uses: actions/upload-artifact@v4
+        uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-linux-binary-latest.tar
-          asset_name: oxen-linux-binary-latest.tar
+          file: oxen-linux-binary-latest.tar.gz
+          asset_name: oxen-linux-binary-latest.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload Oxen Server binary to release
-        uses: actions/upload-artifact@v4
+        uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-linux-server-binary-latest.tar
-          asset_name: oxen-linux-server-binary-latest.tar
+          file: oxen-linux-server-binary-latest.tar.gz
+          asset_name: oxen-linux-server-binary-latest.tar.gz
           tag: ${{ github.ref }}
 
       # - name: Upload to crates.io
