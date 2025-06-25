@@ -75,12 +75,12 @@ jobs:
 
       - name: Package oxen cli binary
         run: |
-          mkdir -p oxen-linux-binary-latest
-          mkdir -p oxen-linux-server-binary-latest
-          cp target/release/oxen oxen-linux-binary-latest/oxen
-          cp target/release/oxen-server oxen-linux-server-binary-latest/oxen-server
-          tar czf oxen-linux-binary-latest.tar.gz oxen-linux-binary-latest
-          tar czf oxen-linux-server-binary-latest.tar.gz oxen-linux-server-binary-latest
+          mkdir -p oxen-linux-binary-x86_64-latest
+          mkdir -p oxen-linux-server-binary-x86_64-latest
+          cp target/release/oxen oxen-linux-binary-x86_64-latest/oxen
+          cp target/release/oxen-server oxen-linux-server-binary-x86_64-latest/oxen-server
+          tar czf oxen-linux-binary-x86_64-latest.tar.gz oxen-linux-binary-x86_64-latest
+          tar czf oxen-linux-server-binary-x86_64-latest.tar.gz oxen-linux-server-binary-x86_64-latest
 
       - name: Package Oxen Server deb
         run: |
@@ -133,8 +133,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-linux-binary-latest.tar.gz
-          asset_name: oxen-linux-binary-latest.tar.gz
+          file: oxen-linux-binary-x86_64-latest.tar.gz
+          asset_name: oxen-linux-binary-x86_64-latest.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload Oxen Server binary to release
@@ -142,8 +142,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-linux-server-binary-latest.tar.gz
-          asset_name: oxen-linux-server-binary-latest.tar.gz
+          file: oxen-linux-server-binary-x86_64-latest.tar.gz
+          asset_name: oxen-linux-server-binary-x86_64-latest.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload to crates.io
