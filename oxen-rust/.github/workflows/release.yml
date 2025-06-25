@@ -1,10 +1,4 @@
-on:
-  push:
-    # Pattern matched against refs/tags
-    tags:
-      - "*"
-    branch:
-      - "*"
+on: [push]
 
 name: 🚀 Release
 
