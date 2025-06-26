@@ -175,7 +175,7 @@ features = ["duckdb"]                       # this is without "duckdb/bundled"
 no-default-features = true
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "2.10.1", package = "codspeed-criterion-compat" }
 
 [[bench]]
 name = "oxen"
