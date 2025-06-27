@@ -147,12 +147,9 @@ pub async fn create_nodes(
         ByteSize::b(bytes.len() as u64)
     );
 
-    let hashes = repositories::tree::unpack_nodes(&repository, &bytes[..])?;
+    let _hashes = repositories::tree::unpack_nodes(&repository, &bytes[..])?;
 
-    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
-        status: StatusMessage::resource_found(),
-        hashes,
-    }))
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
 pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
