@@ -141,5 +141,6 @@ fn add_benchmark(c: &mut Criterion) {
     util::fs::remove_dir_all(base_dir).unwrap();
 }
 
+// Register Benchmark functions
 criterion_group!(benches, add_benchmark);
 criterion_main!(benches);
