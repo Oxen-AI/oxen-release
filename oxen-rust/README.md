@@ -345,3 +345,19 @@ docker-compose up -d reverse-proxy
 ```
 docker-compose up -d --scale oxen=4 --no-recreate
 ```
+
+## Run Benchmark
+
+we use criterion to handle benchmarks.
+
+```
+cargo bench
+```
+
+To save baseline you can run
+
+```
+cargo bench -- --save-baseline bench
+```
+
+Which would then store the benchmark under `target/criterion/add`
