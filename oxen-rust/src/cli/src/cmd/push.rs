@@ -34,7 +34,6 @@ impl RunCmd for PushCmd {
             .arg(
                 Arg::new("BRANCH")
                     .help("Branch name to push to")
-                    .short('b')
                     .default_value(DEFAULT_BRANCH_NAME)
                     .default_missing_value(DEFAULT_BRANCH_NAME),
             )
