@@ -202,7 +202,11 @@ pub fn add_files(
             log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
-            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
+            if path.exists() {
+                core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?
+            } else {
+                println!("file not found at {path:?}")
+            }
 
             // TODO: Make rm_with_staged_db return the stats of the files it removes
 
