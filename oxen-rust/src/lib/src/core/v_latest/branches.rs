@@ -207,16 +207,18 @@ pub async fn checkout_subtrees(
         let maybe_from_commit = repositories::commits::head_commit_maybe(repo)?;
 
         let from_root = if maybe_from_commit.is_some() {
-            log::debug!("from id: {:?}", maybe_from_commit.clone().unwrap().id);
+            log::debug!("from id: {:?}", maybe_from_commit.as_ref().unwrap().id);
             log::debug!("to id: {:?}", to_commit.id);
             CommitMerkleTree::root_with_unique_children(
                 repo,
-                &maybe_from_commit.clone().unwrap(),
+                maybe_from_commit.as_ref().unwrap(),
                 &mut target_hashes,
                 &mut shared_hashes,
                 &mut partial_nodes,
             )
-            .map_err(|_| OxenError::basic_str("Cannot get root node for base commit"))?
+            .map_err(|e| {
+                OxenError::basic_str(format!("Cannot get root node for base commit: {:?}", e))
+            })?
         } else {
             log::warn!("head commit missing, might be a clone");
             None
