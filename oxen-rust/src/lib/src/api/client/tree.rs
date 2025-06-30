@@ -19,6 +19,7 @@ use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::download_tree_opts::DownloadTreeOpts;
 use crate::opts::fetch_opts::FetchOpts;
 use crate::view::tree::merkle_hashes::MerkleHashes;
+use crate::view::tree::merkle_hashes::NodeHashes;
 use crate::view::tree::MerkleHashResponse;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
@@ -406,7 +407,7 @@ pub async fn list_missing_node_hashes(
     match response {
         Ok(response) => Ok(response.hashes),
         Err(err) => Err(OxenError::basic_str(format!(
-            "api::client::tree::list_missing_file_hashes() Could not deserialize response [{err}]\n{body}"
+            "api::client::tree::list_missing_node_hashes() Could not deserialize response [{err}]\n{body}"
         ))),
     }
 }
@@ -444,6 +445,7 @@ pub async fn list_missing_file_hashes_from_commits(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let commit_hashes = MerkleHashes { hashes: commit_ids };
+
     let res = client.post(&url).json(&commit_hashes).send().await?;
     let body = client::parse_json_body(&url, res).await?;
     let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -451,6 +453,37 @@ pub async fn list_missing_file_hashes_from_commits(
         Ok(response) => Ok(response.hashes),
         Err(err) => Err(OxenError::basic_str(format!(
             "api::client::tree::list_missing_file_hashes_from_commits() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
+pub async fn list_missing_file_hashes_from_nodes(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit_ids: HashSet<MerkleHash>,
+    dir_hashes: HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let uri = "/tree/nodes/missing_file_hashes_from_nodes".to_string();
+    let uri = append_subtree_paths_and_depth_to_uri(
+        uri,
+        &local_repo.subtree_paths(),
+        &local_repo.depth(),
+        false,
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let node_hashes = NodeHashes {
+        commit_hashes: commit_ids,
+        dir_hashes,
+    };
+
+    let res = client.post(&url).json(&node_hashes).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response.hashes),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::tree::list_missing_file_hashes_from_nodes() Could not deserialize response [{err}]\n{body}"
         ))),
     }
 }
