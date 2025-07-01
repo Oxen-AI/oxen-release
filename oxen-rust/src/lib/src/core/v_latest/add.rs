@@ -173,6 +173,7 @@ pub fn add_files(
             Some(correct_path) => correct_path.join(path),
             None => path.clone(),
         };
+
         if corrected_path.is_dir() {
             total += add_dir_inner(
                 repo,
@@ -207,6 +208,10 @@ pub fn add_files(
                         .or_insert(1);
                 }
             }
+        } else if corrected_path.is_symlink() {
+            log::debug!("Skipping symlink: {:?}", corrected_path);
+            println!("Skipping symlink: {:?}", corrected_path);
+            continue;
         } else {
             let mut opts = RmOpts::from_path(corrected_path);
             opts.recursive = true;
