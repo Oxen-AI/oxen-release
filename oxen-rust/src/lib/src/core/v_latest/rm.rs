@@ -415,7 +415,7 @@ fn remove_inner(
                 return Err(OxenError::basic_str(error));
             }
         } else {
-            let error = format!("Error: {path:?} must be committed in order to use `oxen rm`");
+            let error = format!("Error: {path:?} did not match any files");
             return Err(OxenError::basic_str(error));
         }
     }
