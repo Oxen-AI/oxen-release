@@ -234,7 +234,7 @@ impl StagedData {
                 .iter()
                 .map(|(path, _removed_path, _hash)| path.clone()),
         );
-        // files.extend(self.removed_files.clone());
+        files.extend(self.removed_files.clone());
 
         files
     }

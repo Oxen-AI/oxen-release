@@ -472,7 +472,7 @@ fn remove_dir_inner(
     let dir_node = match CommitMerkleTree::dir_with_children_recursive(repo, commit, path)? {
         Some(node) => node,
         None => {
-            let error = format!("Error: {path:?} must be committed in order to use `oxen rm`");
+            let error = format!("Error: {path:?} did not match any files");
             return Err(OxenError::basic_str(error));
         }
     };
