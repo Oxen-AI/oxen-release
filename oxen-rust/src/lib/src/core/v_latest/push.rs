@@ -213,6 +213,7 @@ async fn push_commits(
     // Get the node hashes for the starting commit (if we have one)
     let mut starting_node_hashes = HashSet::new();
     if let Some(ref commit) = latest_remote_commit {
+        // TODO 0: New function here that also includes file nodes (walk full tree)
         repositories::tree::get_node_hashes_for_commit(
             repo,
             commit,
@@ -226,10 +227,13 @@ async fn push_commits(
 
     let mut shared_hashes = starting_node_hashes.clone();
     let mut unique_hashes = HashSet::new();
+    // TODO 1: New HashSet for file node hashes
 
     let mut candidate_nodes: HashSet<MerkleTreeNode> = HashSet::new();
     for commit in &missing_commits {
         log::debug!("push_commits adding candidate nodes for commit: {}", commit);
+
+        // TODO 2: New partial load that counts # of dir/vnode, file nodes
         let Some(commit_node) = CommitMerkleTree::get_unique_children_for_commit(
             repo,
             commit,
@@ -242,13 +246,16 @@ async fn push_commits(
         };
 
         shared_hashes.extend(&unique_hashes);
-        unique_hashes = HashSet::new();
+        unique_hashes.clear();
 
+        // TODO 3: Extend new candidate_nodes, file_nodes by length of counted nodes + 1
         candidate_nodes.insert(commit_node.clone());
         commit_node.walk_tree_without_leaves(|node| {
             if !starting_node_hashes.contains(&node.hash) {
+                // TODO 4: If leaf node, insert file_nodes; else, insert candidate nodes
                 candidate_nodes.insert(node.clone());
                 progress.set_message(format!(
+                    // TODO 5: Add file nodes to this
                     "Collecting missing nodes... {}",
                     candidate_nodes.len()
                 ));
@@ -280,9 +287,13 @@ async fn push_commits(
 
     // Filter the candidate nodes to only include the missing ones
     let missing_nodes: HashSet<MerkleTreeNode> = candidate_nodes
+        .clone()
         .into_iter()
         .filter(|n| missing_node_hashes.contains(&n.hash))
         .collect();
+
+    // TODO: Extend 'starting_files' with the files of the found nodes
+    // As well, don't collect anything in the
     log::debug!(
         "push_commits missing_nodes count: {:?}",
         missing_nodes.len()
@@ -295,11 +306,26 @@ async fn push_commits(
         .await?;
 
     // Check which file hashes are missing from the server
+    // TODO: Exclude files in the original commit + in the seen nodes
+
     progress.set_message("Checking for missing files...".to_string());
-    let missing_file_hashes = api::client::tree::list_missing_file_hashes_from_commits(
+
+    let present_nodes: HashSet<MerkleTreeNode> = candidate_nodes
+        .into_iter()
+        .filter(|n| !missing_node_hashes.contains(&n.hash))
+        .collect();
+
+    let present_node_hashes = present_nodes
+        .iter()
+        .map(|n| n.hash)
+        .collect::<HashSet<MerkleHash>>();
+
+    starting_node_hashes.extend(present_node_hashes);
+    let missing_file_hashes = api::client::tree::list_missing_file_hashes_from_nodes(
         repo,
         remote_repo,
         missing_commit_hashes.clone(),
+        starting_node_hashes,
     )
     .await?;
     progress.set_message(format!("Pushing {} files...", missing_file_hashes.len()));
