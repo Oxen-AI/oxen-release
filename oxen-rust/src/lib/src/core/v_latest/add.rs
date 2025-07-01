@@ -15,6 +15,7 @@ use rmp_serde::Serializer;
 use serde::Serialize;
 
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
+use crate::core;
 use crate::core::db;
 use crate::core::oxenignore;
 use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
@@ -23,11 +24,9 @@ use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
 use crate::storage::version_store::VersionStore;
-use crate::{core, model};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use ignore::gitignore::Gitignore;
-use pathdiff::diff_paths;
 use std::ops::AddAssign;
 
 use crate::core::v_latest::index::CommitMerkleTree;
@@ -63,96 +62,55 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-pub fn add<T: AsRef<Path>>(
-    repo: &LocalRepository,
-    paths: impl IntoIterator<Item = T>,
-) -> Result<(), OxenError> {
+pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
     // Collect paths that match the glob pattern either:
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
-    let path_hashset = match repositories::commits::head_commit_maybe(repo)? {
-        Some(_) => {
-            let paths_vec: Vec<PathBuf> = paths
-                .into_iter() // 1. Get the iterator.
-                .map(|p| repo.path.join(p.as_ref()).to_path_buf()) // 2. For each item, convert it to a PathBuf.
-                .collect();
-            let paths_slice: &[PathBuf] = &paths_vec;
-
-            let opts = model::staged_data::StagedDataOpts::from_paths(paths_slice);
-
-            let repo_status = repositories::status::status_from_opts(repo, &opts)?;
-
-            let final_paths = repo_status.files_to_stage();
-            let mut path_hashset: HashSet<PathBuf> = HashSet::new();
-
-            for path in final_paths.clone() {
-                path_hashset.insert(path);
-            }
-            path_hashset
-        }
-        None => {
-            let mut path_hashset = HashSet::new();
-            for path in paths {
-                path_hashset.insert(path.as_ref().to_path_buf());
-            }
-            path_hashset
-        }
-    };
-    let mut expanded_paths: HashSet<PathBuf> = HashSet::new();
-    for path in path_hashset {
-        let path_str = path
-            .to_str()
-            .ok_or_else(|| OxenError::basic_str("Invalid path string"))?;
-
+    let path = path.as_ref();
+    let mut paths: HashSet<PathBuf> = HashSet::new();
+    if let Some(path_str) = path.to_str() {
         // TODO: At least on Windows, this is improperly case sensitive
         if util::fs::is_glob_path(path_str) {
-            log::debug!("Expanding glob path: {}", path_str);
-
-            // 1. Match against files on the local filesystem
+            log::debug!("glob path: {}", path_str);
+            // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
-                expanded_paths.insert(entry?);
+                paths.insert(entry?);
             }
 
-            // 2. Match against files in the repository's history (for deleted files, etc.)
+            // For removed files?
             if let Some(commit) = repositories::commits::head_commit_maybe(repo)? {
                 let pattern_entries =
                     repositories::commits::search_entries(repo, &commit, path_str)?;
-                log::debug!(
-                    "Found {} historical pattern entries for '{}'",
-                    pattern_entries.len(),
-                    path_str
-                );
-                expanded_paths.extend(pattern_entries);
+                log::debug!("pattern entries: {:?}", pattern_entries);
+                paths.extend(pattern_entries);
             }
         } else {
-            // Non-glob path, just add it directly.
-            // Using `to_path_buf()` creates an owned PathBuf.
-            log::debug!("Adding non-glob path: {:?}", path);
-            expanded_paths.insert(path.to_owned()); //add absolute path with repo
+            // Non-glob path
+            paths.insert(path.to_owned());
         }
     }
-    // expanded_paths
+
     // Get the version store from the repository
     let version_store = repo.version_store()?;
+
     // Open the staged db once at the beginning and reuse the connection
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    let _stats = add_files(repo, &expanded_paths, &staged_db, &version_store)?;
+    let _stats = add_files(repo, &paths, &staged_db, &version_store)?;
 
     Ok(())
 }
 
 pub fn add_files(
     repo: &LocalRepository,
-    paths: &HashSet<PathBuf>, // We assume all paths provided are relative to the repo root
+    paths: &HashSet<PathBuf>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
-    let cwd = std::env::current_dir()?;
+    log::debug!("add files: {:?}", paths);
 
     // Start a timer
     let start = std::time::Instant::now();
@@ -169,33 +127,24 @@ pub fn add_files(
     let gitignore = oxenignore::create(repo);
 
     for path in paths {
-        let corrected_path = match diff_paths(&repo.path, &cwd) {
-            Some(correct_path) => correct_path.join(path),
-            None => path.clone(),
-        };
+        log::debug!("path is {path:?}");
 
-        if corrected_path.is_dir() {
+        if path.is_dir() {
             total += add_dir_inner(
                 repo,
                 &maybe_head_commit,
-                corrected_path.clone(),
+                path.clone(),
                 staged_db,
                 version_store,
                 &excluded_hashes,
                 &gitignore,
             )?;
-        } else if corrected_path.is_file() {
-            if oxenignore::is_ignored(&corrected_path, &gitignore, corrected_path.is_dir()) {
+        } else if path.is_file() {
+            if oxenignore::is_ignored(path, &gitignore, path.is_dir()) {
                 continue;
             }
 
-            let entry = add_file_inner(
-                repo,
-                &maybe_head_commit,
-                &corrected_path,
-                staged_db,
-                version_store,
-            )?;
+            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, version_store)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type();
@@ -208,14 +157,13 @@ pub fn add_files(
                         .or_insert(1);
                 }
             }
-        } else if corrected_path.is_symlink() {
-            log::debug!("Skipping symlink: {:?}", corrected_path);
-            println!("Skipping symlink: {:?}", corrected_path);
-            continue;
         } else {
-            let mut opts = RmOpts::from_path(corrected_path);
+            log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
+            let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
             core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
+
+            // TODO: Make rm_with_staged_db return the stats of the files it removes
 
             return Ok(total);
         }
@@ -308,7 +256,6 @@ pub fn process_add_dir(
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
     let added_file_counter = Arc::new(AtomicU64::new(0));
-    let problem_files = Arc::new(Mutex::new(HashSet::new()));
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
@@ -361,7 +308,6 @@ pub fn process_add_dir(
 
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
-            let problem_files_clone = Arc::clone(&problem_files);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -397,14 +343,8 @@ pub fn process_add_dir(
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
                 let file_status =
-                    match core::v_latest::add::determine_file_status(&dir_node, file_name, &path) {
-                        Ok(file_status) => file_status,
-                        Err(e) => {
-                            log::debug!("Error determining file status {e:?}");
-                            problem_files_clone.lock().insert(path.clone());
-                            return;
-                        }
-                    };
+                    core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
+                        .unwrap();
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
@@ -438,14 +378,6 @@ pub fn process_add_dir(
         })?;
 
     progress_1_clone.finish_and_clear();
-    //print problematic files
-    for file_path in problem_files.lock().iter() {
-        println!(
-            "unable to add file {:?}",
-            file_path.strip_prefix(&repo.path).unwrap()
-        );
-    }
-
     cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
     cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
     Ok(cumulative_stats)
@@ -1113,7 +1045,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, ignored_file)?;
 
-            add(&repo, vec![Path::new(&repo.path)])?;
+            add(&repo, Path::new(&repo.path))?;
 
             let status = repositories::status(&repo)?;
 
@@ -1157,11 +1089,11 @@ mod tests {
             test::write_txt_file_to_path(&file2_1, "dir2/file2_1")?;
             test::write_txt_file_to_path(&file_root, "file_root")?;
 
-            add(&repo, vec![&repo.path])?;
+            add(&repo, &repo.path)?;
 
             repositories::commits::commit(&repo, "Initial commit with multiple files and dirs")?;
 
-            add(&repo, vec![&repo.path])?;
+            add(&repo, &repo.path)?;
 
             let status = repositories::status(&repo);
             assert!(status.is_ok());
@@ -1226,7 +1158,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, format!("{}/", dir_to_ignore))?;
 
-            add(&repo, vec![Path::new(&repo.path)])?;
+            add(&repo, Path::new(&repo.path))?;
 
             let status = repositories::status(&repo)?;
 
