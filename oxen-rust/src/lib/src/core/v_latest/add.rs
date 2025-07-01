@@ -27,6 +27,7 @@ use crate::{core, model};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use ignore::gitignore::Gitignore;
+use pathdiff::diff_paths;
 use std::ops::AddAssign;
 
 use crate::core::v_latest::index::CommitMerkleTree;
@@ -151,7 +152,7 @@ pub fn add_files(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
-    log::debug!("add files: {:?}", paths);
+    let cwd = std::env::current_dir()?;
 
     // Start a timer
     let start = std::time::Instant::now();
@@ -168,24 +169,32 @@ pub fn add_files(
     let gitignore = oxenignore::create(repo);
 
     for path in paths {
-        log::debug!("path is {path:?}");
-
-        if path.is_dir() {
+        let corrected_path = match diff_paths(&repo.path, &cwd) {
+            Some(correct_path) => correct_path.join(path),
+            None => path.clone(),
+        };
+        if corrected_path.is_dir() {
             total += add_dir_inner(
                 repo,
                 &maybe_head_commit,
-                path.clone(),
+                corrected_path.clone(),
                 staged_db,
                 version_store,
                 &excluded_hashes,
                 &gitignore,
             )?;
-        } else if path.is_file() {
-            if oxenignore::is_ignored(path, &gitignore, path.is_dir()) {
+        } else if corrected_path.is_file() {
+            if oxenignore::is_ignored(&corrected_path, &gitignore, corrected_path.is_dir()) {
                 continue;
             }
 
-            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, version_store)?;
+            let entry = add_file_inner(
+                repo,
+                &maybe_head_commit,
+                &corrected_path,
+                staged_db,
+                version_store,
+            )?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type();
@@ -199,14 +208,9 @@ pub fn add_files(
                 }
             }
         } else {
-            log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
-            let mut opts = RmOpts::from_path(path);
+            let mut opts = RmOpts::from_path(corrected_path);
             opts.recursive = true;
-            if path.exists() {
-                core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?
-            } else {
-                println!("file not found at {path:?}")
-            }
+            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
 
             return Ok(total);
         }
