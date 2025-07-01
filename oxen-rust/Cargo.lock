@@ -3561,6 +3561,7 @@ dependencies = [
  "num_cpus",
  "os_path",
  "parking_lot",
+ "pathdiff",
  "pluralizer",
  "polars",
  "qsv-sniffer",

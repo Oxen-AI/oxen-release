@@ -79,6 +79,8 @@ mockito = "1.1.0"
 mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
+os_path = "0.8.0"
+pathdiff = "0.2.3"
 pluralizer = "0.4.0"
 polars = { version = "0.45.0", features = [
     "lazy",
@@ -88,7 +90,6 @@ polars = { version = "0.45.0", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-os_path = "0.8.0"
 qsv-sniffer = "0.10.3"
 rand = "0.8.5"
 rayon = "1.7.0"
