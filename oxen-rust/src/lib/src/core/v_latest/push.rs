@@ -262,7 +262,7 @@ async fn push_commits(
             }
         });
     }
-    println!(
+    log::debug!(
         "push_commits candidate_nodes count: {}",
         candidate_nodes.len()
     );
