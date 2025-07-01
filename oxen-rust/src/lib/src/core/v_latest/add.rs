@@ -303,6 +303,7 @@ pub fn process_add_dir(
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
     let added_file_counter = Arc::new(AtomicU64::new(0));
+    let problem_files = Arc::new(Mutex::new(HashSet::new()));
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
@@ -355,6 +356,7 @@ pub fn process_add_dir(
 
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
+            let problem_files_clone = Arc::clone(&problem_files);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -390,8 +392,14 @@ pub fn process_add_dir(
 
                 let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
                 let file_status =
-                    core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
-                        .unwrap();
+                    match core::v_latest::add::determine_file_status(&dir_node, file_name, &path) {
+                        Ok(file_status) => file_status,
+                        Err(e) => {
+                            log::debug!("Error determining file status {e:?}");
+                            problem_files_clone.lock().insert(path.clone());
+                            return;
+                        }
+                    };
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
@@ -425,6 +433,14 @@ pub fn process_add_dir(
         })?;
 
     progress_1_clone.finish_and_clear();
+    //print problematic files
+    for file_path in problem_files.lock().iter() {
+        println!(
+            "unable to add file {:?}",
+            file_path.strip_prefix(&repo.path).unwrap()
+        );
+    }
+
     cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
     cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
     Ok(cumulative_stats)
