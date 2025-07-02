@@ -231,7 +231,6 @@ async fn parallel_batched_small_file_upload(
                 match api::client::versions::workspace_multipart_batch_upload_versions_with_retry(
                     &remote_repo,
                     client.clone(),
-                    &directory_str,
                     batch,
                 )
                 .await
@@ -244,6 +243,7 @@ async fn parallel_batched_small_file_upload(
                             client.clone(),
                             workspace_id,
                             Arc::new(result.files_to_add),
+                            directory_str,
                         )
                         .await
                         {
@@ -279,10 +279,12 @@ pub async fn add_version_files_to_workspace_with_retry(
     client: Arc<reqwest::Client>,
     workspace_id: impl AsRef<str>,
     files_to_add: Arc<Vec<FileWithHash>>,
+    directory_str: impl AsRef<str>,
 ) -> Result<Vec<ErrorFileInfo>, OxenError> {
     let mut first_try = true;
     let mut retry_count: usize = 0;
     let mut err_files: Vec<ErrorFileInfo> = vec![];
+    let directory_str = directory_str.as_ref();
     let workspace_id = workspace_id.as_ref().to_string();
 
     while (first_try || !err_files.is_empty()) && retry_count < MAX_RETRIES {
@@ -294,6 +296,7 @@ pub async fn add_version_files_to_workspace_with_retry(
             client.clone(),
             &workspace_id,
             files_to_add.clone(),
+            directory_str,
             err_files,
         )
         .await?;
@@ -311,10 +314,12 @@ pub async fn add_version_files_to_workspace(
     client: Arc<reqwest::Client>,
     workspace_id: impl AsRef<str>,
     files_to_add: Arc<Vec<FileWithHash>>,
+    directory_str: impl AsRef<str>,
     err_files: Vec<ErrorFileInfo>,
 ) -> Result<Vec<ErrorFileInfo>, OxenError> {
     let workspace_id = workspace_id.as_ref();
-    let uri = format!("/workspaces/{}/versions", workspace_id);
+    let directory_str = directory_str.as_ref();
+    let uri = format!("/workspaces/{}/versions/{directory_str}", workspace_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let files_to_send = if !err_files.is_empty() {
@@ -508,7 +513,6 @@ fn jitter() -> usize {
 #[cfg(test)]
 mod tests {
 
-    use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::model::{EntryDataType, NewCommitBody};
@@ -533,17 +537,17 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let directory_name = "images";
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
+            let result = api::client::workspaces::files::add(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
-                path,
+                vec![path],
             )
             .await;
             assert!(result.is_ok());
@@ -561,6 +565,10 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 1);
             assert_eq!(entries.added_files.total_entries, 1);
+            assert_eq!(
+                entries.added_files.entries[0].filename(),
+                "images/dwight_vince.jpeg"
+            );
 
             Ok(remote_repo)
         })
@@ -580,17 +588,17 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let directory_name = "my_large_file";
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_30k_parquet();
-            let result = api::client::workspaces::files::upload_single_file(
+            let result = api::client::workspaces::files::add(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
-                path,
+                vec![path],
             )
             .await;
             assert!(result.is_ok());
@@ -626,7 +634,7 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
@@ -668,7 +676,7 @@ mod tests {
     async fn test_create_remote_readme_repo_and_commit_multiple_data_frames(
     ) -> Result<(), OxenError> {
         test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
@@ -799,7 +807,7 @@ mod tests {
     #[tokio::test]
     async fn test_commit_multiple_data_frames() -> Result<(), OxenError> {
         test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
@@ -939,7 +947,7 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
@@ -1018,7 +1026,7 @@ mod tests {
             let original_schemas = api::client::schemas::list(&remote_repo, branch_name).await?;
 
             let directory_name = "tabular";
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
@@ -1125,7 +1133,7 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
@@ -1180,7 +1188,7 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let directory_name = "my/images/dir/is/long";
-            let workspace_id = UserConfig::identifier()?;
+            let workspace_id = uuid::Uuid::new_v4().to_string();
             let workspace =
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             assert_eq!(workspace.id, workspace_id);
@@ -1258,6 +1266,59 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 2);
             assert_eq!(entries.added_files.total_entries, 2);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_add_file_with_absolute_path() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+            let branch_name = "add-images-with-absolute-path";
+            let branch = api::client::branches::create_from_branch(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let directory_name = "new-images";
+            let workspace_id = uuid::Uuid::new_v4().to_string();
+            let workspace =
+                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            // Get the absolute path to the file
+            let path = test::test_img_file().canonicalize()?;
+            let result = api::client::workspaces::files::add(
+                &remote_repo,
+                &workspace_id,
+                directory_name,
+                vec![path],
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let page_num = constants::DEFAULT_PAGE_NUM;
+            let page_size = constants::DEFAULT_PAGE_SIZE;
+            let path = Path::new("");
+            let entries = api::client::workspaces::changes::list(
+                &remote_repo,
+                &workspace_id,
+                path,
+                page_num,
+                page_size,
+            )
+            .await?;
+
+            assert_eq!(entries.added_files.entries.len(), 1);
+            assert_eq!(entries.added_files.total_entries, 1);
+            assert_eq!(
+                entries.added_files.entries[0].filename(),
+                "new-images/dwight_vince.jpeg"
+            );
 
             Ok(remote_repo)
         })
