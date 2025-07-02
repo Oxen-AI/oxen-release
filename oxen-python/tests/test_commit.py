@@ -22,7 +22,7 @@ def test_commit_all(celeba_local_repo_no_commits):
     repo = celeba_local_repo_no_commits
 
     # oxen add images
-    repo.add(os.path.join(repo.path, "annotations"))
+    repo.add(os.path.join(repo.path, "images"))
 
     # oxen commit
     repo.commit("Add all images")
