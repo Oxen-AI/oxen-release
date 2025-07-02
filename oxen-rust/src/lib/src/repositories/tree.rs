@@ -394,7 +394,7 @@ pub fn collect_nodes_along_path(
     repo: &LocalRepository,
     commit: &Commit,
     paths: Vec<PathBuf>,
-    starting_node_hashes: &Option<HashSet<MerkleHash>>,
+    starting_node_hashes: &mut HashSet<MerkleHash>,
     hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     // Grab the first path or error if empty
@@ -406,17 +406,12 @@ pub fn collect_nodes_along_path(
 
     let (_root_node, nodes) = node.get_nodes_along_paths(paths)?;
 
-    if let Some(starting_node_hashes) = starting_node_hashes {
-        for node in nodes {
-            if !starting_node_hashes.contains(&node.hash) {
-                hashes.insert(node.hash);
-            }
-        }
-    } else {
-        for node in nodes {
+    for node in nodes {
+        if !starting_node_hashes.contains(&node.hash) {
             hashes.insert(node.hash);
         }
     }
+
     Ok(())
 }
 
@@ -1188,6 +1183,7 @@ pub fn get_all_node_hashes_for_commits(
     );
 
     let mut all_node_hashes: HashSet<MerkleHash> = HashSet::new();
+    let mut starting_node_hashes: HashSet<MerkleHash> = HashSet::new();
 
     for commit in commits {
         get_node_hashes_for_commit(
@@ -1196,7 +1192,7 @@ pub fn get_all_node_hashes_for_commits(
             maybe_subtrees,
             maybe_depth,
             is_download,
-            &None,
+            &mut starting_node_hashes,
             &mut all_node_hashes,
         )?;
     }
@@ -1226,15 +1222,26 @@ pub fn get_node_hashes_between_commits(
         .ok_or(OxenError::basic_str("Must provide at least one commit"))?;
 
     let mut starting_node_hashes: HashSet<MerkleHash> = HashSet::new();
-    get_node_hashes_for_commit(
-        repository,
-        first_commit,
-        maybe_subtrees,
-        maybe_depth,
-        is_download,
-        &None,
-        &mut starting_node_hashes,
-    )?;
+
+    if let Some(subtrees) = maybe_subtrees {
+        for subtree in subtrees {
+            populate_starting_hashes(
+                repository,
+                first_commit,
+                &Some(subtree.to_path_buf()),
+                maybe_depth,
+                &mut starting_node_hashes,
+            )?;
+        }
+    } else {
+        populate_starting_hashes(
+            repository,
+            first_commit,
+            &None,
+            maybe_depth,
+            &mut starting_node_hashes,
+        )?;
+    }
 
     if new_commits.is_empty() {
         // If there are no new commits, then we just return the node hashes for the first commit
@@ -1242,8 +1249,6 @@ pub fn get_node_hashes_between_commits(
     }
 
     let mut new_node_hashes: HashSet<MerkleHash> = HashSet::new();
-
-    let maybe_starting_node_hashes = Some(starting_node_hashes);
     for commit in new_commits {
         get_node_hashes_for_commit(
             repository,
@@ -1251,7 +1256,7 @@ pub fn get_node_hashes_between_commits(
             maybe_subtrees,
             maybe_depth,
             is_download,
-            &maybe_starting_node_hashes,
+            &mut starting_node_hashes,
             &mut new_node_hashes,
         )?;
     }
@@ -1266,7 +1271,7 @@ pub fn get_node_hashes_for_commit(
     maybe_subtrees: &Option<Vec<PathBuf>>,
     maybe_depth: &Option<i32>,
     is_download: bool,
-    starting_node_hashes: &Option<HashSet<MerkleHash>>,
+    starting_node_hashes: &mut HashSet<MerkleHash>,
     new_node_hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
     if let Some(subtrees) = maybe_subtrees {
@@ -1327,26 +1332,48 @@ fn get_node_hashes_for_subtree(
     commit: &Commit,
     subtree_path: &Option<PathBuf>,
     depth: &Option<i32>,
-    starting_node_hashes: &Option<HashSet<MerkleHash>>,
+    shared_hashes: &mut HashSet<MerkleHash>,
     new_node_hashes: &mut HashSet<MerkleHash>,
 ) -> Result<(), OxenError> {
-    let Ok(Some(tree)) = get_subtree_by_depth(repository, commit, subtree_path, depth) else {
+    let mut unique_hashes: HashSet<MerkleHash> = HashSet::new();
+    //let starting_path =
+    let Ok(Some(_)) = CommitMerkleTreeLatest::from_path_depth_unique_children(
+        repository,
+        commit,
+        subtree_path.clone().unwrap_or(PathBuf::from(".")),
+        depth.unwrap_or(-1),
+        shared_hashes,
+        &mut unique_hashes,
+    ) else {
         // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
         return Ok(());
     };
 
-    if let Some(starting_node_hashes) = starting_node_hashes {
-        // Only add nodes that are NOT in the starting hashes
-        tree.walk_tree_without_leaves(|node| {
-            if !starting_node_hashes.contains(&node.hash) {
-                new_node_hashes.insert(node.hash);
-            }
-        });
-    } else {
-        tree.walk_tree_without_leaves(|node| {
-            new_node_hashes.insert(node.hash);
-        });
-    }
+    shared_hashes.extend(&unique_hashes);
+    new_node_hashes.extend(&unique_hashes);
+
+    Ok(())
+}
+
+pub fn populate_starting_hashes(
+    repository: &LocalRepository,
+    commit: &Commit,
+    subtree_path: &Option<PathBuf>,
+    depth: &Option<i32>,
+    new_node_hashes: &mut HashSet<MerkleHash>,
+) -> Result<(), OxenError> {
+    let mut _shared_hashes: HashSet<MerkleHash> = HashSet::new();
+    let Ok(Some(_)) = CommitMerkleTreeLatest::from_path_depth_unique_children(
+        repository,
+        commit,
+        subtree_path.clone().unwrap_or(PathBuf::from(".")),
+        depth.unwrap_or(-1),
+        &mut _shared_hashes,
+        new_node_hashes,
+    ) else {
+        // If the subtree is not found, then we don't need to add any nodes to the unique node hashes
+        return Ok(());
+    };
 
     Ok(())
 }
@@ -1648,6 +1675,7 @@ mod tests {
             // commit1, root dir (v1), root vnode (v1)
             // commit2, root dir (v2), root vnode (v2)
             // = 6 nodes
+
             assert!(
                 depth_limited_hashes.len() == 6,
                 "Depth filter should return 6 hashes, got {}",

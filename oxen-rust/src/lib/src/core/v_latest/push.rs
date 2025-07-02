@@ -215,13 +215,10 @@ async fn push_commits(
     // Get the node hashes for the starting commit (if we have one)
     let mut starting_node_hashes = HashSet::new();
     if let Some(ref commit) = latest_remote_commit {
-        // TODO 0: New function here that also includes file nodes (walk full tree)
-        repositories::tree::get_node_hashes_for_commit(
+        repositories::tree::populate_starting_hashes(
             repo,
             commit,
             &None,
-            &None,
-            false,
             &None,
             &mut starting_node_hashes,
         )?;
