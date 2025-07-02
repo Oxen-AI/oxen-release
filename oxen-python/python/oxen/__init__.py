@@ -10,6 +10,7 @@ from .oxen import (
     PyWorkspace,
     PyWorkspaceDataFrame,
     PyColumn,
+    __version__,
 )
 from .oxen import util
 from .oxen import py_notebooks
@@ -57,3 +58,5 @@ __all__ = [
     "datasets",
     "Workspace",
 ]
+
+__version__ = __version__
