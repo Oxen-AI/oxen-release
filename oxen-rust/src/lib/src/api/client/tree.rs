@@ -10,7 +10,7 @@ use std::time;
 
 use crate::api::client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
-use crate::core::db::merkle_node::merkle_node_db::node_db_path;
+use crate::core::db::merkle_node::merkle_node_db::node_db_prefix;
 use crate::core::progress::push_progress::PushProgress;
 use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
@@ -59,22 +59,24 @@ pub async fn create_nodes(
 ) -> Result<(), OxenError> {
     // Compress the node
     log::debug!("create_nodes starting compression");
+    // OPT: Try Compression::fast();
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     log::debug!("create_nodes compressing nodes");
     let mut tar = tar::Builder::new(enc);
     log::debug!("create_nodes creating tar");
     let mut children_count = 0;
+    let node_path = local_repo
+        .path
+        .join(OXEN_HIDDEN_DIR)
+        .join(TREE_DIR)
+        .join(NODES_DIR);
+
     for (i, node) in nodes.iter().enumerate() {
-        let node_dir = node_db_path(local_repo, &node.hash);
-        let tree_dir = local_repo
-            .path
-            .join(OXEN_HIDDEN_DIR)
-            .join(TREE_DIR)
-            .join(NODES_DIR);
-        let sub_dir = util::fs::path_relative_to_dir(&node_dir, &tree_dir)?;
+        let dir_prefix = node_db_prefix(&node.hash);
+        let node_dir = node_path.join(&dir_prefix);
         // log::debug!(
         //     "create_nodes appending objects dir {:?} to tar at path {:?}",
-        //     sub_dir,
+        //     dir_prefix,
         //     node_dir
         // );
         progress.set_message(format!(
@@ -85,7 +87,7 @@ pub async fn create_nodes(
         ));
 
         log::debug!("create_nodes appending dir to tar");
-        tar.append_dir_all(sub_dir, node_dir)?;
+        tar.append_dir_all(dir_prefix, node_dir)?;
         children_count += node.children.len();
         log::debug!("create_nodes appended dir to tar {}", children_count);
     }
