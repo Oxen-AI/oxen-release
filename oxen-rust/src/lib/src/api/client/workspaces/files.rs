@@ -520,6 +520,7 @@ mod tests {
     use crate::opts::CloneOpts;
     use crate::{api, constants};
     use crate::{repositories, test};
+    use std::path::PathBuf;
 
     use std::path::Path;
     use uuid;
@@ -565,9 +566,11 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 1);
             assert_eq!(entries.added_files.total_entries, 1);
+            let assert_path = PathBuf::from("images").join(PathBuf::from("dwight_vince.jpeg"));
+
             assert_eq!(
                 entries.added_files.entries[0].filename(),
-                "images/dwight_vince.jpeg"
+                assert_path.to_str().unwrap(),
             );
 
             Ok(remote_repo)
@@ -1315,9 +1318,11 @@ mod tests {
 
             assert_eq!(entries.added_files.entries.len(), 1);
             assert_eq!(entries.added_files.total_entries, 1);
+
+            let assert_path = PathBuf::from("new-images").join(PathBuf::from("dwight_vince.jpeg"));
             assert_eq!(
                 entries.added_files.entries[0].filename(),
-                "new-images/dwight_vince.jpeg"
+                assert_path.to_str().unwrap(),
             );
 
             Ok(remote_repo)
