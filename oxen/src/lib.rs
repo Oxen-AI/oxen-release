@@ -125,5 +125,7 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_submodule(&notebooks_module)?;
 
+    m.add("__version__", liboxen::constants::OXEN_VERSION)?;
+
     Ok(())
 }
