@@ -237,13 +237,13 @@ impl CommitMerkleTree {
         if node_path == PathBuf::from(".") {
             node_path = PathBuf::from("");
         }
-        /*log::debug!(
+        log::debug!(
             "Read path {:?} in commit {:?} depth: {}",
             node_path,
             commit,
             depth
         );
-        */
+
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         let Some(node_hash) = dir_hashes.get(&node_path).cloned() else {
             /*log::debug!(
@@ -922,12 +922,12 @@ impl CommitMerkleTree {
         unique_hashes: &mut HashSet<MerkleHash>,
     ) -> Result<(), OxenError> {
         let dtype = node.node.node_type();
-        // log::debug!(
-        //     "read_children_until_depth requested_depth {} traversed_depth {} node {}",
-        //     requested_depth,
-        //     traversed_depth,
-        //     node
-        // );
+        log::debug!(
+             "load_children_until_depth_unique_children requested_depth {} traversed_depth {} node {} ",
+             requested_depth,
+             traversed_depth,
+             node,
+         );
 
         if dtype != MerkleTreeNodeType::Commit
             && dtype != MerkleTreeNodeType::Dir
@@ -950,11 +950,16 @@ impl CommitMerkleTree {
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
                 | MerkleTreeNodeType::VNode => {
-                    if requested_depth > traversed_depth || requested_depth == -1 {
+                    // TODO: '(requested_depth == 0 && child.node.node_type() == MerkleTreeNodeType::VNode)' is a hack
+                    // Figure out why repositories::tree::get_node_hashes_between_commits needs this
+                    if requested_depth > traversed_depth
+                        || requested_depth == -1
+                        || (requested_depth == 0
+                            && child.node.node_type() == MerkleTreeNodeType::VNode)
+                    {
                         // Depth that is passed in is the number of dirs to traverse
                         // VNodes should not increase the depth
-                        let traversed_depth = if child.node.node_type() == MerkleTreeNodeType::VNode
-                        {
+                        let traversed_depth = if child.node.node_type() != MerkleTreeNodeType::Dir {
                             traversed_depth
                         } else {
                             traversed_depth + 1
