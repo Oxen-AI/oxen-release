@@ -72,7 +72,9 @@ impl RunCmd for DiffCmd {
         let opts = DiffCmd::parse_args(args);
 
         // If the user specifies two files without revisions, we will compare the files on disk
-        let repo_dir = util::fs::get_repo_root_from_current_dir().unwrap();
+        let repo_dir = util::fs::get_repo_root_from_current_dir().ok_or(OxenError::basic_str(
+            "repo not found in current working directory",
+        ))?;
         let mut diff_result =
             if opts.revision_1.is_none() && opts.revision_2.is_none() && opts.path_2.is_some() {
                 // If we do not have revisions set, just compare the files on disk
@@ -253,8 +255,8 @@ impl DiffCmd {
             p,
             &format!(
                 "--- from file: {}\n+++ to file: {}\n",
-                diff.filename1.as_ref().unwrap(),
-                diff.filename2.as_ref().unwrap()
+                diff.filename1.as_ref().unwrap_or(&"<no file1>".to_string()),
+                diff.filename2.as_ref().unwrap_or(&"<no file1>".to_string())
             ),
         )?;
 
