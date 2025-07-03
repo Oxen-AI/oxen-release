@@ -7,7 +7,9 @@ pub struct LineDiff {
     pub text: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Default, Deserialize, Serialize, Debug, Clone)]
 pub struct TextDiff {
     pub lines: Vec<LineDiff>,
+    pub filename1: Option<String>,
+    pub filename2: Option<String>,
 }
