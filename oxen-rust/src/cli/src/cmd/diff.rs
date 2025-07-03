@@ -2,6 +2,8 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 use colored::ColoredString;
 use colored::Colorize;
+use minus::Pager;
+use std::fmt::Write;
 use std::path::PathBuf;
 
 use liboxen::core::df::pretty_print;
@@ -16,6 +18,13 @@ use liboxen::util;
 use crate::cmd::RunCmd;
 pub const NAME: &str = "diff";
 pub struct DiffCmd;
+
+fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
+    match writeln!(output, "{}", text) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(OxenError::basic_str("Could not write to pager")),
+    }
+}
 
 #[async_trait]
 impl RunCmd for DiffCmd {
@@ -63,6 +72,9 @@ impl RunCmd for DiffCmd {
         let opts = DiffCmd::parse_args(args);
 
         // If the user specifies two files without revisions, we will compare the files on disk
+        let repo_dir = util::fs::get_repo_root_from_current_dir().ok_or(OxenError::basic_str(
+            "repo not found in current working directory",
+        ))?;
         let mut diff_result =
             if opts.revision_1.is_none() && opts.revision_2.is_none() && opts.path_2.is_some() {
                 // If we do not have revisions set, just compare the files on disk
@@ -71,14 +83,13 @@ impl RunCmd for DiffCmd {
                     opts.path_2,
                     opts.keys,
                     opts.targets,
-                    None,
+                    Some(repo_dir),
                     opts.revision_1,
                     opts.revision_2,
                 )?
             } else {
                 // If we have revisions set, pass in the repo_dir to be able
                 // to compare the files at those revisions within the .oxen repo
-                let repo_dir = util::fs::get_repo_root_from_current_dir().unwrap();
                 repositories::diffs::diff(
                     opts.path_1,
                     opts.path_2,
@@ -150,23 +161,43 @@ impl DiffCmd {
         }
     }
 
-    pub fn print_diff_result(result: &DiffResult) -> Result<(), OxenError> {
-        match result {
-            DiffResult::Tabular(result) => {
-                // println!("{:?}", ct.summary);
-                DiffCmd::print_column_changes(&result.summary.modifications)?;
-                DiffCmd::print_row_changes(&result.summary.modifications)?;
-                println!("{}", pretty_print::df_to_str(&result.contents));
+    pub fn print_diff_result(results: &Vec<DiffResult>) -> Result<(), OxenError> {
+        let mut p = Pager::new();
+
+        for result in results {
+            match result {
+                DiffResult::Tabular(diff) => {
+                    // println!("{:?}", ct.summary);
+                    write_to_pager(
+                        &mut p,
+                        &format!(
+                            "--- from file: {}\n+++ to file: {}\n",
+                            diff.filename1.as_ref().unwrap(),
+                            diff.filename2.as_ref().unwrap()
+                        ),
+                    )?;
+                    DiffCmd::print_column_changes(&mut p, &diff.summary.modifications)?;
+                    DiffCmd::print_row_changes(&mut p, &diff.summary.modifications)?;
+                    write_to_pager(&mut p, pretty_print::df_to_str(&diff.contents).as_str())?;
+                }
+                DiffResult::Text(diff) => {
+                    DiffCmd::print_text_diff(&mut p, diff)?;
+                }
             }
-            DiffResult::Text(diff) => {
-                DiffCmd::print_text_diff(diff);
+            write_to_pager(&mut p, "\n\n".to_string().as_str())?;
+        }
+
+        match minus::page_all(p) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error while paging: {}", e);
             }
         }
 
         Ok(())
     }
 
-    fn print_row_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
+    fn print_row_changes(p: &mut Pager, mods: &TabularDiffMods) -> Result<(), OxenError> {
         let mut outputs: Vec<ColoredString> = vec![];
 
         if mods.row_counts.modified + mods.row_counts.added + mods.row_counts.removed == 0 {
@@ -188,16 +219,16 @@ impl DiffCmd {
         }
 
         for output in outputs {
-            print!("{output}");
+            write_to_pager(p, &output)?;
         }
 
-        println!();
+        write_to_pager(p, "\n".to_string().as_str())?;
 
         Ok(())
     }
 
     // TODO: Truncate to "and x more"
-    fn print_column_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
+    fn print_column_changes(p: &mut Pager, mods: &TabularDiffMods) -> Result<(), OxenError> {
         let mut outputs: Vec<ColoredString> = vec![];
 
         if !mods.col_changes.added.is_empty() || !mods.col_changes.added.is_empty() {
@@ -213,39 +244,51 @@ impl DiffCmd {
         }
 
         for output in outputs {
-            print!("{output}");
+            write_to_pager(p, &format!("{output}"))?;
         }
 
         Ok(())
     }
 
-    fn print_text_diff(diff: &TextDiff) {
+    fn print_text_diff(p: &mut Pager, diff: &TextDiff) -> Result<(), OxenError> {
+        write_to_pager(
+            p,
+            &format!(
+                "--- from file: {}\n+++ to file: {}\n",
+                diff.filename1.as_ref().unwrap_or(&"<no file1>".to_string()),
+                diff.filename2.as_ref().unwrap_or(&"<no file1>".to_string())
+            ),
+        )?;
+
         for line in &diff.lines {
             match line.modification {
-                ChangeType::Unchanged => println!("{}", line.text),
-                ChangeType::Added => println!("{}", line.text.green()),
-                ChangeType::Removed => println!("{}", line.text.red()),
-                ChangeType::Modified => println!("{}", line.text.yellow()),
+                ChangeType::Unchanged => write_to_pager(p, line.text.to_string().as_str())?,
+                ChangeType::Added => write_to_pager(p, &format!("+ {}", line.text.green()))?,
+                ChangeType::Removed => write_to_pager(p, &format!("- {}", line.text.red()))?,
+                ChangeType::Modified => write_to_pager(p, line.text.to_string().as_str())?,
             }
         }
+        Ok(())
     }
 
     pub fn maybe_save_diff_output(
-        result: &mut DiffResult,
+        result: &mut Vec<DiffResult>,
         output: Option<PathBuf>,
     ) -> Result<(), OxenError> {
-        // Save to disk if we have an output
-        if let Some(file_path) = output {
-            match result {
-                DiffResult::Tabular(result) => {
-                    let mut df = result.contents.clone();
-                    tabular::write_df(&mut df, file_path.clone())?;
-                }
-                DiffResult::Text(_) => {
-                    println!("Saving to disk not supported for text output");
+        for result in result {
+            if let Some(ref file_path) = output {
+                match result {
+                    DiffResult::Tabular(result) => {
+                        let mut df = result.contents.clone();
+                        tabular::write_df(&mut df, file_path.clone())?;
+                    }
+                    DiffResult::Text(_) => {
+                        println!("Saving to disk not supported for text output");
+                    }
                 }
             }
         }
+        // Save to disk if we have an output
 
         Ok(())
     }
