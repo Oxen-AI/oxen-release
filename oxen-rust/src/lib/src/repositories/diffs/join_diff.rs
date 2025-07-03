@@ -7,7 +7,7 @@ use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
 };
-use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
+use crate::model::diff::{AddRemoveModifyCounts, TabularDiff};
 use crate::model::Schema;
 use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
@@ -42,7 +42,7 @@ pub fn diff(
     keys: &[impl AsRef<str>],
     targets: &[impl AsRef<str>],
     display: &[impl AsRef<str>],
-) -> Result<DiffResult, OxenError> {
+) -> Result<TabularDiff, OxenError> {
     if !targets.is_empty() && keys.is_empty() {
         let targets = targets.iter().map(|k| k.as_ref()).collect::<Vec<&str>>();
         return Err(OxenError::basic_str(
@@ -139,8 +139,10 @@ pub fn diff(
             targets: targets.iter().map(|s| s.to_string()).collect(),
             display: display.iter().map(|s| s.to_string()).collect(),
         },
+        filename1: None,
+        filename2: None,
     };
-    Ok(DiffResult::Tabular(diff))
+    Ok(diff)
 }
 
 fn sort_df_on_keys(df: DataFrame, keys: Vec<&str>) -> Result<DataFrame, OxenError> {

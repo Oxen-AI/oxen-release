@@ -916,6 +916,10 @@ pub fn is_tabular(path: &Path) -> bool {
     is_tabular_from_extension(path, path)
 }
 
+pub fn is_tabular_with_ext(path: &Path, data_path: &Path) -> bool {
+    is_tabular_from_extension(data_path, path)
+}
+
 pub fn is_image(path: &Path) -> bool {
     let exts: HashSet<String> = vec!["jpg", "png"].into_iter().map(String::from).collect();
     contains_ext(path, &exts)
@@ -937,10 +941,20 @@ pub fn is_audio(path: &Path) -> bool {
 }
 
 pub fn is_utf8(path: &Path) -> bool {
-    if let Ok(bytes) = read_first_n_bytes(path, 1024) {
-        from_utf8(&bytes).is_ok()
-    } else {
-        false
+    const SAMPLE_SIZE: usize = 4096;
+
+    let bytes = match read_first_n_bytes(path, SAMPLE_SIZE) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+
+    if bytes.is_empty() {
+        return true;
+    }
+
+    match from_utf8(&bytes) {
+        Ok(_) => true,
+        Err(e) => e.error_len().is_none(),
     }
 }
 
