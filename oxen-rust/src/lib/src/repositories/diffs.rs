@@ -72,6 +72,13 @@ pub fn diff(
         targets,
     );
 
+    // If the user specifies two files without revisions, we will compare the files on disk
+    if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
+        // If we do not have revisions set, just compare the files on disk
+        let result = diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
+        return Ok(vec![result]);
+    }
+
     // Make sure we have a repository to look up the revisions
     let Some(repo_dir) = repo_dir else {
         return Err(OxenError::basic_str(
@@ -80,13 +87,6 @@ pub fn diff(
     };
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    // If the user specifies two files without revisions, we will compare the files on disk
-    if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
-        // If we do not have revisions set, just compare the files on disk
-        let result = diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
-        return Ok(vec![result]);
-    }
 
     log::debug!(
         "part_2: {path_2:?} revision_1: {revision_1:?} revision_2:{revision_2:?}, path_1: {:?}",
@@ -1547,15 +1547,23 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             util::fs::write_to_path(&file1, "hello\nhi\nhow are you?")?;
             util::fs::write_to_path(&file2, "hello\nhi\nhow are you doing?")?;
+            println!("!!!!");
+            let diff = repositories::diffs::diff(
+                &file1,
+                Some(file2),
+                vec![],
+                vec![],
+                Some(dir.canonicalize()?),
+                None,
+                None,
+            )?;
+            match diff.first() {
+                Some(DiffResult::Text(ref result)) => {
+                    let lines = &result.lines;
+                    println!("!!!!");
 
-            let diff =
-                repositories::diffs::diff(&file1, Some(file2), vec![], vec![], None, None, None)?;
-
-            match diff {
-                DiffResult::Text(result) => {
-                    let lines = result.lines;
-
-                    for line in &lines {
+                    for line in lines {
+                        println!("!!!!");
                         println!("{:?}", line);
                     }
 
