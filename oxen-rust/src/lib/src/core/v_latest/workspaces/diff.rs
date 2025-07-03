@@ -63,6 +63,8 @@ pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffResult,
         contents: diff_df,
         parameters: TabularDiffParameters::empty(),
         summary: diff_summary,
+        filename1: None,
+        filename2: None,
     };
 
     Ok(DiffResult::Tabular(diff_result))
