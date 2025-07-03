@@ -164,11 +164,19 @@ impl DiffCmd {
 
         for result in results {
             match result {
-                DiffResult::Tabular(result) => {
+                DiffResult::Tabular(diff) => {
                     // println!("{:?}", ct.summary);
-                    DiffCmd::print_column_changes(&mut p, &result.summary.modifications)?;
-                    DiffCmd::print_row_changes(&mut p, &result.summary.modifications)?;
-                    println!("{}", pretty_print::df_to_str(&result.contents));
+                    write_to_pager(
+                        &mut p,
+                        &format!(
+                            "--- from file: {}\n+++ to file: {}\n",
+                            diff.filename1.as_ref().unwrap(),
+                            diff.filename2.as_ref().unwrap()
+                        ),
+                    )?;
+                    DiffCmd::print_column_changes(&mut p, &diff.summary.modifications)?;
+                    DiffCmd::print_row_changes(&mut p, &diff.summary.modifications)?;
+                    write_to_pager(&mut p, pretty_print::df_to_str(&diff.contents).as_str())?;
                 }
                 DiffResult::Text(diff) => {
                     DiffCmd::print_text_diff(&mut p, diff)?;
