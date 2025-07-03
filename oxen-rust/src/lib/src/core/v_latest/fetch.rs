@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core;
 use crate::core::refs::with_ref_manager;
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNodeWithDir, MerkleTreeNode};
@@ -40,6 +41,8 @@ pub async fn fetch_remote_branch(
     };
 
     // We may not have a head commit if the repo is empty (initial clone)
+    // TODO: I don't believe there's any equivalent to the starting hash logic here...
+    // That can be the next optimization
     if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         log::debug!("Head commit: {}", head_commit);
         log::debug!("Remote branch commit: {}", remote_branch.commit_id);
@@ -97,17 +100,24 @@ pub async fn fetch_remote_branch(
             HashSet::from([commit_node.commit()?.to_commit()])
         }
     };
+
     log::debug!("Fetch got {} commits", commits.len());
 
-    let missing_entries =
-        collect_missing_entries(repo, &commits, &fetch_opts.subtree_paths, &fetch_opts.depth)?;
+    // Target 2: Minor: total bytes
+    let mut total_bytes = 0;
+    let missing_entries = collect_missing_entries(
+        repo,
+        &commits,
+        &fetch_opts.subtree_paths,
+        &fetch_opts.depth,
+        &mut total_bytes,
+    )?;
     log::debug!(
         "Fetch got {} potentially missing entries",
         missing_entries.len()
     );
     let missing_entries: Vec<Entry> = missing_entries.into_iter().collect();
     pull_progress.finish();
-    let total_bytes = missing_entries.iter().map(|e| e.num_bytes()).sum();
     let pull_progress = Arc::new(PullProgress::new_with_totals(
         missing_entries.len() as u64,
         total_bytes,
@@ -219,8 +229,26 @@ fn collect_missing_entries(
     commits: &HashSet<Commit>,
     subtree_paths: &Option<Vec<PathBuf>>,
     depth: &Option<i32>,
+    total_bytes: &mut u64,
 ) -> Result<HashSet<Entry>, OxenError> {
     let mut missing_entries: HashSet<Entry> = HashSet::new();
+    let mut unique_hashes: HashSet<MerkleHash> = HashSet::new();
+
+    let mut shared_hashes =
+        if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
+            let mut starting_node_hashes = HashSet::new();
+            repositories::tree::populate_starting_hashes(
+                repo,
+                &head_commit,
+                &None,
+                &None,
+                &mut starting_node_hashes,
+            )?;
+            starting_node_hashes
+        } else {
+            HashSet::new()
+        };
+
     for commit in commits {
         if let Some(subtree_paths) = subtree_paths {
             log::debug!(
@@ -229,11 +257,14 @@ fn collect_missing_entries(
                 depth
             );
             for subtree_path in subtree_paths {
-                let Some(tree) = repositories::tree::get_subtree_by_depth(
+                // TARGET 3: HUGE
+                let Some(tree) = CommitMerkleTree::from_path_depth_unique_children(
                     repo,
                     commit,
-                    &Some(subtree_path.clone()),
-                    depth,
+                    subtree_path,
+                    depth.unwrap_or(-1),
+                    &mut shared_hashes,
+                    &mut unique_hashes,
                 )?
                 else {
                     log::warn!(
@@ -242,10 +273,26 @@ fn collect_missing_entries(
                     );
                     continue;
                 };
-                collect_missing_entries_for_subtree(&tree, subtree_path, &mut missing_entries)?;
+
+                shared_hashes.extend(&unique_hashes);
+                unique_hashes.clear();
+
+                collect_missing_entries_for_subtree(
+                    &tree,
+                    subtree_path,
+                    &mut missing_entries,
+                    total_bytes,
+                )?;
             }
         } else {
-            let Some(tree) = repositories::tree::get_subtree_by_depth(repo, commit, &None, depth)?
+            let Some(tree) = CommitMerkleTree::from_path_depth_unique_children(
+                repo,
+                commit,
+                PathBuf::from("."),
+                depth.unwrap_or(-1),
+                &mut shared_hashes,
+                &mut unique_hashes,
+            )?
             else {
                 log::warn!(
                     "get_subtree_by_depth returned None for commit: {:?}",
@@ -253,7 +300,16 @@ fn collect_missing_entries(
                 );
                 continue;
             };
-            collect_missing_entries_for_subtree(&tree, &PathBuf::from(""), &mut missing_entries)?;
+
+            shared_hashes.extend(&unique_hashes);
+            unique_hashes.clear();
+
+            collect_missing_entries_for_subtree(
+                &tree,
+                &PathBuf::from(""),
+                &mut missing_entries,
+                total_bytes,
+            )?;
         }
     }
     Ok(missing_entries)
@@ -263,9 +319,11 @@ fn collect_missing_entries_for_subtree(
     tree: &MerkleTreeNode,
     subtree_path: &PathBuf,
     missing_entries: &mut HashSet<Entry>,
+    total_bytes: &mut u64,
 ) -> Result<(), OxenError> {
     let files: HashSet<FileNodeWithDir> = repositories::tree::list_all_files(tree, subtree_path)?;
     for file in files {
+        *total_bytes += file.file_node.num_bytes();
         missing_entries.insert(Entry::CommitEntry(CommitEntry {
             commit_id: file.file_node.last_commit_id().to_string(),
             path: file.dir.join(file.file_node.name()),
@@ -326,9 +384,9 @@ pub async fn fetch_full_tree_and_hashes(
     // Check what our HEAD commit is locally
     if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         // Remote is not guaranteed to have our head commit
-        // If it doesn't, we will download all commits from the remote branch commit
+        // If it doesn't, we will download all commit dir hashes from the remote branch commit
         if api::client::tree::has_node(remote_repo, MerkleHash::from_str(&head_commit.id)?).await? {
-            // Download the commits between the head commit and the remote branch commit
+            // Download the dir_hashes between the head commit and the remote branch commit
             let base_commit_id = head_commit.id;
             let head_commit_id = &remote_branch.commit_id;
 
