@@ -48,7 +48,11 @@ pub fn diff(
     let Changeset { diffs, .. } = Changeset::new(&original_data, &compare_data, "\n");
     log::debug!("Changeset created with {} diffs", diffs.len());
 
-    let mut result = TextDiff::default();
+    let mut result = TextDiff {
+        filename1: Some(version_file_1.as_ref().to_string_lossy().to_string()), //TODO: why is this so ugly? change result.filename1 to have Path,
+        filename2: Some(version_file_2.as_ref().to_string_lossy().to_string()),
+        ..Default::default()
+    };
 
     // Find the indices of all Add or Rem changes
     let change_indices: Vec<usize> = diffs
