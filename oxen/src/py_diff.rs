@@ -10,7 +10,7 @@ use crate::error::PyOxenError;
 
 #[pyclass]
 pub struct PyDiff {
-    pub diff: DiffResult,
+    pub diff: Vec<DiffResult>,
 }
 
 #[pymethods]
@@ -21,24 +21,25 @@ impl PyDiff {
 
     #[getter]
     pub fn format(&self) -> String {
-        match &self.diff {
-            DiffResult::Tabular(_diff) => "tabular".to_string(),
-            DiffResult::Text(_diff) => "text".to_string(),
+        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+            Some(DiffResult::Tabular(_diff)) => "tabular".to_string(),
+            Some(DiffResult::Text(_diff)) => "text".to_string(),
+            None => "text".to_string(),
         }
     }
 
     #[getter]
     pub fn tabular(&self) -> Result<PyTabularDiff, PyOxenError> {
-        match &self.diff {
-            DiffResult::Tabular(diff) => Ok(PyTabularDiff::from(diff)),
+        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+            Some(DiffResult::Tabular(diff)) => Ok(PyTabularDiff::from(diff)),
             _ => Err(OxenError::basic_str("Diff is not tabular").into()),
         }
     }
 
     #[getter]
     pub fn text(&self) -> Result<PyTextDiff, PyOxenError> {
-        match &self.diff {
-            DiffResult::Text(diff) => Ok(PyTextDiff::from(diff)),
+        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+            Some(DiffResult::Text(diff)) => Ok(PyTextDiff::from(diff)),
             _ => Err(OxenError::basic_str("Diff is not text").into()),
         }
     }
