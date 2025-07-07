@@ -5,15 +5,21 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::error::OxenError;
 use liboxen::model::commit::NewCommitBody;
+use liboxen::model::file::{FileContents, FileNew};
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::repositories;
+use liboxen::model::{Commit, User};
+use liboxen::repositories::{self, branches};
 use liboxen::util;
 use liboxen::view::{CommitResponse, StatusMessage};
 
 use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
+use futures_util::TryStreamExt as _;
+use liboxen::core::v_latest::commits;
+use liboxen::repositories::add;
 use serde_json::Value;
+use std::path::PathBuf;
 
 const ALLOWED_IMPORT_DOMAINS: [&str; 3] = ["huggingface.co", "kaggle.com", "oxen.ai"];
 
@@ -121,7 +127,20 @@ pub async fn put(
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
+
+    // Try to parse the resource (branch/commit/path). If the repo has no commits yet this will
+    // fail, so fall back to an initial-upload helper.
+    let resource = match parse_resource(&req, &repo) {
+        Ok(res) => res,
+        Err(parse_err) => {
+            if repositories::commits::head_commit_maybe(&repo)?.is_none() {
+                return handle_initial_put_empty_repo(req, payload, &repo).await;
+            } else {
+                return Err(parse_err);
+            }
+        }
+    };
+
     // Resource must specify branch because we need to commit the workspace back to a branch
     let branch = resource
         .branch
@@ -175,6 +194,122 @@ pub async fn put(
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_created(),
         commit,
+    }))
+}
+
+// Helper: when the repository has no commits yet, accept the upload as the first commit on the
+// default branch ("main").
+async fn handle_initial_put_empty_repo(
+    req: HttpRequest,
+    mut payload: Multipart,
+    repo: &liboxen::model::LocalRepository,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
+    let path_string = resource
+        .components()
+        .skip(1)
+        .collect::<PathBuf>()
+        .to_string_lossy()
+        .to_string();
+    let mut files: Vec<FileNew> = vec![];
+    let mut name: Option<String> = None;
+    let mut email: Option<String> = None;
+    while let Some(mut field) = payload
+        .try_next()
+        .await
+        .map_err(OxenHttpError::MultipartError)?
+    {
+        let disposition = field.content_disposition().ok_or(OxenHttpError::NotFound)?;
+        let field_name = disposition
+            .get_name()
+            .ok_or(OxenHttpError::NotFound)?
+            .to_string(); // Convert to owned String
+
+        match field_name.as_str() {
+            "name" | "email" => {
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    bytes.extend_from_slice(&chunk);
+                }
+                let value = String::from_utf8(bytes)
+                    .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?;
+
+                if field_name == "name" {
+                    name = Some(value);
+                } else {
+                    email = Some(value);
+                }
+            }
+            "files[]" | "file" => {
+                let filename = disposition.get_filename().map_or_else(
+                    || uuid::Uuid::new_v4().to_string(),
+                    sanitize_filename::sanitize,
+                );
+
+                let mut contents = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    contents.extend_from_slice(&chunk);
+                }
+
+                files.push(FileNew {
+                    path: PathBuf::from(&filename),
+                    contents: FileContents::Binary(contents),
+                    user: User {
+                        name: name
+                            .clone()
+                            .ok_or(OxenHttpError::BadRequest("Name is required".into()))?,
+                        email: email
+                            .clone()
+                            .ok_or(OxenHttpError::BadRequest("Email is required".into()))?,
+                    },
+                });
+            }
+            _ => {}
+        }
+    }
+
+    // If the user supplied files, add and commit them
+    let mut commit: Option<Commit> = None;
+    if !files.is_empty() {
+        let user = &files[0].user;
+        // Add the files
+        log::debug!("repositories::create files: {:?}", files.len());
+        for file in files.clone() {
+            let path = &file.path;
+            let contents = &file.contents;
+            // write the data to the path
+            // if the path does not exist within the repo, make it
+            let full_path = repo.path.join(&path_string).join(path);
+            let parent_dir = full_path.parent().unwrap();
+            if !parent_dir.exists() {
+                util::fs::create_dir_all(parent_dir)?;
+            }
+            match contents {
+                FileContents::Text(text) => {
+                    util::fs::write(&full_path, text.as_bytes())?;
+                }
+                FileContents::Binary(bytes) => {
+                    util::fs::write(&full_path, bytes)?;
+                }
+            }
+            add(repo, &full_path)?;
+        }
+
+        commit = Some(commits::commit_with_user(repo, "Initial commit", user)?);
+        branches::create(repo, "main", &commit.as_ref().unwrap().id)?;
+    }
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_created(),
+        commit: commit.unwrap(),
     }))
 }
 
@@ -359,7 +494,6 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("Upload response: {}", body);
         let resp: CommitResponse = serde_json::from_str(body)?;
         assert_eq!(resp.status.status, "success");
 
@@ -420,7 +554,6 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("Import response: {}", body);
         let resp: CommitResponse = serde_json::from_str(body)?;
         assert_eq!(resp.status.status, "success");
 
