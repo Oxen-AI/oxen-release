@@ -1,11 +1,10 @@
-use crate::controllers;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::error::OxenError;
 use liboxen::model::commit::NewCommitBody;
-use liboxen::model::file::{FileContents, FileNew};
+use liboxen::model::file::{FileContents, FileNew, TempFileNew};
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::{Commit, User};
 use liboxen::repositories::{self, branches};
@@ -16,8 +15,7 @@ use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::{http::header, web, HttpRequest, HttpResponse};
 use futures_util::TryStreamExt as _;
-use liboxen::core::v_latest::commits;
-use liboxen::repositories::add;
+use liboxen::repositories::{add, commits};
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -120,7 +118,7 @@ pub async fn get(
 /// Update file content in place (add to temp workspace and commit)
 pub async fn put(
     req: HttpRequest,
-    payload: Multipart,
+    mut payload: Multipart,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     log::debug!("file::put path {:?}", req.path());
     let app_data = app_data(&req)?;
@@ -161,32 +159,136 @@ pub async fn put(
         ));
     }
 
-    // Optional commit info
-    let author = req.headers().get("oxen-commit-author");
-    let email = req.headers().get("oxen-commit-email");
-    let message = req.headers().get("oxen-commit-message");
+    let mut name: Option<String> = None;
+    let mut email: Option<String> = None;
+    let mut message: Option<String> = None;
+    let mut temp_files: Vec<TempFileNew> = vec![];
+    while let Some(mut field) = payload
+        .try_next()
+        .await
+        .map_err(OxenHttpError::MultipartError)?
+    {
+        let disposition = field.content_disposition().ok_or(OxenHttpError::NotFound)?;
+        let field_name = disposition
+            .get_name()
+            .ok_or(OxenHttpError::NotFound)?
+            .to_string(); // Convert to owned String
 
-    // Create temporary workspace
+        match field_name.as_str() {
+            "name" | "email" => {
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    bytes.extend_from_slice(&chunk);
+                }
+                let value = String::from_utf8(bytes)
+                    .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?;
+
+                if field_name == "name" {
+                    name = Some(value);
+                } else {
+                    email = Some(value);
+                }
+            }
+            "message" => {
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    bytes.extend_from_slice(&chunk);
+                }
+                let value = String::from_utf8(bytes)
+                    .map_err(|e| OxenHttpError::BadRequest(e.to_string().into()))?;
+                message = Some(value);
+            }
+            "files[]" | "file" => {
+                let filename = disposition.get_filename().map_or_else(
+                    || uuid::Uuid::new_v4().to_string(),
+                    sanitize_filename::sanitize,
+                );
+
+                let mut contents = Vec::new();
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(OxenHttpError::MultipartError)?
+                {
+                    contents.extend_from_slice(&chunk);
+                }
+
+                // Store path and contents temporarily
+                temp_files.push(TempFileNew {
+                    path: PathBuf::from(&filename),
+                    contents: FileContents::Binary(contents),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    // Now that all fields are processed, we can safely unwrap name and email
+    let user = User {
+        name: name
+            .clone()
+            .ok_or(OxenHttpError::BadRequest("Name is required".into()))?,
+        email: email
+            .clone()
+            .ok_or(OxenHttpError::BadRequest("Email is required".into()))?,
+    };
+
+    let mut files: Vec<FileNew> = vec![];
+    for temp_file in temp_files {
+        files.push(FileNew {
+            path: temp_file.path,
+            contents: temp_file.contents,
+            user: user.clone(), // Clone the user for each file
+        });
+    }
     let workspace = repositories::workspaces::create_temporary(&repo, &commit)?;
+    if !files.is_empty() {
+        log::debug!("repositories::create files: {:?}", files.len());
+        for file in files.clone() {
+            let path = &file.path;
+            let contents = &file.contents;
+            // write the data to the path
+            // if the path does not exist within the repo, make it
 
-    // Add files to workspace
-    let files =
-        controllers::workspaces::files::save_parts(&workspace, &resource.path, payload).await?;
+            let workspace_dir = workspace.dir();
 
-    for file in files.iter() {
-        log::debug!("file::put add file {:?}", file);
-        let path = repositories::workspaces::files::add(&workspace, file)?;
-        log::debug!("file::put add file ✅ success! staged file {:?}", path);
+            let full_dir = workspace_dir.join(resource.path.clone());
+
+            if !full_dir.exists() {
+                std::fs::create_dir_all(&full_dir)?;
+            }
+
+            let filepath = full_dir.join(path);
+
+            // Need copy to pass to thread and return the name
+            match contents {
+                FileContents::Text(text) => {
+                    util::fs::write(&filepath, text.as_bytes())?;
+                }
+                FileContents::Binary(bytes) => {
+                    util::fs::write(&filepath, bytes)?;
+                }
+            }
+            repositories::workspaces::files::add(&workspace, &filepath)?;
+        }
     }
 
     // Commit workspace
     let commit_body = NewCommitBody {
-        author: author.map_or("".to_string(), |a| a.to_str().unwrap().to_string()),
-        email: email.map_or("".to_string(), |e| e.to_str().unwrap().to_string()),
-        message: message.map_or(
-            format!("Auto-commit files to {}", &resource.path.to_string_lossy()),
-            |m| m.to_str().unwrap().to_string(),
-        ),
+        author: name.clone().unwrap_or("".to_string()),
+        email: email.clone().unwrap_or("".to_string()),
+        message: message.clone().unwrap_or(format!(
+            "Auto-commit files to {}",
+            &resource.path.to_string_lossy()
+        )),
     };
     let commit = repositories::workspaces::commit(&workspace, &commit_body, branch.name)?;
     log::debug!("file::put workspace commit ✅ success! commit {:?}", commit);
@@ -211,7 +313,8 @@ async fn handle_initial_put_empty_repo(
         .collect::<PathBuf>()
         .to_string_lossy()
         .to_string();
-    let mut files: Vec<FileNew> = vec![];
+
+    let mut temp_files: Vec<TempFileNew> = vec![];
     let mut name: Option<String> = None;
     let mut email: Option<String> = None;
     while let Some(mut field) = payload
@@ -259,28 +362,37 @@ async fn handle_initial_put_empty_repo(
                     contents.extend_from_slice(&chunk);
                 }
 
-                files.push(FileNew {
+                // Store path and contents temporarily
+                temp_files.push(TempFileNew {
                     path: PathBuf::from(&filename),
                     contents: FileContents::Binary(contents),
-                    user: User {
-                        name: name
-                            .clone()
-                            .ok_or(OxenHttpError::BadRequest("Name is required".into()))?,
-                        email: email
-                            .clone()
-                            .ok_or(OxenHttpError::BadRequest("Email is required".into()))?,
-                    },
                 });
             }
             _ => {}
         }
     }
 
+    // Now that all fields are processed, we can safely unwrap name and email
+    let user = User {
+        name: name.ok_or(OxenHttpError::BadRequest("Name is required".into()))?,
+        email: email.ok_or(OxenHttpError::BadRequest("Email is required".into()))?,
+    };
+
+    // Convert temporary files to FileNew with the complete user information
+    let mut files: Vec<FileNew> = vec![];
+    for temp_file in temp_files {
+        files.push(FileNew {
+            path: temp_file.path,
+            contents: temp_file.contents,
+            user: user.clone(), // Clone the user for each file
+        });
+    }
+
     // If the user supplied files, add and commit them
     let mut commit: Option<Commit> = None;
+
     if !files.is_empty() {
-        let user = &files[0].user;
-        // Add the files
+        let user_ref = &files[0].user; // Use the user from the first file, since it's the same for all
         log::debug!("repositories::create files: {:?}", files.len());
         for file in files.clone() {
             let path = &file.path;
@@ -303,7 +415,7 @@ async fn handle_initial_put_empty_repo(
             add(repo, &full_path)?;
         }
 
-        commit = Some(commits::commit_with_user(repo, "Initial commit", user)?);
+        commit = Some(commits::commit_with_user(repo, "Initial commit", user_ref)?);
         branches::create(repo, "main", &commit.as_ref().unwrap().id)?;
     }
 
