@@ -255,6 +255,7 @@ pub async fn put(
         for file in files.clone() {
             let path = &file.path;
             let contents = &file.contents;
+
             // write the data to the path
             // if the path does not exist within the repo, make it
 
@@ -290,7 +291,9 @@ pub async fn put(
             &resource.path.to_string_lossy()
         )),
     };
+
     let commit = repositories::workspaces::commit(&workspace, &commit_body, branch.name)?;
+
     log::debug!("file::put workspace commit ✅ success! commit {:?}", commit);
 
     Ok(HttpResponse::Ok().json(CommitResponse {
@@ -545,10 +548,9 @@ pub async fn import(
 mod tests {
     use std::path::PathBuf;
 
-    use actix_multipart::test::create_form_data_payload_and_headers;
-    use actix_web::{web, web::Bytes, App};
+    use actix_multipart_test::MultiPartFormDataBuilder;
+    use actix_web::{web, App};
     use liboxen::view::CommitResponse;
-    use mime;
 
     use liboxen::error::OxenError;
     use liboxen::repositories;
@@ -571,27 +573,27 @@ mod tests {
         repositories::add(&repo, &hello_file)?;
         let _commit = repositories::commit(&repo, "First commit")?;
 
-        // Create multipart request data
-        let (body, headers) = create_form_data_payload_and_headers(
-            "file",
-            Some("hello.txt".to_owned()),
-            Some(mime::TEXT_PLAIN_UTF_8),
-            Bytes::from_static(b"Updated Content!"),
+        util::fs::write_to_path(&hello_file, "Updated Content!")?;
+        let mut multipart_form_data_builder = MultiPartFormDataBuilder::new();
+        multipart_form_data_builder.with_file(
+            hello_file,   // First argument: Path to the actual file on disk
+            "file",       // Second argument: Field name (as expected by your server)
+            "text/plain", // Content type
+            "hello.txt",  // Filename for the multipart form
         );
-
+        multipart_form_data_builder.with_text("name", "some_name");
+        multipart_form_data_builder.with_text("email", "some_email");
+        multipart_form_data_builder.with_text("message", "some_message");
+        let (header, body) = multipart_form_data_builder.build();
         let uri = format!("/oxen/{namespace}/{repo_name}/file/main/data");
         let req = actix_web::test::TestRequest::put()
             .uri(&uri)
             .app_data(OxenAppData::new(sync_dir.to_path_buf()))
             .param("namespace", namespace)
-            .param("repo_name", repo_name)
-            .param("resource", "hello.txt");
+            .param("resource", "data")
+            .param("repo_name", repo_name);
 
-        let req = headers
-            .into_iter()
-            .fold(req, |req, hdr| req.insert_header(hdr))
-            .set_payload(body)
-            .to_request();
+        let req = req.insert_header(header).set_payload(body).to_request();
 
         let app = actix_web::test::init_service(
             App::new()
