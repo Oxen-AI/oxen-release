@@ -9,6 +9,7 @@ dependencies = [
  "actix-files",
  "actix-http",
  "actix-multipart",
+ "actix-multipart-test",
  "actix-service",
  "actix-web",
  "actix-web-httpauth",
@@ -232,6 +233,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "actix-multipart-test"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d622d3b8268b9c3d6788351eae9f028c29ba1151f4943aba4e5b794f475b445d"
+dependencies = [
+ "uuid",
 ]
 
 [[package]]
