@@ -32,16 +32,15 @@ pub async fn put_file(
     } else {
         file_part
     };
-    let form = Form::new().part("file", file_part);
-
-    let mut req = client.put(&url).multipart(form);
+    let mut form = Form::new().part("file", file_part);
 
     if let Some(body) = commit_body {
-        req = req
-            .header("oxen-commit-author", body.author)
-            .header("oxen-commit-email", body.email)
-            .header("oxen-commit-message", body.message);
+        form = form.text("name", body.author);
+        form = form.text("email", body.email);
+        form = form.text("message", body.message);
     }
+
+    let req = client.put(&url).multipart(form);
 
     let res = req.send().await?;
     let body = client::parse_json_body(&url, res).await?;
@@ -97,6 +96,41 @@ mod tests {
             )
             .await?;
 
+            assert_eq!(response.status.status_message, "resource_created");
+
+            // Pull changes from remote to local repo
+            repositories::pull(&local_repo).await?;
+
+            // Check that the file exists in the local repo after pulling
+            let file_path_in_repo = local_repo.path.join(directory_name).join("test.jpeg");
+            assert!(file_path_in_repo.exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_update_file_on_empty_repo() -> Result<(), OxenError> {
+        test::run_empty_configured_remote_repo_test(|local_repo, remote_repo| async move {
+            let branch_name = "main";
+            let directory_name = "test_data";
+            let file_path = test::test_img_file();
+            let commit_body = NewCommitBody {
+                author: "Test Author".to_string(),
+                email: "test@example.com".to_string(),
+                message: "Update file test".to_string(),
+            };
+
+            let response = api::client::file::put_file(
+                &remote_repo,
+                branch_name,
+                directory_name,
+                &file_path,
+                Some("test.jpeg"),
+                Some(commit_body),
+            )
+            .await?;
             assert_eq!(response.status.status_message, "resource_created");
 
             // Pull changes from remote to local repo

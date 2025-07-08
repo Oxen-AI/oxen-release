@@ -5,6 +5,7 @@
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::User;
 use crate::model::{Commit, LocalRepository, MerkleHash};
 use crate::opts::PaginateOpts;
 use crate::util;
@@ -50,6 +51,17 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::commits::commit(repo, message),
+    }
+}
+
+pub fn commit_with_user(
+    repo: &LocalRepository,
+    message: &str,
+    user: &User,
+) -> Result<Commit, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::commit_with_user(repo, message, user),
     }
 }
 
