@@ -46,7 +46,7 @@ impl VNode {
                     node_type: MerkleTreeNodeType::VNode,
                 }),
             }),
-            MinOxenVersion::LATEST => Ok(Self {
+            MinOxenVersion::LATEST | MinOxenVersion::V0_25_0 => Ok(Self {
                 node: EVNode::V0_25_0(VNodeImplV0_25_0 {
                     hash: vnode_opts.hash,
                     node_type: MerkleTreeNodeType::VNode,
