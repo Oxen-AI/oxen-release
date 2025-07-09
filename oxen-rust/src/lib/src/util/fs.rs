@@ -14,6 +14,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
+use std::path::Component;
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
@@ -1380,7 +1381,7 @@ pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     }
 }
 
-pub fn path_relative_to_dir(
+pub fn path_relative_to_di1r(
     path: impl AsRef<Path>,
     dir: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
@@ -1391,12 +1392,15 @@ pub fn path_relative_to_dir(
     let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
+        log::debug!("mut path file name: {:?}", mut_path.file_name());
         if let Some(filename) = mut_path.file_name() {
             let path_string = mut_path.to_str().unwrap().to_string().to_lowercase();
 
             if path_string != dir_string {
-                components.push(PathBuf::from(filename));
+                let new = PathBuf::from(filename);
+                components.push(new.clone());
+                log::debug!("new: {new:?}");
             } else {
                 break;
             }
@@ -1412,6 +1416,123 @@ pub fn path_relative_to_dir(
     }
 
     Ok(result)
+}
+
+
+pub fn path_relative_to_dir(
+    path: impl AsRef<Path>,
+    dir: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+    let dir = dir.as_ref();
+
+    log::debug!("path_relative_to_dir starting path: {path:?}");
+    log::debug!("path_relative_to_dir staring dir: {dir:?}");
+  
+    let path_components: Vec<Component> = path.components().collect();
+    let dir_components: Vec<Component> = dir.components().collect();
+
+
+    if  path_components.len() == 0 || dir == path  {
+        return Ok(PathBuf::new());
+    }
+
+    if dir_components.len() == 0 || dir_components.len() > path_components.len() {
+
+        // Iterate through the components instead of returning original to normalize path for windows
+        let mut result = PathBuf::new();
+        let path_slice = &path_components;
+        
+        // Adjust for special paths like '.', '..', etc
+        for component in path_slice.iter() {
+            if matches!(component, Component::Normal(_)) {
+                result.push::<&Path>(component.as_ref());
+            }
+        }
+
+        return Ok(result);
+    }
+
+    let mut path_iter = path_components.iter();
+    let mut dir_iter = dir_components.iter();
+    let starting_dir_iter = dir_iter.clone();
+
+    let mut dir_component = dir_iter.next().unwrap();
+    let mut matches = 0;
+    let mut start_index = 0;
+
+    for _ in 0..(path_components.len()) {
+
+        let path_component = path_iter.next().expect("Path bounds violated");
+        let path_str = path_component.as_os_str();
+        let dir_str = dir_component.as_os_str();
+
+        if path_str == dir_str {
+            matches += 1;
+            if matches == dir_components.len() {
+                
+                let mut result = PathBuf::new();
+                let path_slice = &path_components[(start_index + 1)..];
+                
+                // Adjust for special paths like '.', '..', etc
+                for component in path_slice.iter() {
+                    if matches!(component, Component::Normal(_)) {
+                        result.push::<&Path>(component.as_ref());
+                    }
+                }
+                // log::debug!("result: {result:?}");
+                return Ok(result);
+            }
+            start_index += 1;
+            dir_component = dir_iter.next().expect("Dir bounds violated");
+            continue;
+        }
+
+        // Check length first as an optimization
+        // The most expensive part of this function is the string conversion, so we try to avoid that
+        if path_str.len() == dir_str.len() {
+
+            // On Windows, if the components don't match, it may be because of casing inconsistency
+            // So, if the raw components don't match, convert them to lowercase strings
+            let path_lower = path_str.to_string_lossy().to_lowercase();
+            let dir_lower = dir_str.to_string_lossy().to_lowercase();
+
+            if path_lower == dir_lower {
+                
+                matches += 1;
+                if matches == dir_components.len() {
+                    let mut result = PathBuf::new();
+                    let path_slice = &path_components[(start_index + 1)..];
+                    
+                    for component in path_slice.iter() {
+                        if matches!(component, Component::Normal(_)) {
+                            result.push::<&Path>(component.as_ref());
+                        }
+                    }
+                    log::debug!("result: {result:?}");
+                    return Ok(result);
+                }
+                start_index += 1;
+                dir_component = dir_iter.next().expect("Dir bounds violated");
+                continue;
+            }
+        }
+       
+        // If the components don't match, reset dir_iter and dir_component
+        dir_iter = starting_dir_iter.clone();
+        dir_component = dir_iter.next().unwrap(); 
+        start_index += 1;
+    }
+   
+    // If the loop finishes, the path cannot be found relative to the dir
+    // Returning the original path is the expected behavior
+    let mut result = PathBuf::new();
+    let path_slice = &path_components;
+    
+    for component in path_slice.iter() {
+        result.push::<&Path>(component.as_ref());
+    }
+    return Ok(result);
 }
 
 pub fn linux_path_str(string: &str) -> String {
