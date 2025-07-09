@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct DiffOpts {
+    pub repo_dir: Option<PathBuf>,
     pub path_1: PathBuf,
     pub path_2: Option<PathBuf>,
     pub keys: Vec<String>,

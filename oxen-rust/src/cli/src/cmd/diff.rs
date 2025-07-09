@@ -113,6 +113,7 @@ impl DiffCmd {
         let output = args.get_one::<String>("output").map(PathBuf::from);
 
         DiffOpts {
+            repo_dir: None,
             path_1: file1,
             path_2: file2,
             keys,
