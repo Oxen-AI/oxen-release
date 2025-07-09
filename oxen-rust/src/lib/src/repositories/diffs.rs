@@ -41,7 +41,7 @@ use crate::model::diff::schema_diff::SchemaDiff;
 use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::diff::DiffResult;
 
-use crate::opts::DFOpts;
+use crate::opts::{DFOpts, DiffOpts};
 
 pub mod join_diff;
 pub mod utf8_diff;
@@ -57,48 +57,45 @@ fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
     util::fs::is_utf8(file_1.as_ref()) && util::fs::is_utf8(file_2.as_ref())
 }
 
-pub fn diff(
-    path_1: impl AsRef<Path>,
-    path_2: Option<PathBuf>,
-    keys: Vec<String>,
-    targets: Vec<String>,
-    repo_dir: Option<PathBuf>,
-    revision_1: Option<String>,
-    revision_2: Option<String>,
-) -> Result<Vec<DiffResult>, OxenError> {
+pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!(
         "diff called with keys: {:?} and targets: {:?}",
-        keys,
-        targets,
+        opts.keys,
+        opts.targets,
     );
 
     // If the user specifies two files without revisions, we will compare the files on disk
-    if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
+    if opts.revision_1.is_none() && opts.revision_2.is_none() && opts.path_2.is_some() {
         // If we do not have revisions set, just compare the files on disk
-        let result = diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
+        let result = diff_files(
+            opts.path_1,
+            opts.path_2.unwrap(),
+            opts.keys,
+            opts.targets,
+            vec![],
+        )?;
         return Ok(vec![result]);
     }
 
-    // Make sure we have a repository to look up the revisions
-    let Some(repo_dir) = repo_dir else {
-        return Err(OxenError::basic_str(
-            "Specifying a revision requires a repository",
-        ));
-    };
-
-    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let repository = LocalRepository::from_current_dir()?; // TODO: handle error and enable individual file or directory comparison
 
     log::debug!(
-        "part_2: {path_2:?} revision_1: {revision_1:?} revision_2:{revision_2:?}, path_1: {:?}",
-        path_1.as_ref()
+        "part_2: {:?} revision_1: {:?} revision_2:{:?}, path_1: {:?}",
+        opts.path_2,
+        opts.revision_1,
+        opts.revision_2,
+        opts.path_1
     );
 
     // Handle directory diff between two commits
-    if path_1.as_ref().is_dir() && path_2.is_some() && revision_1.is_some() && revision_2.is_some()
+    if opts.path_1.is_dir()
+        && opts.path_2.is_some()
+        && opts.revision_1.is_some()
+        && opts.revision_2.is_some()
     {
         // Safe to unwrap due to the checks in the `if` condition
-        let rev_1 = revision_1.as_ref().unwrap();
-        let rev_2 = revision_2.as_ref().unwrap();
+        let rev_1 = opts.revision_1.as_ref().unwrap();
+        let rev_2 = opts.revision_2.as_ref().unwrap();
 
         let commit_1 = repositories::revisions::get(&repository, rev_1)?
             .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
@@ -106,7 +103,7 @@ pub fn diff(
             .ok_or_else(|| OxenError::revision_not_found(rev_2.to_string().into()))?;
 
         // Get the structural diff of the directory first
-        let dir_diff = diff_directory(&repository, &commit_1, &commit_2, &path_1, 0, 100)?;
+        let dir_diff = diff_directory(&repository, &commit_1, &commit_2, &opts.path_1, 0, 100)?;
         log::debug!(
             "Directory structural diff found {} entries",
             dir_diff.entries.len()
@@ -137,8 +134,8 @@ pub fn diff(
                     &repository,
                     cpath_1,
                     cpath_2,
-                    keys.clone(),
-                    targets.clone(),
+                    opts.keys.clone(),
+                    opts.targets.clone(),
                     vec![],
                 ) {
                     Ok(result) => {
@@ -163,22 +160,22 @@ pub fn diff(
     }
 
     // TODO: might be able to clean this logic up - pull out into function so we can early return and be less confusing
-    let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {
-        let cpath_1 = if let Some(revison) = revision_1 {
-            let commit_1 = repositories::revisions::get(&repository, revison)?;
+    let (cpath_1, cpath_2) = if let Some(path_2) = opts.path_2 {
+        let cpath_1 = if let Some(revision) = opts.revision_1 {
+            let commit_1 = repositories::revisions::get(&repository, revision)?;
             CommitPath {
                 commit: commit_1,
-                path: path_1.as_ref().to_path_buf(),
+                path: opts.path_1,
             }
         } else {
             CommitPath {
                 commit: None,
-                path: path_1.as_ref().to_path_buf(),
+                path: opts.path_1.clone(),
             }
         };
 
-        let cpath_2 = if let Some(revison) = revision_2 {
-            let commit = repositories::revisions::get(&repository, revison)?;
+        let cpath_2 = if let Some(revision) = opts.revision_2 {
+            let commit = repositories::revisions::get(&repository, revision)?;
 
             CommitPath {
                 commit,
@@ -199,24 +196,36 @@ pub fn diff(
             return Err(OxenError::basic_str(error));
         };
 
-        let file_node = repositories::entries::get_file(&repository, &commit, &path_1)?
+        let file_node = repositories::entries::get_file(&repository, &commit, &opts.path_1)?
             .ok_or_else(|| {
                 OxenError::ResourceNotFound(
-                    format!("Error: file {} not committed", path_1.as_ref().display()).into(),
+                    format!("Error: file {} not committed", opts.path_1.display()).into(),
                 )
             })?;
 
         let hash = file_node.hash().to_string();
 
-        let committed_file = util::fs::version_path_from_node(&repository, &hash, &path_1);
+        let committed_file = util::fs::version_path_from_node(&repository, &hash, &opts.path_1);
         // log::debug!("committed file: {:?}", committed_file);
-        let result =
-            repositories::diffs::diff_files(committed_file, path_1, keys, targets, vec![])?;
+        let result = repositories::diffs::diff_files(
+            committed_file,
+            opts.path_1,
+            opts.keys,
+            opts.targets,
+            vec![],
+        )?;
 
         return Ok(vec![result]);
     };
 
-    let result = diff_commits(&repository, cpath_1, cpath_2, keys, targets, vec![])?;
+    let result = diff_commits(
+        &repository,
+        cpath_1,
+        cpath_2,
+        opts.keys,
+        opts.targets,
+        vec![],
+    )?;
 
     Ok(vec![result])
 }
