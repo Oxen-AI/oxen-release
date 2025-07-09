@@ -59,7 +59,7 @@ pub struct DirNode {
 impl DirNode {
     pub fn new(repo: &LocalRepository, opts: DirNodeOpts) -> Result<Self, OxenError> {
         match repo.min_version() {
-            MinOxenVersion::LATEST => Ok(Self {
+            MinOxenVersion::LATEST | MinOxenVersion::V0_25_0 => Ok(Self {
                 node: EDirNode::V0_25_0(DirNodeDataV0_25_0 {
                     node_type: MerkleTreeNodeType::Dir,
                     name: opts.name,
