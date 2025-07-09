@@ -42,15 +42,21 @@ RSpec.describe 'schemas add - test relative paths', type: :aruba do
 
     # Create a CSV file in the nested directory
     csv_path = File.join(data_path, 'test.csv')
+      puts data_path
+    puts Dir.pwd
+
+    puts csv_path
     File.open(csv_path, 'w') do |file|
       file.puts 'id,image,description'
       file.puts '1,/path/to/img1.jpg,test image 1'
       file.puts '2,/path/to/img2.jpg,test image 2'
     end
 
+    
     Dir.chdir(data_path)
-
-
+    content = File.exist?("test.csv")
+    puts content
+  
     # Add and commit the CSV file
     run_system_command('oxen add test.csv') 
     run_system_command('oxen commit -m "adding test csv"') 
