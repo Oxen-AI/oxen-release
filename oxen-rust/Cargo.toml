@@ -141,7 +141,6 @@ uuid = { version = "1.4.1", features = ["serde", "v4"] }
 walkdir = "2.5.0"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
 zip = "2.4.1"
-actix-multipart-test = "0.0.3"
 
 
 [workspace]
@@ -177,6 +176,7 @@ features = ["duckdb"]                       # this is without "duckdb/bundled"
 no-default-features = true
 
 [dev-dependencies]
+actix-multipart-test = "0.0.3"
 criterion = { version = "2.10.1", package = "codspeed-criterion-compat" }
 
 [[bench]]
