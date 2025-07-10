@@ -594,7 +594,8 @@ mod tests {
                 // Update the goodbye file in the temporary workspace
                 let workspace_goodbye_file = temp_workspace.dir().join("goodbye.txt");
                 util::fs::write_to_path(&workspace_goodbye_file, "Goodbye again")?;
-                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file).await?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file)
+                    .await?;
                 // Commit the changes to the "main" branch
                 repositories::workspaces::commit(
                     &temp_workspace,
@@ -711,7 +712,8 @@ mod tests {
                 let workspace_goodbye_file =
                     temp_workspace.dir().join("greetings").join("goodbye.txt");
                 util::fs::write_to_path(&workspace_goodbye_file, "Goodbye again")?;
-                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file).await?;
+                repositories::workspaces::files::add(&temp_workspace, workspace_goodbye_file)
+                    .await?;
                 // Commit the changes to the "main" branch
                 repositories::workspaces::commit(
                     &temp_workspace,

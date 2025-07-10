@@ -366,7 +366,8 @@ async fn merge_commits_on_branch(
 
         if conflicts.is_empty() {
             log::debug!("creating merge commit on branch {:?}", branch);
-            let commit = create_merge_commit_on_branch(repo, merge_commits, branch, shared_hashes).await?;
+            let commit =
+                create_merge_commit_on_branch(repo, merge_commits, branch, shared_hashes).await?;
             Ok(Some(commit))
         } else {
             println!(

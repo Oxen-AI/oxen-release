@@ -1329,7 +1329,8 @@ mod tests {
             assert!(has_path0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1358,7 +1359,8 @@ mod tests {
             assert!(has_path0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1387,7 +1389,8 @@ mod tests {
             assert!(has_path0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1442,7 +1445,8 @@ mod tests {
             assert_eq!(updated_root_dir_file_count, original_root_dir_file_count);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1563,7 +1567,8 @@ mod tests {
             assert_eq!(original_dir_1_file_count, dir_1_file_count_again);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1641,7 +1646,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1710,7 +1716,8 @@ mod tests {
             assert_eq!(intersection.len(), 3);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1790,7 +1797,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     /*
@@ -1834,6 +1842,7 @@ mod tests {
             assert_ne!(first_root_dir_node_2.hash, third_root_dir_node.hash);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

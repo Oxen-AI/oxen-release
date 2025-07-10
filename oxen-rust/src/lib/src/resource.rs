@@ -87,7 +87,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -111,7 +112,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -135,7 +137,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -159,7 +162,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -181,7 +185,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -206,7 +211,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -230,7 +236,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -254,6 +261,7 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

@@ -256,7 +256,8 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         &workspace,
         &file_path,
         &column_to_update,
-    ).await?;
+    )
+    .await?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
@@ -365,7 +366,9 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         &workspace,
         &file_path,
         &column_to_restore,
-    ).await {
+    )
+    .await
+    {
         Ok(df) => df,
         Err(e) => {
             log::error!("Error restoring column: {:?}", e);

@@ -156,7 +156,8 @@ A: Oxen.ai
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -181,7 +182,8 @@ A: Oxen.ai
             assert!(status.is_clean());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -202,7 +204,8 @@ A: Oxen.ai
             assert_eq!(status.removed_files.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     // At some point we were adding rocksdb inside the working dir...def should not do that
@@ -219,7 +222,8 @@ A: Oxen.ai
             assert_eq!(num_files, num_files_after_add);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -290,7 +294,8 @@ A: Oxen.ai
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -315,7 +320,8 @@ A: Oxen.ai
             assert!(status.is_clean());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -360,7 +366,8 @@ A: Oxen.ai
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -383,7 +390,8 @@ A: Oxen.ai
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -425,7 +433,8 @@ A: Oxen.ai
             assert_eq!(status.untracked_dirs.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -465,7 +474,8 @@ A: Oxen.ai
             assert_eq!(staged_dirs.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -495,7 +505,8 @@ A: Oxen.ai
             assert_eq!(dirs.len(), 3);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -519,7 +530,8 @@ A: Oxen.ai
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

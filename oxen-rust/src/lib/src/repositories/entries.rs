@@ -323,7 +323,8 @@ mod tests {
             assert_eq!(entries.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -340,7 +341,8 @@ mod tests {
             assert_eq!(count, 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -357,7 +359,8 @@ mod tests {
             assert_eq!(count, num_files);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -374,7 +377,8 @@ mod tests {
             assert_eq!(count, num_files);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -391,7 +395,8 @@ mod tests {
             assert_eq!(Path::new(&entry.resource.unwrap().path), path);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -411,7 +416,8 @@ mod tests {
             );
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -448,7 +454,8 @@ mod tests {
             assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir()).count(), 5);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -473,7 +480,8 @@ mod tests {
             assert_eq!(dir_entries.len(), 5);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -498,7 +506,8 @@ mod tests {
             assert_eq!(dir_entries.len(), 4);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -528,7 +537,8 @@ mod tests {
             assert_eq!(dir_entries.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -573,7 +583,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 10);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -618,7 +629,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 10);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -663,7 +675,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -708,7 +721,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -753,7 +767,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 9);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -798,7 +813,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), page_size);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -844,7 +860,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), page_size);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -887,7 +904,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), page_size);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -934,7 +952,8 @@ mod tests {
             assert_eq!(paginated.entries.len(), 7);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1007,6 +1026,7 @@ mod tests {
             assert_eq!(meta2.is_queryable, Some(true));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

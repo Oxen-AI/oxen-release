@@ -356,7 +356,8 @@ mod tests {
             })?;
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -384,7 +385,8 @@ mod tests {
 
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -394,7 +396,8 @@ mod tests {
                 assert_eq!(manager.read_head_ref()?.unwrap(), DEFAULT_BRANCH_NAME);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -408,7 +411,8 @@ mod tests {
                 assert_eq!(manager.head_commit_id()?, Some(commit_id));
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -420,7 +424,8 @@ mod tests {
                 assert_eq!(branches.len(), 1);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -435,7 +440,8 @@ mod tests {
                 assert_eq!(branches.len(), 2);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -450,7 +456,8 @@ mod tests {
                 assert_eq!(branches.len(), 4);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -466,7 +473,8 @@ mod tests {
                 assert_eq!(branches.len(), 2);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -486,7 +494,8 @@ mod tests {
                 assert_eq!(branches.len(), og_branch_count - 1);
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -516,7 +525,8 @@ mod tests {
                 assert!(branches.iter().any(|b| b.name == new_name));
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -527,6 +537,7 @@ mod tests {
                 assert!(result.is_err());
                 Ok(())
             })
-        }).await
+        })
+        .await
     }
 }

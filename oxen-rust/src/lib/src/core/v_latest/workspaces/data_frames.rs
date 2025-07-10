@@ -205,7 +205,7 @@ pub async fn rename(
     // Use staged_db_manager
     let mut staged_entry = with_staged_db_manager(workspace_repo, |staged_db_manager| {
         // Try to read existing staged entry
-        Ok(staged_db_manager.read_from_staged_db(path)?)
+        staged_db_manager.read_from_staged_db(path)
     })?;
 
     if staged_entry.is_none() {
@@ -249,7 +249,7 @@ pub async fn rename(
 
         // Read the staged entry again after adding
         staged_entry = with_staged_db_manager(workspace_repo, |staged_db_manager| {
-            Ok(staged_db_manager.read_from_staged_db(new_path)?)
+            staged_db_manager.read_from_staged_db(new_path)
         })?;
         log::debug!("rename: staged_entry after add: {:?}", staged_entry);
     }

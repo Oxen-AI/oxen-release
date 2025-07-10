@@ -26,7 +26,8 @@ async fn test_oxen_ignore_file() -> Result<(), OxenError> {
         );
 
         Ok(())
-    }).await
+    })
+    .await
 }
 
 #[tokio::test]
@@ -51,5 +52,6 @@ async fn test_oxen_ignore_dir() -> Result<(), OxenError> {
         );
 
         Ok(())
-    }).await
+    })
+    .await
 }

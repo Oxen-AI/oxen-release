@@ -92,7 +92,8 @@ mod tests {
             assert!(hello_file.exists());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -124,13 +125,15 @@ mod tests {
             repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(hello_filename, first_mod_commit.id),
-            ).await?;
+            )
+            .await?;
             let content = util::fs::read_from_path(&hello_file)?;
             assert!(hello_file.exists());
             assert_eq!(content, first_modification);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -204,7 +207,8 @@ mod tests {
             repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(annotations_dir, last_commit.id.clone()),
-            ).await?;
+            )
+            .await?;
 
             // Make sure the removed file is restored
             let restored_contents = util::fs::read_from_path(&bbox_path)?;
@@ -215,7 +219,8 @@ mod tests {
             assert_eq!(og_readme_contents, restored_contents);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -237,12 +242,14 @@ mod tests {
             repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
-            ).await?;
+            )
+            .await?;
             let restored_contents = util::fs::read_from_path(&bbox_path)?;
             assert_eq!(og_contents, restored_contents);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -296,7 +303,8 @@ mod tests {
             repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
-            ).await?;
+            )
+            .await?;
             let restored_contents = util::fs::read_from_path(&bbox_path)?;
             assert_eq!(og_contents, restored_contents);
 
@@ -305,7 +313,8 @@ mod tests {
             assert!(status.is_clean());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -332,7 +341,8 @@ mod tests {
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -357,7 +367,8 @@ mod tests {
             util::fs::remove_file(&ann_path)?;
 
             // Restore from commit
-            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id)).await?;
+            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))
+                .await?;
 
             // Make sure is same size
             let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
@@ -368,7 +379,8 @@ mod tests {
             assert_eq!(og_contents, restored_contents);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -395,7 +407,8 @@ mod tests {
             util::fs::remove_file(&ann_path)?;
 
             // Restore from commit
-            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id)).await?;
+            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))
+                .await?;
 
             // Make sure is same size
             let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
@@ -407,7 +420,8 @@ mod tests {
             assert_eq!(og_contents, restored_contents);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -426,7 +440,8 @@ mod tests {
             status.print();
 
             // Remove from staged
-            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(relative_path)).await?;
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(relative_path))
+                .await?;
 
             // Make sure is unstaged
             let status = repositories::status(&repo)?;
@@ -434,7 +449,8 @@ mod tests {
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -483,7 +499,8 @@ mod tests {
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     // FAILS BECAUSE OF search entries in commit
@@ -619,6 +636,7 @@ mod tests {
             assert_eq!(status.staged_schemas.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

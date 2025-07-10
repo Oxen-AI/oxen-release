@@ -1,6 +1,6 @@
 [package]
 name = "Oxen"
-version = "0.35.0"
+version = "0.36.1"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version large machine learning datasets written in Rust."
@@ -124,6 +124,7 @@ serde = { version = "1.0.188", features = ["derive"] }
 serde_derive = "1.0.188"
 serde_json = "1.0.106"
 serde_url_params = "0.2.1"
+serde_with = "3.13.0"
 sha2 = "0.10.8"
 signal-hook = "0.3.17"
 simdutf8 = "0.1.4"
@@ -161,16 +162,28 @@ debug = true
 name = "liboxen"
 path = "src/lib/src/lib.rs"
 doctest = false
+bench = false
 
 [[bin]]
 name = "oxen"
 path = "src/cli/src/main.rs"
+bench = false
 
 [[bin]]
 name = "oxen-server"
 path = "src/server/src/main.rs"
+bench = false
 
 [package.metadata.docs.rs]
 default-target = "x86_64-unknown-linux-gnu"
 features = ["duckdb"]                       # this is without "duckdb/bundled"
 no-default-features = true
+
+[dev-dependencies]
+actix-multipart-test = "0.0.3"
+criterion = { version = "2.10.1", package = "codspeed-criterion-compat" }
+
+[[bench]]
+name = "oxen"
+path = "src/benches/oxen.rs"
+harness = false

@@ -349,33 +349,28 @@ pub async fn create_df_diff(
         display_by_column, // TODONOW: add display handling here
     )?;
 
-    let view = match diff_result {
-        DiffResult::Tabular(diff) => {
-            // Cache the diff on the server
-            let entry_1 = CommitEntry::from_file_node(&node_1);
-            let entry_2 = CommitEntry::from_file_node(&node_2);
-            repositories::diffs::cache_tabular_diff(
-                &repository,
-                &compare_id,
-                entry_1,
-                entry_2,
-                &diff,
-            )?;
+    // Cache the diff on the server
+    let entry_1 = CommitEntry::from_file_node(&node_1);
+    let entry_2 = CommitEntry::from_file_node(&node_2);
+    repositories::diffs::cache_tabular_diff(
+        &repository,
+        &compare_id,
+        entry_1,
+        entry_2,
+        &diff_result,
+    )?;
 
-            let mut messages: Vec<OxenMessage> = vec![];
+    let mut messages: Vec<OxenMessage> = vec![];
 
-            if diff.summary.dupes.left > 0 || diff.summary.dupes.right > 0 {
-                let cdupes = CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes);
-                messages.push(cdupes.to_message());
-            }
+    if diff_result.summary.dupes.left > 0 || diff_result.summary.dupes.right > 0 {
+        let cdupes = CompareDupes::from_tabular_diff_dupes(&diff_result.summary.dupes);
+        messages.push(cdupes.to_message());
+    }
 
-            CompareTabularResponse {
-                status: StatusMessage::resource_found(),
-                dfs: CompareTabular::from(diff),
-                messages,
-            }
-        }
-        _ => Err(OxenError::basic_str("Create diff wrong comparison type"))?,
+    let view = CompareTabularResponse {
+        status: StatusMessage::resource_found(),
+        dfs: CompareTabular::from(diff_result),
+        messages,
     };
 
     Ok(HttpResponse::Ok().json(view))
@@ -444,35 +439,30 @@ pub async fn update_df_diff(
         display_by_column, // TODONOW: add display handling here
     )?;
 
-    let view = match diff_result {
-        DiffResult::Tabular(diff) => {
-            let entry_1 = CommitEntry::from_file_node(&node_1);
-            let entry_2 = CommitEntry::from_file_node(&node_2);
-            // Cache the diff on the server
-            repositories::diffs::cache_tabular_diff(
-                &repository,
-                &compare_id,
-                entry_1,
-                entry_2,
-                &diff,
-            )?;
+    let entry_1 = CommitEntry::from_file_node(&node_1);
+    let entry_2 = CommitEntry::from_file_node(&node_2);
+    // Cache the diff on the server
+    repositories::diffs::cache_tabular_diff(
+        &repository,
+        &compare_id,
+        entry_1,
+        entry_2,
+        &diff_result,
+    )?;
 
-            let mut messages: Vec<OxenMessage> = vec![];
+    let mut messages: Vec<OxenMessage> = vec![];
 
-            if diff.summary.dupes.left > 0 || diff.summary.dupes.right > 0 {
-                let cdupes = CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes);
-                messages.push(cdupes.to_message());
-            }
+    if diff_result.summary.dupes.left > 0 || diff_result.summary.dupes.right > 0 {
+        let cdupes = CompareDupes::from_tabular_diff_dupes(&diff_result.summary.dupes);
+        messages.push(cdupes.to_message());
+    }
 
-            // Get rid of the mutable borrow after done writing stuff
+    // Get rid of the mutable borrow after done writing stuff
 
-            CompareTabularResponse {
-                status: StatusMessage::resource_found(),
-                dfs: CompareTabular::from(diff),
-                messages,
-            }
-        }
-        _ => Err(OxenError::basic_str("Update df wrong comparison type"))?,
+    let view = CompareTabularResponse {
+        status: StatusMessage::resource_found(),
+        dfs: CompareTabular::from(diff_result),
+        messages,
     };
     Ok(HttpResponse::Ok().json(view))
 }

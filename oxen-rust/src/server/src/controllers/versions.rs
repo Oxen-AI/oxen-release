@@ -123,60 +123,64 @@ pub async fn save_multiparts(
                 let upload_filehash_copy = upload_filehash.clone();
 
                 // decompress the data if it is gzipped
-                let data_to_store = match actix_web::web::block(move || -> Result<Vec<u8>, OxenError> {
-                    if is_gzipped {
-                        log::debug!(
-                            "Decompressing gzipped data for hash: {}",
-                            &upload_filehash_copy
-                        );
-                        let mut decoder = GzDecoder::new(&field_bytes[..]);
-                        let mut decompressed_bytes = Vec::new();
-                        decoder.read_to_end(&mut decompressed_bytes).map_err(|e| {
-                            OxenError::basic_str(format!(
-                                "Failed to decompress gzipped data: {}",
+                let data_to_store =
+                    match actix_web::web::block(move || -> Result<Vec<u8>, OxenError> {
+                        if is_gzipped {
+                            log::debug!(
+                                "Decompressing gzipped data for hash: {}",
+                                &upload_filehash_copy
+                            );
+                            let mut decoder = GzDecoder::new(&field_bytes[..]);
+                            let mut decompressed_bytes = Vec::new();
+                            decoder.read_to_end(&mut decompressed_bytes).map_err(|e| {
+                                OxenError::basic_str(format!(
+                                    "Failed to decompress gzipped data: {}",
+                                    e
+                                ))
+                            })?;
+                            Ok(decompressed_bytes)
+                        } else {
+                            log::debug!("Data for hash {} is not gzipped.", &upload_filehash_copy);
+                            Ok(field_bytes)
+                        }
+                    })
+                    .await
+                    {
+                        Ok(Ok(data)) => data,
+                        Ok(Err(e)) => {
+                            log::error!(
+                                "Failed to decompress data for hash {}: {}",
+                                &upload_filehash,
                                 e
-                            ))
-                        })?;
-                        Ok(decompressed_bytes)
-                    } else {
-                        log::debug!("Data for hash {} is not gzipped.", &upload_filehash_copy);
-                        Ok(field_bytes)
-                    }
-                })
-                .await
-                {
-                    Ok(Ok(data)) => data,
-                    Ok(Err(e)) => {
-                        log::error!(
-                            "Failed to decompress data for hash {}: {}",
-                            &upload_filehash,
-                            e
-                        );
-                        record_error_file(
-                            &mut err_files,
-                            upload_filehash.clone(),
-                            None,
-                            format!("Failed to decompress data: {}", e),
-                        );
-                        continue;
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Failed to execute blocking decompression task for hash {}: {}",
-                            &upload_filehash,
-                            e
-                        );
-                        record_error_file(
-                            &mut err_files,
-                            upload_filehash.clone(),
-                            None,
-                            format!("Failed to execute blocking decompression: {}", e),
-                        );
-                        continue;
-                    }
-                };
+                            );
+                            record_error_file(
+                                &mut err_files,
+                                upload_filehash.clone(),
+                                None,
+                                format!("Failed to decompress data: {}", e),
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Failed to execute blocking decompression task for hash {}: {}",
+                                &upload_filehash,
+                                e
+                            );
+                            record_error_file(
+                                &mut err_files,
+                                upload_filehash.clone(),
+                                None,
+                                format!("Failed to execute blocking decompression: {}", e),
+                            );
+                            continue;
+                        }
+                    };
 
-                match version_store.store_version(&upload_filehash, &data_to_store).await {
+                match version_store
+                    .store_version(&upload_filehash, &data_to_store)
+                    .await
+                {
                     Ok(_) => {
                         log::info!("Successfully stored version for hash: {}", &upload_filehash);
                     }
