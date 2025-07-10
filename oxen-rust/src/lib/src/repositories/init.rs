@@ -48,8 +48,8 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    #[test]
-    fn test_command_init() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn test_command_init() -> Result<(), OxenError> {
         test::run_empty_dir_test(|repo_dir| {
             // Init repo
             repositories::init(repo_dir)?;

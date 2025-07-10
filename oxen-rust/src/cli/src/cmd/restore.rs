@@ -63,7 +63,7 @@ impl RunCmd for RestoreCmd {
         let repository = LocalRepository::from_current_dir()?;
 
         check_repo_migration_needed(&repository)?;
-        repositories::restore::restore(&repository, opts)?;
+        repositories::restore::restore(&repository, opts).await?;
 
         Ok(())
     }

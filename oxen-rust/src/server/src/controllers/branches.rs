@@ -185,7 +185,7 @@ pub async fn maybe_create_merge(
         &incoming_commit,
         &current_commit,
         &branch,
-    )?;
+    ).await?;
 
     // Return what will become the new head of the repo after push is complete.
     if let Some(merge_commit) = maybe_merge_commit {
@@ -378,7 +378,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
@@ -407,7 +407,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
         repositories::branches::create_from_head(&repo, "branch-1")?;
         repositories::branches::create_from_head(&repo, "branch-2")?;
@@ -437,7 +437,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
         let branch_name = "branch-1";
         repositories::branches::create_from_head(&repo, branch_name)?;
@@ -473,7 +473,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
 
         let new_name = "My-Branch-Name";
@@ -510,7 +510,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
         let branch_name = "branch-1";
         repositories::branches::create_from_head(&repo, branch_name)?;
