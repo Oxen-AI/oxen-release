@@ -983,7 +983,7 @@ who won the game?,The packers beat up on the bears,packers
             // Add the modification
             repositories::add(&repo, &repo_filepath).await?;
 
-            // Remove a cat 
+            // Remove a cat
             let test_file = test::test_img_file_with_name("cat_2.jpg");
             let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
             util::fs::remove_file(&repo_filepath)?;

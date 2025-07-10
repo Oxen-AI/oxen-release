@@ -76,9 +76,11 @@ pub fn add_version_files(
     repo: &LocalRepository,
     workspace: &Workspace,
     files_with_hash: &[FileWithHash],
+    directory: impl AsRef<str>,
 ) -> Result<Vec<ErrorFileInfo>, OxenError> {
     let version_store = repo.version_store()?;
 
+    let directory = directory.as_ref();
     let workspace_repo = &workspace.workspace_repo;
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -86,11 +88,12 @@ pub fn add_version_files(
     with_staged_db_manager(workspace_repo, |staged_db_manager| {
         for item in files_with_hash.iter() {
             let version_path = version_store.get_version_path(&item.hash)?;
+            let target_path = PathBuf::from(directory).join(&item.path);
 
             match get_status_and_add_file(
                 workspace_repo,
                 &version_path,
-                &item.path,
+                &target_path,
                 staged_db_manager,
                 &seen_dirs,
             ) {
@@ -500,7 +503,9 @@ async fn p_add_file(
 
     // Store the file in the version store using the hash as the key
     let hash_str = file_status.hash.to_string();
-    version_store.store_version_from_path(&hash_str, &full_path).await?;
+    version_store
+        .store_version_from_path(&hash_str, &full_path)
+        .await?;
 
     let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(workspace_repo)?
         .into_iter()

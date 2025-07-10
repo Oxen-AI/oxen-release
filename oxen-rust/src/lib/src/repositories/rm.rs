@@ -637,7 +637,8 @@ mod tests {
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

@@ -28,21 +28,20 @@ use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
+use async_compression::tokio::bufread::GzipDecoder;
 use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::fs::OpenOptions;
+use std::io::Cursor;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::io::Cursor;
 use tokio::io::BufReader;
-use async_compression::tokio::bufread::GzipDecoder;
 use tokio_tar::Archive;
-
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkedDataUploadQuery {
@@ -167,7 +166,7 @@ pub async fn list_missing(
         merkle_hashes.hashes.len()
     );
     let missing_commits =
-        repositories::tree::list_missing_node_hashes(&repo, &merkle_hashes.hashes)?;
+        repositories::tree::list_missing_commit_hashes(&repo, &merkle_hashes.hashes)?;
     log::debug!(
         "list_missing found {} missing commits",
         missing_commits.len()
@@ -525,7 +524,8 @@ pub async fn upload_chunk(
                         size,
                         query.is_compressed,
                         query.filename.to_owned(),
-                    ).await;
+                    )
+                    .await;
 
                     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
@@ -688,7 +688,7 @@ pub async fn upload_tree(
 
     log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
 
-    // let mut archive = Archive::new(GzDecoder::new(&bytes[..])); 
+    // let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
 
     unpack_tree_tarball(&tmp_dir, &bytes).await?;
 
@@ -712,7 +712,10 @@ pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     }))
 }
 
-async fn unpack_compressed_data(files: &[PathBuf], repo: &LocalRepository) -> Result<(), OxenError> {
+async fn unpack_compressed_data(
+    files: &[PathBuf],
+    repo: &LocalRepository,
+) -> Result<(), OxenError> {
     let mut buffer: Vec<u8> = Vec::new();
     for file in files.iter() {
         log::debug!("Reading file bytes {:?}", file);
@@ -862,7 +865,7 @@ async fn unpack_tree_tarball(tmp_dir: &Path, data: &[u8]) -> Result<(), OxenErro
     let buf_reader = BufReader::new(reader);
     let decoder = GzipDecoder::new(buf_reader);
     let mut archive = Archive::new(decoder);
-    
+
     let mut entries = match archive.entries() {
         Ok(entries) => entries,
         Err(e) => {
@@ -871,7 +874,7 @@ async fn unpack_tree_tarball(tmp_dir: &Path, data: &[u8]) -> Result<(), OxenErro
             return Err(OxenError::basic_str("Failed to get archive entries"));
         }
     };
-    
+
     while let Some(entry) = entries.next().await {
         if let Ok(mut file) = entry {
             let path = file.path().unwrap();
@@ -900,11 +903,9 @@ async fn unpack_tree_tarball(tmp_dir: &Path, data: &[u8]) -> Result<(), OxenErro
             log::error!("Could not unpack file in archive...");
         }
     }
-    
+
     Ok(())
 }
-
-
 
 async fn unpack_entry_tarball_async(
     repo: &LocalRepository,
@@ -918,7 +919,7 @@ async fn unpack_entry_tarball_async(
     let buf_reader = BufReader::new(reader);
     let decoder = GzipDecoder::new(buf_reader);
     let mut archive = Archive::new(decoder);
-    
+
     // Process entries asynchronously
     let mut entries = archive.entries()?;
     while let Some(entry) = entries.next().await {
@@ -930,15 +931,18 @@ async fn unpack_entry_tarball_async(
         if path.starts_with("versions") && path.to_string_lossy().contains("files") {
             // Handle version files with streaming
             let hash = extract_hash_from_path(&path)?;
-            
+
             // Convert futures::io::AsyncRead to tokio::io::AsyncRead using compat
             // let mut tokio_reader = file.compat();
-            
+
             // Use streaming storage - no memory buffering needed!
-            version_store.store_version_from_reader(&hash, &mut file).await?;
+            version_store
+                .store_version_from_reader(&hash, &mut file)
+                .await?;
         } else {
             // For non-version files, unpack to hidden dir
-            file.unpack_in(&hidden_dir).await
+            file.unpack_in(&hidden_dir)
+                .await
                 .map_err(|e| OxenError::basic_str(format!("Failed to unpack file: {}", e)))?;
         }
     }

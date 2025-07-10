@@ -356,7 +356,7 @@ mod tests {
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
             let node_version_str = commit_node_version.to_string();
-            assert_eq!(node_version_str, "0.25.0");
+            assert_eq!(node_version_str, "0.36.0");
 
             let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
             let Some(new_root_node) =
@@ -371,19 +371,19 @@ mod tests {
                     EMerkleTreeNode::Commit(commit) => {
                         assert_eq!(
                             commit.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::Directory(dir) => {
                         assert_eq!(
                             dir.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::VNode(vnode) => {
                         assert_eq!(
                             vnode.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     _ => {
@@ -398,7 +398,8 @@ mod tests {
             assert_eq!(version_str, "0.25.0");
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -453,7 +454,7 @@ mod tests {
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
             let node_version_str = commit_node_version.to_string();
-            assert_eq!(node_version_str, "0.25.0");
+            assert_eq!(node_version_str, "0.36.0");
 
             let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
             let Some(new_root_node) =
@@ -468,19 +469,19 @@ mod tests {
                     EMerkleTreeNode::Commit(commit) => {
                         assert_eq!(
                             commit.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::Directory(dir) => {
                         assert_eq!(
                             dir.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::VNode(vnode) => {
                         assert_eq!(
                             vnode.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     _ => {
@@ -519,6 +520,7 @@ mod tests {
             assert_eq!(version_str, "0.25.0");
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

@@ -70,7 +70,8 @@ pub async fn list_conflicts_between_branches(
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
-            core::v_latest::merge::list_conflicts_between_branches(repo, base_branch, merge_branch).await
+            core::v_latest::merge::list_conflicts_between_branches(repo, base_branch, merge_branch)
+                .await
         }
     }
 }
@@ -104,7 +105,10 @@ pub async fn list_conflicts_between_commits(
 ) -> Result<Vec<PathBuf>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::list_conflicts_between_commits(repo, base_commit, merge_commit).await,
+        _ => {
+            core::v_latest::merge::list_conflicts_between_commits(repo, base_commit, merge_commit)
+                .await
+        }
     }
 }
 
@@ -148,12 +152,15 @@ pub async fn merge_commit_into_base_on_branch(
 ) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::merge_commit_into_base_on_branch(
-            repo,
-            merge_commit,
-            base_commit,
-            branch,
-        ).await,
+        _ => {
+            core::v_latest::merge::merge_commit_into_base_on_branch(
+                repo,
+                merge_commit,
+                base_commit,
+                branch,
+            )
+            .await
+        }
     }
 }
 
@@ -291,8 +298,9 @@ mod tests {
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
-            let commit =
-                repositories::merge::merge_into_base(&repo, &merge_branch, &og_branch).await?.unwrap();
+            let commit = repositories::merge::merge_into_base(&repo, &merge_branch, &og_branch)
+                .await?
+                .unwrap();
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
@@ -391,7 +399,9 @@ mod tests {
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
-            repositories::merge::merge(&repo, branch_name).await?.unwrap();
+            repositories::merge::merge(&repo, branch_name)
+                .await?
+                .unwrap();
 
             // Now that we've merged in, world file should be new content
             assert!(world_file.exists(), "World file should exist after merge");
@@ -445,7 +455,9 @@ mod tests {
 
             {
                 // Make sure the merger can detect the three way merge
-                let merge_commit = repositories::merge::merge(&repo, merge_branch_name).await?.unwrap();
+                let merge_commit = repositories::merge::merge(&repo, merge_branch_name)
+                    .await?
+                    .unwrap();
 
                 // Two way merge should have two parent IDs so we know where the merge came from
                 assert_eq!(merge_commit.parent_ids.len(), 2);
@@ -647,8 +659,8 @@ mod tests {
                 repositories::branches::get_by_name(&repo, human_branch_name)?.unwrap();
 
             // Check if there are conflicts
-            let has_conflicts = repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch)
-                .await?;
+            let has_conflicts =
+                repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch).await?;
             assert!(has_conflicts);
 
             Ok(())
@@ -698,7 +710,8 @@ mod tests {
                 &repo,
                 &base_commit,
                 &human_commit,
-            ).await?;
+            )
+            .await?;
             assert_eq!(conflicts.len(), 1);
 
             Ok(())
@@ -941,6 +954,112 @@ mod tests {
             })
             .await?;
             Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_merge_no_commit_needed() -> Result<(), OxenError> {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
+            // 1. Commit something in main branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
+            let labels_path = repo.path.join("labels.txt");
+            util::fs::write_to_path(&labels_path, "cat\ndog")?;
+            repositories::add(&repo, &labels_path).await?;
+            repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+
+            // 2. Create a new branch
+            let new_branch_name = "new_branch";
+            let new_branch = repositories::branches::create_checkout(&repo, new_branch_name)?;
+
+            // 3. Commit something in new branch
+            let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
+            repositories::add(&repo, &labels_path).await?;
+            repositories::commit(&repo, "Adding fish to labels.txt file")?;
+
+            // 4. merge main onto new branch
+            let merge_result =
+                repositories::merge::merge_into_base(&repo, &og_branch, &new_branch).await;
+
+            // 5. There should be no commit
+            assert_eq!(
+                merge_result.unwrap_err().to_string(),
+                OxenError::basic_str("No changes to commit").to_string()
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_merge_diverged_branches_then_merge_again() -> Result<(), OxenError> {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
+            // 1. Commit something in main branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
+            let file1_path = repo.path.join("file1.txt");
+            util::fs::write_to_path(&file1_path, "Initial content for file1")?;
+            repositories::add(&repo, &file1_path).await?;
+            let _ = repositories::commit(&repo, "Commit file1 to main")?;
+
+            // 2. Create and checkout a new branch
+            let new_branch_name = "feature-branch";
+            repositories::branches::create_checkout(&repo, new_branch_name)?;
+
+            // 3. Commit something in new branch
+            let file2_path = repo.path.join("file2.txt");
+            util::fs::write_to_path(&file2_path, "Content for file2 in feature branch")?;
+            repositories::add(&repo, &file2_path).await?;
+            let feature_commit1 = repositories::commit(&repo, "Commit file2 to feature-branch")?;
+
+            // 4. Checkout main branch
+            repositories::checkout(&repo, &og_branch.name).await?;
+
+            // 5. Commit something in main branch to make it diverge
+            let file3_path = repo.path.join("file3.txt");
+            util::fs::write_to_path(&file3_path, "Content for file3 in main branch")?;
+            repositories::add(&repo, &file3_path).await?;
+            let main_commit2 = repositories::commit(&repo, "Commit file3 to main, diverging")?;
+
+            // 6. Merge new branch onto main branch
+            // There should be a new merge commit
+            let merge_result1 = repositories::merge::merge(&repo, new_branch_name).await?;
+            assert!(
+                merge_result1.is_some(),
+                "First merge should create a merge commit"
+            );
+            let merge_commit1 = merge_result1.unwrap();
+            assert_ne!(
+                merge_commit1.id, main_commit2.id,
+                "Merge commit ID should be new"
+            );
+            assert_ne!(
+                merge_commit1.id, feature_commit1.id,
+                "Merge commit ID should be new"
+            );
+            assert_eq!(
+                merge_commit1.parent_ids.len(),
+                2,
+                "Merge commit should have two parents"
+            );
+
+            // 7. Merge new branch onto main branch again.
+            // There should be no new merge commit
+            let merge_result2 = repositories::merge::merge(&repo, new_branch_name).await;
+            assert_eq!(
+                merge_result2.unwrap_err().to_string(),
+                OxenError::basic_str("No changes to commit").to_string(),
+                "Second merge attempt should not create a new commit as it's already merged"
+            );
+
+            // Verify HEAD is still the first merge commit
+            let head_commit_after_second_merge = repositories::commits::head_commit(&repo)?;
+            assert_eq!(
+                head_commit_after_second_merge.id, merge_commit1.id,
+                "HEAD should remain at the first merge commit"
+            );
+
+            Ok(())
         })
         .await
     }

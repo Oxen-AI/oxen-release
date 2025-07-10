@@ -209,7 +209,10 @@ pub fn transfer_namespace(
     }
 }
 
-pub async fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithEntries, OxenError> {
+pub async fn create(
+    root_dir: &Path,
+    new_repo: RepoNew,
+) -> Result<LocalRepositoryWithEntries, OxenError> {
     let repo_dir = root_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
@@ -393,7 +396,8 @@ mod tests {
             let _repo = LocalRepository::from_dir(&repo_path)?;
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -420,7 +424,8 @@ mod tests {
             let _repo = LocalRepository::from_dir(&repo_path)?;
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -440,7 +445,8 @@ mod tests {
             let _repo = LocalRepository::from_dir(&repo_path)?;
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -569,6 +575,7 @@ mod tests {
             assert_eq!(new_namespace_repos.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

@@ -696,6 +696,7 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

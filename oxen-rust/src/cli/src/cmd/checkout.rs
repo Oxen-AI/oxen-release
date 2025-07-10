@@ -89,7 +89,11 @@ impl CheckoutCmd {
         }
         Ok(())
     }
-    pub async fn checkout_theirs(&self, repo: &LocalRepository, path: &str) -> Result<(), OxenError> {
+    pub async fn checkout_theirs(
+        &self,
+        repo: &LocalRepository,
+        path: &str,
+    ) -> Result<(), OxenError> {
         repositories::checkout::checkout_theirs(repo, path).await?;
         Ok(())
     }

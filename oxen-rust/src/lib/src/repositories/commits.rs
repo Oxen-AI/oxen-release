@@ -5,6 +5,7 @@
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::User;
 use crate::model::{Commit, LocalRepository, MerkleHash};
 use crate::opts::PaginateOpts;
 use crate::util;
@@ -50,6 +51,17 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::commits::commit(repo, message),
+    }
+}
+
+pub fn commit_with_user(
+    repo: &LocalRepository,
+    message: &str,
+    user: &User,
+) -> Result<Commit, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
+        _ => core::v_latest::commits::commit_with_user(repo, message, user),
     }
 }
 
@@ -366,7 +378,8 @@ mod tests {
             assert_eq!(commits.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -400,7 +413,8 @@ mod tests {
             assert_eq!(commit_list.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -429,7 +443,8 @@ mod tests {
             assert_eq!(commits.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -452,7 +467,8 @@ mod tests {
             assert_eq!(commits.len(), 1);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -521,7 +537,8 @@ mod tests {
             assert_eq!(status.removed_files.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -604,7 +621,8 @@ mod tests {
             assert!(text_entry.is_some());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -652,7 +670,8 @@ mod tests {
             assert_eq!(text_entry.hash, hash_after_modification);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -691,7 +710,8 @@ mod tests {
             assert_eq!(dirs.len(), 0);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -766,7 +786,8 @@ mod tests {
             assert_eq!(history.last().unwrap().message, initial_commit_message);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -799,7 +820,8 @@ mod tests {
             assert_eq!(history.last().unwrap().message, base_commit.message);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -842,7 +864,8 @@ mod tests {
             assert!(node_from_tree_2.is_some());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -874,7 +897,8 @@ mod tests {
             assert!(file_node.is_some());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -915,7 +939,8 @@ mod tests {
             assert!(tree_2.get_by_path(PathBuf::from("empty_dir"))?.is_none());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1086,6 +1111,7 @@ A: Oxen.ai
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 }

@@ -84,7 +84,8 @@ mod tests {
             util::fs::remove_file(save_path)?;
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

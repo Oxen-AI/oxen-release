@@ -206,7 +206,8 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -259,7 +260,8 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -315,7 +317,8 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

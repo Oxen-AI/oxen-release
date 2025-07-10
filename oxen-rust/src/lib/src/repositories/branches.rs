@@ -517,7 +517,8 @@ mod tests {
             assert_eq!(file_3_versions[0].0.id, commit_3.id);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -605,7 +606,8 @@ mod tests {
             assert_eq!(branch_versions[3].0.id, commit_1.id);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

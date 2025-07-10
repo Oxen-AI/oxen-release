@@ -171,17 +171,20 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 5);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
-    async fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<(), OxenError> {
+    async fn test_command_status_shows_intermediate_directory_if_file_added(
+    ) -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Add a deep file
             repositories::add(
                 &repo,
                 repo.path.join(Path::new("annotations/train/one_shot.csv")),
-            ).await?;
+            )
+            .await?;
 
             // Make sure that we now see the full annotations/train/ directory
             let repo_status = repositories::status(&repo)?;
@@ -208,7 +211,8 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 8);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -242,7 +246,8 @@ mod tests {
                 .contains(&one_shot_relative_path.to_path_buf()));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -277,7 +282,8 @@ mod tests {
                 .contains(&one_shot_relative_path.to_path_buf()));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -314,7 +320,8 @@ mod tests {
                 .contains(&labels_relative_path.to_path_buf()));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -362,7 +369,8 @@ mod tests {
                 .contains_key(&one_shot_relative_path.to_path_buf()));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -394,7 +402,8 @@ mod tests {
             // We should not have added any commits
             assert_eq!(commits.len(), initial_len);
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -627,7 +636,8 @@ mod tests {
             assert_eq!(added_dir.path, training_data_dir);
 
             Ok(())
-        }).await    
+        })
+        .await
     }
 
     #[tokio::test]
@@ -779,7 +789,8 @@ mod tests {
             assert_eq!(untracked_dirs.len(), 2);
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -811,7 +822,8 @@ mod tests {
             assert!(mod_files.contains(&relative_path));
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

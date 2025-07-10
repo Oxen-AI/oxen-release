@@ -135,7 +135,6 @@ mod tests {
             assert_eq!(readme_1_contents, readme_2_contents);
 
             api::client::repositories::delete(&remote_repo).await?;
-
             future::ok::<(), OxenError>(()).await
         })
         .await
@@ -913,7 +912,6 @@ mod tests {
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-
                     let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::constants::{VERSION_CHUNKS_DIR, VERSION_CHUNK_FILE_NAME, VERSION_FILE_NAME};
 use crate::error::OxenError;
-use crate::storage::version_store::{VersionStore, ReadSeek};
+use crate::storage::version_store::{ReadSeek, VersionStore};
 use crate::util;
 
 use async_trait::async_trait;
@@ -82,7 +82,7 @@ impl VersionStore for LocalVersionStore {
     fn store_version_from_path_sync(&self, hash: &str, file_path: &Path) -> Result<(), OxenError> {
         let version_dir = self.version_dir(hash);
         util::fs::create_dir_all(&version_dir)?;
-        
+
         let version_path = self.version_path(hash);
         if !version_path.exists() {
             util::fs::copy(file_path, &version_path)?;
@@ -121,7 +121,10 @@ impl VersionStore for LocalVersionStore {
         Ok(())
     }
 
-    fn open_version(&self, hash: &str) -> Result<Box<dyn ReadSeek + Send + Sync + 'static>, OxenError> {
+    fn open_version(
+        &self,
+        hash: &str,
+    ) -> Result<Box<dyn ReadSeek + Send + Sync + 'static>, OxenError> {
         let path = self.version_path(hash);
         let file = std::fs::File::open(&path)?;
         Ok(Box::new(file))
@@ -135,13 +138,13 @@ impl VersionStore for LocalVersionStore {
     //     let file = File::open(&path).await?;
     //     let reader = BufReader::new(file);
     //     let stream = ReaderStream::new(reader);
-        
+
     //     let mapped_stream = stream.map(|result| {
     //         result
     //             .map(Bytes::from)
     //             .map_err(|e| OxenError::IO(e))
     //     });
-        
+
     //     Ok(Box::new(mapped_stream))
     // }
 
@@ -230,7 +233,7 @@ impl VersionStore for LocalVersionStore {
         size: u64,
     ) -> Result<Vec<u8>, OxenError> {
         let version_file_path = self.version_path(hash);
-        
+
         let mut file = File::open(&version_file_path).await?;
         let metadata = file.metadata().await?;
         let file_len = metadata.len();
@@ -249,7 +252,7 @@ impl VersionStore for LocalVersionStore {
 
         use tokio::io::{AsyncSeekExt, SeekFrom};
         file.seek(SeekFrom::Start(offset)).await?;
-        
+
         let mut buffer = vec![0u8; read_len as usize];
         file.read_exact(&mut buffer).await?;
 
@@ -259,7 +262,7 @@ impl VersionStore for LocalVersionStore {
     async fn list_version_chunks(&self, hash: &str) -> Result<Vec<u32>, OxenError> {
         let chunk_dir = self.version_chunks_dir(hash);
         let mut chunks = Vec::new();
-        
+
         let mut entries = fs::read_dir(&chunk_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let file_type = entry.file_type().await?;
@@ -272,7 +275,11 @@ impl VersionStore for LocalVersionStore {
         Ok(chunks)
     }
 
-    async fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError> {
+    async fn combine_version_chunks(
+        &self,
+        hash: &str,
+        cleanup: bool,
+    ) -> Result<PathBuf, OxenError> {
         let version_path = self.version_path(hash);
         let mut output_file = File::create(&version_path).await?;
 
@@ -363,7 +370,10 @@ mod tests {
         let mut cursor = Cursor::new(data.to_vec());
 
         // Store using the reader
-        store.store_version_from_reader(hash, &mut cursor).await.unwrap();
+        store
+            .store_version_from_reader(hash, &mut cursor)
+            .await
+            .unwrap();
 
         // Verify the file exists
         let version_path = store.version_path(hash);

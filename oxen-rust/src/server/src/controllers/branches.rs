@@ -185,7 +185,8 @@ pub async fn maybe_create_merge(
         &incoming_commit,
         &current_commit,
         &branch,
-    ).await?;
+    )
+    .await?;
 
     // Return what will become the new head of the repo after push is complete.
     if let Some(merge_commit) = maybe_merge_commit {

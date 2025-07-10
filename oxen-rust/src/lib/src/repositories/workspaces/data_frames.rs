@@ -247,6 +247,8 @@ pub fn full_diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffRe
         contents: diff_df,
         parameters: TabularDiffParameters::empty(),
         summary: diff_summary,
+        filename1: None,
+        filename2: None,
     };
 
     Ok(DiffResult::Tabular(diff_result))
@@ -409,7 +411,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -485,7 +488,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -573,7 +577,8 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -663,7 +668,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -736,7 +742,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -801,7 +808,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -888,7 +896,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
     #[tokio::test]
     async fn test_restore_row_after_modification() -> Result<(), OxenError> {
@@ -972,7 +981,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1039,7 +1049,8 @@ mod tests {
             }
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]
@@ -1067,7 +1078,8 @@ mod tests {
             assert!(result.is_err());
 
             Ok(())
-        }).await
+        })
+        .await
     }
 
     #[tokio::test]

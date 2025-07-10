@@ -4,8 +4,8 @@ use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncSeek};
 
 use crate::constants;
@@ -112,23 +112,15 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
     /// # Arguments
     /// * `hash` - The content hash that identifies this version
     /// * `cleanup` - Whether to delete the chunks after combining. If false, the chunks will be left in place.
-    ///   May be helpful for debugging or chunk-level deduplication. 
-    async fn combine_version_chunks(&self, hash: &str, cleanup: bool) -> Result<PathBuf, OxenError>;
+    ///   May be helpful for debugging or chunk-level deduplication.
+    async fn combine_version_chunks(&self, hash: &str, cleanup: bool)
+        -> Result<PathBuf, OxenError>;
 
     /// Open a version file for async reading
     ///   
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
     fn open_version(&self, hash: &str) -> Result<Box<dyn ReadSeek + Send + Sync>, OxenError>;
-
-    /// Get a version file as a stream of bytes
-    ///    
-    /// # Arguments
-    /// * `hash` - The content hash of the version to retrieve
-    // async fn get_version_stream(
-    //     &self,
-    //     hash: &str,
-    // ) -> Result<Box<dyn Stream<Item = Result<Bytes, OxenError>> + Send + Unpin>, OxenError>;
 
     /// Retrieve a version file's contents as bytes (less efficient for large files)
     ///    
@@ -184,7 +176,9 @@ pub fn create_version_store(
         let storage_config = storage_config.cloned();
         std::thread::spawn(move || {
             handle.block_on(create_version_store_async(&path, storage_config.as_ref()))
-        }).join().map_err(|_| OxenError::basic_str("Failed to join thread"))?
+        })
+        .join()
+        .map_err(|_| OxenError::basic_str("Failed to join thread"))?
     } else {
         // If not in tokio runtime, use futures' block_on
         futures::executor::block_on(create_version_store_async(path, storage_config))

@@ -1,7 +1,7 @@
 use crate::error::OxenError;
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use async_trait::async_trait;
 
 use super::version_store::VersionStore;
 use crate::storage::version_store::ReadSeek;
@@ -35,12 +35,20 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    async fn store_version_from_path(&self, _hash: &str, _file_path: &Path) -> Result<(), OxenError> {
+    async fn store_version_from_path(
+        &self,
+        _hash: &str,
+        _file_path: &Path,
+    ) -> Result<(), OxenError> {
         // TODO: Implement S3 version storage from path
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    fn store_version_from_path_sync(&self, _hash: &str, _file_path: &Path) -> Result<(), OxenError> {
+    fn store_version_from_path_sync(
+        &self,
+        _hash: &str,
+        _file_path: &Path,
+    ) -> Result<(), OxenError> {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
@@ -58,7 +66,10 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    fn open_version(&self, _hash: &str) -> Result<Box<dyn ReadSeek + Send + Sync + 'static>, OxenError> {
+    fn open_version(
+        &self,
+        _hash: &str,
+    ) -> Result<Box<dyn ReadSeek + Send + Sync + 'static>, OxenError> {
         // TODO: Implement S3 version opening
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
@@ -126,7 +137,11 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    async fn combine_version_chunks(&self, _hash: &str, _cleanup: bool) -> Result<PathBuf, OxenError> {
+    async fn combine_version_chunks(
+        &self,
+        _hash: &str,
+        _cleanup: bool,
+    ) -> Result<PathBuf, OxenError> {
         // TODO: Implement S3 version chunk combination
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
