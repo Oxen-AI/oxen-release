@@ -1373,9 +1373,6 @@ pub fn is_canonical(path: impl AsRef<Path>) -> Result<bool, OxenError> {
     let path = path.as_ref();
     let canon_path = canonicalize(path)?;
 
-    println!("path: {path:?}");
-    println!("canon_path: {canon_path:?}");
-
     if path == canon_path {
         log::debug!("path {path:?} IS canonical");
         return Ok(true);
@@ -1389,7 +1386,7 @@ pub fn is_canonical(path: impl AsRef<Path>) -> Result<bool, OxenError> {
 pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
     //log::debug!("Path to canonicalize: {path:?}");
-    match std::fs::canonicalize(path) {
+    match dunce::canonicalize(path) {
         Ok(canon_path) => Ok(canon_path),
         Err(err) => Err(OxenError::basic_str(format!(
             "path {path:?} cannot be canonicalized due to err {err:?}"
@@ -1422,21 +1419,19 @@ fn stem_from_canonical_child_path(
     let child_components: Vec<Component> = child_path.components().collect();
     let parent_components: Vec<Component> = parent_path.components().collect();
 
-    println!(
-        "components len: {} and {}",
-        child_components.len(),
-        parent_components.len()
-    );
-
     let relative_path = path_relative_to_dir(child_path, parent_path)?;
     let relative_components: Vec<Component> = relative_path.components().collect();
 
+    if child_components.len() < parent_components.len() + relative_components.len() {
+        return Err(OxenError::basic_str(format!(
+            "Invalid path relationship: child path {:?} is not under parent path {:?}",
+            child_path, parent_path
+        )));
+    }
+
     let ending_index = child_components.len() - relative_components.len() - parent_components.len();
     let path_slice = &child_components[..ending_index];
-
     let result: PathBuf = path_slice.iter().collect();
-
-    println!("result: {result:?}");
     Ok(result)
 }
 
@@ -1508,7 +1503,6 @@ pub fn path_relative_to_dir(
         }
 
         // Check length first as an optimization
-        // The most expensive part of this function is the string conversion, so we try to avoid that
         if path_str.len() == dir_str.len() {
             // On Windows, if the components don't match, it may be because of casing inconsistency
             // So, if the raw components don't match, convert them to lowercase strings
