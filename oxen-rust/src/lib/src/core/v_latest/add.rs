@@ -71,6 +71,10 @@ pub fn add<T: AsRef<Path>>(
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
 
+    // Check if the repo is in the working tree
+    let mut repo_path = repo.path.clone();
+    let repo_in_working_tree = repo_path.exists();
+
     let path_hashset = match repositories::commits::head_commit_maybe(repo)? {
         Some(_) => {
             let paths_vec: Vec<PathBuf> = paths
@@ -99,11 +103,24 @@ pub fn add<T: AsRef<Path>>(
             path_hashset
         }
     };
+
     let mut expanded_paths: HashSet<PathBuf> = HashSet::new();
     for path in path_hashset {
         let path_str = path
             .to_str()
             .ok_or_else(|| OxenError::basic_str("Invalid path string"))?;
+
+        if !repo_in_working_tree {
+            // If adding from outside the scope of the repo, only allow absolute paths
+            if !util::fs::is_canonical(&path)? {
+                return Err(OxenError::basic_str(
+                    "Err: Cannot add relative paths from outside repo scope",
+                ));
+            }
+
+            log::debug!("Updating repo_path with absolute file path {path:?}");
+            repo_path = util::fs::full_path_from_child_path(&repo_path, &path)?;
+        }
 
         // TODO: At least on Windows, this is improperly case sensitive
         if util::fs::is_glob_path(path_str) {
@@ -132,22 +149,34 @@ pub fn add<T: AsRef<Path>>(
             expanded_paths.insert(path.to_owned()); //add absolute path with repo
         }
     }
+
+    log::debug!("final repo path: {repo_path:?}");
+
     // expanded_paths
     // Get the version store from the repository
     let version_store = repo.version_store()?;
     // Open the staged db once at the beginning and reuse the connection
     let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+
+    let db_path = repo_path.join(OXEN_HIDDEN_DIR).join(STAGED_DIR);
+    log::debug!("staged_db path: {db_path:?}");
+
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    let _stats = add_files(repo, &expanded_paths, &staged_db, &version_store)?;
+    let _stats = add_files(
+        repo,
+        &repo_path,
+        &expanded_paths,
+        &staged_db,
+        &version_store,
+    )?;
 
     Ok(())
 }
 
 pub fn add_files(
     repo: &LocalRepository,
+    repo_path: &PathBuf,
     paths: &HashSet<PathBuf>, // We assume all paths provided are relative to the repo root
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
@@ -177,6 +206,7 @@ pub fn add_files(
         if corrected_path.is_dir() {
             total += add_dir_inner(
                 repo,
+                repo_path,
                 &maybe_head_commit,
                 corrected_path.clone(),
                 staged_db,
@@ -191,6 +221,7 @@ pub fn add_files(
 
             let entry = add_file_inner(
                 repo,
+                repo_path,
                 &maybe_head_commit,
                 &corrected_path,
                 staged_db,
@@ -210,7 +241,6 @@ pub fn add_files(
             }
         } else if corrected_path.is_symlink() {
             log::debug!("Skipping symlink: {:?}", corrected_path);
-            println!("Skipping symlink: {:?}", corrected_path);
             continue;
         } else {
             let mut opts = RmOpts::from_path(corrected_path);
@@ -236,8 +266,10 @@ pub fn add_files(
     Ok(total)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_dir_inner(
     repo: &LocalRepository,
+    repo_path: &PathBuf,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -247,6 +279,7 @@ fn add_dir_inner(
 ) -> Result<CumulativeStats, OxenError> {
     process_add_dir(
         repo,
+        repo_path,
         maybe_head_commit,
         version_store,
         staged_db,
@@ -273,8 +306,11 @@ pub fn add_dir_except(
     let excluded_hashes = Some(excluded_hashes);
     let gitignore = None;
 
+    let repo_path = &repo.path;
+
     add_dir_inner(
         repo,
+        repo_path,
         maybe_head_commit,
         path,
         &staged_db,
@@ -284,8 +320,10 @@ pub fn add_dir_except(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn process_add_dir(
     repo: &LocalRepository,
+    repo_path: &PathBuf,
     maybe_head_commit: &Option<Commit>,
     version_store: &Arc<dyn VersionStore>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -302,7 +340,6 @@ pub fn process_add_dir(
     let path = path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
-    let repo_path = &repo.path.clone();
 
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -510,12 +547,12 @@ fn get_file_node(
 
 fn add_file_inner(
     repo: &LocalRepository,
+    repo_path: &PathBuf,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let repo_path = &repo.path.clone();
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, repo_path)?;
@@ -638,8 +675,7 @@ pub fn process_add_file(
     let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-        // If it's not a file - no need to add it
-        // We handle directories by traversing the parents of files below
+        // If path is not canonical, we cannot recover the absolute repo path
         log::debug!("file is not a file - skipping add on {:?}", full_path);
         return Ok(Some(StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
@@ -1028,12 +1064,14 @@ pub fn p_add_file_node_to_staged_db(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = relative_path.as_ref();
+
     log::debug!(
         "writing {:?} [{:?}] to staged db: {:?}",
         relative_path,
         status,
         staged_db.path()
     );
+
     let staged_file_node = StagedMerkleTreeNode {
         status,
         node: MerkleTreeNode::from_file(file_node.clone()),
@@ -1138,6 +1176,46 @@ mod tests {
             Ok(())
         })
     }
+
+    /*
+    #[test]
+    fn test_add_file_from_outside_working_directory() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create a file in the repository
+            let test_file = repo.path.join("test_file.txt");
+            util::fs::write_to_path(&test_file, "Hello from absolute path")?;
+
+            // Get the absolute path to the file
+            let absolute_path = test_file.canonicalize()?;
+            let repo_path = &repo.path.canonicalize();
+
+
+            // Change the current working directory to outside the repository
+            let original_dir = std::env::current_dir()?;
+            let temp_dir = std::env::temp_dir();
+            std::env::set_current_dir(&temp_dir)?;
+
+                        // Add the file using its absolute path
+            let result = repositories::add(&repo, &absolute_path);
+
+            // Change back to the original directory
+            std::env::set_current_dir(&original_dir)?;
+            let canon_orig = original_dir.canonicalize();
+
+            // Verify the add operation succeeded
+            result?;
+
+            // Check that the file was properly staged
+            let status = repositories::status(&repo)?;
+            assert_eq!(status.staged_files.len(), 1);
+            assert!(status
+                .staged_files
+                .contains_key(&PathBuf::from("test_file.txt")));
+            assert_eq!(status.untracked_files.len(), 0);
+
+            Ok(())
+        })
+    }*/
 
     #[test]
     fn test_add_dot_on_committed_repo() -> Result<(), OxenError> {

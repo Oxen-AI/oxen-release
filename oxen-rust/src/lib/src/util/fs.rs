@@ -12,9 +12,9 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
-use std::path::Component;
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
@@ -1369,11 +1369,27 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     false
 }
 
+pub fn is_canonical(path: impl AsRef<Path>) -> Result<bool, OxenError> {
+    let path = path.as_ref();
+    let canon_path = canonicalize(path)?;
+
+    println!("path: {path:?}");
+    println!("canon_path: {canon_path:?}");
+
+    if path == canon_path {
+        log::debug!("path {path:?} IS canonical");
+        return Ok(true);
+    }
+
+    log::debug!("path {path:?} is NOT canonical");
+    Ok(false)
+}
+
 // Return canonicalized path if possible, otherwise return original
 pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
     //log::debug!("Path to canonicalize: {path:?}");
-    match dunce::canonicalize(path) {
+    match std::fs::canonicalize(path) {
         Ok(canon_path) => Ok(canon_path),
         Err(err) => Err(OxenError::basic_str(format!(
             "path {path:?} cannot be canonicalized due to err {err:?}"
@@ -1381,43 +1397,48 @@ pub fn canonicalize(path: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     }
 }
 
-pub fn path_relative_to_di1r(
-    path: impl AsRef<Path>,
-    dir: impl AsRef<Path>,
+// Get the full path of a non-canonical parent from a canonical child path
+pub fn full_path_from_child_path(
+    parent: impl AsRef<Path>,
+    child: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
-    let dir = dir.as_ref();
+    let parent_path = parent.as_ref();
+    let child_path = child.as_ref();
 
-    let dir_string = dir.to_str().unwrap().to_string().to_lowercase();
-    let mut mut_path = path.to_path_buf();
-    let mut components: Vec<PathBuf> = vec![];
-    while mut_path.parent().is_some() {
-        log::debug!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
-        log::debug!("mut path file name: {:?}", mut_path.file_name());
-        if let Some(filename) = mut_path.file_name() {
-            let path_string = mut_path.to_str().unwrap().to_string().to_lowercase();
-
-            if path_string != dir_string {
-                let new = PathBuf::from(filename);
-                components.push(new.clone());
-                log::debug!("new: {new:?}");
-            } else {
-                break;
-            }
-        }
-
-        mut_path.pop();
-    }
-    components.reverse();
-
-    let mut result = PathBuf::new();
-    for component in components.iter() {
-        result = result.join(component);
-    }
-
-    Ok(result)
+    let parent_stem = stem_from_canonical_child_path(parent_path, child_path)?;
+    Ok(parent_stem.join(parent_path))
 }
 
+// Find the stem that completes the absolute path of the parent from its child
+// This is useful to find the absolute path of a repo when directly canonicalizing its path isn't possible, and we're calling add with an absolute path
+// If the file is under the oxen control of the repo, then this will recover the necessary stem to get the correct canonical path to that repo
+fn stem_from_canonical_child_path(
+    parent_path: impl AsRef<Path>,
+    child_path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let parent_path = parent_path.as_ref();
+    let child_path = child_path.as_ref();
+
+    let child_components: Vec<Component> = child_path.components().collect();
+    let parent_components: Vec<Component> = parent_path.components().collect();
+
+    println!(
+        "components len: {} and {}",
+        child_components.len(),
+        parent_components.len()
+    );
+
+    let relative_path = path_relative_to_dir(child_path, parent_path)?;
+    let relative_components: Vec<Component> = relative_path.components().collect();
+
+    let ending_index = child_components.len() - relative_components.len() - parent_components.len();
+    let path_slice = &child_components[..ending_index];
+
+    let result: PathBuf = path_slice.iter().collect();
+
+    println!("result: {result:?}");
+    Ok(result)
+}
 
 pub fn path_relative_to_dir(
     path: impl AsRef<Path>,
@@ -1426,23 +1447,22 @@ pub fn path_relative_to_dir(
     let path = path.as_ref();
     let dir = dir.as_ref();
 
-    log::debug!("path_relative_to_dir starting path: {path:?}");
-    log::debug!("path_relative_to_dir staring dir: {dir:?}");
-  
+    // log::debug!("path_relative_to_dir starting path: {path:?}");
+    // log::debug!("path_relative_to_dir staring dir: {dir:?}");
+
+    // Split paths into components
     let path_components: Vec<Component> = path.components().collect();
     let dir_components: Vec<Component> = dir.components().collect();
 
-
-    if  path_components.len() == 0 || dir == path  {
+    if path_components.is_empty() || dir == path {
         return Ok(PathBuf::new());
     }
 
-    if dir_components.len() == 0 || dir_components.len() > path_components.len() {
-
+    if dir_components.is_empty() || dir_components.len() > path_components.len() {
         // Iterate through the components instead of returning original to normalize path for windows
         let mut result = PathBuf::new();
         let path_slice = &path_components;
-        
+
         // Adjust for special paths like '.', '..', etc
         for component in path_slice.iter() {
             if matches!(component, Component::Normal(_)) {
@@ -1453,6 +1473,7 @@ pub fn path_relative_to_dir(
         return Ok(result);
     }
 
+    // Get iterators for the component vectors
     let mut path_iter = path_components.iter();
     let mut dir_iter = dir_components.iter();
     let starting_dir_iter = dir_iter.clone();
@@ -1462,7 +1483,6 @@ pub fn path_relative_to_dir(
     let mut start_index = 0;
 
     for _ in 0..(path_components.len()) {
-
         let path_component = path_iter.next().expect("Path bounds violated");
         let path_str = path_component.as_os_str();
         let dir_str = dir_component.as_os_str();
@@ -1470,10 +1490,9 @@ pub fn path_relative_to_dir(
         if path_str == dir_str {
             matches += 1;
             if matches == dir_components.len() {
-                
                 let mut result = PathBuf::new();
                 let path_slice = &path_components[(start_index + 1)..];
-                
+
                 // Adjust for special paths like '.', '..', etc
                 for component in path_slice.iter() {
                     if matches!(component, Component::Normal(_)) {
@@ -1491,25 +1510,23 @@ pub fn path_relative_to_dir(
         // Check length first as an optimization
         // The most expensive part of this function is the string conversion, so we try to avoid that
         if path_str.len() == dir_str.len() {
-
             // On Windows, if the components don't match, it may be because of casing inconsistency
             // So, if the raw components don't match, convert them to lowercase strings
             let path_lower = path_str.to_string_lossy().to_lowercase();
             let dir_lower = dir_str.to_string_lossy().to_lowercase();
 
             if path_lower == dir_lower {
-                
                 matches += 1;
                 if matches == dir_components.len() {
                     let mut result = PathBuf::new();
                     let path_slice = &path_components[(start_index + 1)..];
-                    
+
                     for component in path_slice.iter() {
                         if matches!(component, Component::Normal(_)) {
                             result.push::<&Path>(component.as_ref());
                         }
                     }
-                    log::debug!("result: {result:?}");
+                    // log::debug!("result: {result:?}");
                     return Ok(result);
                 }
                 start_index += 1;
@@ -1517,22 +1534,22 @@ pub fn path_relative_to_dir(
                 continue;
             }
         }
-       
+
         // If the components don't match, reset dir_iter and dir_component
         dir_iter = starting_dir_iter.clone();
-        dir_component = dir_iter.next().unwrap(); 
+        dir_component = dir_iter.next().unwrap();
         start_index += 1;
     }
-   
+
     // If the loop finishes, the path cannot be found relative to the dir
     // Returning the original path is the expected behavior
     let mut result = PathBuf::new();
     let path_slice = &path_components;
-    
+
     for component in path_slice.iter() {
         result.push::<&Path>(component.as_ref());
     }
-    return Ok(result);
+    Ok(result)
 }
 
 pub fn linux_path_str(string: &str) -> String {
