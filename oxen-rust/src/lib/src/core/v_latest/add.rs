@@ -1177,46 +1177,6 @@ mod tests {
         })
     }
 
-    /*
-    #[test]
-    fn test_add_file_from_outside_working_directory() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            // Create a file in the repository
-            let test_file = repo.path.join("test_file.txt");
-            util::fs::write_to_path(&test_file, "Hello from absolute path")?;
-
-            // Get the absolute path to the file
-            let absolute_path = test_file.canonicalize()?;
-            let repo_path = &repo.path.canonicalize();
-
-
-            // Change the current working directory to outside the repository
-            let original_dir = std::env::current_dir()?;
-            let temp_dir = std::env::temp_dir();
-            std::env::set_current_dir(&temp_dir)?;
-
-                        // Add the file using its absolute path
-            let result = repositories::add(&repo, &absolute_path);
-
-            // Change back to the original directory
-            std::env::set_current_dir(&original_dir)?;
-            let canon_orig = original_dir.canonicalize();
-
-            // Verify the add operation succeeded
-            result?;
-
-            // Check that the file was properly staged
-            let status = repositories::status(&repo)?;
-            assert_eq!(status.staged_files.len(), 1);
-            assert!(status
-                .staged_files
-                .contains_key(&PathBuf::from("test_file.txt")));
-            assert_eq!(status.untracked_files.len(), 0);
-
-            Ok(())
-        })
-    }*/
-
     #[test]
     fn test_add_dot_on_committed_repo() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
