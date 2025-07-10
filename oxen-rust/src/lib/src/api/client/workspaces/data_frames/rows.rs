@@ -667,7 +667,7 @@ mod tests {
                 .await?;
                 assert_eq!(status.modified_files.entries.len(), 0);
 
-                Ok(repo_dir)
+                Ok(())
             })
             .await?;
 

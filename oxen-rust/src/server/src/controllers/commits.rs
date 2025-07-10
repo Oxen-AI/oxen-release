@@ -29,7 +29,6 @@ use crate::params::{app_data, path_param};
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
-use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
@@ -39,7 +38,11 @@ use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use tar::Archive;
+use std::io::Cursor;
+use tokio::io::BufReader;
+use async_compression::tokio::bufread::GzipDecoder;
+use tokio_tar::Archive;
+
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkedDataUploadQuery {
@@ -522,7 +525,7 @@ pub async fn upload_chunk(
                         size,
                         query.is_compressed,
                         query.filename.to_owned(),
-                    );
+                    ).await;
 
                     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
@@ -548,7 +551,7 @@ pub async fn upload_chunk(
     }
 }
 
-fn check_if_upload_complete_and_unpack(
+async fn check_if_upload_complete_and_unpack(
     repo: &LocalRepository,
     tmp_dir: PathBuf,
     total_chunks: usize,
@@ -602,7 +605,7 @@ fn check_if_upload_complete_and_unpack(
         // TODO: Cleanup these if / else / match statements
         // Combine into actual file data
         if is_compressed {
-            match unpack_compressed_data(&files, repo) {
+            match unpack_compressed_data(&files, repo).await {
                 Ok(_) => {
                     log::debug!(
                         "check_if_upload_complete_and_unpack unpacked {} files successfully",
@@ -685,9 +688,9 @@ pub async fn upload_tree(
 
     log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
 
-    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+    // let mut archive = Archive::new(GzDecoder::new(&bytes[..])); 
 
-    unpack_tree_tarball(&tmp_dir, &mut archive);
+    unpack_tree_tarball(&tmp_dir, &bytes).await?;
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
@@ -709,7 +712,7 @@ pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     }))
 }
 
-fn unpack_compressed_data(files: &[PathBuf], repo: &LocalRepository) -> Result<(), OxenError> {
+async fn unpack_compressed_data(files: &[PathBuf], repo: &LocalRepository) -> Result<(), OxenError> {
     let mut buffer: Vec<u8> = Vec::new();
     for file in files.iter() {
         log::debug!("Reading file bytes {:?}", file);
@@ -719,9 +722,8 @@ fn unpack_compressed_data(files: &[PathBuf], repo: &LocalRepository) -> Result<(
             .map_err(|e| OxenError::file_read_error(file, e))?;
     }
 
-    // Unpack tarball to our hidden dir
-    let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-    unpack_entry_tarball(repo, &mut archive)?;
+    // Unpack tarball to our hidden dir using async streaming
+    unpack_entry_tarball_async(repo, &buffer).await?;
 
     Ok(())
 }
@@ -808,10 +810,8 @@ pub async fn upload(
         bytes.len(),
         repo.path.display()
     );
-    // Unpack tarball to repo
-    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-    // TODO: we're not handling errors here other than logging them
-    unpack_entry_tarball(&repo, &mut archive)?;
+    // Unpack tarball to repo using async streaming
+    unpack_entry_tarball_async(&repo, &bytes).await?;
     // });
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
@@ -857,71 +857,93 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     }
 }
 
-fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
-    match archive.entries() {
-        Ok(entries) => {
-            for file in entries {
-                if let Ok(mut file) = file {
-                    let path = file.path().unwrap();
-                    log::debug!("unpack_tree_tarball path {:?}", path);
-                    let stripped_path = if path.starts_with(HISTORY_DIR) {
-                        match path.strip_prefix(HISTORY_DIR) {
-                            Ok(stripped) => stripped,
-                            Err(err) => {
-                                log::error!("Could not strip prefix from path {:?}", err);
-                                return;
-                            }
-                        }
-                    } else {
-                        &path
-                    };
-
-                    let mut new_path = PathBuf::from(tmp_dir);
-                    new_path.push(stripped_path);
-
-                    if let Some(parent) = new_path.parent() {
-                        util::fs::create_dir_all(parent).expect("Could not create parent dir");
-                    }
-                    log::debug!("unpack_tree_tarball new_path {:?}", path);
-                    file.unpack(&new_path).unwrap();
-                } else {
-                    log::error!("Could not unpack file in archive...");
-                }
-            }
-        }
-        Err(err) => {
+async fn unpack_tree_tarball(tmp_dir: &Path, data: &[u8]) -> Result<(), OxenError> {
+    let reader = Cursor::new(data);
+    let buf_reader = BufReader::new(reader);
+    let decoder = GzipDecoder::new(buf_reader);
+    let mut archive = Archive::new(decoder);
+    
+    let mut entries = match archive.entries() {
+        Ok(entries) => entries,
+        Err(e) => {
             log::error!("Could not unpack tree database from archive...");
-            log::error!("Err: {:?}", err);
+            log::error!("Err: {:?}", e);
+            return Err(OxenError::basic_str("Failed to get archive entries"));
+        }
+    };
+    
+    while let Some(entry) = entries.next().await {
+        if let Ok(mut file) = entry {
+            let path = file.path().unwrap();
+            log::debug!("unpack_tree_tarball path {:?}", path);
+            let stripped_path = if path.starts_with(HISTORY_DIR) {
+                match path.strip_prefix(HISTORY_DIR) {
+                    Ok(stripped) => stripped,
+                    Err(err) => {
+                        log::error!("Could not strip prefix from path {:?}", err);
+                        return Err(OxenError::basic_str("Failed to strip path prefix"));
+                    }
+                }
+            } else {
+                &path
+            };
+
+            let mut new_path = PathBuf::from(tmp_dir);
+            new_path.push(stripped_path);
+
+            if let Some(parent) = new_path.parent() {
+                util::fs::create_dir_all(parent).expect("Could not create parent dir");
+            }
+            log::debug!("unpack_tree_tarball new_path {:?}", path);
+            file.unpack(&new_path).await.unwrap();
+        } else {
+            log::error!("Could not unpack file in archive...");
         }
     }
+    
+    Ok(())
 }
 
-fn unpack_entry_tarball(
+
+
+async fn unpack_entry_tarball_async(
     repo: &LocalRepository,
-    archive: &mut Archive<GzDecoder<&[u8]>>,
+    compressed_data: &[u8],
 ) -> Result<(), OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let version_store = repo.version_store()?;
 
-    let entries = archive.entries()?;
-    for entry in entries {
+    // Create async gzip decoder and tar archive
+    let reader = Cursor::new(compressed_data);
+    let buf_reader = BufReader::new(reader);
+    let decoder = GzipDecoder::new(buf_reader);
+    let mut archive = Archive::new(decoder);
+    
+    // Process entries asynchronously
+    let mut entries = archive.entries()?;
+    while let Some(entry) = entries.next().await {
         let mut file = entry?;
         let path = file
             .path()
             .map_err(|e| OxenError::basic_str(format!("Invalid path in archive: {}", e)))?;
 
         if path.starts_with("versions") && path.to_string_lossy().contains("files") {
-            // Handle version files
+            // Handle version files with streaming
             let hash = extract_hash_from_path(&path)?;
-            version_store.store_version_from_reader(&hash, &mut file)?;
+            
+            // Convert futures::io::AsyncRead to tokio::io::AsyncRead using compat
+            // let mut tokio_reader = file.compat();
+            
+            // Use streaming storage - no memory buffering needed!
+            version_store.store_version_from_reader(&hash, &mut file).await?;
         } else {
-            // For non-version files, use filename sent by client
-            file.unpack_in(&hidden_dir)
+            // For non-version files, unpack to hidden dir
+            file.unpack_in(&hidden_dir).await
                 .map_err(|e| OxenError::basic_str(format!("Failed to unpack file: {}", e)))?;
         }
     }
 
-    log::debug!("Done decompressing.");
+    log::debug!("Done decompressing with async streaming.");
     Ok(())
 }
 
@@ -1006,10 +1028,10 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "first commit")?;
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
@@ -1035,14 +1057,14 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
@@ -1078,19 +1100,19 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
         let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
-        repositories::add(&repo, path)?;
+        repositories::add(&repo, path).await?;
         repositories::commit(&repo, "second commit")?;
 
         // List commits from the first branch
@@ -1130,7 +1152,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file)?;
+        repositories::add(&repo, &hello_file).await?;
         let commit = repositories::commit(&repo, "First commit")?;
 
         // create random tarball to post.. currently no validation that it is a valid commit dir

@@ -62,7 +62,7 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
     // Collect paths that match the glob pattern either:
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
@@ -99,12 +99,12 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    let _stats = add_files(repo, &paths, &staged_db, &version_store)?;
+    let _stats = add_files(repo, &paths, &staged_db, &version_store).await?;
 
     Ok(())
 }
 
-pub fn add_files(
+pub async fn add_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -144,7 +144,7 @@ pub fn add_files(
                 continue;
             }
 
-            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, version_store)?;
+            let entry = add_file_inner(repo, &maybe_head_commit, path, staged_db, &version_store).await?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type();
@@ -205,7 +205,7 @@ fn add_dir_inner(
 }
 
 // Skip all checks on the subdirs contained in excluded_hashes
-pub fn add_dir_except(
+pub async fn add_dir_except(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
@@ -353,7 +353,7 @@ pub fn process_add_dir(
                 ) {
                     Ok(Some(node)) => {
                         version_store
-                            .store_version_from_path(&file_status.hash.to_string(), &path)
+                            .store_version_from_path_sync(&file_status.hash.to_string(), &path)
                             .unwrap();
 
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
@@ -410,7 +410,7 @@ fn get_file_node(
     }
 }
 
-fn add_file_inner(
+async fn add_file_inner(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
@@ -427,7 +427,7 @@ fn add_file_inner(
 
     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
     let file_status = determine_file_status(&maybe_dir_node, &file_name, path)?;
-    version_store.store_version_from_path(&file_status.hash.to_string(), path)?;
+    version_store.store_version_from_path(&file_status.hash.to_string(), path).await?;
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(repo)?
@@ -1000,9 +1000,9 @@ mod tests {
     use super::*;
     use crate::test;
 
-    #[test]
-    fn test_add_respects_oxenignore() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_add_respects_oxenignore() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let ignored_file = "ignored.txt";
             let normal_file = "normal.txt";
 
@@ -1016,7 +1016,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, ignored_file)?;
 
-            add(&repo, Path::new(&repo.path))?;
+            add(&repo, Path::new(&repo.path)).await?;
 
             let status = repositories::status(&repo)?;
 
@@ -1039,12 +1039,12 @@ mod tests {
                 .any(|path| path.0.ends_with(".oxenignore")));
 
             Ok(())
-        })
+        }).await
     }
 
-    #[test]
-    fn test_add_respects_dir_ignore_patterns() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_add_respects_dir_ignore_patterns() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let dir_to_ignore = "ignored_dir";
             let normal_dir = "normal_dir";
 
@@ -1075,7 +1075,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, format!("{}/", dir_to_ignore))?;
 
-            add(&repo, Path::new(&repo.path))?;
+            add(&repo, Path::new(&repo.path)).await?;
 
             let status = repositories::status(&repo)?;
 
@@ -1106,6 +1106,6 @@ mod tests {
                 .any(|path| path.0.ends_with(".oxenignore")));
 
             Ok(())
-        })
+        }).await
     }
 }
