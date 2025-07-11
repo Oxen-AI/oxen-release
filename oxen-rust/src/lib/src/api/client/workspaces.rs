@@ -414,7 +414,7 @@ mod tests {
                 opts.add_col = Some("is_something:n/a:str".to_string());
                 opts.output = Some(full_path.to_path_buf()); // write back to same path
                 command::df(&full_path, opts)?;
-                repositories::add(&cloned_repo, &full_path)?;
+                repositories::add(&cloned_repo, &full_path).await?;
 
                 // Commit and push the changed schema
                 repositories::commit(&cloned_repo, "Changed the schema 😇")?;
@@ -447,7 +447,7 @@ mod tests {
                 .await?;
                 assert_eq!(remote_status.modified_files.entries.len(), 1);
 
-                Ok(repo_dir)
+                Ok(())
             })
             .await?;
 

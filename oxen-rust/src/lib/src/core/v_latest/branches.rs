@@ -260,7 +260,8 @@ pub async fn checkout_subtrees(
                 &file_to_restore.file_node,
                 &file_to_restore.path,
                 &version_store,
-            )?;
+            )
+            .await?;
         }
     }
 
@@ -370,7 +371,8 @@ pub async fn set_working_repo_to_commit(
             &file_to_restore.file_node,
             &file_to_restore.path,
             &version_store,
-        )?;
+        )
+        .await?;
     }
 
     Ok(())

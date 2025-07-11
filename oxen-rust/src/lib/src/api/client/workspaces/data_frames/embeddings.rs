@@ -303,7 +303,7 @@ mod tests {
             std::fs::write(&full_path, data.to_string())?;
 
             // Add, commit, and push the file
-            repositories::add(&local_repo, &full_path)?;
+            repositories::add(&local_repo, &full_path).await?;
             repositories::commit(&local_repo, "Add embeddings.json")?;
             repositories::push(&local_repo).await?;
 
@@ -434,7 +434,7 @@ mod tests {
                 assert_eq!(df.width(), 4);
                 assert_eq!(df.height(), 10000);
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 

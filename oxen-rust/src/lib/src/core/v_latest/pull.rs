@@ -64,7 +64,9 @@ pub async fn pull_remote_branch(
                 repo,
                 &new_head_commit,
                 previous_head_commit,
-            ) {
+            )
+            .await
+            {
                 Ok(Some(commit)) => new_head_commit = commit,
                 Ok(None) => {
                     // Merge conflict, keep the previous commit
