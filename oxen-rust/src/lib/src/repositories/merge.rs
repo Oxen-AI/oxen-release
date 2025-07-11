@@ -33,14 +33,14 @@ pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<MergeConflict>, Oxen
     }
 }
 
-pub fn has_conflicts(
+pub async fn has_conflicts(
     repo: &LocalRepository,
     base_branch: &Branch,
     merge_branch: &Branch,
 ) -> Result<bool, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::has_conflicts(repo, base_branch, merge_branch),
+        _ => core::v_latest::merge::has_conflicts(repo, base_branch, merge_branch).await,
     }
 }
 
@@ -51,18 +51,18 @@ pub fn mark_conflict_as_resolved(repo: &LocalRepository, path: &Path) -> Result<
     }
 }
 
-pub fn can_merge_commits(
+pub async fn can_merge_commits(
     repo: &LocalRepository,
     base_commit: &Commit,
     merge_commit: &Commit,
 ) -> Result<bool, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::can_merge_commits(repo, base_commit, merge_commit),
+        _ => core::v_latest::merge::can_merge_commits(repo, base_commit, merge_commit).await,
     }
 }
 
-pub fn list_conflicts_between_branches(
+pub async fn list_conflicts_between_branches(
     repo: &LocalRepository,
     base_branch: &Branch,
     merge_branch: &Branch,
@@ -71,6 +71,7 @@ pub fn list_conflicts_between_branches(
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
             core::v_latest::merge::list_conflicts_between_branches(repo, base_branch, merge_branch)
+                .await
         }
     }
 }
@@ -97,50 +98,53 @@ pub fn list_commits_between_commits(
     }
 }
 
-pub fn list_conflicts_between_commits(
+pub async fn list_conflicts_between_commits(
     repo: &LocalRepository,
     base_commit: &Commit,
     merge_commit: &Commit,
 ) -> Result<Vec<PathBuf>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::list_conflicts_between_commits(repo, base_commit, merge_commit),
+        _ => {
+            core::v_latest::merge::list_conflicts_between_commits(repo, base_commit, merge_commit)
+                .await
+        }
     }
 }
 
-pub fn merge_into_base(
+pub async fn merge_into_base(
     repo: &LocalRepository,
     merge_branch: &Branch,
     base_branch: &Branch,
 ) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::merge_into_base(repo, merge_branch, base_branch),
+        _ => core::v_latest::merge::merge_into_base(repo, merge_branch, base_branch).await,
     }
 }
 
-pub fn merge(
+pub async fn merge(
     repo: &LocalRepository,
     branch_name: impl AsRef<str>,
 ) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::merge(repo, branch_name),
+        _ => core::v_latest::merge::merge(repo, branch_name).await,
     }
 }
 
-pub fn merge_commit_into_base(
+pub async fn merge_commit_into_base(
     repo: &LocalRepository,
     merge_commit: &Commit,
     base_commit: &Commit,
 ) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::merge_commit_into_base(repo, merge_commit, base_commit),
+        _ => core::v_latest::merge::merge_commit_into_base(repo, merge_commit, base_commit).await,
     }
 }
 
-pub fn merge_commit_into_base_on_branch(
+pub async fn merge_commit_into_base_on_branch(
     repo: &LocalRepository,
     merge_commit: &Commit,
     base_commit: &Commit,
@@ -148,12 +152,15 @@ pub fn merge_commit_into_base_on_branch(
 ) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::merge::merge_commit_into_base_on_branch(
-            repo,
-            merge_commit,
-            base_commit,
-            branch,
-        ),
+        _ => {
+            core::v_latest::merge::merge_commit_into_base_on_branch(
+                repo,
+                merge_commit,
+                base_commit,
+                branch,
+            )
+            .await
+        }
     }
 }
 
@@ -225,7 +232,7 @@ mod tests {
         let a_branch = repositories::branches::current_branch(repo)?.unwrap();
         let a_path = repo.path.join("a.txt");
         util::fs::write_to_path(&a_path, "a")?;
-        repositories::add(repo, a_path)?;
+        repositories::add(repo, a_path).await?;
         // Return the lowest common ancestor for the tests
         let lca = repositories::commit(repo, "Committing a.txt file")?;
 
@@ -233,19 +240,19 @@ mod tests {
         repositories::branches::create_checkout(repo, merge_branch_name)?;
         let b_path = repo.path.join("b.txt");
         util::fs::write_to_path(&b_path, "b")?;
-        repositories::add(repo, b_path)?;
+        repositories::add(repo, b_path).await?;
         repositories::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
         repositories::checkout(repo, &a_branch.name).await?;
         let c_path = repo.path.join("c.txt");
         util::fs::write_to_path(&c_path, "c")?;
-        repositories::add(repo, c_path)?;
+        repositories::add(repo, c_path).await?;
         repositories::commit(repo, "Committing c.txt file")?;
 
         let d_path = repo.path.join("d.txt");
         util::fs::write_to_path(&d_path, "d")?;
-        repositories::add(repo, d_path)?;
+        repositories::add(repo, d_path).await?;
         repositories::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
@@ -253,7 +260,7 @@ mod tests {
 
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e")?;
-        repositories::add(repo, e_path)?;
+        repositories::add(repo, e_path).await?;
         repositories::commit(repo, "Committing e.txt file")?;
 
         // Checkout the OG branch again so that we can merge into it
@@ -269,7 +276,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
-            repositories::add(&repo, hello_file)?;
+            repositories::add(&repo, hello_file).await?;
             repositories::commit(&repo, "Adding hello file")?;
 
             // Branch to add world
@@ -278,7 +285,7 @@ mod tests {
 
             let world_file = repo.path.join("world.txt");
             util::fs::write_to_path(&world_file, "World")?;
-            repositories::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file).await?;
             repositories::commit(&repo, "Adding world file")?;
             // Fetch the branch again to get the latest commit
             let merge_branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -291,8 +298,9 @@ mod tests {
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
-            let commit =
-                repositories::merge::merge_into_base(&repo, &merge_branch, &og_branch)?.unwrap();
+            let commit = repositories::merge::merge_into_base(&repo, &merge_branch, &og_branch)
+                .await?
+                .unwrap();
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
@@ -312,12 +320,12 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
-            repositories::add(&repo, hello_file)?;
+            repositories::add(&repo, hello_file).await?;
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
             util::fs::write_to_path(&world_file, "World")?;
-            repositories::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file).await?;
 
             // Commit two files
             repositories::commit(&repo, "Adding hello & world files")?;
@@ -331,7 +339,7 @@ mod tests {
             util::fs::remove_file(&world_file)?;
 
             // Commit the removal
-            repositories::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file).await?;
             repositories::commit(&repo, "Removing world file")?;
 
             // Checkout and merge additions
@@ -340,7 +348,7 @@ mod tests {
             // Make sure world file exists until we merge the removal in
             assert!(world_file.exists(), "World file should exist before merge");
 
-            let merge_result = repositories::merge::merge(&repo, &merge_branch.name)?;
+            let merge_result = repositories::merge::merge(&repo, &merge_branch.name).await?;
 
             merge_result.unwrap();
 
@@ -361,13 +369,13 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
-            repositories::add(&repo, hello_file)?;
+            repositories::add(&repo, hello_file).await?;
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
             let og_contents = "World";
             util::fs::write_to_path(&world_file, og_contents)?;
-            repositories::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file).await?;
 
             // Commit two files
             repositories::commit(&repo, "Adding hello & world files")?;
@@ -381,7 +389,7 @@ mod tests {
             let world_file = test::modify_txt_file(world_file, new_contents)?;
 
             // Commit the removal
-            repositories::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file).await?;
             repositories::commit(&repo, "Modifying world file")?;
 
             // Checkout and merge additions
@@ -391,7 +399,9 @@ mod tests {
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
-            repositories::merge::merge(&repo, branch_name)?.unwrap();
+            repositories::merge::merge(&repo, branch_name)
+                .await?
+                .unwrap();
 
             // Now that we've merged in, world file should be new content
             assert!(world_file.exists(), "World file should exist after merge");
@@ -445,7 +455,9 @@ mod tests {
 
             {
                 // Make sure the merger can detect the three way merge
-                let merge_commit = repositories::merge::merge(&repo, merge_branch_name)?.unwrap();
+                let merge_commit = repositories::merge::merge(&repo, merge_branch_name)
+                    .await?
+                    .unwrap();
 
                 // Two way merge should have two parent IDs so we know where the merge came from
                 assert_eq!(merge_commit.parent_ids.len(), 2);
@@ -485,7 +497,7 @@ mod tests {
             let a_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let a_path = repo.path.join("a.txt");
             util::fs::write_to_path(&a_path, "a")?;
-            repositories::add(&repo, &a_path)?;
+            repositories::add(&repo, &a_path).await?;
             // Return the lowest common ancestor for the tests
             repositories::commit(&repo, "Committing a.txt file")?;
 
@@ -496,11 +508,11 @@ mod tests {
             // Add a text new text file
             let b_path = repo.path.join("b.txt");
             util::fs::write_to_path(&b_path, "b")?;
-            repositories::add(&repo, &b_path)?;
+            repositories::add(&repo, &b_path).await?;
 
             // Modify the text file a.txt
             test::modify_txt_file(&a_path, "a modified from branch")?;
-            repositories::add(&repo, &a_path)?;
+            repositories::add(&repo, &a_path).await?;
 
             // Commit changes
             repositories::commit(&repo, "Committing b.txt file")?;
@@ -511,11 +523,11 @@ mod tests {
             // Add new file c.txt on main branch
             let c_path = repo.path.join("c.txt");
             util::fs::write_to_path(&c_path, "c")?;
-            repositories::add(&repo, &c_path)?;
+            repositories::add(&repo, &c_path).await?;
 
             // Modify a.txt from main branch
             test::modify_txt_file(&a_path, "a modified from main line")?;
-            repositories::add(&repo, &a_path)?;
+            repositories::add(&repo, &a_path).await?;
 
             // Commit changes to main branch
             repositories::commit(&repo, "Committing c.txt file")?;
@@ -523,7 +535,7 @@ mod tests {
             // Commit some more changes to main branch
             let d_path = repo.path.join("d.txt");
             util::fs::write_to_path(&d_path, "d")?;
-            repositories::add(&repo, &d_path)?;
+            repositories::add(&repo, &d_path).await?;
             repositories::commit(&repo, "Committing d.txt file")?;
 
             // Checkout merge branch (B) to make another change
@@ -532,13 +544,13 @@ mod tests {
             // Add another branch
             let e_path = repo.path.join("e.txt");
             util::fs::write_to_path(&e_path, "e")?;
-            repositories::add(&repo, &e_path)?;
+            repositories::add(&repo, &e_path).await?;
             repositories::commit(&repo, "Committing e.txt file")?;
 
             // Checkout the OG branch again so that we can merge into it
             repositories::checkout(&repo, &a_branch.name).await?;
 
-            repositories::merge::merge(&repo, merge_branch_name)?;
+            repositories::merge::merge(&repo, merge_branch_name).await?;
 
             let conflict_reader = NodeMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
@@ -564,7 +576,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             // Return the lowest common ancestor for the tests
             repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
@@ -572,7 +584,7 @@ mod tests {
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
@@ -580,18 +592,18 @@ mod tests {
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
-            repositories::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path).await?;
             repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge in a scope so that it closes the db
-            repositories::merge::merge(&repo, fish_branch_name)?;
+            repositories::merge::merge(&repo, fish_branch_name).await?;
 
             // Checkout main again, merge again
             repositories::checkout(&repo, &og_branch.name).await?;
-            repositories::merge::merge(&repo, human_branch_name)?;
+            repositories::merge::merge(&repo, human_branch_name).await?;
 
             let conflict_reader = NodeMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
@@ -614,7 +626,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             // Return the lowest common ancestor for the tests
             repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
@@ -622,7 +634,7 @@ mod tests {
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
@@ -630,7 +642,7 @@ mod tests {
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
-            repositories::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path).await?;
             repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
@@ -638,7 +650,7 @@ mod tests {
 
             // Merge the fish branch in, and then the human branch should have conflicts
 
-            let result = repositories::merge::merge(&repo, fish_branch_name)?;
+            let result = repositories::merge::merge(&repo, fish_branch_name).await?;
             assert!(result.is_some());
 
             // But now there should be conflicts when trying to merge in the human branch
@@ -648,7 +660,7 @@ mod tests {
 
             // Check if there are conflicts
             let has_conflicts =
-                repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch)?;
+                repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch).await?;
             assert!(has_conflicts);
 
             Ok(())
@@ -665,7 +677,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             // Return the lowest common ancestor for the tests
             repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
@@ -673,7 +685,7 @@ mod tests {
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
@@ -681,14 +693,14 @@ mod tests {
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
-            repositories::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path).await?;
             let human_commit = repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            let result_commit = repositories::merge::merge(&repo, fish_branch_name)?;
+            let result_commit = repositories::merge::merge(&repo, fish_branch_name).await?;
 
             assert!(result_commit.is_some());
 
@@ -698,7 +710,8 @@ mod tests {
                 &repo,
                 &base_commit,
                 &human_commit,
-            )?;
+            )
+            .await?;
             assert_eq!(conflicts.len(), 1);
 
             Ok(())
@@ -724,7 +737,7 @@ mod tests {
                 test::append_line_txt_file(bbox_file, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
             let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
 
-            repositories::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file).await?;
             repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -733,11 +746,11 @@ mod tests {
             let bbox_file =
                 test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
 
-            repositories::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file).await?;
             repositories::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
-            repositories::merge::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name).await?;
 
             // We should have a conflict....
             println!("status plz");
@@ -747,7 +760,7 @@ mod tests {
             println!("checkout theirs plz");
 
             // Run repositories::checkout::checkout_theirs() and make sure their changes get kept
-            repositories::checkout::checkout_theirs(&repo, &bbox_filename)?;
+            repositories::checkout::checkout_theirs(&repo, &bbox_filename).await?;
 
             let file_contents = util::fs::read_from_path(&bbox_file)?;
             assert_eq!(file_contents, their_branch_contents);
@@ -776,7 +789,7 @@ mod tests {
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_branch)?;
 
             // Add the changes
-            repositories::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file).await?;
             repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -785,11 +798,11 @@ mod tests {
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
-            repositories::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file).await?;
             repositories::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
-            repositories::merge::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name).await?;
 
             // We should have a conflict....
             let status = repositories::status(&repo)?;
@@ -829,7 +842,7 @@ mod tests {
             tabular::write_df(&mut df, &bbox_file)?;
 
             // Add the changes
-            repositories::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file).await?;
             repositories::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -838,11 +851,11 @@ mod tests {
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
-            repositories::add(&repo, bbox_file)?;
+            repositories::add(&repo, bbox_file).await?;
             repositories::commit(&repo, "Adding new row on main branch")?;
 
             // Try to merge in the changes
-            repositories::merge::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name).await?;
 
             // We should have a conflict....
             let status = repositories::status(&repo)?;
@@ -895,7 +908,7 @@ mod tests {
                         bbox_file,
                         "train/cat_3.jpg,cat,41.0,31.5,410,427",
                     )?;
-                    repositories::add(&cloned_repo_a, &bbox_file)?;
+                    repositories::add(&cloned_repo_a, &bbox_file).await?;
                     repositories::commit(&cloned_repo_a, "Adding new annotation as an Ox.")?;
 
                     repositories::push(&cloned_repo_a).await?;
@@ -918,7 +931,7 @@ mod tests {
                         bbox_file,
                         "train/cat_13.jpg,cat,41.0,31.5,410,427",
                     )?;
-                    repositories::add(&cloned_repo_a, &bbox_file)?;
+                    repositories::add(&cloned_repo_a, &bbox_file).await?;
                     repositories::commit(
                         &cloned_repo_a,
                         "Adding another new annotation as an Ox.",
@@ -934,10 +947,10 @@ mod tests {
                     let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
                     assert_eq!(df.height(), og_df.height() + 2);
 
-                    Ok(repo_dir_b)
+                    Ok(())
                 })
                 .await?;
-                Ok(repo_dir_a)
+                Ok(())
             })
             .await?;
             Ok(remote_repo_copy)
@@ -952,7 +965,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
             // 2. Create a new branch
@@ -961,11 +974,12 @@ mod tests {
 
             // 3. Commit something in new branch
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // 4. merge main onto new branch
-            let merge_result = repositories::merge::merge_into_base(&repo, &og_branch, &new_branch);
+            let merge_result =
+                repositories::merge::merge_into_base(&repo, &og_branch, &new_branch).await;
 
             // 5. There should be no commit
             assert_eq!(
@@ -985,7 +999,7 @@ mod tests {
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let file1_path = repo.path.join("file1.txt");
             util::fs::write_to_path(&file1_path, "Initial content for file1")?;
-            repositories::add(&repo, &file1_path)?;
+            repositories::add(&repo, &file1_path).await?;
             let _ = repositories::commit(&repo, "Commit file1 to main")?;
 
             // 2. Create and checkout a new branch
@@ -995,7 +1009,7 @@ mod tests {
             // 3. Commit something in new branch
             let file2_path = repo.path.join("file2.txt");
             util::fs::write_to_path(&file2_path, "Content for file2 in feature branch")?;
-            repositories::add(&repo, &file2_path)?;
+            repositories::add(&repo, &file2_path).await?;
             let feature_commit1 = repositories::commit(&repo, "Commit file2 to feature-branch")?;
 
             // 4. Checkout main branch
@@ -1004,12 +1018,12 @@ mod tests {
             // 5. Commit something in main branch to make it diverge
             let file3_path = repo.path.join("file3.txt");
             util::fs::write_to_path(&file3_path, "Content for file3 in main branch")?;
-            repositories::add(&repo, &file3_path)?;
+            repositories::add(&repo, &file3_path).await?;
             let main_commit2 = repositories::commit(&repo, "Commit file3 to main, diverging")?;
 
             // 6. Merge new branch onto main branch
             // There should be a new merge commit
-            let merge_result1 = repositories::merge::merge(&repo, new_branch_name)?;
+            let merge_result1 = repositories::merge::merge(&repo, new_branch_name).await?;
             assert!(
                 merge_result1.is_some(),
                 "First merge should create a merge commit"
@@ -1031,7 +1045,7 @@ mod tests {
 
             // 7. Merge new branch onto main branch again.
             // There should be no new merge commit
-            let merge_result2 = repositories::merge::merge(&repo, new_branch_name);
+            let merge_result2 = repositories::merge::merge(&repo, new_branch_name).await;
             assert_eq!(
                 merge_result2.unwrap_err().to_string(),
                 OxenError::basic_str("No changes to commit").to_string(),

@@ -33,14 +33,14 @@ const MAX_DECOMPRESSED_SIZE: u64 = 1024 * 1024 * 1024; // 1GB limit
 const MAX_COMPRESSION_RATIO: u64 = 100; // Maximum allowed
 
 // TODO: Do we depreciate this, if we always upload to version store?
-pub fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
+pub async fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let filepath = filepath.as_ref();
     let workspace_repo = &workspace.workspace_repo;
     let base_repo = &workspace.base_repo;
 
     // Stage the file using the repositories::add method
     let commit = workspace.commit.clone();
-    p_add_file(base_repo, workspace_repo, &Some(commit), filepath)?;
+    p_add_file(base_repo, workspace_repo, &Some(commit), filepath).await?;
 
     // Return the relative path of the file in the workspace
     let relative_path = util::fs::path_relative_to_dir(filepath, &workspace_repo.path)?;
@@ -76,9 +76,11 @@ pub fn add_version_files(
     repo: &LocalRepository,
     workspace: &Workspace,
     files_with_hash: &[FileWithHash],
+    directory: impl AsRef<str>,
 ) -> Result<Vec<ErrorFileInfo>, OxenError> {
     let version_store = repo.version_store()?;
 
+    let directory = directory.as_ref();
     let workspace_repo = &workspace.workspace_repo;
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
@@ -86,11 +88,12 @@ pub fn add_version_files(
     with_staged_db_manager(workspace_repo, |staged_db_manager| {
         for item in files_with_hash.iter() {
             let version_path = version_store.get_version_path(&item.hash)?;
+            let target_path = PathBuf::from(directory).join(&item.path);
 
             match get_status_and_add_file(
                 workspace_repo,
                 &version_path,
-                &item.path,
+                &target_path,
                 staged_db_manager,
                 &seen_dirs,
             ) {
@@ -281,12 +284,12 @@ async fn fetch_file(
 
         for file in files.iter() {
             log::debug!("file::import add file {:?}", file);
-            let path = repositories::workspaces::files::add(workspace, file)?;
+            let path = repositories::workspaces::files::add(workspace, file).await?;
             log::debug!("file::import add file ✅ success! staged file {:?}", path);
         }
     } else {
         log::debug!("file::import add file {:?}", &filepath);
-        let path = repositories::workspaces::files::add(workspace, &save_path)?;
+        let path = repositories::workspaces::files::add(workspace, &save_path).await?;
         log::debug!("file::import add file ✅ success! staged file {:?}", path);
     }
 
@@ -471,7 +474,7 @@ fn sanitize_path(path: &PathBuf) -> Result<PathBuf, OxenError> {
     Ok(safe_path)
 }
 
-fn p_add_file(
+async fn p_add_file(
     base_repo: &LocalRepository,
     workspace_repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
@@ -500,7 +503,9 @@ fn p_add_file(
 
     // Store the file in the version store using the hash as the key
     let hash_str = file_status.hash.to_string();
-    version_store.store_version_from_path(&hash_str, &full_path)?;
+    version_store
+        .store_version_from_path(&hash_str, &full_path)
+        .await?;
 
     let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(workspace_repo)?
         .into_iter()

@@ -20,6 +20,10 @@ pub fn tree() -> Scope {
                     "/missing_file_hashes_from_commits",
                     web::post().to(controllers::tree::list_missing_file_hashes_from_commits),
                 )
+                .route(
+                    "/missing_file_hashes_from_nodes",
+                    web::post().to(controllers::tree::list_missing_file_hashes_from_nodes),
+                )
                 .service(
                     web::scope("/hash/{hash}")
                         .route("", web::get().to(controllers::tree::get_node_by_id))
