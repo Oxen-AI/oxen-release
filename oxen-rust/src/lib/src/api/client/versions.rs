@@ -379,10 +379,9 @@ pub async fn multipart_batch_upload(
             continue;
         }
 
-        let reader = version_store.open_version(&file_hash)?;
+        let data = version_store.get_version(&file_hash).await?;
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        let mut buf_reader = std::io::BufReader::new(reader);
-        std::io::copy(&mut buf_reader, &mut encoder)?;
+        std::io::copy(&mut data.as_slice(), &mut encoder)?;
         let compressed_bytes = match encoder.finish() {
             Ok(bytes) => bytes,
             Err(e) => {
@@ -416,7 +415,6 @@ pub async fn multipart_batch_upload(
 pub async fn workspace_multipart_batch_upload_versions_with_retry(
     remote_repo: &RemoteRepository,
     client: Arc<reqwest::Client>,
-    directory_name: impl AsRef<str>,
     paths: Vec<PathBuf>,
 ) -> Result<UploadResult, OxenError> {
     let mut result: UploadResult = UploadResult {
@@ -434,7 +432,6 @@ pub async fn workspace_multipart_batch_upload_versions_with_retry(
             remote_repo,
             client.clone(),
             paths.clone(),
-            &directory_name,
             result,
         )
         .await?;
@@ -451,15 +448,13 @@ pub async fn workspace_multipart_batch_upload_versions(
     remote_repo: &RemoteRepository,
     client: Arc<reqwest::Client>,
     paths: Vec<PathBuf>,
-    directory: impl AsRef<str>,
     result: UploadResult,
 ) -> Result<UploadResult, OxenError> {
-    let directory = directory.as_ref();
     // save the errorred files info for retry
     let mut err_files: Vec<ErrorFileInfo> = vec![];
     // keep track of the files hash
     let mut files_to_add: Vec<FileWithHash> = vec![];
-    log::debug!("Uploading {} files to {}", paths.len(), directory);
+    log::debug!("Uploading {} files to {}", paths.len(), remote_repo.url());
 
     // generate retry hashes if it's not the first try
     let retry_hashes: std::collections::HashSet<String> = if result.err_files.is_empty() {
@@ -467,7 +462,7 @@ pub async fn workspace_multipart_batch_upload_versions(
     } else {
         result.err_files.iter().map(|f| f.hash.clone()).collect()
     };
-    // generate a map of the files hash to the path
+    // generate a map of the file paths to hashes
     let path_to_hash: HashMap<PathBuf, String> = result
         .files_to_add
         .iter()
@@ -478,20 +473,29 @@ pub async fn workspace_multipart_batch_upload_versions(
     for path in paths {
         // if it's not the first try
         if !result.err_files.is_empty() {
-            let hash = path_to_hash.get(&path).unwrap();
-            // check if the file is in the retry list. if not, skip
-            if !retry_hashes.contains(hash) {
-                continue;
+            // if the file doesn't have a hash it failed, so we need to retry it
+            if let Some(hash) = path_to_hash.get(&path) {
+                // check if the file is in the retry list. if not, skip
+                if !retry_hashes.contains(hash) {
+                    continue;
+                }
             }
         }
 
-        let file = std::fs::read(&path).unwrap();
-        let hash = hasher::hash_buffer(&file);
-        let full_path = PathBuf::from(&directory).join(&path);
+        let Some(file_name) = path.file_name() else {
+            return Err(OxenError::basic_str(format!(
+                "Invalid file path: {:?}",
+                path
+            )));
+        };
 
+        let file = std::fs::read(&path)
+            .map_err(|e| OxenError::basic_str(format!("Failed to read file '{:?}': {e}", path)))?;
+
+        let hash = hasher::hash_buffer(&file);
         files_to_add.push(FileWithHash {
             hash: hash.clone(),
-            path: full_path.clone(),
+            path: PathBuf::from(file_name),
         });
 
         // gzip the file

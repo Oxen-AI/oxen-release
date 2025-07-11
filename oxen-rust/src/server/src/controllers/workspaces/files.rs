@@ -77,7 +77,7 @@ pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, O
 
     for file in files.iter() {
         log::debug!("add_file file {:?}", file);
-        let path = repositories::workspaces::files::add(&workspace, file)?;
+        let path = repositories::workspaces::files::add(&workspace, file).await?;
         log::debug!("add_file ✅ success! staged file {:?}", path);
         ret_files.push(path);
     }
@@ -96,6 +96,7 @@ pub async fn add_version_files(
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
+    let directory = path_param(&req, "directory")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
@@ -106,8 +107,12 @@ pub async fn add_version_files(
 
     let files_with_hash: Vec<FileWithHash> = payload.into_inner();
 
-    let err_files =
-        core::v_latest::workspaces::files::add_version_files(&repo, &workspace, &files_with_hash)?;
+    let err_files = core::v_latest::workspaces::files::add_version_files(
+        &repo,
+        &workspace,
+        &files_with_hash,
+        &directory,
+    )?;
 
     // Return the error files for retry
     Ok(HttpResponse::Ok().json(ErrorFilesResponse {

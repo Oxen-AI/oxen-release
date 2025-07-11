@@ -107,7 +107,7 @@ mod tests {
 
                 api::remote::repositories::delete(&remote_repo).await?;
 
-                Ok(new_repo_dir)
+                Ok(())
             })
             .await
         })

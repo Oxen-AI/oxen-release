@@ -28,7 +28,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     // Check if mergeable
     let conflicts =
-        repositories::merge::list_conflicts_between_branches(&repository, &base, &head)?;
+        repositories::merge::list_conflicts_between_branches(&repository, &base, &head).await?;
     let conflicts: Vec<MergeConflictFile> = conflicts
         .into_iter()
         .map(|path| MergeConflictFile {
@@ -75,7 +75,7 @@ pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let head_commit = repositories::commits::get_by_id(&repo, &head_branch.commit_id)?.unwrap();
 
     // Check if mergeable
-    match repositories::merge::merge_into_base(&repo, &head_branch, &base_branch) {
+    match repositories::merge::merge_into_base(&repo, &head_branch, &base_branch).await {
         Ok(Some(merge_commit)) => {
             let response = MergeSuccessResponse {
                 status: StatusMessage::resource_found(),

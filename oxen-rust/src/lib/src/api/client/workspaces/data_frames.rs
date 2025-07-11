@@ -647,7 +647,7 @@ mod tests {
                 let view_df = df.view.to_df();
                 assert_eq!(view_df.height(), 4);
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 
@@ -690,7 +690,7 @@ mod tests {
                 let expected_contents = std::fs::read_to_string(local_repo.path.join(path))?;
                 assert_eq!(file_contents, expected_contents);
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 
@@ -734,7 +734,7 @@ mod tests {
                 assert_eq!(og_df.height(), download_df.height());
                 assert_eq!(og_df.width(), download_df.width());
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 
@@ -778,7 +778,7 @@ mod tests {
                 assert_eq!(df.height(), 4);
                 assert_eq!(df.width(), 6);
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 
@@ -823,7 +823,7 @@ mod tests {
                 assert_eq!(df.height(), 2);
                 assert_eq!(df.width(), 2);
 
-                Ok(sync_dir)
+                Ok(())
             })
             .await?;
 
@@ -867,7 +867,7 @@ mod tests {
             let dst_path = local_repo.path.join(file_name);
             util::fs::copy(&path, &dst_path)?;
 
-            repositories::add(&local_repo, dst_path)?;
+            repositories::add(&local_repo, &dst_path).await?;
             repositories::commit(&local_repo, "add binary column parquet file")?;
             command::config::set_remote(
                 &mut local_repo,
@@ -1236,7 +1236,7 @@ mod tests {
                 let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
                 assert_eq!(df.height(), og_df.height() + 2);
 
-                Ok(empty_dir)
+                Ok(())
             })
             .await?;
             Ok(remote_repo_copy)
@@ -1357,7 +1357,7 @@ mod tests {
                 let df = tabular::read_df(&prompts_file, DFOpts::empty())?;
                 assert_eq!(df.height(), og_df.height() + 2);
 
-                Ok(empty_dir)
+                Ok(())
             })
             .await?;
             Ok(remote_repo_copy)
