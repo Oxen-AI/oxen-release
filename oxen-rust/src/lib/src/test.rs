@@ -547,35 +547,6 @@ pub async fn make_many_commits(local_repo: &LocalRepository) -> Result<(), OxenE
     Ok(())
 }
 
-pub async fn run_local_repo_training_data_committed<T>(test: T) -> Result<(), OxenError>
-where
-    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
-{
-    init_test_env();
-    log::info!("<<<<< run_local_repo_training_data_committed start");
-    let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = repositories::init(&repo_dir)?;
-
-    // Write all the training data files
-    populate_dir_with_training_data(&repo_dir)?;
-    make_many_commits(&repo).await?;
-
-    log::info!(">>>>> run_local_repo_training_data_committed running test");
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match test(repo) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
-        }
-    }));
-
-    // Remove repo dir
-    maybe_cleanup_repo(&repo_dir)?;
-
-    // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
-    Ok(())
-}
-
 pub async fn run_local_repo_training_data_committed_async<T, F>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> F + std::panic::UnwindSafe,

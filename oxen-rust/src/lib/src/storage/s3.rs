@@ -74,14 +74,6 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
-    // async fn get_version_stream(
-    //     &self,
-    //     hash: &str,
-    // ) -> Result<impl Stream<Item = Result<Bytes, OxenError>> + Send, OxenError> {
-    //     // TODO: Implement S3 version stream retrieval
-    //     Err(OxenError::basic_str("S3VersionStore not yet implemented"))
-    // }
-
     async fn get_version(&self, _hash: &str) -> Result<Vec<u8>, OxenError> {
         // TODO: Implement S3 version retrieval
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))

@@ -197,7 +197,6 @@ async fn restore_dir(
         );
     }
 
-    // Changed from for_each to regular for loop to support async/await
     for (file_node, file_path) in file_nodes_with_paths.iter() {
         existing_files.remove(file_path);
 
