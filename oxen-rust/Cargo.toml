@@ -34,7 +34,6 @@ astral-tokio-tar = "0.5.2"
 async-compression = { version = "0.4.2", features = ["futures-io", "gzip", "tokio"] }
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.5.0"
-async-walkdir = "2.1.0"
 async-trait = "0.1.80"
 arrow-json = "=53.4.0"
 arrow = "=53.4.0"
@@ -100,7 +99,6 @@ polars = { version = "0.45.0", features = [
     "dtype-full",
 ] }
 os_path = "0.8.0"
-par-stream = "0.10.2"
 qsv-sniffer = "0.10.3"
 r2d2 = "0.8.10"
 rand = "0.8.5"
@@ -137,7 +135,6 @@ threadpool = "1.8.1"
 time = { version = "0.3.28", features = ["serde"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-util = "0.7.8"
-tokio-stream = "0.1.17"
 toml = "0.8.19"
 url = "2.4.1"
 urlencoding = "2.1.3"
@@ -181,7 +178,7 @@ no-default-features = true
 
 [dev-dependencies]
 actix-multipart-test = "0.0.3"
-criterion = { version = "2.10.1", package = "codspeed-criterion-compat" }
+criterion = { version = "2.10.1", package = "codspeed-criterion-compat", features = ["async_tokio"] }
 
 [[bench]]
 name = "oxen"
