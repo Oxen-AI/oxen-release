@@ -49,7 +49,7 @@ impl RunCmd for MergeCmd {
 
         check_repo_migration_needed(&repository)?;
 
-        repositories::merge::merge(&repository, branch)?;
+        repositories::merge::merge(&repository, branch).await?;
         Ok(())
     }
 }

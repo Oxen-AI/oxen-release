@@ -209,7 +209,10 @@ pub fn transfer_namespace(
     }
 }
 
-pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithEntries, OxenError> {
+pub async fn create(
+    root_dir: &Path,
+    new_repo: RepoNew,
+) -> Result<LocalRepositoryWithEntries, OxenError> {
     let repo_dir = root_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
@@ -265,7 +268,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepositoryWithE
                     util::fs::write(&full_path, bytes)?;
                 }
             }
-            add(&local_repo, &full_path)?;
+            add(&local_repo, &full_path).await?;
         }
 
         commit = Some(core::v_latest::commits::commit_with_user(
@@ -366,9 +369,9 @@ mod tests {
     use std::path::{Path, PathBuf};
     use time::OffsetDateTime;
 
-    #[test]
-    fn test_local_repository_api_create_empty_with_commit() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|sync_dir| {
+    #[tokio::test]
+    async fn test_local_repository_api_create_empty_with_commit() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|sync_dir| async move {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
             let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
@@ -382,7 +385,7 @@ mod tests {
                 timestamp,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
-            let _repo = repositories::create(sync_dir, repo_new)?;
+            let _repo = repositories::create(&sync_dir, repo_new).await?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -394,11 +397,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_local_repository_api_create_empty_with_files() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|sync_dir| {
+    #[tokio::test]
+    async fn test_local_repository_api_create_empty_with_files() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|sync_dir| async move {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
 
@@ -409,7 +413,7 @@ mod tests {
                 user,
             }];
             let repo_new = RepoNew::from_files(namespace, name, files);
-            let _repo = repositories::create(sync_dir, repo_new)?;
+            let _repo = repositories::create(&sync_dir, repo_new).await?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -421,15 +425,16 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_local_repository_api_create_empty_no_commit() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|sync_dir| {
+    #[tokio::test]
+    async fn test_local_repository_api_create_empty_no_commit() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|sync_dir| async move {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
             let repo_new = RepoNew::from_namespace_name(namespace, name);
-            let _repo = repositories::create(sync_dir, repo_new)?;
+            let _repo = repositories::create(&sync_dir, repo_new).await?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -441,10 +446,11 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_local_repository_api_list_namespaces_one() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn test_local_repository_api_list_namespaces_one() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
             let namespace: &str = "test-namespace";
             let name: &str = "cool-repo";
@@ -462,8 +468,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_local_repository_api_list_multiple_namespaces() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn test_local_repository_api_list_multiple_namespaces() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
             let namespace_1 = "my-namespace-1";
             let namespace_1_dir = sync_dir.join(namespace_1);
@@ -486,8 +492,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_local_repository_api_list_multiple_within_namespace() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn test_local_repository_api_list_multiple_within_namespace() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
             let namespace = "my-namespace";
             let namespace_dir = sync_dir.join(namespace);
@@ -503,8 +509,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
             let namespace = "my-namespace";
             let name = "my-repo";
@@ -518,9 +524,9 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_local_repository_transfer_namespace() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|sync_dir| {
+    #[tokio::test]
+    async fn test_local_repository_transfer_namespace() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|sync_dir| async move {
             let old_namespace: &str = "test-namespace-old";
             let new_namespace: &str = "test-namespace-new";
 
@@ -543,7 +549,7 @@ mod tests {
                 timestamp,
             };
             let repo_new = RepoNew::from_root_commit(old_namespace, name, root_commit);
-            let _repo = repositories::create(sync_dir, repo_new)?;
+            let _repo = repositories::create(&sync_dir, repo_new).await?;
 
             let old_namespace_repos = repositories::list_repos_in_namespace(&old_namespace_dir);
             let new_namespace_repos = repositories::list_repos_in_namespace(&new_namespace_dir);
@@ -553,7 +559,7 @@ mod tests {
 
             // Transfer to new namespace
             let updated_repo =
-                repositories::transfer_namespace(sync_dir, name, old_namespace, new_namespace)?;
+                repositories::transfer_namespace(&sync_dir, name, old_namespace, new_namespace)?;
 
             // Log out updated_repo
             log::debug!("updated_repo: {:?}", updated_repo);
@@ -570,5 +576,6 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 }

@@ -38,7 +38,7 @@ pub fn add(
     }
 }
 
-pub fn update(
+pub async fn update(
     repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
@@ -46,11 +46,14 @@ pub fn update(
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::workspaces::data_frames::columns::update(
-            workspace,
-            file_path.as_ref(),
-            column_to_update,
-        ),
+        _ => {
+            core::v_latest::workspaces::data_frames::columns::update(
+                workspace,
+                file_path.as_ref(),
+                column_to_update,
+            )
+            .await
+        }
     }
 }
 
@@ -85,7 +88,7 @@ pub fn add_column_metadata(
     }
 }
 
-pub fn restore(
+pub async fn restore(
     repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
@@ -93,11 +96,14 @@ pub fn restore(
 ) -> Result<DataFrame, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-        _ => core::v_latest::workspaces::data_frames::columns::restore(
-            workspace,
-            file_path.as_ref(),
-            column_to_restore,
-        ),
+        _ => {
+            core::v_latest::workspaces::data_frames::columns::restore(
+                workspace,
+                file_path.as_ref(),
+                column_to_restore,
+            )
+            .await
+        }
     }
 }
 

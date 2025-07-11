@@ -30,7 +30,8 @@ actix-service = "2.0.2"
 actix-web = { version = "4.9.0", features = ["rustls"] }
 actix-web-httpauth = "0.8.0"
 approx = "0.5.1"
-async-compression = { version = "0.4.2", features = ["futures-io", "gzip"] }
+astral-tokio-tar = "0.5.2"
+async-compression = { version = "0.4.2", features = ["futures-io", "gzip", "tokio"] }
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.5.0"
 async-trait = "0.1.80"
@@ -177,7 +178,7 @@ no-default-features = true
 
 [dev-dependencies]
 actix-multipart-test = "0.0.3"
-criterion = { version = "2.10.1", package = "codspeed-criterion-compat" }
+criterion = { version = "2.10.1", package = "codspeed-criterion-compat", features = ["async_tokio"] }
 
 [[bench]]
 name = "oxen"

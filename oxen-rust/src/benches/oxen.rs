@@ -33,7 +33,7 @@ fn write_file_for_add_benchmark(
     Ok(())
 }
 
-fn setup_repo_for_add_benchmark(
+async fn setup_repo_for_add_benchmark(
     base_dir: &Path,
     repo_size: usize,
     num_files_to_add_in_benchmark: usize,
@@ -93,7 +93,7 @@ fn setup_repo_for_add_benchmark(
         let file_path = dir.join(format!("file_{}.txt", i));
         write_file_for_add_benchmark(&file_path, large_file_percentage, "this is a test file")?;
     }
-    repositories::add(&repo, black_box(&files_dir))?;
+    repositories::add(&repo, black_box(&files_dir)).await?;
     repositories::commit(&repo, "Init")?;
 
     for i in repo_size..(repo_size + num_files_to_add_in_benchmark) {
@@ -117,18 +117,27 @@ fn add_benchmark(c: &mut Criterion) {
     }
     util::fs::create_dir_all(&base_dir).unwrap();
 
+    let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("add");
     for repo_size in [1000, 10000, 100000].iter() {
         let num_files_to_add = repo_size / 100;
-        let (repo, _, file_dir) =
-            setup_repo_for_add_benchmark(&base_dir, *repo_size, num_files_to_add).unwrap();
+        let (repo, _, file_dir) = rt
+            .block_on(setup_repo_for_add_benchmark(
+                &base_dir,
+                *repo_size,
+                num_files_to_add,
+            ))
+            .unwrap();
 
         group.bench_with_input(
             BenchmarkId::from_parameter(num_files_to_add),
             repo_size,
             |b, _| {
-                b.iter(|| {
-                    repositories::add(&repo, black_box(&file_dir)).unwrap();
+                // Run in async executor
+                b.to_async(&rt).iter(|| async {
+                    repositories::add(&repo, black_box(&file_dir))
+                        .await
+                        .unwrap();
 
                     let _ = util::fs::remove_dir_all(repo.path.join(".oxen/staging"));
                 })

@@ -1754,8 +1754,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn version_path() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn version_path() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let entry = CommitEntry {
                 commit_id: String::from("1234"),
@@ -1780,8 +1780,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn detect_file_type() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn detect_file_type() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let python_file = "add_1.py";
             let python_with_interpreter_file = "add_2.py";
