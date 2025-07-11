@@ -21,12 +21,14 @@ use crate::core::oxenignore;
 use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
 use crate::storage::version_store::VersionStore;
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use ignore::gitignore::Gitignore;
+use pathdiff::diff_paths;
 use std::ops::AddAssign;
 
 use crate::core::v_latest::index::CommitMerkleTree;
@@ -62,7 +64,10 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub async fn add<T: AsRef<Path>>(
+    repo: &LocalRepository,
+    paths: impl IntoIterator<Item = T>,
+) -> Result<(), OxenError> {
     // Collect paths that match the glob pattern either:
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
@@ -79,7 +84,7 @@ pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), O
                 .collect();
             let paths_slice: &[PathBuf] = &paths_vec;
 
-            let opts = model::staged_data::StagedDataOpts::from_paths(paths_slice);
+            let opts = StagedDataOpts::from_paths(paths_slice);
 
             let repo_status = repositories::status::status_from_opts(repo, &opts)?;
 
@@ -123,7 +128,7 @@ pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), O
             log::debug!("glob path: {}", path_str);
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
-                paths.insert(entry?);
+                expanded_paths.insert(entry?);
             }
 
             // For removed files?
@@ -131,14 +136,14 @@ pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), O
                 let pattern_entries =
                     repositories::commits::search_entries(repo, &commit, path_str)?;
                 log::debug!("pattern entries: {:?}", pattern_entries);
-                paths.extend(pattern_entries);
+                expanded_paths.extend(pattern_entries);
             }
         } else {
             // Non-glob path
-            paths.insert(path.to_owned());
+            log::debug!("Adding non-glob path: {:?}", path);
+            expanded_paths.insert(path.to_owned());
         }
     }
-
 
     log::debug!("final repo path: {repo_path:?}");
 
@@ -160,7 +165,8 @@ pub async fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), O
         &expanded_paths,
         &staged_db,
         &version_store,
-    )?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -173,6 +179,7 @@ pub async fn add_files(
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files: {:?}", paths);
+    let cwd = std::env::current_dir()?;
 
     // Start a timer
     let start = std::time::Instant::now();
@@ -189,9 +196,13 @@ pub async fn add_files(
     let gitignore = oxenignore::create(repo);
 
     for path in paths {
-        log::debug!("path is {path:?}");
+        let corrected_path = match diff_paths(&repo.path, &cwd) {
+            Some(correct_path) => correct_path.join(path),
+            None => path.clone(),
+        };
+        log::debug!("corrected path is {corrected_path:?}");
 
-        if path.is_dir() {
+        if corrected_path.is_dir() {
             total += add_dir_inner(
                 repo,
                 repo_path,
@@ -202,11 +213,10 @@ pub async fn add_files(
                 &excluded_hashes,
                 &gitignore,
             )?;
-        } else if path.is_file() {
-            if oxenignore::is_ignored(path, &gitignore, path.is_dir()) {
+        } else if corrected_path.is_file() {
+            if oxenignore::is_ignored(&corrected_path, &gitignore, corrected_path.is_dir()) {
                 continue;
             }
-
 
             let entry = add_file_inner(
                 repo,
@@ -215,8 +225,9 @@ pub async fn add_files(
                 &corrected_path,
                 staged_db,
                 version_store,
-            )?;
-          
+            )
+            .await?;
+
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type();
@@ -229,11 +240,9 @@ pub async fn add_files(
                         .or_insert(1);
                 }
             }
-
         } else if corrected_path.is_symlink() {
             log::debug!("Skipping symlink: {:?}", corrected_path);
             continue;
-
         } else {
             log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             let mut opts = RmOpts::from_path(path);
@@ -1132,7 +1141,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, ignored_file)?;
 
-            add(&repo, Path::new(&repo.path)).await?;
+            add(&repo, vec![Path::new(&repo.path)]).await?;
 
             let status = repositories::status(&repo)?;
 
@@ -1177,11 +1186,11 @@ mod tests {
             test::write_txt_file_to_path(&file2_1, "dir2/file2_1")?;
             test::write_txt_file_to_path(&file_root, "file_root")?;
 
-            add(&repo, &repo.path).await?;
+            add(&repo, vec![&repo.path]).await?;
 
             repositories::commits::commit(&repo, "Initial commit with multiple files and dirs")?;
 
-            add(&repo, &repo.path).await?;
+            add(&repo, vec![&repo.path]).await?;
 
             let status = repositories::status(&repo);
             assert!(status.is_ok());
@@ -1247,7 +1256,7 @@ mod tests {
             let oxenignore_path = repo.path.join(".oxenignore");
             test::write_txt_file_to_path(&oxenignore_path, format!("{}/", dir_to_ignore))?;
 
-            add(&repo, Path::new(&repo.path)).await?;
+            add(&repo, vec![Path::new(&repo.path)]).await?;
 
             let status = repositories::status(&repo)?;
 
