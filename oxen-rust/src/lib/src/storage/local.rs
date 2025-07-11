@@ -130,24 +130,6 @@ impl VersionStore for LocalVersionStore {
         Ok(Box::new(file))
     }
 
-    // async fn get_version_stream(
-    //     &self,
-    //     hash: &str,
-    // ) -> Result<Box<dyn Stream<Item = Result<Bytes, OxenError>> + Send + Unpin>, OxenError> {
-    //     let path = self.version_path(hash);
-    //     let file = File::open(&path).await?;
-    //     let reader = BufReader::new(file);
-    //     let stream = ReaderStream::new(reader);
-
-    //     let mapped_stream = stream.map(|result| {
-    //         result
-    //             .map(Bytes::from)
-    //             .map_err(|e| OxenError::IO(e))
-    //     });
-
-    //     Ok(Box::new(mapped_stream))
-    // }
-
     async fn get_version(&self, hash: &str) -> Result<Vec<u8>, OxenError> {
         let path = self.version_path(hash);
         let data = fs::read(&path).await?;
