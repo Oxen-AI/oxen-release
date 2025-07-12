@@ -30,7 +30,7 @@ pub trait AsyncReadSeek: AsyncRead + AsyncSeek + Send + Sync + Unpin {}
 /// Implement AsyncReadSeek for any type that implements both AsyncRead and AsyncSeek
 impl<T: AsyncRead + AsyncSeek + Send + Sync + Unpin> AsyncReadSeek for T {}
 
-/// Trait for sync read and seek operations  
+/// Trait for sync read and seek operations
 pub trait ReadSeek: Read + Seek + Send + Sync {}
 
 /// Implement ReadSeek for any type that implements both Read and Seek
@@ -117,13 +117,13 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
         -> Result<PathBuf, OxenError>;
 
     /// Open a version file for async reading
-    ///   
+    ///
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
     fn open_version(&self, hash: &str) -> Result<Box<dyn ReadSeek + Send + Sync>, OxenError>;
 
     /// Retrieve a version file's contents as bytes (less efficient for large files)
-    ///    
+    ///
     /// # Arguments
     /// * `hash` - The content hash of the version to retrieve
     async fn get_version(&self, hash: &str) -> Result<Vec<u8>, OxenError>;
@@ -181,7 +181,11 @@ pub fn create_version_store(
         .map_err(|_| OxenError::basic_str("Failed to join thread"))?
     } else {
         // If not in tokio runtime, use futures' block_on
-        futures::executor::block_on(create_version_store_async(path, storage_config))
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(create_version_store_async(path, storage_config))
     }
 }
 
