@@ -200,21 +200,8 @@ pub async fn add_files(
             (true, true) | (true, false) => path.clone(),
             (false, true) => repo_path.join(path),
             (false, false) => match diff_paths(repo_path, &cwd) {
-                Some(correct_path) => {
-                    let result = correct_path.join(path);
-                    println!(
-                        "🐂 add_files: Corrected path using diff_paths: {:?}",
-                        result
-                    );
-                    result
-                }
-                None => {
-                    println!(
-                        "🐂 add_files: No path correction needed, using original: {:?}",
-                        path
-                    );
-                    path.clone()
-                }
+                Some(correct_path) => correct_path.join(path),
+                None => path.clone(),
             },
         };
         log::debug!("corrected path is {corrected_path:?}");
