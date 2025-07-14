@@ -121,6 +121,7 @@ impl DiffCmd {
             revision_1: revision1,
             revision_2: revision2,
             output,
+            ..Default::default()
         }
     }
 
