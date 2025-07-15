@@ -84,7 +84,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
     }
 
     log::debug!("🚀 Initializing repository from current directory");
-    let repository = match &opts.repo_dir {
+    let repo = match &opts.repo_dir {
         Some(dir) => LocalRepository::from_dir(dir)?,
         None => LocalRepository::from_current_dir()?,
     };
@@ -103,69 +103,40 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         &opts.revision_2.clone(),
     ) {
         (Some(path_2), Some(rev_1), Some(rev_2)) => {
-            log::debug!("Retrieving commit information for revisions");
-            let commit_1 = repositories::revisions::get(&repository, rev_1)?
-                .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
-            let commit_2 = repositories::revisions::get(&repository, rev_2)?
-                .ok_or_else(|| OxenError::revision_not_found(rev_2.to_string().into()))?;
-
-            let dir_diff = diff_path(
-                &repository,
-                &commit_1,
-                &commit_2,
-                opts.path_1.clone(),
-                path_2,
-                opts,
-            )?;
             log::debug!(
-                "Directory structural diff found {} entries",
-                dir_diff.entries.len()
+                "🚀 Comparing revisions: {}:{} with {}:{}",
+                rev_1,
+                opts.path_1.display(),
+                rev_2,
+                path_2.display()
             );
-
-            let mut content_diffs = vec![];
-
-            for entry in dir_diff.entries {
-                if let (Some(head_res), Some(base_res)) = (entry.head_resource, entry.base_resource)
-                {
-                    log::debug!("Computing content diff for file: {:?}", head_res.path);
-                    let cpath_1 = CommitPath {
-                        commit: Some(commit_1.clone()),
-                        path: head_res.path.clone(),
-                    };
-                    let cpath_2 = CommitPath {
-                        commit: Some(commit_2.clone()),
-                        path: base_res.path,
-                    };
-
-                    match diff_commits(
-                        &repository,
-                        cpath_1,
-                        cpath_2,
-                        keys.clone(),
-                        targets.clone(),
-                        vec![],
-                    ) {
-                        Ok(result) => {
-                            log::debug!("Content diff successful for file: {:?}", head_res.path);
-                            content_diffs.push(result);
-                        }
-                        Err(err) => {
-                            log::error!(
-                                "Failed to compute diff for file {:?}: {}",
-                                head_res.path,
-                                err
-                            );
-                        }
-                    }
-                }
-            }
-            log::debug!(
-                "Directory diff completed with {} content diffs",
-                content_diffs.len()
-            );
-            Ok(content_diffs)
+            diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, opts)
         }
 
+        // Compare same path with two revisions
+        (None, Some(rev_1), Some(rev_2)) => diff_revs(
+            &repo,
+            rev_1,
+            &opts.path_1.clone(),
+            rev_2,
+            &opts.path_1.clone(),
+            opts,
+        ),
+
+        // // Compare rev_1 with current changes.
+        // (Some(path_2), Some(rev_1), None) => {
+
+        // }
+
+        // // Compare HEAD with current changes
+        // (None, None, None) => {
+
+        // }
+
+        // // Compare
+        // (None, Some(rev_1), None) => {
+
+        // }
         _ => {
             log::debug!("🚀 Single file comparison mode");
             Err(OxenError::basic_str(
@@ -173,84 +144,90 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             ))
         }
     }
+}
 
-    // let (cpath_1, cpath_2) = if let Some(path_2) = opts.path_2 {
-    //     let cpath_1 = if let Some(revision) = opts.revision_1 {
-    //         log::debug!("Creating CommitPath for path_1 with revision");
-    //         let commit_1 = repositories::revisions::get(&repository, revision)?;
-    //         CommitPath {
-    //             commit: commit_1,
-    //             path: opts.path_1,
-    //         }
-    //     } else {
-    //         log::debug!("Creating CommitPath for path_1 without revision");
-    //         CommitPath {
-    //             commit: None,
-    //             path: opts.path_1.clone(),
-    //         }
-    //     };
+pub fn diff_uncommitted(
+    repo: &LocalRepository,
+    rev_1: &str,
+    path_1: &PathBuf,
+    path_2: &PathBuf,
+    opts: DiffOpts,
+) -> Result<Vec<DiffResult>, OxenError> {
+    let status = repositories::status::status(repo)?;
+    let unstaged_files = status.unstaged_files();
 
-    //     let cpath_2 = if let Some(revision) = opts.revision_2 {
-    //         log::debug!("Creating CommitPath for path_2 with revision");
-    //         let commit = repositories::revisions::get(&repository, revision)?;
+    // let result: Vec<DiffResult> = vec![];
 
-    //         CommitPath {
-    //             commit,
-    //             path: path_2.clone(),
-    //         }
-    //     } else {
-    //         log::debug!("Creating CommitPath for path_2 without revision");
-    //         CommitPath {
-    //             commit: None,
-    //             path: path_2.clone(),
-    //         }
-    //     };
+    Ok(vec![])
+}
 
-    //     (cpath_1, cpath_2)
-    // } else {
-    //     log::debug!("Single file comparison mode with head commit");
-    //     let Some(commit) = repositories::commits::head_commit_maybe(&repository)? else {
-    //         let error = "Error: head commit not found".to_string();
-    //         return Err(OxenError::basic_str(error));
-    //     };
+pub fn diff_revs(
+    repo: &LocalRepository,
+    rev_1: &str,
+    path_1: &PathBuf,
+    rev_2: &str,
+    path_2: &PathBuf,
+    opts: DiffOpts,
+) -> Result<Vec<DiffResult>, OxenError> {
+    log::debug!(
+        "🚀 Comparing revisions: {}:{} with {}:{}",
+        rev_1,
+        path_1.display(),
+        rev_2,
+        path_2.display()
+    );
+    let commit_1 = repositories::revisions::get(&repo, rev_1)?
+        .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
+    let commit_2 = repositories::revisions::get(&repo, rev_2)?
+        .ok_or_else(|| OxenError::revision_not_found(rev_2.to_string().into()))?;
 
-    //     log::debug!("🚀 Retrieving file from head commit");
-    //     let file_node = repositories::entries::get_file(&repository, &commit, &opts.path_1)?
-    //         .ok_or_else(|| {
-    //             OxenError::ResourceNotFound(
-    //                 format!("Error: file {} not committed", opts.path_1.display()).into(),
-    //             )
-    //         })?;
+    let dir_diff = diff_path(&repo, &commit_1, &commit_2, path_1.clone(), path_2, &opts)?;
+    log::debug!(
+        "Directory structural diff found {} entries",
+        dir_diff.entries.len()
+    );
 
-    //     let hash = file_node.hash().to_string();
-    //     log::debug!("Computing version path for file hash: {}", hash);
+    let mut content_diffs = vec![];
 
-    //     let committed_file = util::fs::version_path_from_node(&repository, &hash, &opts.path_1);
-    //     log::debug!("Comparing committed file with current version");
-    //     let result = repositories::diffs::diff_files(
-    //         committed_file,
-    //         opts.path_1,
-    //         opts.keys,
-    //         opts.targets,
-    //         vec![],
-    //     )?;
+    for entry in dir_diff.entries {
+        if let (Some(head_res), Some(base_res)) = (entry.head_resource, entry.base_resource) {
+            log::debug!("Computing content diff for file: {:?}", head_res.path);
+            let cpath_1 = CommitPath {
+                commit: Some(commit_1.clone()),
+                path: head_res.path.clone(),
+            };
+            let cpath_2 = CommitPath {
+                commit: Some(commit_2.clone()),
+                path: base_res.path,
+            };
 
-    //     log::debug!("🚀 Single file comparison completed");
-    //     return Ok(vec![result]);
-    // };
-
-    // log::debug!("Computing final diff between commits");
-    // let result = diff_commits(
-    //     &repository,
-    //     cpath_1,
-    //     cpath_2,
-    //     opts.keys,
-    //     opts.targets,
-    //     vec![],
-    // )?;
-
-    // log::debug!("Diff operation completed successfully");
-    // Ok(vec![result])
+            match diff_commits(
+                &repo,
+                cpath_1,
+                cpath_2,
+                opts.keys.clone(),
+                opts.targets.clone(),
+                vec![],
+            ) {
+                Ok(result) => {
+                    log::debug!("Content diff successful for file: {:?}", head_res.path);
+                    content_diffs.push(result);
+                }
+                Err(err) => {
+                    log::error!(
+                        "Failed to compute diff for file {:?}: {}",
+                        head_res.path,
+                        err
+                    );
+                }
+            }
+        }
+    }
+    log::debug!(
+        "Directory diff completed with {} content diffs",
+        content_diffs.len()
+    );
+    Ok(content_diffs)
 }
 
 pub fn diff_commits(
@@ -323,7 +300,7 @@ pub fn diff_path(
     head_commit: &Commit,
     base_path: impl AsRef<Path>,
     head_path: impl AsRef<Path>,
-    opts: DiffOpts,
+    opts: &DiffOpts,
 ) -> Result<DiffEntriesCounts, OxenError> {
     match (base_path.as_ref().is_file(), head_path.as_ref().is_file()) {
         (true, true) => {
