@@ -196,9 +196,13 @@ pub async fn add_files(
     let gitignore = oxenignore::create(repo);
 
     for path in paths {
-        let corrected_path = match diff_paths(&repo.path, &cwd) {
-            Some(correct_path) => correct_path.join(path),
-            None => path.clone(),
+        let corrected_path = match (path.is_absolute(), repo_path.is_absolute()) {
+            (true, true) | (true, false) => path.clone(),
+            (false, true) => repo_path.join(path),
+            (false, false) => match diff_paths(repo_path, &cwd) {
+                Some(correct_path) => correct_path.join(path),
+                None => path.clone(),
+            },
         };
         log::debug!("corrected path is {corrected_path:?}");
 
