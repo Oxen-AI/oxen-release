@@ -354,15 +354,15 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_command_commit_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_command_commit_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Write to file
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            repositories::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file).await?;
             // Commit the file
             let commit = repositories::commit(&repo, "My message")?;
             assert_eq!(commit.message, "My message");
@@ -379,17 +379,18 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_commit_removed_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_commit_removed_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Write to file
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            repositories::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file).await?;
 
             // Remove the file
             util::fs::remove_file(&hello_file)?;
@@ -403,7 +404,7 @@ mod tests {
             assert_eq!(commit_list.len(), 1);
 
             // Add the removed file and commit
-            repositories::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file).await?;
             repositories::commit(&repo, "Second Message")?;
 
             // We should now have no entries
@@ -413,14 +414,15 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_command_commit_train_data_dir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_command_commit_train_data_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Track the file
             let train_dir = repo.path.join("train");
-            repositories::add(&repo, train_dir)?;
+            repositories::add(&repo, train_dir).await?;
             // Commit the file
             let commit = repositories::commit(&repo, "Adding training data")?;
 
@@ -442,14 +444,15 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Track the annotations dir, which has sub dirs
             let annotations_dir = repo.path.join("annotations");
-            repositories::add(&repo, annotations_dir)?;
+            repositories::add(&repo, annotations_dir).await?;
             repositories::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
             let repo_status = repositories::status(&repo)?;
@@ -465,6 +468,7 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
@@ -472,7 +476,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Track & commit (dir already created in helper)
             let new_dir_path = repo.path.join("annotations").join("train");
-            repositories::add(&repo, &new_dir_path)?;
+            repositories::add(&repo, &new_dir_path).await?;
             repositories::commit(&repo, "Adding train dir")?;
 
             // Get the original branch name
@@ -486,7 +490,7 @@ mod tests {
             let test_dir_path = repo.path.join("annotations").join("test");
             let og_num_files = util::fs::rcount_files_in_dir(&test_dir_path);
 
-            repositories::add(&repo, &test_dir_path)?;
+            repositories::add(&repo, &test_dir_path).await?;
             repositories::commit(&repo, "Adding test dir")?;
 
             // checkout OG and make sure it removes the train dir
@@ -503,21 +507,21 @@ mod tests {
         .await
     }
 
-    #[test]
-    fn test_command_commit_removed_dir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_command_commit_removed_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // (dir already created in helper)
             let dir_to_remove = repo.path.join("train");
             let og_file_count = util::fs::rcount_files_in_dir(&dir_to_remove);
 
-            repositories::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove).await?;
             repositories::commit(&repo, "Adding train directory")?;
 
             // Delete the directory
             util::fs::remove_dir_all(&dir_to_remove)?;
 
             // Add the deleted dir, so that we can commit the deletion
-            repositories::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove).await?;
 
             // Make sure we have the correct amount of files tagged as removed
             let status = repositories::status(&repo)?;
@@ -534,13 +538,14 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
     async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
             let labels_path = repo.path.join("labels.txt");
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "adding initial labels file")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -550,18 +555,18 @@ mod tests {
             repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
             repositories::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
-            repositories::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path).await?;
             repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
-            repositories::merge::merge(&repo, branch_name)?;
+            repositories::merge::merge(&repo, branch_name).await?;
 
             // We should have a conflict
             let status = repositories::status(&repo)?;
@@ -570,7 +575,7 @@ mod tests {
             // Assume that we fixed the conflict and added the file
             let path = status.merge_conflicts[0].base_entry.path.clone();
             let fullpath = repo.path.join(path);
-            repositories::add(&repo, fullpath)?;
+            repositories::add(&repo, fullpath).await?;
 
             // Should commit, and then see full commit history
             repositories::commit(&repo, "merging into main")?;
@@ -590,13 +595,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_commit_with_no_staged_changes() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Add a text file
             let text_path = repo.path.join("text.txt");
             util::fs::write_to_path(&text_path, "Hello World")?;
 
             // Get the hash of the file at this timestamp
-            repositories::add(&repo, &text_path)?;
+            repositories::add(&repo, &text_path).await?;
             repositories::commit(&repo, "Committing hello world")?;
 
             // Modify the text file
@@ -617,11 +622,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
     async fn test_commit_hash_on_modified_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Add a text file
             let text_path = repo.path.join("text.txt");
             util::fs::write_to_path(&text_path, "Hello World")?;
@@ -629,7 +635,7 @@ mod tests {
             // Get the hash of the file at this timestamp
             let hash_when_add =
                 MerkleHash::from_str(&util::hasher::hash_file_contents(&text_path)?)?;
-            repositories::add(&repo, &text_path)?;
+            repositories::add(&repo, &text_path).await?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -645,7 +651,7 @@ mod tests {
                 MerkleHash::from_str(&util::hasher::hash_file_contents(&text_path)?)?;
 
             // Add and commit the file
-            repositories::add(&repo, &text_path)?;
+            repositories::add(&repo, &text_path).await?;
             repositories::commit(&repo, "Committing goodbye world")?;
 
             // Get the most recent commit - the new head commit
@@ -665,11 +671,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_commit_file_and_dir() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_commit_file_and_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Create committer with no commits
             let repo_path = &repo.path;
             let train_dir = repo_path.join("training_data");
@@ -685,8 +692,8 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
 
             // Add a file and a directory
-            repositories::add(&repo, &annotation_file)?;
-            repositories::add(&repo, &train_dir)?;
+            repositories::add(&repo, &annotation_file).await?;
+            repositories::add(&repo, &train_dir).await?;
 
             let message = "Adding training data to 🐂";
             repositories::commit(&repo, message)?;
@@ -704,6 +711,7 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
@@ -719,7 +727,7 @@ mod tests {
                 // Get head commit of deep_clone repo
                 let head_commit = repositories::commits::head_commit(&deep_clone)?;
                 assert!(commit_history_is_complete(&deep_clone, &head_commit)?);
-                Ok(new_repo_dir)
+                Ok(())
             })
             .await?;
 
@@ -743,7 +751,7 @@ mod tests {
                 // Get head commit of deep_clone repo
                 let head_commit = repositories::commits::head_commit(&clone)?;
                 assert!(!commit_history_is_complete(&clone, &head_commit)?);
-                Ok(new_repo_dir)
+                Ok(())
             })
             .await?;
 
@@ -752,22 +760,22 @@ mod tests {
         .await
     }
 
-    #[test]
-    fn test_commit_history_order() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_commit_history_order() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             let train_dir = repo.path.join("train");
-            repositories::add(&repo, train_dir)?;
+            repositories::add(&repo, train_dir).await?;
             let initial_commit_message = "adding train dir";
             repositories::commit(&repo, initial_commit_message)?;
 
             // Write a text file
             let text_path = repo.path.join("newnewnew.txt");
             util::fs::write_to_path(&text_path, "Hello World")?;
-            repositories::add(&repo, &text_path)?;
+            repositories::add(&repo, &text_path).await?;
             repositories::commit(&repo, "adding text file")?;
 
             let test_dir = repo.path.join("test");
-            repositories::add(&repo, test_dir)?;
+            repositories::add(&repo, test_dir).await?;
             let most_recent_message = "adding test dir";
             repositories::commit(&repo, most_recent_message)?;
 
@@ -779,29 +787,30 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_get_commit_history_list_between() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_get_commit_history_list_between() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             let new_file = repo.path.join("new_1.txt");
             test::write_txt_file_to_path(&new_file, "new 1")?;
-            repositories::add(&repo, new_file)?;
+            repositories::add(&repo, new_file).await?;
             let base_commit = repositories::commit(&repo, "commit 1")?;
 
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
-            repositories::add(&repo, new_file)?;
+            repositories::add(&repo, new_file).await?;
             repositories::commit(&repo, "commit 2")?;
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
-            repositories::add(&repo, new_file)?;
+            repositories::add(&repo, new_file).await?;
             let head_commit = repositories::commit(&repo, "commit 3")?;
 
             let new_file = repo.path.join("new_4.txt");
             test::write_txt_file_to_path(&new_file, "new 4")?;
-            repositories::add(&repo, new_file)?;
+            repositories::add(&repo, new_file).await?;
             repositories::commit(&repo, "commit 4")?;
 
             let history = repositories::commits::list_between(&repo, &base_commit, &head_commit)?;
@@ -812,11 +821,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_commit_subdir_then_root_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_commit_subdir_then_root_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Make a dir
             let dir_path = Path::new("test_dir");
             let dir_repo_path = repo.path.join(dir_path);
@@ -828,7 +838,7 @@ mod tests {
             util::fs::write_to_path(&file_repo_path, "test")?;
 
             // Add the dir
-            repositories::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path).await?;
             let commit_1 = repositories::commit(&repo, "adding test dir")?;
 
             // New file in root
@@ -837,7 +847,7 @@ mod tests {
             util::fs::write_to_path(&file_repo_path_2, "test")?;
 
             // Add the file
-            repositories::add(&repo, &file_repo_path_2)?;
+            repositories::add(&repo, &file_repo_path_2).await?;
             let commit_2 = repositories::commit(&repo, "adding test file")?;
 
             let tree_1 = repositories::tree::get_root_with_children(&repo, &commit_1)?.unwrap();
@@ -855,11 +865,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_commit_10k_files_vnode_size_10k() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_commit_10k_files_vnode_size_10k() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Make a dir
             let dir_path = Path::new("test_dir");
             let dir_repo_path = repo.path.join(dir_path);
@@ -876,8 +887,8 @@ mod tests {
             let images_csv_repo_path = repo.path.join(images_csv_path);
             util::fs::write_to_path(&images_csv_repo_path, "images,path\n1,test.jpg\n2,test.png")?;
 
-            repositories::add(&repo, &dir_repo_path)?;
-            repositories::add(&repo, &images_csv_repo_path)?;
+            repositories::add(&repo, &dir_repo_path).await?;
+            repositories::add(&repo, &images_csv_repo_path).await?;
             let commit = repositories::commit(&repo, "adding 10k files")?;
 
             repositories::tree::print_tree(&repo, &commit)?;
@@ -887,11 +898,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_add_and_rm_empty_dir() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_add_and_rm_empty_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Make an empty dir
             let empty_dir = repo.path.join("empty_dir");
             util::fs::create_dir_all(&empty_dir)?;
@@ -906,7 +918,7 @@ mod tests {
                 .any(|(path, _)| *path == PathBuf::from("empty_dir")));
 
             // Add the empty dir
-            repositories::add(&repo, &empty_dir)?;
+            repositories::add(&repo, &empty_dir).await?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -928,6 +940,7 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
@@ -937,7 +950,7 @@ mod tests {
             let full_path = repo.path.join("invalid.parquet");
             util::fs::copy(&invalid_parquet_file, &full_path)?;
 
-            repositories::add(&repo, &full_path)?;
+            repositories::add(&repo, &full_path).await?;
             let commit = repositories::commit(&repo, "Adding invalid parquet file")?;
 
             let tree = repositories::tree::get_root_with_children(&repo, &commit)?.unwrap();
@@ -974,11 +987,11 @@ Q: What is a good alternative to git LFS?
 A: Oxen.ai
 ",
                 )?;
-                repositories::add(&local_repo, &readme_file)?;
+                repositories::add(&local_repo, &readme_file).await?;
                 let _commit =
                     repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
-                Ok(dir)
+                Ok(())
             })
             .await?;
             Ok(cloned_remote)
@@ -1001,7 +1014,7 @@ A: Oxen.ai
                 // Add a new file
                 let empty_file = local_repo.path.join("empty.txt");
                 util::fs::write_to_path(&empty_file, "")?;
-                repositories::add(&local_repo, &empty_file)?;
+                repositories::add(&local_repo, &empty_file).await?;
                 let commit = repositories::commit(&local_repo, "adding empty file")?;
 
                 let tree =
@@ -1019,7 +1032,7 @@ A: Oxen.ai
 ";
                 util::fs::write_to_path(&empty_file, raw_str)?;
 
-                repositories::add(&local_repo, &empty_file)?;
+                repositories::add(&local_repo, &empty_file).await?;
                 let commit = repositories::commit(&local_repo, "adding README.md to the test dir")?;
 
                 let tree =
@@ -1030,7 +1043,7 @@ A: Oxen.ai
                 let file_node = file_node.unwrap().file()?;
                 assert_eq!(file_node.num_bytes(), raw_str.len() as u64);
 
-                Ok(dir)
+                Ok(())
             })
             .await?;
             Ok(cloned_remote)
@@ -1038,9 +1051,9 @@ A: Oxen.ai
         .await
     }
 
-    #[test]
-    fn test_list_by_path_from_paginated() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_list_by_path_from_paginated() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let target_file_path = PathBuf::from("target_file.txt");
             let other_file_path_1 = PathBuf::from("other_file_1.txt");
             let dummy_dir_path = PathBuf::from("dummy_dir");
@@ -1048,29 +1061,29 @@ A: Oxen.ai
             // Commit a: Add target_file
             let full_target_path = repo.path.join(&target_file_path);
             util::fs::write_to_path(&full_target_path, "Initial content")?;
-            repositories::add(&repo, &full_target_path)?;
+            repositories::add(&repo, &full_target_path).await?;
             let commit_a = repositories::commit(&repo, "Add target_file.txt")?;
 
             // Commit b: without impacting target_file
             let full_other_path_1 = repo.path.join(&other_file_path_1);
             util::fs::write_to_path(&full_other_path_1, "Some other content")?;
-            repositories::add(&repo, &full_other_path_1)?;
+            repositories::add(&repo, &full_other_path_1).await?;
             let _commit_b = repositories::commit(&repo, "Add other_file_1.txt")?;
 
             // Commit c: Modify target_file
             util::fs::write_to_path(&full_target_path, "Modified content 1")?;
-            repositories::add(&repo, &full_target_path)?;
+            repositories::add(&repo, &full_target_path).await?;
             let commit_c = repositories::commit(&repo, "Modify target_file.txt first time")?;
 
             // Commit d: without impacting target_file
             let full_dummy_dir_path = repo.path.join(&dummy_dir_path);
             util::fs::create_dir_all(&full_dummy_dir_path)?;
-            repositories::add(&repo, &full_dummy_dir_path)?;
+            repositories::add(&repo, &full_dummy_dir_path).await?;
             let _commit_d = repositories::commit(&repo, "Add dummy dir")?;
 
             // Commit e: modify target_file.txt
             util::fs::write_to_path(&full_target_path, "Modified content 2")?;
-            repositories::add(&repo, &full_target_path)?;
+            repositories::add(&repo, &full_target_path).await?;
             let commit_e = repositories::commit(&repo, "Modify target_file.txt second time")?;
 
             // Get the HEAD commit (should be commit_e)
@@ -1099,5 +1112,6 @@ A: Oxen.ai
 
             Ok(())
         })
+        .await
     }
 }

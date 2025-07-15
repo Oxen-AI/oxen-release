@@ -1005,7 +1005,7 @@ mod tests {
                 println!("Looking for file at path: {:?}", path);
                 assert!(path.exists());
 
-                Ok(cloned_repo_dir)
+                Ok(())
             })
             .await?;
 
