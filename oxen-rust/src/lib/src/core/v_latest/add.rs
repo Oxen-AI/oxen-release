@@ -21,7 +21,6 @@ use crate::core::oxenignore;
 use crate::core::staged::staged_db_manager::{with_staged_db_manager, StagedDBManager};
 use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::staged_data::StagedDataOpts;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::opts::RmOpts;
 use crate::storage::version_store::VersionStore;
@@ -76,38 +75,10 @@ pub async fn add<T: AsRef<Path>>(
     let mut repo_path = repo.path.clone();
     let repo_in_working_tree = repo_path.exists();
 
-    let path_hashset = match repositories::commits::head_commit_maybe(repo)? {
-        Some(_) => {
-            let paths_vec: Vec<PathBuf> = paths
-                .into_iter() // 1. Get the iterator.
-                .map(|p| repo.path.join(p.as_ref()).to_path_buf()) // 2. For each item, convert it to a PathBuf.
-                .collect();
-            let paths_slice: &[PathBuf] = &paths_vec;
-
-            let opts = StagedDataOpts::from_paths(paths_slice);
-
-            let repo_status = repositories::status::status_from_opts(repo, &opts)?;
-
-            let final_paths = repo_status.files_to_stage();
-            let mut path_hashset: HashSet<PathBuf> = HashSet::new();
-
-            for path in final_paths.clone() {
-                path_hashset.insert(path);
-            }
-            path_hashset
-        }
-        None => {
-            let mut path_hashset = HashSet::new();
-            for path in paths {
-                path_hashset.insert(path.as_ref().to_path_buf());
-            }
-            path_hashset
-        }
-    };
-
     let mut expanded_paths: HashSet<PathBuf> = HashSet::new();
-    for path in path_hashset {
+    for path in paths {
         let path_str = path
+            .as_ref()
             .to_str()
             .ok_or_else(|| OxenError::basic_str("Invalid path string"))?;
 
@@ -119,7 +90,6 @@ pub async fn add<T: AsRef<Path>>(
                 ));
             }
 
-            log::debug!("Updating repo_path with absolute file path {path:?}");
             repo_path = util::fs::full_path_from_child_path(&repo_path, &path)?;
         }
 
@@ -140,8 +110,7 @@ pub async fn add<T: AsRef<Path>>(
             }
         } else {
             // Non-glob path
-            log::debug!("Adding non-glob path: {:?}", path);
-            expanded_paths.insert(path.to_owned());
+            expanded_paths.insert(path.as_ref().to_path_buf());
         }
     }
 
@@ -192,7 +161,7 @@ pub async fn add_files(
         total_bytes: 0,
         data_type_counts: HashMap::new(),
     };
-    let excluded_hashes = None;
+    let excluded_hashes: HashSet<MerkleHash> = HashSet::new();
     let gitignore = oxenignore::create(repo);
 
     for path in paths {
@@ -214,7 +183,7 @@ pub async fn add_files(
                 path.clone(),
                 staged_db,
                 version_store,
-                &excluded_hashes,
+                excluded_hashes.clone(),
                 &gitignore,
             )?;
         } else if corrected_path.is_file() {
@@ -282,7 +251,7 @@ fn add_dir_inner(
     path: PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     version_store: &Arc<dyn VersionStore>,
-    excluded_hashes: &Option<HashSet<MerkleHash>>,
+    excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
 ) -> Result<CumulativeStats, OxenError> {
     process_add_dir(
@@ -311,7 +280,6 @@ pub async fn add_dir_except(
 
     // Get the version store from the repository
     let version_store = repo.version_store()?;
-    let excluded_hashes = Some(excluded_hashes);
     let gitignore = None;
 
     let repo_path = &repo.path;
@@ -323,7 +291,7 @@ pub async fn add_dir_except(
         path,
         &staged_db,
         &version_store,
-        &excluded_hashes,
+        excluded_hashes,
         &gitignore,
     )
 }
@@ -336,7 +304,7 @@ pub fn process_add_dir(
     version_store: &Arc<dyn VersionStore>,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: PathBuf,
-    excluded_hashes: &Option<HashSet<MerkleHash>>,
+    excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
@@ -363,7 +331,7 @@ pub fn process_add_dir(
     };
 
     // If any dirs are excluded, get the dir_hashes map from the head commit
-    let dir_hashes = if maybe_head_commit.is_some() && excluded_hashes.is_some() {
+    let dir_hashes = if maybe_head_commit.is_some() {
         let head_commit = maybe_head_commit.clone().unwrap();
         Some(CommitMerkleTree::dir_hashes(&repo, &head_commit)?)
     } else {
@@ -386,6 +354,7 @@ pub fn process_add_dir(
         .try_for_each(|entry| -> Result<(), OxenError> {
             let entry = entry.unwrap();
             let dir = entry.path();
+            let dir_hashes = dir_hashes.clone();
 
             //println!("Entry is: {dir:?}");
 
@@ -394,22 +363,23 @@ pub fn process_add_dir(
             // Check if the dir is excluded
             if let Some(dir_hashes) = &dir_hashes {
                 if let Some(dir_hash) = dir_hashes.get(&dir_path) {
-                    if excluded_hashes.clone().unwrap().contains(dir_hash) {
+                    if excluded_hashes.contains(dir_hash) {
                         //println!("Previous entry {dir:?} was excldued!");
                         return Ok(());
                     }
                 }
             }
 
-            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
+            let dir_node =
+                maybe_load_directory(&repo, &maybe_head_commit, &dir_path, &dir_hashes).unwrap();
 
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-            // Determine the status of the directory compared to HEAD
-            let dir_status = get_dir_status_compared_to_head(&repo, &maybe_head_commit, &dir_path)?;
+            // Determine the status of the directory compared to the given dir_hashes
+            let dir_status = get_dir_status_compared_to_head(&repo, &dir_path, &dir_hashes)?;
             // Only explicitly add the directory to staged_db if it's a new directory.
             // If it existed in HEAD, it will be implicitly handled if its children change.
             if dir_status == StagedEntryStatus::Added {
@@ -480,16 +450,14 @@ pub fn process_add_dir(
     Ok(cumulative_stats)
 }
 
-// Determines if a directory is new or existed in the head commit.
-// Returns StagedEntryStatus::Added if new, StagedEntryStatus::Unmodified if existed in head (for the purpose of this check).
 fn get_dir_status_compared_to_head(
     repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
     dir_path: &Path, // relative to repo root
+    dir_hashes: &Option<HashMap<PathBuf, MerkleHash>>,
 ) -> Result<StagedEntryStatus, OxenError> {
-    if let Some(head_commit) = maybe_head_commit {
+    if let Some(dir_hashes) = dir_hashes {
         // Check if the directory exists in the head commit's tree
-        match CommitMerkleTree::dir_without_children(repo, head_commit, dir_path)? {
+        match CommitMerkleTree::dir_without_children_with_dirhash(repo, dir_path, dir_hashes)? {
             Some(_) => {
                 // Directory exists in HEAD.
                 Ok(StagedEntryStatus::Unmodified)
@@ -509,9 +477,11 @@ fn maybe_load_directory(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
+    dir_hashes: &Option<HashMap<PathBuf, MerkleHash>>,
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
-    if let Some(head_commit) = maybe_head_commit {
-        let dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, path)?;
+    if let (Some(head_commit), Some(dir_hashes)) = (maybe_head_commit, dir_hashes) {
+        let dir_node =
+            CommitMerkleTree::dir_with_children_from_dirhash(repo, head_commit, path, dir_hashes)?;
         Ok(dir_node)
     } else {
         Ok(None)
