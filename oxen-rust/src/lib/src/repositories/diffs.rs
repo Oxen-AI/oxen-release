@@ -60,8 +60,6 @@ fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
 }
 
 pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
-    let keys = opts.keys.clone();
-    let targets = opts.targets.clone();
     log::debug!(
         "Starting diff function with keys: {:?} and targets: {:?}",
         opts.keys,
@@ -123,10 +121,10 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             opts,
         ),
 
-        // // Compare rev_1 with current changes.
-        // (Some(path_2), Some(rev_1), None) => {
-
-        // }
+        // Compare rev_1 with current changes.
+        (Some(path_2), Some(rev_1), None) => {
+            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, opts)
+        }
 
         // // Compare HEAD with current changes
         // (None, None, None) => {
@@ -155,7 +153,18 @@ pub fn diff_uncommitted(
 ) -> Result<Vec<DiffResult>, OxenError> {
     let status = repositories::status::status(repo)?;
     let unstaged_files = status.unstaged_files();
+    let commit_1 = repositories::revisions::get(&repo, rev_1)?
+        .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
 
+    for file in unstaged_files {
+        let node_1 = Some(
+            repositories::entries::get_file(repo, &commit_1, path_1)?.ok_or_else(|| {
+                OxenError::ResourceNotFound(
+                    format!("{}@{}", path_1.display(), commit_1.id).into(),
+                )
+            })?,
+        );
+    }
     // let result: Vec<DiffResult> = vec![];
 
     Ok(vec![])
@@ -387,7 +396,7 @@ pub fn diff_file_nodes(
     let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
 
     log::debug!(
-        "😇 version_path_1: {:?}",
+        " version_path_1: {:?}",
         *file_1.data_type() == EntryDataType::Tabular
             && *file_2.data_type() == EntryDataType::Tabular
     );
