@@ -76,6 +76,7 @@ jobs:
       - name: Set HOME # Fixes issue with $HOME not being set on self-hosted runners
         run: 
           echo "HOME=/root" >> /root/.bashrc
+          echo "export HOME" >> /root/.bashrc
           export HOME=/root
 
       - name: Install latest rust toolchain
