@@ -309,6 +309,22 @@ impl CommitMerkleTree {
         Ok(Self { root, dir_hashes })
     }
 
+    pub fn dir_without_children_with_dirhash(
+        repo: &LocalRepository,
+        path: impl AsRef<Path>,
+        dir_hashes: &HashMap<PathBuf, MerkleHash>,
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
+        let node_path = path.as_ref();
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir 🗂️ {:?}", node_path);
+            CommitMerkleTree::read_node(repo, &node_hash, false)
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Read the dir metadata from the path, without reading the children
     pub fn dir_without_children(
         repo: &LocalRepository,
@@ -327,13 +343,32 @@ impl CommitMerkleTree {
         }
     }
 
+    pub fn dir_with_children_from_dirhash(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+        dir_hashes: &HashMap<PathBuf, MerkleHash>,
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir {:?}", node_path);
+            // Read the node at depth 1 to get VNodes and Sub-Files/Dirs
+            // We don't count VNodes in the depth
+            CommitMerkleTree::read_depth(repo, &node_hash, 1)
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn dir_with_children(
         repo: &LocalRepository,
         commit: &Commit,
         path: impl AsRef<Path>,
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
         let node_path = path.as_ref();
-        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
         if let Some(node_hash) = node_hash {
