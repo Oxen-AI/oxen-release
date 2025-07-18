@@ -75,6 +75,7 @@ jobs:
 
       - name: Install rustup
         run: |
+          dnf update
           dnf install rustup
           rustup-init -y
 
