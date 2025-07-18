@@ -76,7 +76,7 @@ jobs:
       - name: Install rustup
         run: |
           export HOME=/root
-          echo "HOME: $HOME" >> $GITHUB_ENV
+          echo "HOME=$HOME" >> $GITHUB_ENV
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source /root/.cargo/env
 
