@@ -331,11 +331,9 @@ pub fn process_add_dir(
     };
 
     // If any dirs are excluded, get the dir_hashes map from the head commit
-    let dir_hashes = if maybe_head_commit.is_some() {
-        let head_commit = maybe_head_commit.clone().unwrap();
-        Some(CommitMerkleTree::dir_hashes(&repo, &head_commit)?)
-    } else {
-        None
+    let dir_hashes = match maybe_head_commit.clone() {
+        Some(head_commit) => Some(CommitMerkleTree::dir_hashes(&repo, &head_commit)?),
+        None => None,
     };
 
     let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(&repo)?
@@ -379,7 +377,8 @@ pub fn process_add_dir(
             let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
             // Determine the status of the directory compared to the given dir_hashes
-            let dir_status = get_dir_status_compared_to_head(&repo, &dir_path, &dir_hashes)?;
+            let dir_status =
+                get_dir_status_compared_to_head(&repo, &dir_path, &maybe_head_commit, &dir_hashes)?;
             // Only explicitly add the directory to staged_db if it's a new directory.
             // If it existed in HEAD, it will be implicitly handled if its children change.
             if dir_status == StagedEntryStatus::Added {
@@ -453,9 +452,10 @@ pub fn process_add_dir(
 fn get_dir_status_compared_to_head(
     repo: &LocalRepository,
     dir_path: &Path, // relative to repo root
+    maybe_head_commit: &Option<Commit>,
     dir_hashes: &Option<HashMap<PathBuf, MerkleHash>>,
 ) -> Result<StagedEntryStatus, OxenError> {
-    if let Some(dir_hashes) = dir_hashes {
+    if let (Some(dir_hashes), Some(_)) = (dir_hashes, maybe_head_commit) {
         // Check if the directory exists in the head commit's tree
         match CommitMerkleTree::dir_without_children_with_dirhash(repo, dir_path, dir_hashes)? {
             Some(_) => {
