@@ -1,0 +1,30 @@
+name: 🚀 Release
+
+on:
+  push:
+    branches:
+      - monorepo
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  # release_linux_x86_64:
+  #   uses: ./.github/workflows/release_linux.yml
+  #   with:
+  #     ARCHITECTURE: x86_64
+  #     AWS_ROLE: arn:aws:iam::213020545630:role/github-runner-role
+  #     AWS_REGION: us-west-1 
+  #   secrets:
+  #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+
+  release_linux_arm64:
+    uses: ./.github/workflows/release_linux.yml
+    with:
+      ARCHITECTURE: arm64
+      AWS_ROLE: arn:aws:iam::213020545630:role/github-runner-role
+      AWS_REGION: us-west-1 
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
