@@ -40,7 +40,7 @@ jobs:
       - name: Set image and instance type
         run: |
           if [ "${{ inputs.ARCHITECTURE }}" = "arm64" ]; then
-            echo "EC2_IMAGE_ID=ami-089520c3193aa9e8a" >> $GITHUB_ENV
+            echo "EC2_IMAGE_ID=ami-095764d706219bade" >> $GITHUB_ENV
             echo "EC2_INSTANCE_TYPE=m7g.4xlarge" >> $GITHUB_ENV
           else
             echo "EC2_IMAGE_ID=ami-" >> $GITHUB_ENV
