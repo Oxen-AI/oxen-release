@@ -75,16 +75,15 @@ jobs:
 
       - name: Install rustup
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source /root/.cargo/env
+          dnf install rustup
+          rustup-init -y
 
-      - name: Install system dependencies
-        run: |
-          # TODO: Install system dependencies
+      # - name: Install system dependencies
+      #   run: |
+          
 
       - name: Build oxen
         run: |
-          source /root/.cargo/env
           cargo build --release
 
       - name: Package Oxen binaries
