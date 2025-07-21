@@ -352,7 +352,6 @@ pub fn process_add_dir(
         .try_for_each(|entry| -> Result<(), OxenError> {
             let entry = entry.unwrap();
             let dir = entry.path();
-            let dir_hashes = dir_hashes.clone();
 
             //println!("Entry is: {dir:?}");
 
