@@ -206,6 +206,7 @@ pub fn lowest_common_ancestor_from_commits(
 #[cfg(test)]
 mod tests {
 
+    use std::hash::Hash;
     use std::path::Path;
 
     use crate::core::df::tabular;
@@ -1081,8 +1082,7 @@ mod tests {
             let new_branch = repositories::branches::create_checkout(&repo, new_branch_name)?;
 
             // 4. merge main onto new branch
-            let commit =
-                repositories::merge::merge_into_base(&repo, &og_branch, &new_branch).await?;
+            let commit = repositories::merge::merge(&repo, og_branch.name).await?;
 
             // 5. There should be no commit
             assert!(commit.is_none());
