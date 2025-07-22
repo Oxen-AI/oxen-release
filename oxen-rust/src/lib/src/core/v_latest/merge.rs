@@ -223,8 +223,6 @@ pub async fn merge(
 ) -> Result<Option<Commit>, OxenError> {
     let branch_name = branch_name.as_ref();
 
-    log::debug!("✅ branch_name {branch_name:?}");
-
     let merge_branch = repositories::branches::get_by_name(repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
