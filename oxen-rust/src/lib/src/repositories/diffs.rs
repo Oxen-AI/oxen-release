@@ -156,8 +156,11 @@ pub fn diff_uncommitted(
     path_2: &PathBuf,
     opts: DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
+    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
     let status_opts = StagedDataOpts::from_paths(&[path_1.clone()]);
+    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
     let status = repositories::status::status_from_opts(repo, &status_opts)?;
+    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
     let unstaged_files = status.unstaged_files();
     let commit_1 = repositories::revisions::get(&repo, rev_1)?
         .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
