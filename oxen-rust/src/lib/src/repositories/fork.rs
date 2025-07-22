@@ -219,7 +219,7 @@ mod tests {
                 const MAX_ATTEMPTS: u32 = 50; // 5 seconds timeout (50 * 100ms)
 
                 while current_status == "in_progress" && attempts < MAX_ATTEMPTS {
-                    tokio::time::sleep(Duration::from_millis(100)).await; // Wait for 100 milliseconds
+                    tokio::time::sleep(Duration::from_millis(1000)).await; // Wait for 100 milliseconds
                     current_status = match get_fork_status(&forked_repo_path) {
                         Ok(status) => status.status,
                         Err(e) => {

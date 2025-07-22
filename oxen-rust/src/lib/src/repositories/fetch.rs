@@ -146,7 +146,7 @@ mod tests {
                 repositories::branches::create_checkout(&repo, branch)?;
                 let filepath = repo.path.join(format!("file_{}.txt", branch));
                 test::write_txt_file_to_path(&filepath, format!("a file on {}", branch))?;
-                repositories::add(&repo, &filepath)?;
+                repositories::add(&repo, &filepath).await?;
                 repositories::commit(&repo, &format!("Adding file on {}", branch))?;
                 repositories::push(&repo).await?;
             }
@@ -172,7 +172,7 @@ mod tests {
 
                 api::client::repositories::delete(&remote_repo).await?;
 
-                Ok(new_repo_dir)
+                Ok(())
             })
             .await
         })

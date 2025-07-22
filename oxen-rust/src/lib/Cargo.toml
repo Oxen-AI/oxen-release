@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.35.0"
+version = "0.36.1"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -24,9 +24,11 @@ docs = ["duckdb"]
 actix-files = "0.6.0"
 actix-web = { version = "4", features = ["rustls"] }
 approx = "0.5.1"
-async-compression = { version = "0.4.0", features = ["futures-io", "gzip"] }
+astral-tokio-tar = "0.5.2"
+async-compression = { version = "0.4.2", features = ["futures-io", "gzip", "tokio"] }
 async-recursion = "1.0.0"
 async-std = { version = "1.12.0", features = ["unstable"] }
+async-trait = "0.1"
 async-tar = "0.5.0"
 arrow-json = "=53.4.0"
 arrow = "=53.4.0"
@@ -111,6 +113,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_derive = "1.0"
 serde_json = "1.0.78"
 serde_url_params = "0.2.1"
+serde_with = "3.13.0"
 signal-hook = "0.3.13"
 simdutf8 = "0.1.4"
 sha2 = "0.10.8"
@@ -132,6 +135,7 @@ walkdir = "2.5.0"
 words-count = "0.1.5"
 xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
 zip = "2.4.1"
+pathdiff = "0.2.3"
 
 [lib]
 name = "liboxen"

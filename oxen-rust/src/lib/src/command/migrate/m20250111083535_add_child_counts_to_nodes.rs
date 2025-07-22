@@ -308,16 +308,16 @@ mod tests {
     };
     use std::{path::PathBuf, str::FromStr};
 
-    #[test]
-    fn test_add_child_counts_to_nodes_migration() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
+    #[tokio::test]
+    async fn test_add_child_counts_to_nodes_migration() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|dir| async move {
             // Instantiate an older repository
             let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Populate the repo with some files
             test::populate_dir_with_training_data(&repo.path)?;
             // Make a variety of commits
-            test::make_many_commits(&repo)?;
+            test::make_many_commits(&repo).await?;
 
             // Test that the root commit
             let latest_commit = repositories::commits::latest_commit(&repo)?;
@@ -356,7 +356,7 @@ mod tests {
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
             let node_version_str = commit_node_version.to_string();
-            assert_eq!(node_version_str, "0.25.0");
+            assert_eq!(node_version_str, "0.36.0");
 
             let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
             let Some(new_root_node) =
@@ -371,19 +371,19 @@ mod tests {
                     EMerkleTreeNode::Commit(commit) => {
                         assert_eq!(
                             commit.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::Directory(dir) => {
                         assert_eq!(
                             dir.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::VNode(vnode) => {
                         assert_eq!(
                             vnode.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     _ => {
@@ -399,11 +399,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_add_child_counts_migration_with_many_vnodes() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
+    #[tokio::test]
+    async fn test_add_child_counts_migration_with_many_vnodes() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|dir| async move {
             // Instantiate an older repository
             let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
             // Set the vnode size to 3
@@ -412,7 +413,7 @@ mod tests {
             // Populate the repo with some files
             test::populate_dir_with_training_data(&repo.path)?;
             // Make a variety of commits
-            test::make_many_commits(&repo)?;
+            test::make_many_commits(&repo).await?;
 
             // Test that the root commit
             let latest_commit = repositories::commits::latest_commit(&repo)?;
@@ -453,7 +454,7 @@ mod tests {
             let commit_node_version =
                 repositories::tree::get_commit_node_version(&repo, &latest_commit)?;
             let node_version_str = commit_node_version.to_string();
-            assert_eq!(node_version_str, "0.25.0");
+            assert_eq!(node_version_str, "0.36.0");
 
             let commit_hash = MerkleHash::from_str(&latest_commit.id)?;
             let Some(new_root_node) =
@@ -468,19 +469,19 @@ mod tests {
                     EMerkleTreeNode::Commit(commit) => {
                         assert_eq!(
                             commit.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::Directory(dir) => {
                         assert_eq!(
                             dir.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     EMerkleTreeNode::VNode(vnode) => {
                         assert_eq!(
                             vnode.version(),
-                            MinOxenVersion::from_string("0.25.0").unwrap()
+                            MinOxenVersion::from_string("0.36.0").unwrap()
                         );
                     }
                     _ => {
@@ -520,5 +521,6 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 }

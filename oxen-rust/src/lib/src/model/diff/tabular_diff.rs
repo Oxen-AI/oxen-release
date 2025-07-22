@@ -28,6 +28,8 @@ pub struct TabularDiffSummary {
 
 #[derive(Debug, Clone)]
 pub struct TabularDiff {
+    pub filename1: Option<String>,
+    pub filename2: Option<String>,
     pub summary: TabularDiffSummary,
     pub parameters: TabularDiffParameters,
     pub contents: DataFrame,
@@ -133,6 +135,8 @@ impl TabularDiff {
             summary: TabularDiffSummary::empty(),
             parameters: TabularDiffParameters::empty(),
             contents: DataFrame::empty(),
+            filename1: None,
+            filename2: None,
         }
     }
 }

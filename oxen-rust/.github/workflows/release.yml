@@ -73,7 +73,16 @@ jobs:
       - name: Build oxen
         run: cargo build --release
 
-      - name: Package Oxen Server
+      - name: Package oxen cli binary
+        run: |
+          mkdir -p oxen-linux-binary-x86_64-latest
+          mkdir -p oxen-linux-server-binary-x86_64-latest
+          cp target/release/oxen oxen-linux-binary-x86_64-latest/oxen
+          cp target/release/oxen-server oxen-linux-server-binary-x86_64-latest/oxen-server
+          tar czf oxen-linux-binary-x86_64-latest.tar.gz oxen-linux-binary-x86_64-latest
+          tar czf oxen-linux-server-binary-x86_64-latest.tar.gz oxen-linux-server-binary-x86_64-latest
+
+      - name: Package Oxen Server deb
         run: |
           fpm \
             -s dir -t deb \
@@ -87,7 +96,7 @@ jobs:
             --maintainer "OxenAI hello@oxen.ai" \
             oxen-server=/usr/bin/oxen-server
 
-      - name: Package Oxen CLI
+      - name: Package Oxen CLI deb
         run: |
           fpm \
             -s dir -t deb \
@@ -101,7 +110,7 @@ jobs:
             --maintainer "OxenAI hello@oxen.ai" \
             oxen=/usr/bin/oxen
 
-      - name: Upload Oxen Server binary to release
+      - name: Upload Oxen Server deb to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
@@ -110,13 +119,31 @@ jobs:
           asset_name: oxen-server-ubuntu-latest.deb
           tag: ${{ github.ref }}
 
-      - name: Upload Oxen CLI binary to release
+      - name: Upload Oxen CLI deb to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-ubuntu-latest.deb
           asset_name: oxen-ubuntu-latest.deb
+          tag: ${{ github.ref }}
+
+      - name: Upload Oxen CLI binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-linux-binary-x86_64-latest.tar.gz
+          asset_name: oxen-linux-binary-x86_64-latest.tar.gz
+          tag: ${{ github.ref }}
+
+      - name: Upload Oxen Server binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-linux-server-binary-x86_64-latest.tar.gz
+          asset_name: oxen-linux-server-binary-x86_64-latest.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload to crates.io
