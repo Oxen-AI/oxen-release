@@ -23,6 +23,7 @@ use crate::model::diff::tabular_diff::{
     TabularDiffSummary, TabularSchemaDiff,
 };
 
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::{
     Commit, CommitEntry, DataFrameDiff, DiffEntry, EntryDataType, LocalRepository, ParsedResource,
     Schema,
@@ -126,10 +127,14 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, opts)
         }
 
-        // // Compare HEAD with current changes
-        // (None, None, None) => {
-
-        // }
+        // Compare HEAD with current changes
+        (None, Some(rev_1), None) => diff_uncommitted(
+            &repo,
+            rev_1,
+            &opts.path_1.clone(),
+            &opts.path_1.clone(),
+            opts,
+        ),
 
         // // Compare
         // (None, Some(rev_1), None) => {
@@ -151,23 +156,31 @@ pub fn diff_uncommitted(
     path_2: &PathBuf,
     opts: DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
-    let status = repositories::status::status(repo)?;
+    let status_opts = StagedDataOpts::from_paths(&[path_1.clone()]);
+    let status = repositories::status::status_from_opts(repo, &status_opts)?;
     let unstaged_files = status.unstaged_files();
     let commit_1 = repositories::revisions::get(&repo, rev_1)?
         .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
+    let mut diff_result = Vec::new();
 
     for file in unstaged_files {
+        log::debug!("🔥 Computing content diff for file: {:?}", file.as_path());
         let node_1 = Some(
             repositories::entries::get_file(repo, &commit_1, path_1)?.ok_or_else(|| {
-                OxenError::ResourceNotFound(
-                    format!("{}@{}", path_1.display(), commit_1.id).into(),
-                )
+                OxenError::ResourceNotFound(format!("{}@{}", path_1.display(), commit_1.id).into())
             })?,
         );
+        diff_result.push(diff_file_and_node(
+            &repo,
+            path_2,
+            &node_1.unwrap(),
+            opts.keys.clone(),
+            opts.targets.clone(),
+            vec![],
+        )?);
     }
-    // let result: Vec<DiffResult> = vec![];
 
-    Ok(vec![])
+    Ok(diff_result)
 }
 
 pub fn diff_revs(
@@ -295,7 +308,7 @@ pub fn diff_commits(
     let node_2 = node_2.unwrap();
 
     let compare_result =
-        repositories::diffs::diff_file_nodes(repo, &node_1, &node_2, keys, targets, display)?;
+        repositories::diffs::diff_file_nodes(repo, &node_1, &node_2, keys, targets, vec![])?;
 
     log::debug!("compare result: {:?}", compare_result);
 
@@ -384,6 +397,33 @@ pub fn diff_files(
     }
 }
 
+// TODO: merge this and diff_file_and_node
+pub fn diff_file_and_node(
+    repo: &LocalRepository,
+    path_1: impl AsRef<Path>,
+    file_2: &FileNode,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<DiffResult, OxenError> {
+    match file_2.data_type() {
+        EntryDataType::Tabular => {
+            let result =
+                diff_tabular_file_and_file_node(repo, path_1, file_2, keys, targets, display)?;
+            Ok(DiffResult::Tabular(result))
+        }
+        EntryDataType::Text => {
+            let result = diff_text_file_and_node(repo, path_1, file_2)?;
+            Ok(result)
+        }
+        _ => Err(OxenError::invalid_file_type(format!(
+            "Compare not supported for files, found {:?} and {:?}",
+            path_1.as_ref(),
+            file_2.hash().to_string()
+        ))),
+    }
+}
+
 pub fn diff_file_nodes(
     repo: &LocalRepository,
     file_1: &FileNode,
@@ -421,6 +461,27 @@ pub fn diff_file_nodes(
     }
 }
 
+pub fn diff_tabular_file_and_file_node(
+    repo: &LocalRepository,
+    file_1_path: impl AsRef<Path>,
+    file_2: &FileNode,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<TabularDiff, OxenError> {
+    let file_2_path = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
+
+    let df_1 = tabular::read_df(file_1_path, DFOpts::empty())?;
+    let df_2 = tabular::read_df(file_2_path, DFOpts::empty())?;
+
+    let schema_1 = Schema::from_polars(&df_1.schema());
+    let schema_2 = Schema::from_polars(&df_2.schema());
+
+    validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
+
+    diff_dfs(&df_1, &df_2, keys, targets, display)
+}
+
 pub fn diff_tabular_file_nodes(
     repo: &LocalRepository,
     file_1: &FileNode,
@@ -442,6 +503,16 @@ pub fn diff_tabular_file_nodes(
     validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
 
     diff_dfs(&df_1, &df_2, keys, targets, display)
+}
+
+pub fn diff_text_file_and_node(
+    repo: &LocalRepository,
+    file_1_path: impl AsRef<Path>,
+    file_2: &FileNode,
+) -> Result<DiffResult, OxenError> {
+    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
+    let result = utf8_diff::diff(&file_1_path, &version_path_2)?;
+    Ok(DiffResult::Text(result))
 }
 
 pub fn diff_text_file_nodes(
