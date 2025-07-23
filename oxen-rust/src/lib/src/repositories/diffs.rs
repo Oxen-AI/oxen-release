@@ -70,13 +70,25 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
     let repo = match &opts.repo_dir {
         Some(dir) => {
             log::debug!("dir: {:?}", dir);
-            LocalRepository::from_dir(dir)?
+            LocalRepository::from_dir(dir)
         }
         None => {
             log::debug!("current dir");
-            LocalRepository::from_current_dir()?
+            LocalRepository::from_current_dir()
         }
     };
+
+    if repo.is_err() {
+        let result = diff_files(
+            opts.path_1,
+            opts.path_2.unwrap(),
+            opts.keys.clone(),
+            opts.targets.clone(),
+            vec![],
+        )?;
+        return Ok(vec![result]);
+    }
+    let repo = repo.unwrap();
 
     log::debug!(
         "Processing paths and revisions - path_2: {:?}, revision_1: {:?}, revision_2: {:?}, path_1: {:?}",
@@ -1682,7 +1694,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             util::fs::write_to_path(&file2, "hello\nhi\nhow are you doing?")?;
 
             let opts = DiffOpts {
-                repo_dir: Some(dir.to_path_buf()),
+                repo_dir: Some(dir.canonicalize()?),
                 path_1: file1,
                 path_2: Some(file2),
                 keys: vec![],
