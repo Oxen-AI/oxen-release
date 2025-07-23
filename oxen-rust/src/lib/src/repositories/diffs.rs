@@ -269,53 +269,68 @@ pub fn diff_commits(
         cpath_2
     );
 
-    // TODO - anything we can clean up with this mut initialization?
-    let mut node_1: Option<FileNode> = None;
-    let mut node_2: Option<FileNode> = None;
+    let (node_1, node_2) = match (cpath_1.commit, cpath_2.commit) {
+        (Some(commit_1), Some(commit_2)) => {
+            let node_1 = Some(
+                repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?.ok_or_else(
+                    || {
+                        OxenError::ResourceNotFound(
+                            format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
+                        )
+                    },
+                )?,
+            );
 
-    if let Some(commit_1) = cpath_1.commit {
-        node_1 = Some(
-            repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?.ok_or_else(|| {
-                OxenError::ResourceNotFound(
-                    format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
-                )
-            })?,
-        );
-    };
+            let merger = EntryMergeConflictReader::new(repo)?;
 
-    if let Some(mut commit_2) = cpath_2.commit {
-        // if there are merge conflicts, compare against the conflict commit instead
+            let node_2 = match merger.has_conflicts()? {
+                true => {
+                    let merger = EntryMergeConflictReader::new(repo)?;
+                    Some(
+                        repositories::entries::get_file(
+                            repo,
+                            &merger.get_conflict_commit()?.unwrap(),
+                            &cpath_2.path,
+                        )?
+                        .ok_or_else(|| {
+                            OxenError::ResourceNotFound(
+                                format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
+                            )
+                        })?,
+                    )
+                }
+                false => Some(
+                    repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(
+                        || {
+                            OxenError::ResourceNotFound(
+                                format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
+                            )
+                        },
+                    )?,
+                ),
+            };
 
-        let merger = EntryMergeConflictReader::new(repo)?;
-
-        if merger.has_conflicts()? {
-            commit_2 = merger.get_conflict_commit()?.unwrap();
+            (node_1, node_2)
         }
-
-        node_2 = Some(
-            repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(|| {
-                OxenError::ResourceNotFound(
-                    format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
-                )
-            })?,
-        );
+        _ => (None, None),
     };
 
-    if node_1.is_none() || node_2.is_none() {
-        return Err(OxenError::basic_str(
-            "Could not find one or both of the files to compare",
-        ));
+    match (node_1, node_2) {
+        (Some(node_1), Some(node_2)) => {
+            let compare_result = repositories::diffs::diff_file_nodes(
+                repo, &node_1, &node_2, keys, targets, display,
+            )?;
+
+            log::debug!("compare result: {:?}", compare_result);
+
+            Ok(compare_result)
+        }
+        _ => {
+            return Err(OxenError::basic_str(
+                "Could not find one or both of the files to compare",
+            ));
+        }
     }
-
-    let node_1 = node_1.unwrap();
-    let node_2 = node_2.unwrap();
-
-    let compare_result =
-        repositories::diffs::diff_file_nodes(repo, &node_1, &node_2, keys, targets, vec![])?;
-
-    log::debug!("compare result: {:?}", compare_result);
-
-    Ok(compare_result)
 }
 
 /// Diffs a directory between two commits, returning a summary of changes.
