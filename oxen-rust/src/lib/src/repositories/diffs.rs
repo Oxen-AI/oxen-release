@@ -67,10 +67,15 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         opts.targets
     );
 
-    log::debug!("🚀 Initializing repository from current directory");
     let repo = match &opts.repo_dir {
-        Some(dir) => LocalRepository::from_dir(dir)?,
-        None => LocalRepository::from_current_dir()?,
+        Some(dir) => {
+            log::debug!("dir: {:?}", dir);
+            LocalRepository::from_dir(dir)?
+        }
+        None => {
+            log::debug!("current dir");
+            LocalRepository::from_current_dir()?
+        }
     };
 
     log::debug!(
@@ -999,30 +1004,6 @@ pub fn diff_entries(
     }
 }
 
-// // Filters out the entries that are not direct children of the provided dir, but
-// // still provides accurate recursive counts -
-// // TODO: can de-dup this with list_diff_entries somewhat
-// pub fn list_diff_entries_in_dir_top_level(
-//     repo: &LocalRepository,
-//     dir: PathBuf,
-//     base_commit: &Commit,
-//     head_commit: &Commit,
-//     page: usize,
-//     page_size: usize,
-// ) -> Result<DiffEntriesCounts, OxenError> {
-//     match repo.min_version() {
-//         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
-//         _ => core::v_latest::diff::list_diff_entries_in_dir_top_level(
-//             repo,
-//             dir,
-//             base_commit,
-//             head_commit,
-//             page,
-//             page_size,
-//         ),
-//     }
-// }
-
 pub fn list_changed_dirs(
     repo: &LocalRepository,
     base_commit: &Commit,
@@ -1694,6 +1675,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
         test::run_empty_dir_test(|dir| {
             let file1 = dir.join("file1.txt");
             let file2 = dir.join("file2.txt");
+            println!("file1: {:?}", file1);
+            println!("file2: {:?}", file2);
 
             util::fs::write_to_path(&file1, "hello\nhi\nhow are you?")?;
             util::fs::write_to_path(&file2, "hello\nhi\nhow are you doing?")?;

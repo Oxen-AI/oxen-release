@@ -830,7 +830,6 @@ fn r_list_files_and_dirs(
     dir_nodes: &mut HashSet<DirNodeWithPath>,
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
-    log::debug!("parent!!!!!!{:?}", node.maybe_path().unwrap());
 
     if let EMerkleTreeNode::File(file_node) = &node.node {
         file_nodes.insert(FileNodeWithDir {
