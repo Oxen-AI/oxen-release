@@ -35,6 +35,7 @@ const MAX_COMPRESSION_RATIO: u64 = 100; // Maximum allowed
 // TODO: Do we depreciate this, if we always upload to version store?
 pub async fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     let filepath = filepath.as_ref();
+    println!("asd");
     let workspace_repo = &workspace.workspace_repo;
     let base_repo = &workspace.base_repo;
 
@@ -127,6 +128,23 @@ pub fn track_modified_data_frame(
     // Return the relative path of the file in the workspace
     let relative_path = util::fs::path_relative_to_dir(filepath, &workspace_repo.path)?;
     Ok(relative_path)
+}
+
+pub fn remove_files_from_staged_db(workspace: &Workspace, paths: Vec<PathBuf>) -> Result<Vec<PathBuf>, OxenError> {
+    
+    let mut err_files = vec![];
+    for path in paths {
+        match delete(workspace, &path) {
+            // TODO: Should we cancel the operation if we're unable to remove a path?
+            Ok(_) => {},
+            Err(e) => {
+                log::debug!("Error removing file path {path:?}: {:?}", e);
+                err_files.push(path);
+            }
+        }
+    }
+
+    Ok(err_files)
 }
 
 pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
@@ -500,7 +518,7 @@ async fn p_add_file(
     // See if this is a new file or a modified file
     let file_status =
         core::v_latest::add::determine_file_status(&maybe_dir_node, &file_name, &full_path)?;
-
+    println!("File status: {file_status:?}");
     // Store the file in the version store using the hash as the key
     let hash_str = file_status.hash.to_string();
     version_store

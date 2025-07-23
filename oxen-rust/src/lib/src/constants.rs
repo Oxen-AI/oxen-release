@@ -176,7 +176,7 @@ pub const EVAL_DURATION_COL: &str = "_oxen_eval_duration";
 // Average chunk size of ~10mb
 /// Average chunk size of ~10mb when chunking and sending data
 // pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
-pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 10;
+pub const AVG_CHUNK_SIZE: u64 = 1024 * 10 * 4;
 // Retry and back off of requests N times
 /// Retry and back off of requests N times
 #[cfg(test)]

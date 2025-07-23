@@ -5,12 +5,12 @@ use clap::{Arg, ArgMatches, ArgGroup, Command};
 
 use liboxen::{api, core::oxenignore, error::OxenError, model::LocalRepository};
 
-use crate::cmd::{add::add_args, RunCmd};
-pub const NAME: &str = "add";
-pub struct WorkspaceAddCmd;
+use crate::cmd::{rm::rm_args, RunCmd};
+pub const NAME: &str = "rm";
+pub struct WorkspaceRmCmd;
 
 #[async_trait]
-impl RunCmd for WorkspaceAddCmd {
+impl RunCmd for WorkspaceRmCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -26,7 +26,7 @@ impl RunCmd for WorkspaceAddCmd {
             }
         };
 
-        add_args()
+        rm_args()
             .arg(
                 Arg::new("workspace-id")
                     .long("workspace-id")
@@ -52,6 +52,12 @@ impl RunCmd for WorkspaceAddCmd {
                     .short('d')
                     .help("The destination directory to add the workspace to")
                     .default_value("."),
+            )
+            .arg(
+                Arg::new("staged")
+                    .long("staged")
+                    .help("Remove files from the staged db")
+                    .action(clap::ArgAction::SetTrue),
             )
             .arg_required_else_help(true)
     }
@@ -100,12 +106,19 @@ impl RunCmd for WorkspaceAddCmd {
         // If no paths left after filtering, return early
         if paths.is_empty() {
             return Err(OxenError::basic_str(
-                "No files to add after filtering with .oxenignore.",
+                "No files to remove after filtering with .oxenignore.",
             ));
         }
 
-        api::client::workspaces::files::add(&remote_repo, workspace_identifier, directory, paths)
-            .await?;
+        // TODO: Use directory
+        if args.get_flag("staged") {
+            api::client::workspaces::files::rm_files_from_staged(&remote_repo, workspace_identifier, paths)
+                .await?;
+        } else {
+            api::client::workspaces::files::rm_files(&remote_repo, workspace_identifier, paths)
+                .await?;
+        }
+
 
         Ok(())
     }

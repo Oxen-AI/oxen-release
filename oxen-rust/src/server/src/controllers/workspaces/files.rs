@@ -12,6 +12,7 @@ use liboxen::util;
 use liboxen::view::{
     ErrorFilesResponse, FilePathsResponse, FileWithHash, StatusMessage, StatusMessageDescription,
 };
+use liboxen::model::LocalRepository;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -58,7 +59,7 @@ pub async fn get(
 
 pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-
+    println!("S");
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
@@ -134,16 +135,67 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
-    if util::fs::is_tabular(&path) {
-        repositories::workspaces::data_frames::restore(&repo, &workspace, &path)?;
-        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-    } else if repositories::workspaces::files::exists(&workspace, &path)? {
-        repositories::workspaces::files::delete(&workspace, &path)?;
-        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-    } else {
-        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+    remove_file(&repo, &workspace, &path)
+}
+
+pub async fn rm_files(
+    req: HttpRequest,
+    payload: web::Json<Vec<PathBuf>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    // Remove files from staging
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
+
+    let files_to_remove: Vec<PathBuf> = payload.into_inner();
+
+    let mut err_files = vec![];
+    for file in files_to_remove {
+        match remove_file(&repo, &workspace, &file) {
+            Ok(_) => {},
+            Err(e) => {
+                log::debug!("Failed to remove file {file:?}: {:?}", e);
+                err_files.push(file);
+            }
+        }
     }
+
+    // TODO: Should we do anything else with the error files? 
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+}
+
+pub async fn rm_files_from_staged(
+    req: HttpRequest,
+    payload: web::Json<Vec<PathBuf>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    // Remove files from staging
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
+
+    let files_to_remove: Vec<PathBuf> = payload.into_inner();
+
+    let err_files = core::v_latest::workspaces::files::remove_files_from_staged_db(
+        &workspace,
+        files_to_remove,
+    )?;
+
+    // TODO: Should we do anything else with the error files? 
+     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
 
 pub async fn validate(_req: HttpRequest, _body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -217,4 +269,17 @@ pub async fn save_parts(
     }
 
     Ok(files)
+}
+
+fn remove_file(repo: &LocalRepository, workspace: &Workspace, path: &PathBuf) -> Result<HttpResponse, OxenHttpError> {
+    // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
+    if util::fs::is_tabular(path) {
+        repositories::workspaces::data_frames::restore(&repo, &workspace, path)?;
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else if repositories::workspaces::files::exists(&workspace, path)? {
+        repositories::workspaces::files::delete(&workspace, path)?;
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else {
+        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+    }
 }

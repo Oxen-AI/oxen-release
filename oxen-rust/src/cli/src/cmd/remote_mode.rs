@@ -1,38 +1,14 @@
-pub mod add;
-pub use add::WorkspaceAddCmd;
+pub mod status;
+pub use status::RemoteModeStatusCmd;
 
-pub mod clear;
-pub use clear::WorkspaceClearCmd;
-
-pub mod create;
-pub use create::WorkspaceCreateCmd;
+pub mod checkout;
+pub use checkout::RemoteModeCheckoutCmd;
 
 pub mod commit;
-pub use commit::WorkspaceCommitCmd;
-
-pub mod diff;
-pub use diff::WorkspaceDiffCmd;
-
-pub mod df;
-pub use df::WorkspaceDfCmd;
-
-pub mod delete;
-pub use delete::WorkspaceDeleteCmd;
-
-pub mod download;
-pub use download::WorkspaceDownloadCmd;
+pub use commit::RemoteModeCommitCmd;
 
 pub mod list;
-pub use list::WorkspaceListCmd;
-
-pub mod restore;
-pub use restore::WorkspaceRestoreCmd;
-
-pub mod rm;
-pub use rm::WorkspaceRmCmd; 
-
-pub mod status;
-pub use status::WorkspaceStatusCmd;
+pub use list::RemoteModeListCmd;
 
 use async_trait::async_trait;
 use clap::Command;
@@ -41,11 +17,15 @@ use liboxen::error::OxenError;
 use std::collections::HashMap;
 
 use crate::cmd::RunCmd;
-pub const NAME: &str = "workspace";
-pub struct WorkspaceCmd;
+pub const NAME: &str = "remote_mode";
+pub struct RemoteModeCmd;
+
+// TODO: I'm not sure we should actually have a 'run' function here
+// Do we want users to access these commands outside of remote mode?
+//
 
 #[async_trait]
-impl RunCmd for WorkspaceCmd {
+impl RunCmd for RemoteModeCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -53,12 +33,10 @@ impl RunCmd for WorkspaceCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         let mut command = Command::new(NAME)
-            .about("Manage workspaces")
+            .about("Remote mode operations")
             .subcommand_required(true)
             .arg_required_else_help(true);
 
-        // These are all the subcommands for the schemas command
-        // including `create`, `add`, `rm`, `commit`, and `status`
         let sub_commands = Self::get_subcommands();
         for cmd in sub_commands.values() {
             command = command.subcommand(cmd.args());
@@ -85,20 +63,13 @@ impl RunCmd for WorkspaceCmd {
     }
 }
 
-impl WorkspaceCmd {
+impl RemoteModeCmd {
     fn get_subcommands() -> HashMap<String, Box<dyn RunCmd>> {
         let commands: Vec<Box<dyn RunCmd>> = vec![
-            Box::new(WorkspaceAddCmd),
-            Box::new(WorkspaceClearCmd),
-            Box::new(WorkspaceCommitCmd),
-            Box::new(WorkspaceCreateCmd),
-            Box::new(WorkspaceDfCmd),
-            Box::new(WorkspaceDiffCmd),
-            Box::new(WorkspaceDeleteCmd),
-            Box::new(WorkspaceListCmd),
-            Box::new(WorkspaceRmCmd),
-            Box::new(WorkspaceStatusCmd),
-            Box::new(WorkspaceDownloadCmd),
+            Box::new(RemoteModeCheckoutCmd),
+            Box::new(RemoteModeCommitCmd),
+            Box::new(RemoteModeListCmd),
+            Box::new(RemoteModeStatusCmd),
         ];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
         for cmd in commands {
@@ -112,7 +83,7 @@ impl WorkspaceCmd {
         let sub_commands = Self::get_subcommands();
         let Some(cmd) = sub_commands.get(name) else {
             return Err(OxenError::basic_str(format!(
-                "Command `oxen {name}` not available for workspaces"
+                "Command `oxen {name}` not available for remote mode"
             )));
         };
 

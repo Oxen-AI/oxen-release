@@ -6,6 +6,7 @@ use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash, PartialNode};
+use crate::storage::VersionStore;
 use crate::repositories;
 use crate::util;
 
@@ -13,6 +14,7 @@ use filetime::FileTime;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::sync::Arc;
 
 struct CheckoutProgressBar {
     revision: String,
@@ -228,6 +230,8 @@ pub async fn checkout_subtrees(
 
         let mut results = CheckoutResult::new();
         let mut hashes = CheckoutHashes::from_hashes(shared_hashes);
+        let version_store = repo.version_store()?;
+
         r_restore_missing_or_modified_files(
             repo,
             &target_root,
@@ -236,6 +240,7 @@ pub async fn checkout_subtrees(
             &mut progress,
             &mut partial_nodes,
             &mut hashes,
+            &version_store,
             depth,
         )?;
 
@@ -253,7 +258,6 @@ pub async fn checkout_subtrees(
             log::debug!("head commit missing, no cleanup");
         }
 
-        let version_store = repo.version_store()?;
         for file_to_restore in results.files_to_restore {
             restore::restore_file(
                 repo,
@@ -337,6 +341,7 @@ pub async fn set_working_repo_to_commit(
 
     let mut results = CheckoutResult::new();
     let mut hashes = CheckoutHashes::from_hashes(shared_hashes);
+    let version_store = repo.version_store()?;
 
     log::debug!("restore_missing_or_modified_files");
     // Restore files present in the target commit
@@ -348,6 +353,7 @@ pub async fn set_working_repo_to_commit(
         &mut progress,
         &mut partial_nodes,
         &mut hashes,
+        &version_store,
         i32::MAX,
     )?;
 
@@ -364,7 +370,6 @@ pub async fn set_working_repo_to_commit(
         cleanup_removed_files(repo, &from_tree.unwrap(), &mut progress, &mut hashes)?;
     }
 
-    let version_store = repo.version_store()?;
     for file_to_restore in results.files_to_restore {
         restore::restore_file(
             repo,
@@ -391,6 +396,7 @@ fn cleanup_removed_files(
 
     let mut paths_to_remove: Vec<PathBuf> = vec![];
     let mut cannot_overwrite_entries: Vec<PathBuf> = vec![];
+    let version_store = repo.version_store()?;
     r_remove_if_not_in_target(
         repo,
         from_node,
@@ -398,6 +404,7 @@ fn cleanup_removed_files(
         &mut paths_to_remove,
         &mut cannot_overwrite_entries,
         hashes,
+        &version_store,
     )?;
 
     if !cannot_overwrite_entries.is_empty() {
@@ -426,6 +433,7 @@ fn r_remove_if_not_in_target(
     paths_to_remove: &mut Vec<PathBuf>,
     cannot_overwrite_entries: &mut Vec<PathBuf>,
     hashes: &mut CheckoutHashes,
+    version_store: &Arc<dyn VersionStore>,
 ) -> Result<(), OxenError> {
     // Iterate through the from tree, removing files not present in the target tree
     match &from_node.node {
@@ -440,6 +448,13 @@ fn r_remove_if_not_in_target(
                     if util::fs::is_modified_from_node(&full_path, file_node)? {
                         cannot_overwrite_entries.push(file_path.clone());
                     } else {
+                        // If in remote mode, save file to version store before removing
+                        if repo.is_remote_mode() {
+                            println!("HERE: {full_path:?}");
+                            version_store
+                            .store_version_from_path(&from_node.hash.to_string(), &full_path)?;
+                        }
+
                         paths_to_remove.push(full_path.clone());
                     }
                 }
@@ -475,6 +490,7 @@ fn r_remove_if_not_in_target(
                     paths_to_remove,
                     cannot_overwrite_entries,
                     hashes,
+                    version_store,
                 )?;
             }
             log::debug!(
@@ -498,6 +514,7 @@ fn r_remove_if_not_in_target(
                 paths_to_remove,
                 cannot_overwrite_entries,
                 hashes,
+                version_store,
             )?;
         }
         _ => {}
@@ -514,6 +531,7 @@ fn r_restore_missing_or_modified_files(
     progress: &mut CheckoutProgressBar,
     partial_nodes: &mut HashMap<PathBuf, PartialNode>,
     hashes: &mut CheckoutHashes,
+    version_store: &Arc<dyn VersionStore>,
     depth: i32,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
@@ -533,6 +551,16 @@ fn r_restore_missing_or_modified_files(
             hashes.seen_hashes.insert(target_node.hash);
             hashes.seen_paths.insert(file_path.clone());
             if !full_path.exists() {
+                let check = format!("{}", target_node.hash);
+
+                // If in remote mode, the file contents may not be saved locally
+                if repo.is_remote_mode() && !version_store.version_exists(&check)? {
+                    println!("full_path: {full_path:?}");
+                    println!("check: {check:?}");
+                    progress.increment_restored();
+                    return Ok(());     
+                }
+
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", file_path);
                 results.files_to_restore.push(FileToRestore {
@@ -588,6 +616,7 @@ fn r_restore_missing_or_modified_files(
 
                 if working_hash == from_hash {
                     log::debug!("Updating modified file: {:?}", file_path);
+
                     results.files_to_restore.push(FileToRestore {
                         file_node: file_node.clone(),
                         path: file_path.clone(),
@@ -632,6 +661,7 @@ fn r_restore_missing_or_modified_files(
                     progress,
                     partial_nodes,
                     hashes,
+                    version_store,
                     depth - 1,
                 )?;
             }
@@ -647,6 +677,7 @@ fn r_restore_missing_or_modified_files(
                 progress,
                 partial_nodes,
                 hashes,
+                version_store,
                 depth - 1,
             )?;
         }

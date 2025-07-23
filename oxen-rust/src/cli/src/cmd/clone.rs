@@ -55,6 +55,13 @@ impl RunCmd for CloneCmd {
                     .default_missing_value(DEFAULT_BRANCH_NAME)
                     .action(clap::ArgAction::Set),
             )
+            .arg(
+                Arg::new("remote")
+                    .long("remote")
+                    // TODO: better description
+                    .help("Clone the repo in 'remote mode'")
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -72,6 +79,7 @@ impl RunCmd for CloneCmd {
         let depth: Option<i32> = args
             .get_one::<String>("depth")
             .map(|s| s.parse().expect("Invalid depth, must be an integer"));
+        let is_remote = args.get_flag("remote");
 
         let current_dir = std::env::current_dir().expect("Could not get current working directory");
         let dst: PathBuf = match args.get_one::<String>("DESTINATION") {
@@ -111,14 +119,17 @@ impl RunCmd for CloneCmd {
                 all,
                 ..FetchOpts::new()
             },
+            is_remote,
         };
 
         let (scheme, host) = api::client::get_scheme_and_host_from_url(&opts.url)?;
 
+        // TODO: Do I need to worry about this for remote repo?
         check_remote_version_blocking(scheme.clone(), host.clone()).await?;
         check_remote_version(scheme, host).await?;
 
         repositories::clone(&opts).await?;
+        
         Ok(())
     }
 }

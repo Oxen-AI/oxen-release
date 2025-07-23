@@ -43,6 +43,8 @@ pub async fn list(
     }
 }
 
+// TODO: Find the logic in the python repo that was calling this and route it through workspaces::files instead
+/*
 pub async fn rm(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
@@ -65,6 +67,7 @@ pub async fn rm(
         }
     }
 }
+    */
 
 #[cfg(test)]
 mod tests {
