@@ -422,7 +422,7 @@ async fn fast_forward_merge(
 ) -> Result<Option<Commit>, OxenError> {
     log::debug!("FF merge!");
 
-    if base_commit.hash()?.to_u128() == merge_commit.hash()?.to_u128() {
+    if base_commit == merge_commit {
         // If the base commit is the same as the merge commit, there is nothing to merge
         return Ok(None);
     }

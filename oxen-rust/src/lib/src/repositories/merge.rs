@@ -206,7 +206,6 @@ pub fn lowest_common_ancestor_from_commits(
 #[cfg(test)]
 mod tests {
 
-    use std::hash::Hash;
     use std::path::Path;
 
     use crate::core::df::tabular;
@@ -1079,7 +1078,7 @@ mod tests {
 
             // 2. Create a new branch
             let new_branch_name = "new_branch";
-            let new_branch = repositories::branches::create_checkout(&repo, new_branch_name)?;
+            let _new_branch = repositories::branches::create_checkout(&repo, new_branch_name)?;
 
             // 4. merge main onto new branch
             let commit = repositories::merge::merge(&repo, og_branch.name).await?;
