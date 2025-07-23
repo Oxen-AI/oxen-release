@@ -67,21 +67,6 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         opts.targets
     );
 
-    // If the user specifies two files without revisions, we will compare the files on disk
-    if opts.revision_1.is_none() && opts.revision_2.is_none() && opts.path_2.is_some() {
-        log::debug!("🚀 Direct file comparison mode - comparing files on disk");
-        // If we do not have revisions set, just compare the files on disk
-        let result = diff_files(
-            opts.path_1,
-            opts.path_2.unwrap(),
-            opts.keys.clone(),
-            opts.targets.clone(),
-            vec![],
-        )?;
-        log::debug!("🚀 Direct file comparison completed successfully");
-        return Ok(vec![result]);
-    }
-
     log::debug!("🚀 Initializing repository from current directory");
     let repo = match &opts.repo_dir {
         Some(dir) => LocalRepository::from_dir(dir)?,
@@ -96,11 +81,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         opts.path_1
     );
 
-    match (
-        &opts.path_2.clone(),
-        &opts.revision_1.clone(),
-        &opts.revision_2.clone(),
-    ) {
+    match (&opts.path_2, &opts.revision_1, &opts.revision_2) {
         (Some(path_2), Some(rev_1), Some(rev_2)) => {
             log::debug!(
                 "🚀 Comparing revisions: {}:{} with {}:{}",
@@ -109,7 +90,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
                 rev_2,
                 path_2.display()
             );
-            diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, opts)
+            diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, &opts)
         }
 
         // Compare same path with two revisions
@@ -119,12 +100,12 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             &opts.path_1.clone(),
             rev_2,
             &opts.path_1.clone(),
-            opts,
+            &opts,
         ),
 
         // Compare rev_1 with current changes.
         (Some(path_2), Some(rev_1), None) => {
-            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, opts)
+            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, &opts)
         }
 
         // Compare HEAD with current changes
@@ -133,8 +114,22 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             rev_1,
             &opts.path_1.clone(),
             &opts.path_1.clone(),
-            opts,
+            &opts,
         ),
+
+        (Some(path_2), None, None) => {
+            // Direct file comparison mode
+
+            let result = diff_files(
+                opts.path_1,
+                path_2,
+                opts.keys.clone(),
+                opts.targets.clone(),
+                vec![],
+            )?;
+            log::debug!("🚀 Direct file comparison completed successfully");
+            return Ok(vec![result]);
+        }
 
         // // Compare
         // (None, Some(rev_1), None) => {
@@ -154,7 +149,7 @@ pub fn diff_uncommitted(
     rev_1: &str,
     path_1: &PathBuf,
     path_2: &PathBuf,
-    opts: DiffOpts,
+    opts: &DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!("🚀 Computing content diff for file: {:?}", path_1);
     let status_opts = StagedDataOpts::from_paths(&[path_1.clone()]);
@@ -192,7 +187,7 @@ pub fn diff_revs(
     path_1: &PathBuf,
     rev_2: &str,
     path_2: &PathBuf,
-    opts: DiffOpts,
+    opts: &DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!(
         "🚀 Comparing revisions: {}:{} with {}:{}",
@@ -1347,6 +1342,7 @@ mod tests {
                 &base_commit,
                 &head_commit,
                 PathBuf::from(""),
+                PathBuf::from(""),
                 0,
                 10,
             )?;
@@ -1390,6 +1386,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 &base_commit,
                 &head_commit,
                 PathBuf::from(""),
+                PathBuf::from(""),
                 0,
                 10,
             )?;
@@ -1429,6 +1426,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 &repo,
                 &base_commit,
                 &head_commit,
+                PathBuf::from(""),
                 PathBuf::from(""),
                 0,
                 10,
@@ -1521,6 +1519,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 &base_commit,
                 &head_commit,
                 PathBuf::from(""),
+                PathBuf::from(""),
                 0,
                 10,
             )?;
@@ -1583,22 +1582,24 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             repositories::rm(&repo, &opts)?;
             repositories::add(&repo, &repo.path).await?;
             let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-            let entries = repositories::diffs::list_diff_entries_in_dir_top_level(
+            let entries = repositories::diffs::list_diff_entries(
                 &repo,
-                PathBuf::from(""),
                 &base_commit,
                 &head_commit,
+                PathBuf::from(""),
+                PathBuf::from(""),
                 0,
                 10,
             )?;
 
             let entries = entries.entries;
 
-            let annotation_diff_entries = repositories::diffs::list_diff_entries_in_dir_top_level(
+            let annotation_diff_entries = repositories::diffs::list_diff_entries(
                 &repo,
-                PathBuf::from("annotations"),
                 &base_commit,
                 &head_commit,
+                PathBuf::from("annotations"),
+                PathBuf::from("annotations"),
                 0,
                 10,
             )?;
@@ -1655,11 +1656,12 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let opts = RmOpts::from_path(&bbox_filename);
             repositories::rm(&repo, &opts)?;
             let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-            let entries = repositories::diffs::list_diff_entries_in_dir_top_level(
+            let entries = repositories::diffs::list_diff_entries(
                 &repo,
-                PathBuf::from(""),
                 &base_commit,
                 &head_commit,
+                PathBuf::from(""),
+                PathBuf::from(""),
                 0,
                 10,
             )?;
@@ -1705,6 +1707,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 revision_1: None,
                 revision_2: None,
                 output: None,
+                page: 0,
+                page_size: 10,
             };
 
             println!("!!!!!!!!!");
