@@ -23,19 +23,16 @@ pub fn workspace() -> Scope {
                     "/changes/{path:.*}",
                     web::get().to(controllers::workspaces::changes::list),
                 )
-                /*
                 .route(
                     "/changes/{path:.*}",
                     web::delete().to(controllers::workspaces::files::delete),
                 )
-                */
-                // TODO: Naming conventions?
                 .route(
                     "/versions/{directory:.*}",
                     web::post().to(controllers::workspaces::files::add_version_files),
                 )
                 .route(
-                    "/versions*}",
+                    "/versions",
                     web::delete().to(controllers::workspaces::files::rm_files),
                 )
                 .route(

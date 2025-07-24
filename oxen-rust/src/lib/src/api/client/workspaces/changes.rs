@@ -43,8 +43,7 @@ pub async fn list(
     }
 }
 
-// TODO: Find the logic in the python repo that was calling this and route it through workspaces::files instead
-/*
+// TODO: Consolidate this with api::client::workspaces::files to have only one workspace rm API
 pub async fn rm(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
@@ -67,7 +66,6 @@ pub async fn rm(
         }
     }
 }
-    */
 
 #[cfg(test)]
 mod tests {

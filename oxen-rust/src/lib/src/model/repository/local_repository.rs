@@ -255,7 +255,7 @@ impl LocalRepository {
     }
 
     pub fn is_remote_mode(&self) -> bool {
-        self.remote_mode.is_some() && self.remote_mode.unwrap()
+        self.remote_mode.unwrap_or(false)
     }
 
     /// Save the repository configuration to disk

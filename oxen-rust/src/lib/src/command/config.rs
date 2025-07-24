@@ -48,7 +48,7 @@ pub fn set_workspace(repo: &mut LocalRepository, name: &str) -> Result<String, O
 }
 
 /// # Remove a workspace for a repository
-/// If you added a remote you no longer want, can remove it by supplying the name
+/// If you added a workspace you no longer want, can remove it by supplying the name
 pub fn delete_workspace(repo: &mut LocalRepository, name: &str) -> Result<(), OxenError> {
     repo.delete_workspace(name)?;
     repo.save()?;

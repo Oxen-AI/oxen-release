@@ -58,8 +58,7 @@ impl RunCmd for CloneCmd {
             .arg(
                 Arg::new("remote")
                     .long("remote")
-                    // TODO: better description
-                    .help("Clone the repo in 'remote mode'")
+                    .help("Clone the repo in 'remote mode', pulling the metadata but not the file contents")
                     .action(clap::ArgAction::SetTrue),
             )
     }

@@ -22,14 +22,19 @@ impl RunCmd for RemoteModeCheckoutCmd {
 
     fn args(&self) -> Command {
         Command::new(NAME)
-            .about("Checks out a branches in the repository")
+            .about("Checks out a branch in the repository")
             .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
             .arg(
                 Arg::new("create")
                     .long("create")
                     .short('b')
-                    .help("Create the branch and check it out")
-                    .exclusive(true),
+                    .value_name("BRANCH_NAME")
+                    .num_args(1),
+            )
+            .group(
+                clap::ArgGroup::new("checkout_args")
+                    .args(["name", "create"])
+                    .required(true),
             )
     }
 
@@ -68,9 +73,6 @@ impl RemoteModeCheckoutCmd {
             }
         }
 
-        // Set workspace_name to new branch name
-        repo.set_workspace(name)?;
-
         Ok(())
     }
 
@@ -108,7 +110,6 @@ impl RemoteModeCheckoutCmd {
         )
         .await?;
 
-        // TODO: Different messages here? Still colorize?
         match workspace.status.as_str() {
             "resource_created" => {
                 println!(
@@ -119,13 +120,15 @@ impl RemoteModeCheckoutCmd {
                 );
             }
             "resource_found" => {
-                // TODO: When would this ever occur?
                 let err_msg = format!(
                     "Remote-mode repo for workspace {} already exists",
                     workspace_id.clone()
                 );
                 println!("{}", err_msg.yellow().bold());
-                return Err(OxenError::basic_str("Err: Cannot "));
+                return Err(OxenError::basic_str(format!(
+                    "Error: Remote-mode repo already exists for workspace {}",
+                    workspace_id
+                )));
             }
             other => {
                 println!(

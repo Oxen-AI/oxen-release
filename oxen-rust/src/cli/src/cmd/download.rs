@@ -62,7 +62,7 @@ impl RunCmd for DownloadCmd {
             // TODO: Better help message
             Arg::new("remote")
                 .long("remote")
-                .help("(REMOTE MODE) Download from workspace instead of commit tree")
+                .help("Download files from the current workspace in remote-mode repositories. This flag can only be used within a remote-mode repository.")
                 .action(clap::ArgAction::SetTrue),
         )
     }

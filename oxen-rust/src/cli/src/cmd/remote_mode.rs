@@ -17,10 +17,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "remote_mode";
 pub struct RemoteModeCmd;
 
-// TODO: I'm not sure we should actually have a 'run' function here
-// Do we want users to access these commands outside of remote mode?
-//
-
 #[async_trait]
 impl RunCmd for RemoteModeCmd {
     fn name(&self) -> &str {
@@ -41,13 +37,15 @@ impl RunCmd for RemoteModeCmd {
         command
     }
 
+    // Note: Currently, you can't run `oxen remote-mode status` or other subcommand from the command line
+    // They're only accessible via their aliases in remote-mode repos
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         let sub_commands = Self::get_subcommands();
         if let Some((name, sub_matches)) = args.subcommand() {
             let Some(cmd) = sub_commands.get(name) else {
-                eprintln!("Unknown schema subcommand {name}");
+                eprintln!("Unknown remote mode subcommand {name}");
                 return Err(OxenError::basic_str(format!(
-                    "Unknown schema subcommand {name}"
+                    "Unknown remote mode subcommand {name}"
                 )));
             };
 

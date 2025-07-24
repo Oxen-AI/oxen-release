@@ -47,7 +47,6 @@ impl RunCmd for RemoteModeCommitCmd {
         let workspace_identifier = if repo.is_remote_mode() {
             &repo.workspace_name.clone().unwrap()
         } else {
-            // TODO: This should probably be made a new error type
             return Err(OxenError::basic_str(
                 "Error: Cannot run remote mode commands outside remote mode repo",
             ));

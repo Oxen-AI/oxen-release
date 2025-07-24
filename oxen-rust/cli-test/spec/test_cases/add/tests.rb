@@ -104,7 +104,6 @@ RSpec.describe 'add - test relative paths', type: :aruba do
     run_system_command("oxen create-remote --name #{remote_repo_name} --host localhost:3000 --scheme http")
     run_system_command("oxen config --set-remote origin http://localhost:3000/#{remote_repo_name}")
 
-    puts Dir.pwd
 
     # Push to remote
     run_system_command("oxen push origin main")
@@ -117,7 +116,7 @@ RSpec.describe 'add - test relative paths', type: :aruba do
 
      # Clone repo in remote mode
     run_system_command("oxen clone --remote http://localhost:3000/#{remote_repo_name}")
-    Dir.chdir("#{local_repo_name}")
+    Dir.chdir(local_repo_name)
 
     # Create nested directory structure
     file_path = File.join('hi.txt')

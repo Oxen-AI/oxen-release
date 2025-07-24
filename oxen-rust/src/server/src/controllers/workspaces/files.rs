@@ -141,7 +141,7 @@ pub async fn rm_files(
     req: HttpRequest,
     payload: web::Json<Vec<PathBuf>>,
 ) -> Result<HttpResponse, OxenHttpError> {
-    // Remove files from staging
+    // Stage files as removed
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -153,21 +153,27 @@ pub async fn rm_files(
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    let files_to_remove: Vec<PathBuf> = payload.into_inner();
+    let paths_to_remove: Vec<PathBuf> = payload.into_inner();
 
-    let mut err_files = vec![];
-    for file in files_to_remove {
-        match remove_file(&repo, &workspace, &file) {
+    let mut err_paths = vec![];
+    for path in paths_to_remove {
+        match remove_file(&repo, &workspace, &path) {
             Ok(_) => {}
             Err(e) => {
-                log::debug!("Failed to remove file {file:?}: {:?}", e);
-                err_files.push(file);
+                log::debug!("Failed to stage file {path:?} for removal: {:?}", e);
+                err_paths.push(path);
             }
         }
     }
 
-    // TODO: Should we do anything else with the error files?
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+    if err_paths.is_empty() {
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else {
+        Ok(HttpResponse::PartialContent().json(FilePathsResponse {
+            paths: err_paths,
+            status: StatusMessage::resource_not_found(),
+        }))
+    }
 }
 
 pub async fn rm_files_from_staged(
@@ -186,15 +192,21 @@ pub async fn rm_files_from_staged(
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    let files_to_remove: Vec<PathBuf> = payload.into_inner();
+    let paths_to_remove: Vec<PathBuf> = payload.into_inner();
 
-    let _err_files = core::v_latest::workspaces::files::remove_files_from_staged_db(
+    let err_paths = core::v_latest::workspaces::files::remove_files_from_staged_db(
         &workspace,
-        files_to_remove,
+        paths_to_remove,
     )?;
 
-    // TODO: Should we do anything else with the error files?
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    if err_paths.is_empty() {
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else {
+        Ok(HttpResponse::PartialContent().json(FilePathsResponse {
+            paths: err_paths,
+            status: StatusMessage::resource_not_found(),
+        }))
+    }
 }
 
 pub async fn validate(_req: HttpRequest, _body: String) -> Result<HttpResponse, OxenHttpError> {

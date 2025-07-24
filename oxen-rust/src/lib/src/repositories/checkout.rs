@@ -56,6 +56,14 @@ pub async fn checkout(
             .await?;
         repositories::branches::update(repo, value, &commit.id)?;
         repositories::branches::set_head(repo, value)?;
+
+        if repo.is_remote_mode() {
+            // Set workspace_name to new branch name
+            let mut mut_repo = repo.clone();
+            mut_repo.set_workspace(value)?;
+            mut_repo.save()?;
+        }
+
         Ok(None)
     }
 }
@@ -186,54 +194,6 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         }
     } else {
         Err(OxenError::could_not_find_merge_conflict(path))
-    }
-}
-
-// Checkout command for remote mode repos
-// Updates workspace_id to current branch's
-pub async fn checkout_remote_mode(
-    repo: &LocalRepository,
-    value: impl AsRef<str>,
-) -> Result<Option<Branch>, OxenError> {
-    let value = value.as_ref();
-    log::debug!("--- CHECKOUT START {} ----", value);
-    if repositories::branches::exists(repo, value)? {
-        if repositories::branches::is_checked_out(repo, value) {
-            println!("Already on branch {value}");
-            return repositories::branches::get_by_name(repo, value);
-        }
-
-        println!("Checkout branch: {value}");
-        let commit = repositories::revisions::get(repo, value)?
-            .ok_or(OxenError::revision_not_found(value.into()))?;
-        let subtree_paths = match repo.subtree_paths() {
-            Some(paths_vec) => paths_vec, // If Some(vec), take the inner vector
-            None => vec![Path::new("").to_path_buf()],
-        };
-        let depth = match repo.depth() {
-            Some(d) => d,
-            None => i32::MAX,
-        }; //TODO: make repo depth not an option so that we use depth from the repo consistently.
-        repositories::branches::checkout_subtrees_to_commit(repo, &commit, &subtree_paths, depth)
-            .await?;
-        repositories::branches::set_head(repo, value)?;
-        repositories::branches::get_by_name(repo, value)
-    } else {
-        // If we are already on the commit, do nothing
-        if repositories::branches::is_checked_out(repo, value) {
-            eprintln!("Commit already checked out {value}");
-            return Ok(None);
-        }
-
-        let commit = repositories::revisions::get(repo, value)?
-            .ok_or(OxenError::revision_not_found(value.into()))?;
-
-        let previous_head_commit = repositories::commits::head_commit_maybe(repo)?;
-        repositories::branches::checkout_commit_from_commit(repo, &commit, &previous_head_commit)
-            .await?;
-        repositories::branches::update(repo, value, &commit.id)?;
-        repositories::branches::set_head(repo, value)?;
-        Ok(None)
     }
 }
 
