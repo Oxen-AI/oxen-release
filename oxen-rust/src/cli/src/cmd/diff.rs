@@ -34,36 +34,45 @@ impl RunCmd for DiffCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         Command::new(NAME)
-            .about("Compare two files against each other or against versions. The two resource paramaters can be specified by filepath or `file:revision` syntax.")
-            .arg(Arg::new("RESOURCE1")
-                .required(false)
-                .help("First resource, in format `file` or `file:revision`")
-                .index(1)
+            .about("Show changes between commits, commit and working tree, etc")
+            .arg(
+                Arg::new("commits_or_blobs")
+                    .help("Commits, commit ranges (commit1...commit2), or blob objects to compare")
+                    .num_args(0..)
+                    .action(clap::ArgAction::Append)
+                    .value_name("commit|blob"),
             )
-            .arg(Arg::new("RESOURCE2")
-                .required(false)
-                .help("Second resource, in format `file` or `file:revision`. If left blank, RESOURCE1 will be compared with HEAD.")
-                .index(2))
-            .arg(Arg::new("keys")
-                .required(false)
-                .long("keys")
-                .short('k')
-                .help("Comma-separated list of columns to compare on. If not specified, all columns are used for keys.")
-                .use_value_delimiter(true)
-                .action(clap::ArgAction::Set))
-            .arg(Arg::new("compares")
-                .required(false)
-                .long("compares")
-                .short('c')
-                .help("Comma-separated list of columns to compare changes between. If not specified, all columns  that are not keys are compares.")
-                .use_value_delimiter(true)
-                .action(clap::ArgAction::Set))
-            .arg(Arg::new("output")
-                .required(false)
-                .long("output")
-                .short('o')
-                .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and compares) and diff.csv (rows with different compares between files.")
-                .action(clap::ArgAction::Set))
+            .arg(
+                Arg::new("paths")
+                    .help("Limit diff to specific paths")
+                    .num_args(0..)
+                    .last(true)
+                    .action(clap::ArgAction::Append)
+                    .value_name("path"),
+            )
+            .arg(
+                Arg::new("keys")
+                    .long("keys")
+                    .short('k')
+                    .help("Comma-separated list of columns to compare on")
+                    .use_value_delimiter(true)
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("compares")
+                    .long("compares")
+                    .short('c')
+                    .help("Comma-separated list of columns to compare changes between")
+                    .use_value_delimiter(true)
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("output")
+                    .long("output")
+                    .short('o')
+                    .help("Output directory path to write the results")
+                    .action(clap::ArgAction::Set),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -82,36 +91,96 @@ impl RunCmd for DiffCmd {
 
 impl DiffCmd {
     pub fn parse_args(args: &clap::ArgMatches) -> DiffOpts {
-        let head = ":HEAD".to_string();
-        println!("head: {}", head);
-        let resource1 = args.get_one::<String>("RESOURCE1").unwrap_or(&head);
-        let resource2 = args.get_one::<String>("RESOURCE2");
+        let commits_or_blobs: Vec<String> = args
+            .get_many::<String>("commits_or_blobs")
+            .map(|values| values.cloned().collect())
+            .unwrap_or_default();
 
-        let (file1, revision1) = DiffCmd::parse_file_and_revision(resource1);
-        println!("file1: {}", file1);
+        let paths: Vec<String> = args
+            .get_many::<String>("paths")
+            .map(|values| values.cloned().collect())
+            .unwrap_or_default();
 
-        let file1 = PathBuf::from(file1);
-
-        let (file2, revision2) = match resource2 {
-            Some(resource) => {
-                let (file, revision) = DiffCmd::parse_file_and_revision(resource);
-                (Some(PathBuf::from(file)), revision)
+        // Parse the different forms of diff commands
+        let (file1, file2, revision1, revision2) = match commits_or_blobs.len() {
+            0 => {
+                // oxen diff [--] [<path>…​] - compare working tree with HEAD
+                let path = if !paths.is_empty() {
+                    PathBuf::from(&paths[0])
+                } else {
+                    PathBuf::from("")
+                };
+                (path, None, Some("HEAD".to_string()), None)
             }
-            None => (None, None),
+            1 => {
+                let arg = &commits_or_blobs[0];
+                if arg.contains("...") {
+                    // oxen diff <commit>...<commit> [--] [<path>…​]
+                    let parts: Vec<&str> = arg.split("...").collect();
+                    if parts.len() == 2 {
+                        let path = if !paths.is_empty() {
+                            PathBuf::from(&paths[0])
+                        } else {
+                            PathBuf::from("")
+                        };
+                        (
+                            path.clone(),
+                            Some(path),
+                            Some(parts[0].to_string()),
+                            Some(parts[1].to_string()),
+                        )
+                    } else {
+                        // Invalid range format, treat as single commit
+                        let path = if !paths.is_empty() {
+                            PathBuf::from(&paths[0])
+                        } else {
+                            PathBuf::from("")
+                        };
+                        (path, None, Some(arg.clone()), None)
+                    }
+                } else {
+                    // oxen diff [<commit>] [--] [<path>…​] - compare commit with working tree
+                    let path = if !paths.is_empty() {
+                        PathBuf::from(&paths[0])
+                    } else {
+                        PathBuf::from("")
+                    };
+                    (path, None, Some(arg.clone()), None)
+                }
+            }
+            2 => {
+                // oxen diff blob blob - compare two blobs/files
+                let (file1_str, rev1) = DiffCmd::parse_file_and_revision(&commits_or_blobs[0]);
+                let (file2_str, rev2) = DiffCmd::parse_file_and_revision(&commits_or_blobs[1]);
+                (
+                    PathBuf::from(file1_str),
+                    Some(PathBuf::from(file2_str)),
+                    rev1,
+                    rev2,
+                )
+            }
+            _ => {
+                // Too many arguments, use first two as blobs
+                let (file1_str, rev1) = DiffCmd::parse_file_and_revision(&commits_or_blobs[0]);
+                let (file2_str, rev2) = DiffCmd::parse_file_and_revision(&commits_or_blobs[1]);
+                (
+                    PathBuf::from(file1_str),
+                    Some(PathBuf::from(file2_str)),
+                    rev1,
+                    rev2,
+                )
+            }
         };
 
-        let keys: Vec<String> = match args.get_many::<String>("keys") {
-            Some(values) => values.cloned().collect(),
-            None => Vec::new(),
-        };
+        let keys: Vec<String> = args
+            .get_many::<String>("keys")
+            .map(|values| values.cloned().collect())
+            .unwrap_or_default();
 
-        // We changed the external name to compares, need to refactor internals still
-        let maybe_targets = args.get_many::<String>("compares");
-
-        let targets = match maybe_targets {
-            Some(values) => values.cloned().collect(),
-            None => Vec::new(),
-        };
+        let targets: Vec<String> = args
+            .get_many::<String>("compares")
+            .map(|values| values.cloned().collect())
+            .unwrap_or_default();
 
         let output = args.get_one::<String>("output").map(PathBuf::from);
 
