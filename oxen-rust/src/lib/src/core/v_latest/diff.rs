@@ -85,13 +85,13 @@ pub fn list_diff_entries(
 
                 let Some(head_dir_node) = repositories::tree::get_node_by_path(
                     repo,
-                    base_commit,
+                    head_commit,
                     head_path.parent().unwrap(),
                 )?
                 else {
                     return Err(OxenError::basic_str(format!(
-                        "Failed to get base tree for commit: {}",
-                        base_commit
+                        "Failed to get head tree for commit: {}",
+                        head_commit
                     )));
                 };
 
