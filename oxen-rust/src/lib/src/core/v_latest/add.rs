@@ -1,14 +1,16 @@
 use filetime::FileTime;
+use futures::stream::{self, Stream};
 use glob::glob;
-// use jwalk::WalkDirGeneric;
+use par_stream::prelude::*;
 use parking_lot::Mutex;
-use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tokio::time::Duration;
-use walkdir::WalkDir;
+use tokio_stream::wrappers::ReceiverStream;
+use walkdir::{DirEntry, WalkDir};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
@@ -125,17 +127,10 @@ pub async fn add<T: AsRef<Path>>(
     let db_path = repo_path.join(OXEN_HIDDEN_DIR).join(STAGED_DIR);
     log::debug!("staged_db path: {db_path:?}");
 
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let staged_db: Arc<DBWithThreadMode<MultiThreaded>> =
+        Arc::new(DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?);
 
-    let _stats = add_files(
-        repo,
-        &repo_path,
-        &expanded_paths,
-        &staged_db,
-        &version_store,
-    )
-    .await?;
+    let _stats = add_files(repo, &repo_path, &expanded_paths, staged_db, &version_store).await?;
 
     Ok(())
 }
@@ -144,7 +139,7 @@ pub async fn add_files(
     repo: &LocalRepository,
     repo_path: &PathBuf,
     paths: &HashSet<PathBuf>, // We assume all paths provided are relative to the repo root
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files: {:?}", paths);
@@ -181,11 +176,12 @@ pub async fn add_files(
                 repo_path,
                 &maybe_head_commit,
                 path.clone(),
-                staged_db,
+                Arc::clone(&staged_db),
                 version_store,
                 excluded_hashes.clone(),
                 &gitignore,
-            )?;
+            )
+            .await?;
         } else if corrected_path.is_file() {
             if oxenignore::is_ignored(&corrected_path, &gitignore, corrected_path.is_dir()) {
                 continue;
@@ -196,7 +192,7 @@ pub async fn add_files(
                 repo_path,
                 &maybe_head_commit,
                 &corrected_path,
-                staged_db,
+                &Arc::clone(&staged_db),
                 version_store,
             )
             .await?;
@@ -220,7 +216,7 @@ pub async fn add_files(
             log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
-            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, staged_db)?;
+            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, &staged_db)?;
 
             // TODO: Make rm_with_staged_db return the stats of the files it removes
 
@@ -244,12 +240,12 @@ pub async fn add_files(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn add_dir_inner(
+async fn add_dir_inner(
     repo: &LocalRepository,
-    repo_path: &PathBuf,
+    repo_path: &Path,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
     version_store: &Arc<dyn VersionStore>,
     excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
@@ -264,6 +260,7 @@ fn add_dir_inner(
         excluded_hashes,
         gitignore,
     )
+    .await
 }
 
 // Skip all checks on the subdirs contained in excluded_hashes
@@ -289,20 +286,21 @@ pub async fn add_dir_except(
         repo_path,
         maybe_head_commit,
         path,
-        &staged_db,
+        Arc::new(staged_db),
         &version_store,
         excluded_hashes,
         &gitignore,
     )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn process_add_dir(
+pub async fn process_add_dir(
     repo: &LocalRepository,
-    repo_path: &PathBuf,
+    repo_path: &Path,
     maybe_head_commit: &Option<Commit>,
     version_store: &Arc<dyn VersionStore>,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
     path: PathBuf,
     excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
@@ -313,16 +311,10 @@ pub fn process_add_dir(
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
-    let path = path.clone();
-    let repo = repo.clone();
-    let maybe_head_commit = maybe_head_commit.clone();
-
     use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
     let added_file_counter = Arc::new(AtomicU64::new(0));
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
-    let progress_1_clone = Arc::clone(&progress_1);
 
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,
@@ -332,121 +324,229 @@ pub fn process_add_dir(
 
     // If any dirs are excluded, get the dir_hashes map from the head commit
     let dir_hashes = match maybe_head_commit.clone() {
-        Some(head_commit) => Some(CommitMerkleTree::dir_hashes(&repo, &head_commit)?),
+        Some(head_commit) => Some(CommitMerkleTree::dir_hashes(repo, &head_commit)?),
         None => None,
     };
+    let dir_hashes = Arc::new(dir_hashes);
+    let excluded_hashes = Arc::new(excluded_hashes.clone());
 
-    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(&repo)?
+    let conflicts: HashSet<PathBuf> = repositories::merge::list_conflicts(repo)?
         .into_iter()
         .map(|conflict| conflict.merge_entry.path)
         .collect();
 
-    let walker = WalkDir::new(&path).into_iter();
-    walker
-        .filter_entry(|e| {
-            e.file_type().is_dir()
-                && e.file_name() != OXEN_HIDDEN_DIR
-                && !oxenignore::is_ignored(e.path(), gitignore, e.file_type().is_dir())
-        })
-        .par_bridge()
-        .try_for_each(|entry| -> Result<(), OxenError> {
-            let entry = entry.unwrap();
-            let dir = entry.path();
-            let dir_hashes = dir_hashes.clone();
+    // Create a stream from the entries
+    let gitignore = Arc::new(gitignore.clone());
+    let entries_stream = walkdir_async_stream(path.clone(), Arc::clone(&gitignore));
 
-            //println!("Entry is: {dir:?}");
+    // Create Arc for the async closure
+    let maybe_head_commit = Arc::new(maybe_head_commit.clone());
+    let repo = Arc::new(repo.clone());
+    let repo_path = Arc::new(repo_path.to_path_buf());
+    let conflicts = Arc::new(conflicts);
+    let version_store = Arc::new(version_store.clone());
+    let start = Arc::new(start);
 
-            let dir_path = util::fs::path_relative_to_dir(dir, repo_path).unwrap();
+    let progress_1_clone = Arc::clone(&progress_1);
+    let byte_counter_final = Arc::clone(&byte_counter);
+    let added_file_counter_final = Arc::clone(&added_file_counter);
 
-            // Check if the dir is excluded
-            if let Some(dir_hashes) = &dir_hashes {
-                if let Some(dir_hash) = dir_hashes.get(&dir_path) {
-                    if excluded_hashes.contains(dir_hash) {
-                        //println!("Previous entry {dir:?} was excldued!");
-                        return Ok(());
-                    }
-                }
-            }
+    // parallel processing
+    entries_stream
+        .par_for_each(None, move |entry| {
+            // Clone values into the async closure
+            let maybe_head_commit = Arc::clone(&maybe_head_commit);
 
-            let dir_node =
-                maybe_load_directory(&repo, &maybe_head_commit, &dir_path, &dir_hashes).unwrap();
+            let dir_hashes = Arc::clone(&dir_hashes);
+            let excluded_hashes = Arc::clone(&excluded_hashes);
 
+            let repo = Arc::clone(&repo);
+            let repo_path = Arc::clone(&repo_path);
+            let staged_db = Arc::clone(&staged_db);
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
-            let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-            // Determine the status of the directory compared to the given dir_hashes
-            let dir_status =
-                get_dir_status_compared_to_head(&repo, &dir_path, &maybe_head_commit, &dir_hashes)?;
-            // Only explicitly add the directory to staged_db if it's a new directory.
-            // If it existed in HEAD, it will be implicitly handled if its children change.
-            if dir_status == StagedEntryStatus::Added {
-                add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
-            }
+            let conflicts = Arc::clone(&conflicts);
+            let version_store = Arc::clone(&version_store);
+            let progress_1 = Arc::clone(&progress_1);
+            let start = Arc::clone(&start);
+            let gitignore = Arc::clone(&gitignore);
 
-            let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
-
-            entries.par_iter().for_each(|dir_entry| {
-                log::debug!("Dir Entry is: {dir_entry:?}");
-                let path = dir_entry.path();
-
-                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-                let duration = start.elapsed().as_secs_f32();
-                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
-
-                progress_1.set_message(format!(
-                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                    added_file_counter_clone.load(Ordering::Relaxed),
-                    unchanged_file_counter_clone.load(Ordering::Relaxed),
-                    bytesize::ByteSize::b(total_bytes),
-                    mbps
-                ));
-
-                if path.is_dir() || oxenignore::is_ignored(&path, gitignore, path.is_dir()) {
-                    return;
-                }
-
-                let file_name = &path.file_name().unwrap_or_default().to_string_lossy();
-                let file_status =
-                    core::v_latest::add::determine_file_status(&dir_node, file_name, &path)
-                        .unwrap();
-
-                let seen_dirs_clone = Arc::clone(&seen_dirs);
-                match process_add_file(
-                    &repo,
-                    repo_path,
-                    &file_status,
-                    staged_db,
-                    &path,
-                    &seen_dirs_clone,
-                    &conflicts,
-                ) {
-                    Ok(Some(node)) => {
-                        version_store
-                            .store_version_from_path_sync(&file_status.hash.to_string(), &path)
-                            .unwrap();
-
-                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            byte_counter_clone.fetch_add(file_node.num_bytes(), Ordering::Relaxed);
-                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+            async move {
+                let process_directory = move || async move {
+                    let dir = entry.path();
+                    let dir_path = util::fs::path_relative_to_dir(dir, &*Arc::clone(&repo_path))?;
+                    // Check if the dir is excluded
+                    if let Some(dir_hashes_ref) = dir_hashes.as_ref() {
+                        if let Some(dir_hash) = dir_hashes_ref.get(&dir_path) {
+                            if excluded_hashes.contains(dir_hash) {
+                                return Ok::<(), OxenError>(());
+                            }
                         }
                     }
-                    Ok(None) => {
-                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+
+                    let dir_node =
+                        maybe_load_directory(&repo, &maybe_head_commit, &dir_path, &dir_hashes)?;
+
+                    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+                    let dir_node = Arc::new(dir_node);
+
+                    // Determine the status of the directory compared to HEAD
+                    let dir_status = get_dir_status_compared_to_head(
+                        &repo,
+                        &dir_path,
+                        &maybe_head_commit,
+                        &dir_hashes,
+                    )?;
+                    // Only explicitly add the directory to staged_db if it's a new directory.
+                    // If it existed in HEAD, it will be implicitly handled if its children change.
+                    if dir_status == StagedEntryStatus::Added {
+                        add_dir_to_staged_db(&staged_db, &dir_path, &seen_dirs)?;
                     }
-                    Err(e) => {
-                        log::error!("Error adding file: {:?}", e);
-                    }
+
+                    let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+
+                    // Convert the file entries to a stream
+                    let file_stream = stream::iter(entries);
+
+                    file_stream
+                        .par_for_each(num_cpus::get() * 2, move |dir_entry| {
+                            let repo = Arc::clone(&repo);
+                            let repo_path = Arc::clone(&repo_path);
+                            let staged_db = Arc::clone(&staged_db);
+                            let byte_counter_clone = Arc::clone(&byte_counter_clone);
+                            let added_file_counter_clone = Arc::clone(&added_file_counter_clone);
+                            let unchanged_file_counter_clone =
+                                Arc::clone(&unchanged_file_counter_clone);
+
+                            let conflicts = Arc::clone(&conflicts);
+                            let version_store = Arc::clone(&version_store);
+                            let progress_1 = Arc::clone(&progress_1);
+                            let start = Arc::clone(&start);
+                            let gitignore = Arc::clone(&gitignore);
+
+                            let seen_dirs_clone = Arc::clone(&seen_dirs);
+                            let dir_node = Arc::clone(&dir_node);
+
+                            async move {
+                                let process_file = move || async move {
+                                    log::debug!("Dir Entry is: {dir_entry:?}");
+                                    let path = dir_entry.path();
+
+                                    let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+                                    let duration = start.elapsed().as_secs_f32();
+                                    let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+
+                                    progress_1.set_message(format!(
+                                        "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                                        added_file_counter_clone.load(Ordering::Relaxed),
+                                        unchanged_file_counter_clone.load(Ordering::Relaxed),
+                                        bytesize::ByteSize::b(total_bytes),
+                                        mbps
+                                    ));
+
+                                    if path.is_dir()
+                                        || oxenignore::is_ignored(&path, &gitignore, path.is_dir())
+                                    {
+                                        return Ok::<(), OxenError>(());
+                                    }
+
+                                    let file_name =
+                                        &path.file_name().unwrap_or_default().to_string_lossy();
+                                    let file_status = core::v_latest::add::determine_file_status(
+                                        &dir_node, file_name, &path,
+                                    )?;
+
+                                    match process_add_file(
+                                        &repo,
+                                        &repo_path,
+                                        &file_status,
+                                        &staged_db,
+                                        &path,
+                                        &seen_dirs_clone,
+                                        &conflicts,
+                                    ) {
+                                        Ok(Some(node)) => {
+                                            version_store
+                                                .store_version_from_path(
+                                                    &file_status.hash.to_string(),
+                                                    &path,
+                                                )
+                                                .await?;
+
+                                            if let EMerkleTreeNode::File(file_node) =
+                                                &node.node.node
+                                            {
+                                                byte_counter_clone.fetch_add(
+                                                    file_node.num_bytes(),
+                                                    Ordering::Relaxed,
+                                                );
+                                                added_file_counter_clone
+                                                    .fetch_add(1, Ordering::Relaxed);
+                                            }
+                                        }
+                                        Ok(None) => {
+                                            unchanged_file_counter_clone
+                                                .fetch_add(1, Ordering::Relaxed);
+                                        }
+                                        Err(e) => {
+                                            log::error!("Error adding file: {:?}", e);
+                                        }
+                                    }
+
+                                    Ok::<(), OxenError>(())
+                                };
+
+                                // Capture errors in process_file
+                                if let Err(e) = process_file().await {
+                                    log::error!("Error processing file: {}", e);
+                                }
+                            }
+                        })
+                        .await;
+
+                    Ok::<(), OxenError>(())
+                };
+
+                // Capture errors in process_directory
+                if let Err(e) = process_directory().await {
+                    log::error!("Error processing directory: {}", e);
                 }
-            });
-            Ok(())
-        })?;
+            }
+        })
+        .await;
 
     progress_1_clone.finish_and_clear();
-    cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
-    cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
+    cumulative_stats.total_files = added_file_counter_final.load(Ordering::Relaxed) as usize;
+    cumulative_stats.total_bytes = byte_counter_final.load(Ordering::Relaxed);
     Ok(cumulative_stats)
+}
+
+fn walkdir_async_stream(
+    path: impl Into<PathBuf> + Send + 'static,
+    gitignore: Arc<Option<Gitignore>>,
+) -> impl Stream<Item = DirEntry> + Send + 'static {
+    let path = path.into();
+    let (tx, rx) = mpsc::channel::<DirEntry>(512);
+
+    tokio::task::spawn_blocking(move || {
+        for entry in WalkDir::new(&path)
+            .into_iter()
+            .filter_entry(|e| {
+                e.file_type().is_dir()
+                    && e.file_name() != OXEN_HIDDEN_DIR
+                    && !oxenignore::is_ignored(e.path(), &gitignore, true)
+            })
+            .filter_map(Result::ok)
+        {
+            if tx.blocking_send(entry).is_err() {
+                break; // downstream dropped
+            }
+        }
+    });
+
+    ReceiverStream::new(rx)
 }
 
 fn get_dir_status_compared_to_head(

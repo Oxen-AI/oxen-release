@@ -81,6 +81,7 @@ mockito = "1.1.0"
 mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
+par-stream = { version = "0.10.2", features = ["runtime-tokio"] }
 pluralizer = "0.4.0"
 polars = { version = "0.45.0", features = [
     "lazy",
@@ -125,6 +126,7 @@ tempfile = "3.8.0"
 threadpool = "1.8.1"
 time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1.17"
 tokio-util = "0.7.8"
 toml = "0.8.12"
 unicode-truncate = "2.0.0"
