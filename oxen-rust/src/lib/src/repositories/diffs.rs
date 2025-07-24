@@ -100,13 +100,6 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
 
     match (&opts.path_2, &opts.revision_1, &opts.revision_2) {
         (Some(path_2), Some(rev_1), Some(rev_2)) => {
-            log::debug!(
-                "🚀 Comparing revisions: {}:{} with {}:{}",
-                rev_1,
-                opts.path_1.display(),
-                rev_2,
-                path_2.display()
-            );
             diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, &opts)
         }
 
@@ -126,13 +119,17 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         }
 
         // Compare HEAD with current changes
-        (None, Some(rev_1), None) => diff_uncommitted(
-            &repo,
-            rev_1,
-            &opts.path_1.clone(),
-            &opts.path_1.clone(),
-            &opts,
-        ),
+        (None, Some(rev_1), None) => {
+            log::debug!("🥳 Comparing HEAD with uncommitted changes");
+
+            diff_uncommitted(
+                &repo,
+                rev_1,
+                &opts.path_1.clone(),
+                &opts.path_1.clone(),
+                &opts,
+            )
+        }
 
         (Some(path_2), None, None) => {
             // Direct file comparison mode
@@ -181,14 +178,14 @@ pub fn diff_uncommitted(
     for file in unstaged_files {
         log::debug!("🔥 Computing content diff for file: {:?}", file.as_path());
         let node_1 = Some(
-            repositories::entries::get_file(repo, &commit_1, path_1)?.ok_or_else(|| {
-                OxenError::ResourceNotFound(format!("{}@{}", path_1.display(), commit_1.id).into())
+            repositories::entries::get_file(repo, &commit_1, file.as_path())?.ok_or_else(|| {
+                OxenError::ResourceNotFound(format!("{}@{}", file.display(), commit_1.id).into())
             })?,
         );
         diff_result.push(diff_file_and_node(
             &repo,
-            path_2,
             &node_1.unwrap(),
+            file.as_path(),
             opts.keys.clone(),
             opts.targets.clone(),
             vec![],
@@ -430,26 +427,27 @@ pub fn diff_files(
 // TODO: merge this and diff_file_and_node
 pub fn diff_file_and_node(
     repo: &LocalRepository,
-    path_1: impl AsRef<Path>,
-    file_2: &FileNode,
+    file_node: &FileNode,
+    file_path: impl AsRef<Path>,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<DiffResult, OxenError> {
-    match file_2.data_type() {
+    match file_node.data_type() {
         EntryDataType::Tabular => {
-            let result =
-                diff_tabular_file_and_file_node(repo, path_1, file_2, keys, targets, display)?;
+            let result = diff_tabular_file_and_file_node(
+                repo, file_node, file_path, keys, targets, display,
+            )?;
             Ok(DiffResult::Tabular(result))
         }
         EntryDataType::Text => {
-            let result = diff_text_file_and_node(repo, path_1, file_2)?;
+            let result = diff_text_file_and_node(repo, file_node, file_path)?;
             Ok(result)
         }
         _ => Err(OxenError::invalid_file_type(format!(
             "Compare not supported for files, found {:?} and {:?}",
-            path_1.as_ref(),
-            file_2.hash().to_string()
+            file_path.as_ref(),
+            file_node.hash().to_string()
         ))),
     }
 }
@@ -493,16 +491,16 @@ pub fn diff_file_nodes(
 
 pub fn diff_tabular_file_and_file_node(
     repo: &LocalRepository,
+    file_node: &FileNode,
     file_1_path: impl AsRef<Path>,
-    file_2: &FileNode,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<TabularDiff, OxenError> {
-    let file_2_path = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
+    let file_node_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
 
-    let df_1 = tabular::read_df(file_1_path, DFOpts::empty())?;
-    let df_2 = tabular::read_df(file_2_path, DFOpts::empty())?;
+    let df_1 = tabular::read_df(file_node_path, DFOpts::empty())?;
+    let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
 
     let schema_1 = Schema::from_polars(&df_1.schema());
     let schema_2 = Schema::from_polars(&df_2.schema());
@@ -537,11 +535,11 @@ pub fn diff_tabular_file_nodes(
 
 pub fn diff_text_file_and_node(
     repo: &LocalRepository,
-    file_1_path: impl AsRef<Path>,
-    file_2: &FileNode,
+    file_node: &FileNode,
+    file_path: impl AsRef<Path>,
 ) -> Result<DiffResult, OxenError> {
-    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
-    let result = utf8_diff::diff(&file_1_path, &version_path_2)?;
+    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
+    let result = utf8_diff::diff(&version_path, file_path)?;
     Ok(DiffResult::Text(result))
 }
 
@@ -1602,11 +1600,17 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // 2. The addition of the README.md file
             log::debug!("Got entries: {:?}", entries);
 
-            assert_eq!(3, entries.len());
+            assert_eq!(9, entries.len());
 
             assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
             assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[2].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[2].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[3].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[4].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[5].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[6].status, DiffEntryStatus::Removed.to_string());
+            assert_eq!(entries[7].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[8].status, DiffEntryStatus::Added.to_string());
 
             // 1. Schmannotations dir added
             // 2. Train dir modified
@@ -1616,7 +1620,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 annotation_diff_entries.entries
             );
 
-            assert_eq!(2, annotation_diff_entries.entries.len());
+            assert_eq!(5, annotation_diff_entries.entries.len());
 
             assert_eq!(
                 annotation_diff_entries.entries[0].status,
@@ -1625,6 +1629,18 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             assert_eq!(
                 annotation_diff_entries.entries[1].status,
                 DiffEntryStatus::Modified.to_string()
+            );
+            assert_eq!(
+                annotation_diff_entries.entries[2].status,
+                DiffEntryStatus::Added.to_string()
+            );
+            assert_eq!(
+                annotation_diff_entries.entries[3].status,
+                DiffEntryStatus::Removed.to_string()
+            );
+            assert_eq!(
+                annotation_diff_entries.entries[4].status,
+                DiffEntryStatus::Added.to_string()
             );
 
             Ok(())
@@ -1671,8 +1687,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
 
-            // We are just listing top level entries, so only one directory
-            assert_eq!(1, entries.len());
+            // we removed a file that is in the annotations/train dir, so we should have 3 entries (bounding_box.csv)
+            assert_eq!(3, entries.len());
 
             // Dir is modified because a child was removed
             assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());

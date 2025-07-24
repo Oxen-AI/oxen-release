@@ -36,7 +36,7 @@ impl RunCmd for DiffCmd {
         Command::new(NAME)
             .about("Compare two files against each other or against versions. The two resource paramaters can be specified by filepath or `file:revision` syntax.")
             .arg(Arg::new("RESOURCE1")
-                .required(true)
+                .required(false)
                 .help("First resource, in format `file` or `file:revision`")
                 .index(1)
             )
@@ -82,10 +82,13 @@ impl RunCmd for DiffCmd {
 
 impl DiffCmd {
     pub fn parse_args(args: &clap::ArgMatches) -> DiffOpts {
-        let resource1 = args.get_one::<String>("RESOURCE1").expect("required");
+        let head = ":HEAD".to_string();
+        println!("head: {}", head);
+        let resource1 = args.get_one::<String>("RESOURCE1").unwrap_or(&head);
         let resource2 = args.get_one::<String>("RESOURCE2");
 
         let (file1, revision1) = DiffCmd::parse_file_and_revision(resource1);
+        println!("file1: {}", file1);
 
         let file1 = PathBuf::from(file1);
 
