@@ -1,12 +1,12 @@
+use bincode;
+use serde::{Deserialize, Serialize};
 use std::{
-    path::{Path, PathBuf, StripPrefixError},
     fs::{self, File},
     io::{self, BufReader, BufWriter, Read, Write},
-};
-use serde::{Serialize, Deserialize};
-use bincode; // Import bincode
+    path::{Path, PathBuf, StripPrefixError},
+}; // Import bincode
 
-use crate::chunker::{Chunker};
+use crate::chunker::Chunker;
 use crate::xhash;
 
 const METADATA_FILE_NAME: &str = "metadata.bin";
@@ -24,7 +24,7 @@ struct ArchiveEntry {
     path: PathBuf, // Relative path within the original structure
     is_dir: bool,
     chunks: Option<Vec<String>>, // Chunk hashes (only for files)
-    size: Option<u64>, // Original file size (only for files)
+    size: Option<u64>,           // Original file size (only for files)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -33,16 +33,17 @@ struct ArchiveMetadata {
     entries: Vec<ArchiveEntry>,
 }
 
-
 pub struct FixedSizeChunker {
     chunk_size: usize,
 }
 
 impl FixedSizeChunker {
-
     pub fn new(chunk_size: usize) -> Result<Self, io::Error> {
         if chunk_size == 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Chunk size cannot be zero"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Chunk size cannot be zero",
+            ));
         }
         Ok(Self { chunk_size })
     }
@@ -85,7 +86,6 @@ impl FixedSizeChunker {
                 chunk_file.flush()?;
             }
 
-
             if bytes_read < self.chunk_size {
                 break;
             }
@@ -116,23 +116,27 @@ impl FixedSizeChunker {
             let metadata = entry_path.metadata()?;
 
             if metadata.is_dir() {
-                 // Add directory entry *before* recursing into it
-                 let relative_path = entry_path
-                     .strip_prefix(base_input_path)
-                     .map_err(map_strip_prefix_error)?
-                     .to_path_buf();
+                // Add directory entry *before* recursing into it
+                let relative_path = entry_path
+                    .strip_prefix(base_input_path)
+                    .map_err(map_strip_prefix_error)?
+                    .to_path_buf();
 
-                 archive_entries.push(ArchiveEntry {
-                     path: relative_path,
-                     is_dir: true,
-                     chunks: None,
-                     size: None,
-                 });
+                archive_entries.push(ArchiveEntry {
+                    path: relative_path,
+                    is_dir: true,
+                    chunks: None,
+                    size: None,
+                });
 
-                 self.pack_directory_recursive(&entry_path, base_input_path, output_dir, archive_entries)?;
-
+                self.pack_directory_recursive(
+                    &entry_path,
+                    base_input_path,
+                    output_dir,
+                    archive_entries,
+                )?;
             } else if metadata.is_file() {
-                 self.process_file(&entry_path, base_input_path, output_dir, archive_entries)?;
+                self.process_file(&entry_path, base_input_path, output_dir, archive_entries)?;
             }
             // Ignore other types like symlinks for now
         }
@@ -160,28 +164,38 @@ impl Chunker for FixedSizeChunker {
             // The base input path for a single file is its parent directory,
             // so the relative path becomes just the filename.
             let base_input_path = input_path.parent().unwrap_or_else(|| Path::new("."));
-             self.process_file(input_path, base_input_path, output_dir, &mut archive_metadata.entries)?;
-
+            self.process_file(
+                input_path,
+                base_input_path,
+                output_dir,
+                &mut archive_metadata.entries,
+            )?;
         } else if input_metadata.is_dir() {
             // If input is a directory, add an entry for the root directory itself
             // and then recurse through its contents.
             archive_metadata.entries.push(ArchiveEntry {
-                 path: PathBuf::from("."), // Represents the root of the packed directory
-                 is_dir: true,
-                 chunks: None,
-                 size: None,
+                path: PathBuf::from("."), // Represents the root of the packed directory
+                is_dir: true,
+                chunks: None,
+                size: None,
             });
-            self.pack_directory_recursive(input_path, input_path, output_dir, &mut archive_metadata.entries)?;
+            self.pack_directory_recursive(
+                input_path,
+                input_path,
+                output_dir,
+                &mut archive_metadata.entries,
+            )?;
         } else {
-             return Err(io::Error::new(io::ErrorKind::InvalidInput, "Input path must be a file or a directory"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Input path must be a file or a directory",
+            ));
         }
-
 
         let metadata_path = output_dir.join(METADATA_FILE_NAME);
         let metadata_file = BufWriter::new(File::create(&metadata_path)?);
 
-        bincode::serialize_into(metadata_file, &archive_metadata)
-            .map_err(map_bincode_error)?;
+        bincode::serialize_into(metadata_file, &archive_metadata).map_err(map_bincode_error)?;
 
         Ok(output_dir.to_path_buf())
     }
@@ -190,8 +204,8 @@ impl Chunker for FixedSizeChunker {
         let metadata_path = chunk_dir.join(METADATA_FILE_NAME);
         let metadata_file = BufReader::new(File::open(&metadata_path)?);
 
-        let archive_metadata: ArchiveMetadata = bincode::deserialize_from(metadata_file)
-            .map_err(map_bincode_error)?;
+        let archive_metadata: ArchiveMetadata =
+            bincode::deserialize_from(metadata_file).map_err(map_bincode_error)?;
 
         // Ensure the base output directory exists
         fs::create_dir_all(output_dir)?;
@@ -205,7 +219,7 @@ impl Chunker for FixedSizeChunker {
             } else {
                 // Ensure parent directory exists for the file
                 if let Some(parent) = entry_output_path.parent() {
-                     fs::create_dir_all(parent)?;
+                    fs::create_dir_all(parent)?;
                 }
 
                 let mut output_file = BufWriter::new(File::create(&entry_output_path)?);
@@ -215,39 +229,41 @@ impl Chunker for FixedSizeChunker {
                         let chunk_path = chunk_dir.join(chunk_filename);
 
                         if !chunk_path.exists() {
-                             return Err(io::Error::new(
-                                 io::ErrorKind::NotFound,
-                                 format!("Chunk file not found during unpack: {}", chunk_path.display())
-                             ));
+                            return Err(io::Error::new(
+                                io::ErrorKind::NotFound,
+                                format!(
+                                    "Chunk file not found during unpack: {}",
+                                    chunk_path.display()
+                                ),
+                            ));
                         }
                         let mut chunk_file = BufReader::new(File::open(&chunk_path)?);
                         io::copy(&mut chunk_file, &mut output_file)?;
                     }
                 }
-                 output_file.flush()?;
+                output_file.flush()?;
 
-                 // Optional: Verify unpacked size
-                 if let Some(original_size) = entry.size {
-                     let unpacked_size = fs::metadata(&entry_output_path)?.len();
-                     if unpacked_size != original_size {
-                          // This could be a warning or an error depending on desired strictness
-                          // For simplicity, let's just allow it, but in a real system,
-                          // you might want to log this or return an error.
-                         // println!("Warning: Unpacked size mismatch for {}", entry_output_path.display());
-                     }
-                 }
-
+                // Optional: Verify unpacked size
+                if let Some(original_size) = entry.size {
+                    let unpacked_size = fs::metadata(&entry_output_path)?.len();
+                    if unpacked_size != original_size {
+                        // This could be a warning or an error depending on desired strictness
+                        // For simplicity, let's just allow it, but in a real system,
+                        // you might want to log this or return an error.
+                        // println!("Warning: Unpacked size mismatch for {}", entry_output_path.display());
+                    }
+                }
             }
         }
 
         Ok(output_dir.to_path_buf())
     }
 
-    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>{
+    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error> {
         let metadata_path = input_dir.join(METADATA_FILE_NAME);
         let metadata_file = fs::File::open(&metadata_path)?;
-        let archive_metadata: ArchiveMetadata = bincode::deserialize_from(metadata_file)
-            .map_err(map_bincode_error)?;
+        let archive_metadata: ArchiveMetadata =
+            bincode::deserialize_from(metadata_file).map_err(map_bincode_error)?;
 
         let mut all_chunks: Vec<String> = Vec::new();
 
@@ -262,5 +278,4 @@ impl Chunker for FixedSizeChunker {
 
         Ok(all_chunks)
     }
-
 }

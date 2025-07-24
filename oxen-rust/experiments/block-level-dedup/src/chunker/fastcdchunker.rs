@@ -1,7 +1,11 @@
-use std::{fs, io::{self, BufWriter, Write}, path::{Path, PathBuf}};
+use crate::{chunker::Chunker, xhash};
 use fastcdc::v2020;
 use serde::{Deserialize, Serialize};
-use crate::{chunker::Chunker, xhash};
+use std::{
+    fs,
+    io::{self, BufWriter, Write},
+    path::{Path, PathBuf},
+};
 
 #[derive(Serialize, Deserialize)]
 struct ChunkMetadata {
@@ -50,7 +54,6 @@ impl FastCDChunker {
         let avg_chunk_size = chunk_size as u32;
         let max_chunk_size = chunk_size as u32 * 2;
 
-
         Ok(Self {
             _chunk_size: chunk_size,
             _concurrency: concurrency,
@@ -59,7 +62,6 @@ impl FastCDChunker {
             max_chunk_size,
         })
     }
-
 }
 
 impl Chunker for FastCDChunker {
@@ -99,7 +101,6 @@ impl Chunker for FastCDChunker {
 
             chunk_filenames.push(chunk_filename.clone());
 
-        
             let mut chunk_file = BufWriter::new(fs::File::create(&chunk_path)?);
             chunk_file.write_all(chunk_data_slice)?;
             chunk_file.flush()?;
@@ -115,8 +116,7 @@ impl Chunker for FastCDChunker {
         let metadata_path = output_dir.join(METADATA_FILE_NAME);
         let metadata_file = BufWriter::new(fs::File::create(&metadata_path)?);
 
-        bincode::serialize_into(metadata_file, &metadata)
-            .map_err(map_bincode_error)?;
+        bincode::serialize_into(metadata_file, &metadata).map_err(map_bincode_error)?;
 
         Ok(output_dir.to_path_buf())
     }
@@ -126,11 +126,11 @@ impl Chunker for FastCDChunker {
         Ok(output_path.to_path_buf())
     }
 
-    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>{
+    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error> {
         let metadata_path = input_dir.join(METADATA_FILE_NAME);
         let metadata_file = fs::File::open(&metadata_path)?;
-        let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
-            .map_err(map_bincode_error)?;
+        let metadata: ChunkMetadata =
+            bincode::deserialize_from(metadata_file).map_err(map_bincode_error)?;
 
         Ok(metadata.chunks)
     }

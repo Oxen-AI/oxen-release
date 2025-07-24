@@ -1,14 +1,14 @@
 use std::{
     fs::{self, File},
-    io::{self, Read, Write, BufReader, BufWriter, Seek, SeekFrom},
-    path::{Path, PathBuf}
+    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
+    path::{Path, PathBuf},
 };
 
-use serde::{Deserialize, Serialize};
-use std::error::Error;
-use crate::chunker::{Chunker, map_bincode_error};
+use crate::chunker::{map_bincode_error, Chunker};
 use crate::xhash;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::error::Error;
 
 const METADATA_FILE_NAME: &str = "metadata.bin";
 
@@ -75,7 +75,6 @@ impl FixedSizeMultiChunker {
             self.chunk_size
         );
 
-
         let tasks: Vec<(usize, u64, usize)> = (0..num_chunks)
             .map(|i| {
                 let start = i * chunk_size_u64;
@@ -117,19 +116,19 @@ impl FixedSizeMultiChunker {
         for result in results {
             match result {
                 Ok(pair) => indexed_hashes.push(pair),
-                Err(e) => return Err(Box::new(e)), 
+                Err(e) => return Err(Box::new(e)),
             }
         }
 
         indexed_hashes.sort_by_key(|k| k.0);
 
-        let chunk_filenames: Vec<String> = indexed_hashes.into_iter().map(|(_, hash)| hash).collect();
+        let chunk_filenames: Vec<String> =
+            indexed_hashes.into_iter().map(|(_, hash)| hash).collect();
 
         println!("Rayon-based file splitting and hashing complete.");
         Ok(chunk_filenames)
     }
 }
-
 
 impl Chunker for FixedSizeMultiChunker {
     fn name(&self) -> &'static str {
@@ -139,9 +138,17 @@ impl Chunker for FixedSizeMultiChunker {
     fn pack(&self, input_file: &Path, output_dir: &Path) -> Result<PathBuf, io::Error> {
         fs::create_dir_all(output_dir)?;
 
-        let original_file_metadata = fs::metadata(input_file)
-            .map_err(|e| io::Error::new(io::ErrorKind::NotFound, format!("Failed to read input file metadata '{}': {}", input_file.display(), e)))?;
-        
+        let original_file_metadata = fs::metadata(input_file).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "Failed to read input file metadata '{}': {}",
+                    input_file.display(),
+                    e
+                ),
+            )
+        })?;
+
         let original_file_size = original_file_metadata.len();
         let original_file_name = input_file
             .file_name()
@@ -149,8 +156,14 @@ impl Chunker for FixedSizeMultiChunker {
             .to_string_lossy()
             .into_owned();
 
-        let chunk_filenames = self.split_and_hash_chunks_rayon(input_file, output_dir)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Chunking process failed: {}", e)))?;
+        let chunk_filenames = self
+            .split_and_hash_chunks_rayon(input_file, output_dir)
+            .map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Chunking process failed: {}", e),
+                )
+            })?;
 
         let metadata = ChunkMetadata {
             original_file_name,
@@ -160,13 +173,23 @@ impl Chunker for FixedSizeMultiChunker {
         };
 
         let metadata_path = output_dir.join(METADATA_FILE_NAME);
-        let metadata_file = BufWriter::new(
-            File::create(&metadata_path)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to create metadata file '{}': {}", metadata_path.display(), e)))?
-        );
+        let metadata_file = BufWriter::new(File::create(&metadata_path).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "Failed to create metadata file '{}': {}",
+                    metadata_path.display(),
+                    e
+                ),
+            )
+        })?);
 
-        bincode::serialize_into(metadata_file, &metadata)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Metadata serialization error: {}", e)))?;
+        bincode::serialize_into(metadata_file, &metadata).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Metadata serialization error: {}", e),
+            )
+        })?;
 
         Ok(output_dir.to_path_buf())
     }
@@ -175,8 +198,8 @@ impl Chunker for FixedSizeMultiChunker {
         let metadata_path = chunk_dir.join(METADATA_FILE_NAME);
         let metadata_file = BufReader::new(File::open(&metadata_path)?);
 
-        let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
-            .map_err(map_bincode_error)?;
+        let metadata: ChunkMetadata =
+            bincode::deserialize_from(metadata_file).map_err(map_bincode_error)?;
 
         let mut output_file = BufWriter::new(File::create(output_path)?);
 
@@ -184,10 +207,13 @@ impl Chunker for FixedSizeMultiChunker {
             let chunk_path = chunk_dir.join(chunk_filename);
 
             if !chunk_path.exists() {
-                 return Err(io::Error::new(
-                     io::ErrorKind::NotFound,
-                     format!("Chunk file not found during unpack: {}", chunk_path.display())
-                 ));
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "Chunk file not found during unpack: {}",
+                        chunk_path.display()
+                    ),
+                ));
             }
             let mut chunk_file = BufReader::new(File::open(&chunk_path)?);
             io::copy(&mut chunk_file, &mut output_file)?;
@@ -198,12 +224,11 @@ impl Chunker for FixedSizeMultiChunker {
         Ok(output_path.to_path_buf())
     }
 
-    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error>{
-
+    fn get_chunk_hashes(&self, input_dir: &Path) -> Result<Vec<String>, io::Error> {
         let metadata_path = input_dir.join(METADATA_FILE_NAME);
         let metadata_file = fs::File::open(&metadata_path)?;
-        let metadata: ChunkMetadata = bincode::deserialize_from(metadata_file)
-            .map_err(map_bincode_error)?;
+        let metadata: ChunkMetadata =
+            bincode::deserialize_from(metadata_file).map_err(map_bincode_error)?;
 
         Ok(metadata.chunks)
     }
