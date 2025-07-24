@@ -114,21 +114,16 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         ),
 
         // Compare rev_1 with current changes.
-        (Some(path_2), Some(rev_1), None) => {
-            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, &opts)
-        }
+        // (Some(path_2), Some(rev_1), None) => {
+
+        //     // diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), path_2, &opts)
+        // }
 
         // Compare HEAD with current changes
         (None, Some(rev_1), None) => {
             log::debug!("🥳 Comparing HEAD with uncommitted changes");
 
-            diff_uncommitted(
-                &repo,
-                rev_1,
-                &opts.path_1.clone(),
-                &opts.path_1.clone(),
-                &opts,
-            )
+            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts)
         }
 
         (Some(path_2), None, None) => {
@@ -142,7 +137,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
                 vec![],
             )?;
             log::debug!("🚀 Direct file comparison completed successfully");
-            return Ok(vec![result]);
+            Ok(vec![result])
         }
 
         // // Compare
@@ -161,30 +156,24 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
 pub fn diff_uncommitted(
     repo: &LocalRepository,
     rev_1: &str,
-    path_1: &PathBuf,
-    path_2: &PathBuf,
+    path_1: &Path,
     opts: &DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
-    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
-    let status_opts = StagedDataOpts::from_paths(&[path_1.clone()]);
-    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
+    let status_opts = StagedDataOpts::from_paths(&[path_1.to_path_buf()]);
     let status = repositories::status::status_from_opts(repo, &status_opts)?;
-    log::debug!("🚀 Computing content diff for file: {:?}", path_1);
     let unstaged_files = status.unstaged_files();
-    let commit_1 = repositories::revisions::get(&repo, rev_1)?
+    let commit_1 = repositories::revisions::get(repo, rev_1)?
         .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
     let mut diff_result = Vec::new();
 
     for file in unstaged_files {
-        log::debug!("🔥 Computing content diff for file: {:?}", file.as_path());
-        let node_1 = Some(
+        let node_1 =
             repositories::entries::get_file(repo, &commit_1, file.as_path())?.ok_or_else(|| {
                 OxenError::ResourceNotFound(format!("{}@{}", file.display(), commit_1.id).into())
-            })?,
-        );
+            })?;
         diff_result.push(diff_file_and_node(
-            &repo,
-            &node_1.unwrap(),
+            repo,
+            &node_1,
             file.as_path(),
             opts.keys.clone(),
             opts.targets.clone(),
@@ -198,9 +187,9 @@ pub fn diff_uncommitted(
 pub fn diff_revs(
     repo: &LocalRepository,
     rev_1: &str,
-    path_1: &PathBuf,
+    path_1: &Path,
     rev_2: &str,
-    path_2: &PathBuf,
+    path_2: &Path,
     opts: &DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!(
@@ -210,12 +199,12 @@ pub fn diff_revs(
         rev_2,
         path_2.display()
     );
-    let commit_1 = repositories::revisions::get(&repo, rev_1)?
+    let commit_1 = repositories::revisions::get(repo, rev_1)?
         .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
-    let commit_2 = repositories::revisions::get(&repo, rev_2)?
+    let commit_2 = repositories::revisions::get(repo, rev_2)?
         .ok_or_else(|| OxenError::revision_not_found(rev_2.to_string().into()))?;
 
-    let dir_diff = diff_path(&repo, &commit_1, &commit_2, path_1.clone(), path_2, &opts)?;
+    let dir_diff = diff_path(repo, &commit_1, &commit_2, path_1, path_2, opts)?;
     log::debug!(
         "Directory structural diff found {} entries",
         dir_diff.entries.len()
@@ -236,7 +225,7 @@ pub fn diff_revs(
             };
 
             match diff_commits(
-                &repo,
+                repo,
                 cpath_1,
                 cpath_2,
                 opts.keys.clone(),
@@ -334,11 +323,9 @@ pub fn diff_commits(
 
             Ok(compare_result)
         }
-        _ => {
-            return Err(OxenError::basic_str(
-                "Could not find one or both of the files to compare",
-            ));
-        }
+        _ => Err(OxenError::basic_str(
+            "Could not find one or both of the files to compare",
+        )),
     }
 }
 

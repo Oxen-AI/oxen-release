@@ -13,7 +13,7 @@ use crate::repositories;
 pub fn get(repo: &LocalRepository, revision: impl AsRef<str>) -> Result<Option<Commit>, OxenError> {
     let revision = revision.as_ref();
     if revision == "HEAD" {
-        let commit = repositories::commits::head_commit(&repo)?;
+        let commit = repositories::commits::head_commit(repo)?;
         return Ok(Some(commit));
     }
 
