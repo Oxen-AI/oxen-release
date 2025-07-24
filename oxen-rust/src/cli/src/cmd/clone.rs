@@ -129,7 +129,7 @@ impl RunCmd for CloneCmd {
         check_remote_version(scheme, host).await?;
 
         repositories::clone(&opts).await?;
-        
+
         Ok(())
     }
 }

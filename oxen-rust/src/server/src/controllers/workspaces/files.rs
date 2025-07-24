@@ -6,13 +6,13 @@ use actix_files::NamedFile;
 
 use liboxen::core;
 use liboxen::model::metadata::metadata_image::ImgResize;
+use liboxen::model::LocalRepository;
 use liboxen::model::Workspace;
 use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::{
     ErrorFilesResponse, FilePathsResponse, FileWithHash, StatusMessage, StatusMessageDescription,
 };
-use liboxen::model::LocalRepository;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -59,7 +59,6 @@ pub async fn get(
 
 pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    println!("S");
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
@@ -159,7 +158,7 @@ pub async fn rm_files(
     let mut err_files = vec![];
     for file in files_to_remove {
         match remove_file(&repo, &workspace, &file) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => {
                 log::debug!("Failed to remove file {file:?}: {:?}", e);
                 err_files.push(file);
@@ -167,7 +166,7 @@ pub async fn rm_files(
         }
     }
 
-    // TODO: Should we do anything else with the error files? 
+    // TODO: Should we do anything else with the error files?
     Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
@@ -189,13 +188,13 @@ pub async fn rm_files_from_staged(
 
     let files_to_remove: Vec<PathBuf> = payload.into_inner();
 
-    let err_files = core::v_latest::workspaces::files::remove_files_from_staged_db(
+    let _err_files = core::v_latest::workspaces::files::remove_files_from_staged_db(
         &workspace,
         files_to_remove,
     )?;
 
-    // TODO: Should we do anything else with the error files? 
-     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    // TODO: Should we do anything else with the error files?
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
 
 pub async fn validate(_req: HttpRequest, _body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -271,13 +270,17 @@ pub async fn save_parts(
     Ok(files)
 }
 
-fn remove_file(repo: &LocalRepository, workspace: &Workspace, path: &PathBuf) -> Result<HttpResponse, OxenHttpError> {
+fn remove_file(
+    repo: &LocalRepository,
+    workspace: &Workspace,
+    path: &PathBuf,
+) -> Result<HttpResponse, OxenHttpError> {
     // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
     if util::fs::is_tabular(path) {
-        repositories::workspaces::data_frames::restore(&repo, &workspace, path)?;
+        repositories::workspaces::data_frames::restore(repo, workspace, path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-    } else if repositories::workspaces::files::exists(&workspace, path)? {
-        repositories::workspaces::files::delete(&workspace, path)?;
+    } else if repositories::workspaces::files::exists(workspace, path)? {
+        repositories::workspaces::files::delete(workspace, path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
     } else {
         Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))

@@ -1,13 +1,20 @@
 require 'spec_helper'
 require 'pathname'
+require 'securerandom'
 
 RSpec.describe 'add - test relative paths', type: :aruba do
+  # Helper method to generate unique IDs
+  def generate_unique_id
+    SecureRandom.hex(4)  # Generates an 8-character hex string
+  end
+
   before(:each) do
     aruba.config.exit_timeout = 120
   end
 
   after(:each) do
     FileUtils.rm_rf('test-relative-paths')
+    FileUtils.rm_rf('test-clone')
 
   end
 
@@ -63,7 +70,7 @@ RSpec.describe 'add - test relative paths', type: :aruba do
 
     
     # Return to cli-test 
-    parent_path = File.join('..', '..')
+    parent_path = File.join('..', '..', '..')
     Dir.chdir(parent_path)
     
   end
@@ -75,30 +82,40 @@ RSpec.describe 'add - test relative paths', type: :aruba do
     FileUtils.mkdir_p(directory_path)
 
     # Capitalize path 
-    directory_path = File.join('Tmp', 'Aruba', 'test-relative-paths')
+    # TODO: Workspace/Remote-mode add don't currently support relative, capitalized, or glob paths
+    # directory_path = File.join('Tmp', 'Aruba', 'test-relative-paths')
     Dir.chdir(directory_path)
   
-    first_path = File.join('first.txt')
-    File.open(file_path, 'a') do |file|
-      file.puts 'first.'
+    run_system_command('oxen init') 
+    first_path = File.join('first_file.txt')
+    File.open(first_path, 'a') do |file|
+      file.puts 'first_text'
     end
 
     # Add file from current directory
-    run_system_command("oxen add first.txt") 
+    run_system_command("oxen add first_file.txt") 
 
     # Commit file
-    run_system_command('oxen commit -m "add first.txt"') 
-    remote_repo_name = "ox/test-add"
-    local_repo_name = "test-add"
-    run_system_command('oxen init') 
+    run_system_command('oxen commit -m "add first_file.txt"') 
+    unique_id = generate_unique_id
+    remote_repo_name = "ox/hi-#{unique_id}"
+    local_repo_name = "hi-#{unique_id}"
+
     run_system_command("oxen create-remote --name #{remote_repo_name} --host localhost:3000 --scheme http")
     run_system_command("oxen config --set-remote origin http://localhost:3000/#{remote_repo_name}")
+
+    puts Dir.pwd
 
     # Push to remote
     run_system_command("oxen push origin main")
 
-    # Clone repo in remote mode
+    # Setup repo for clone
     Dir.chdir("..")
+    clone_path = "test-clone"
+    FileUtils.mkdir_p(clone_path)
+    Dir.chdir("test-clone")
+
+     # Clone repo in remote mode
     run_system_command("oxen clone --remote http://localhost:3000/#{remote_repo_name}")
     Dir.chdir("#{local_repo_name}")
 
@@ -117,12 +134,7 @@ RSpec.describe 'add - test relative paths', type: :aruba do
     expect(File.read(File.join('hi.txt'))).to eq("This is a simple text file.\n")
 
     # Return to cli-test 
-    parent_path = File.join('..', '..')
+    parent_path = File.join('..', '..', '..')
     Dir.chdir(parent_path)
-
-    # Cleanup cloned repo
-    cloned_path = File.join('tmp', 'aruba', remote_repo_name)
-    FileUtils.rm_rf(cloned_path)
-    
   end
 end

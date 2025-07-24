@@ -7,9 +7,6 @@ pub use checkout::RemoteModeCheckoutCmd;
 pub mod commit;
 pub use commit::RemoteModeCommitCmd;
 
-pub mod list;
-pub use list::RemoteModeListCmd;
-
 use async_trait::async_trait;
 use clap::Command;
 
@@ -68,7 +65,7 @@ impl RemoteModeCmd {
         let commands: Vec<Box<dyn RunCmd>> = vec![
             Box::new(RemoteModeCheckoutCmd),
             Box::new(RemoteModeCommitCmd),
-            Box::new(RemoteModeListCmd),
+            // Box::new(RemoteModeListCmd),
             Box::new(RemoteModeStatusCmd),
         ];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
@@ -78,8 +75,10 @@ impl RemoteModeCmd {
         runners
     }
 
-    pub async fn run_subcommands(name: &str, sub_matches: &clap::ArgMatches) -> Result<(), OxenError> {
-
+    pub async fn run_subcommands(
+        name: &str,
+        sub_matches: &clap::ArgMatches,
+    ) -> Result<(), OxenError> {
         let sub_commands = Self::get_subcommands();
         let Some(cmd) = sub_commands.get(name) else {
             return Err(OxenError::basic_str(format!(

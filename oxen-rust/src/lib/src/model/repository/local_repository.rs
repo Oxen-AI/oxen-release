@@ -26,7 +26,7 @@ pub struct LocalRepository {
     pub depth: Option<i32>, // If the user clones with a depth, we store the depth here so that we know we don't have the full tree
     pub remote_mode: Option<bool>, // Flag for remote repositories
     pub workspace_name: Option<String>, // ID of the associated workspace for remote mode
-    workspaces: Option<Vec<String>>, // List of workspaces for remote mode 
+    workspaces: Option<Vec<String>>, // List of workspaces for remote mode
 
     // Skip this field during serialization/deserialization
     #[serde(skip)]
@@ -276,7 +276,7 @@ impl LocalRepository {
             min_version: self.min_version.clone(),
             vnode_size: self.vnode_size,
             storage,
-            remote_mode: self.remote_mode.clone(),
+            remote_mode: self.remote_mode,
             workspace_name: self.workspace_name.clone(),
             workspaces: self.workspaces.clone(),
         };
@@ -349,36 +349,40 @@ impl LocalRepository {
 
     pub fn add_workspace(&mut self, name: impl AsRef<str>) {
         let workspace_name = name.as_ref();
-        let workspaces = self.workspaces.clone().unwrap_or(vec![]);
+        let workspaces = self.workspaces.clone().unwrap_or_default();
 
-        let mut new_workspaces = vec![];  
-        for i in 0..workspaces.len() {
-            new_workspaces.push(workspaces[i].clone());
+        let mut new_workspaces = vec![];
+        for workspace in workspaces {
+            new_workspaces.push(workspace.clone());
         }
 
         new_workspaces.push(workspace_name.to_string());
-        self.workspaces = Some(new_workspaces); 
-    
+        self.workspaces = Some(new_workspaces);
     }
 
     pub fn delete_workspace(&mut self, name: impl AsRef<str>) -> Result<(), OxenError> {
         let name = name.as_ref();
 
-        if !self.workspaces.is_some() {
-            return Err(OxenError::basic_str(format!("Error: Cannot delete workspace {:?} as it does not exist", name)));
+        if self.workspaces.is_none() {
+            return Err(OxenError::basic_str(format!(
+                "Error: Cannot delete workspace {:?} as it does not exist",
+                name
+            )));
         }
 
         // TODO: Allow deletions when workspace_name isn't set?
         // This seems like an impossible scenario...
         if self.workspace_name.is_some() && name == self.workspace_name.as_ref().unwrap() {
-            return Err(OxenError::basic_str("Error: Cannot delete current workspace"))
+            return Err(OxenError::basic_str(
+                "Error: Cannot delete current workspace",
+            ));
         }
 
         let mut new_workspaces: Vec<String> = vec![];
         let prev_workspaces = self.workspaces.clone().unwrap();
-        for i in 0..prev_workspaces.len() {
-            if prev_workspaces[i] != name {
-                new_workspaces.push(prev_workspaces[i].clone());
+        for workspace in prev_workspaces {
+            if workspace != name {
+                new_workspaces.push(workspace.clone());
             }
         }
         self.workspaces = Some(new_workspaces);
@@ -387,7 +391,12 @@ impl LocalRepository {
 
     pub fn has_workspace(&self, name: impl AsRef<str>) -> bool {
         let workspace_name = name.as_ref();
-        self.workspaces.is_some() && self.workspaces.clone().unwrap().contains(&workspace_name.to_string())
+        self.workspaces.is_some()
+            && self
+                .workspaces
+                .clone()
+                .unwrap()
+                .contains(&workspace_name.to_string())
     }
 
     // TODO: Right ow, this doesn't need to return a result
@@ -395,10 +404,16 @@ impl LocalRepository {
     pub fn set_workspace(&mut self, name: impl AsRef<str>) -> Result<(), OxenError> {
         let workspace_name = name.as_ref();
 
-        if let Some(ws_name) = self.workspaces.clone().unwrap().iter().find(|ws| ws.starts_with(&format!("{}: ", workspace_name))) {
+        if let Some(ws_name) = self
+            .workspaces
+            .clone()
+            .unwrap()
+            .iter()
+            .find(|ws| ws.starts_with(&format!("{}: ", workspace_name)))
+        {
             self.workspace_name = Some(ws_name.to_string());
         } else {
-            self.add_workspace(workspace_name.to_string());
+            self.add_workspace(workspace_name);
             self.workspace_name = Some(workspace_name.to_string());
         }
         Ok(())
@@ -420,8 +435,7 @@ impl LocalRepository {
 mod tests {
     use crate::error::OxenError;
     use crate::model::{LocalRepository, RepoNew};
-    use crate::opts::CloneOpts;
-    use crate::{api, repositories, test};
+    use crate::test;
     use std::path::PathBuf;
 
     #[test]
@@ -433,8 +447,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_get_set_has_remote() -> Result<(), OxenError> {
+    #[test]
+    fn test_get_set_has_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|mut local_repo| {
             let url = "http://0.0.0.0:3000/repositories/OxenData";
             let remote_name = "origin";
@@ -447,8 +461,8 @@ mod tests {
         })
     }
 
-    #[tokio::test]
-    async fn test_delete_remote() -> Result<(), OxenError> {
+    #[test]
+    fn test_delete_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|mut local_repo| {
             let origin_url = "http://0.0.0.0:3000/repositories/OxenData";
             let origin_name = "origin";
@@ -467,46 +481,44 @@ mod tests {
         })
     }
 
+    // Note: Adding/Setting/Deleting workspaces does not currently require the repo to be in remote mode
+    // Do we want to require that?
     #[test]
     fn test_add_workspace() -> Result<(), OxenError> {
-
         let repo_path = PathBuf::from("repo_path");
-        let mut repo = LocalRepository::from_dir(repo_path)?;
+        let mut repo = LocalRepository::new(repo_path)?;
 
         let sample_name = "sample";
-        repo.add_workspace(&sample_name);
-        
-        let result = repo.has_workspace(&sample_name);
+        repo.add_workspace(sample_name);
+
+        let result = repo.has_workspace(sample_name);
         assert!(result);
 
-
-        repo.set_workspace(&sample_name)?;
+        repo.set_workspace(sample_name)?;
         assert_eq!(repo.workspace_name, Some(sample_name.to_string()));
 
         Ok(())
     }
 
-    
     #[test]
     fn test_delete_workspace() -> Result<(), OxenError> {
-
         let repo_path = PathBuf::from("repo_path");
-        let mut repo = LocalRepository::from_dir(repo_path)?;
+        let mut repo = LocalRepository::new(repo_path)?;
 
         let sample_name = "sample";
-        repo.add_workspace(&sample_name);
-        repo.set_workspace(&sample_name)?;
+        repo.add_workspace(sample_name);
+        repo.set_workspace(sample_name)?;
 
         // Cannot delete current workspace_name
-        let result = repo.delete_workspace(&sample_name);
+        let result = repo.delete_workspace(sample_name);
         assert!(result.is_err());
 
         let sample_2 = "second";
-        repo.add_workspace(&sample_2);
-        repo.set_workspace(&sample_2)?;
+        repo.add_workspace(sample_2);
+        repo.set_workspace(sample_2)?;
 
         // Can delete previous workspace_name
-        repo.delete_workspace(&sample_name)?;
+        repo.delete_workspace(sample_name)?;
 
         Ok(())
     }

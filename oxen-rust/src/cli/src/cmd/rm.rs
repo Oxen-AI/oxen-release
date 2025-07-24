@@ -35,8 +35,7 @@ pub fn rm_args() -> Command {
                 .help("Recursively removes directory.")
                 .action(clap::ArgAction::SetTrue),
         )
-}  
-
+}
 
 #[async_trait]
 impl RunCmd for RmCmd {

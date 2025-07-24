@@ -10,7 +10,7 @@ use rocksdb::{IteratorMode, DB};
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::core::db;
 use crate::error::OxenError;
-use crate::model::{Branch, LocalRepository, Commit};
+use crate::model::{Branch, Commit, LocalRepository};
 use crate::repositories;
 use crate::util;
 
@@ -202,11 +202,17 @@ impl RefManager {
                         if maybe_head_ref.is_some() {
                             let ref_name = String::from(key_str);
                             let id = String::from(value);
-                            let ref_commit = repositories::commits::get_commit_or_head(&self.repository, Some(ref_name.clone()))?;
-                            branch_names.push((Branch {
-                                name: ref_name,
-                                commit_id: id,
-                            }, ref_commit ));
+                            let ref_commit = repositories::commits::get_commit_or_head(
+                                &self.repository,
+                                Some(ref_name.clone()),
+                            )?;
+                            branch_names.push((
+                                Branch {
+                                    name: ref_name,
+                                    commit_id: id,
+                                },
+                                ref_commit,
+                            ));
                         }
                     }
                     _ => {
@@ -221,7 +227,6 @@ impl RefManager {
         }
         Ok(branch_names)
     }
-
 
     // Write operations (from RefWriter)
 

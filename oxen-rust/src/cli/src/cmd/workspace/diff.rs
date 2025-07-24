@@ -34,19 +34,17 @@ impl RunCmd for WorkspaceDiffCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        println!("Debug");
         let opts = DiffCmd::parse_args(args);
         let repo = LocalRepository::from_current_dir()?;
 
         let workspace_id = if repo.is_remote_mode() {
             Some(repo.workspace_name.clone().unwrap())
+        } else if let Some(id) = args.get_one::<String>("workspace-id") {
+            Some(id.to_string())
         } else {
-            if let Some(id) = args.get_one::<String>("workspace-id") {
-                Some(id.to_string())
-            } else {
-                return Err(OxenError::basic_str("Must supply a workspace id."));
-            }
-        }.unwrap();
+            return Err(OxenError::basic_str("Must supply a workspace id."));
+        }
+        .unwrap();
 
         check_repo_migration_needed(&repo)?;
 

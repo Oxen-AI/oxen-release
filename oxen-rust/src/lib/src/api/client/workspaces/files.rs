@@ -478,7 +478,6 @@ pub async fn rm_files(
     workspace_id: impl AsRef<str>,
     paths: Vec<PathBuf>,
 ) -> Result<(), OxenError> {
-
     let workspace_id = workspace_id.as_ref();
 
     let uri = format!("/workspaces/{workspace_id}/versions");
@@ -496,7 +495,6 @@ pub async fn rm_files_from_staged(
     workspace_id: impl AsRef<str>,
     paths: Vec<PathBuf>,
 ) -> Result<(), OxenError> {
-
     let workspace_id = workspace_id.as_ref();
 
     let uri = format!("/workspaces/{workspace_id}/staged");
@@ -1382,7 +1380,6 @@ mod tests {
         .await
     }
 
-    
     // Test adding and committing file in remote mode in empty repo
     /*
 
@@ -1402,7 +1399,4 @@ mod tests {
         Copy/Paste the above, except with populated repo. Add multiple files before committing, track which are modified when
 
     */
-    
 }
-
-

@@ -168,7 +168,7 @@ pub fn status_from_opts_and_staged_data(
             .push(conflict.to_entry_merge_conflict());
     }
 
-   Ok(())
+    Ok(())
 }
 
 pub fn status_from_dir_entries(
@@ -631,7 +631,6 @@ fn find_changes(
     Ok((untracked, modified, removed))
 }
 
-
 fn find_local_changes(
     repo: &LocalRepository,
     opts: &StagedDataOpts,
@@ -643,7 +642,6 @@ fn find_local_changes(
 ) -> Result<(UntrackedData, HashSet<PathBuf>, HashSet<PathBuf>), OxenError> {
     let search_node_path = search_node_path.as_ref();
     let full_path = repo.path.join(search_node_path);
-
 
     log::debug!(
         "find_changes search_node_path: {:?} full_path: {:?}",
@@ -912,11 +910,10 @@ fn is_staged(
     Ok(false)
 }
 
-fn in_staged_data(
-    path: &Path,
-    staged_data: &StagedData,
-) -> Result<bool, OxenError> {
-    if staged_data.staged_files.contains_key(path) || staged_data.staged_dirs.paths.contains_key(path)  {
+fn in_staged_data(path: &Path, staged_data: &StagedData) -> Result<bool, OxenError> {
+    if staged_data.staged_files.contains_key(path)
+        || staged_data.staged_dirs.paths.contains_key(path)
+    {
         return Ok(true);
     }
     Ok(false)

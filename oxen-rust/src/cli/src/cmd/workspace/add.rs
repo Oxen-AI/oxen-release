@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use clap::{Arg, ArgMatches, ArgGroup, Command};
+use clap::{Arg, ArgGroup, ArgMatches, Command};
 
 use liboxen::{api, core::oxenignore, error::OxenError, model::LocalRepository};
 
@@ -18,12 +18,8 @@ impl RunCmd for WorkspaceAddCmd {
     fn args(&self) -> Command {
         // If in remote repo, workspace id can be found from the config instead
         let is_remote_repo = match LocalRepository::from_current_dir() {
-            Ok(repo) => {
-                repo.is_remote_mode()
-            }
-            Err(_) => {
-                false
-            }
+            Ok(repo) => repo.is_remote_mode(),
+            Err(_) => false,
         };
 
         add_args()
@@ -43,7 +39,7 @@ impl RunCmd for WorkspaceAddCmd {
             )
             .group(
                 ArgGroup::new("workspace-identifier")
-                    .args(&["workspace-id", "workspace-name"])
+                    .args(["workspace-id", "workspace-name"])
                     .required(!is_remote_repo),
             )
             .arg(
@@ -63,7 +59,6 @@ impl RunCmd for WorkspaceAddCmd {
             .expect("Must supply files")
             .map(PathBuf::from)
             .collect();
-
 
         let repository = LocalRepository::from_current_dir()?;
 

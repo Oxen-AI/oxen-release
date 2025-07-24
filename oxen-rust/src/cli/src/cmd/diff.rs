@@ -12,7 +12,7 @@ use liboxen::error::OxenError;
 use liboxen::model::diff::tabular_diff::TabularDiffMods;
 use liboxen::model::diff::{ChangeType, DiffResult, TextDiff};
 use liboxen::opts::DiffOpts;
-use liboxen::{util, repositories};
+use liboxen::{repositories, util};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "diff";
@@ -70,7 +70,6 @@ impl RunCmd for DiffCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let opts = DiffCmd::parse_args(args);
-
 
         // If the user specifies two files without revisions, we will compare the files on disk
         let repo_dir = util::fs::get_repo_root_from_current_dir().ok_or(OxenError::basic_str(

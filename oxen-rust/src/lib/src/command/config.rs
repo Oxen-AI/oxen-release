@@ -14,7 +14,9 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<R
     }
 
     if repo.is_remote_mode() {
-        return Err(OxenError::basic_str("Error: Cannot change remote of remote-mode repos"));
+        return Err(OxenError::basic_str(
+            "Error: Cannot change remote of remote-mode repos",
+        ));
     }
 
     let remote = repo.set_remote(name, url);
@@ -25,9 +27,10 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<R
 /// # Remove the remote for a repository
 /// If you added a remote you no longer want, can remove it by supplying the name
 pub fn delete_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenError> {
-
     if repo.is_remote_mode() {
-        return Err(OxenError::basic_str("Error: Cannot delete from remote of remote-mode repos"));
+        return Err(OxenError::basic_str(
+            "Error: Cannot delete from remote of remote-mode repos",
+        ));
     }
 
     repo.delete_remote(name);
@@ -35,12 +38,10 @@ pub fn delete_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
     Ok(())
 }
 
-
 /// # Set the workspace for a remote-mode repository
 /// Tells the CLI which workspace to upload the changes to
 pub fn set_workspace(repo: &mut LocalRepository, name: &str) -> Result<String, OxenError> {
-
-    repo.set_workspace(name.to_string())?;
+    repo.set_workspace(name)?;
     repo.save()?;
 
     Ok(name.to_string())
@@ -53,5 +54,3 @@ pub fn delete_workspace(repo: &mut LocalRepository, name: &str) -> Result<(), Ox
     repo.save()?;
     Ok(())
 }
-
-

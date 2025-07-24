@@ -22,12 +22,8 @@ impl RunCmd for WorkspaceCommitCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         let is_remote_repo = match LocalRepository::from_current_dir() {
-            Ok(repo) => {
-                repo.is_remote_mode()
-            }
-            Err(_) => {
-                false
-            }
+            Ok(repo) => repo.is_remote_mode(),
+            Err(_) => false,
         };
 
         Command::new(NAME)

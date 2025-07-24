@@ -29,7 +29,7 @@ pub mod restore;
 pub use restore::WorkspaceRestoreCmd;
 
 pub mod rm;
-pub use rm::WorkspaceRmCmd; 
+pub use rm::WorkspaceRmCmd;
 
 pub mod status;
 pub use status::WorkspaceStatusCmd;
@@ -107,8 +107,10 @@ impl WorkspaceCmd {
         runners
     }
 
-    pub async fn run_subcommands(name: &str, sub_matches: &clap::ArgMatches) -> Result<(), OxenError> {
-
+    pub async fn run_subcommands(
+        name: &str,
+        sub_matches: &clap::ArgMatches,
+    ) -> Result<(), OxenError> {
         let sub_commands = Self::get_subcommands();
         let Some(cmd) = sub_commands.get(name) else {
             return Err(OxenError::basic_str(format!(

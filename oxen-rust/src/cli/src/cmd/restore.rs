@@ -43,7 +43,7 @@ impl RunCmd for RestoreCmd {
     }
 
     fn args(&self) -> Command {
-       restore_args()
+        restore_args()
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
@@ -67,11 +67,12 @@ impl RunCmd for RestoreCmd {
 
         let repository = LocalRepository::from_current_dir()?;
 
-         // Don't allow in remote mode
+        // Don't allow in remote mode
         if repository.is_remote_mode() {
-            return Err(OxenError::basic_str("Error: Command 'oxen restore' not implemented for remote mode repositories"));
+            return Err(OxenError::basic_str(
+                "Error: Command 'oxen restore' not implemented for remote mode repositories",
+            ));
         }
-
 
         check_repo_migration_needed(&repository)?;
         repositories::restore::restore(&repository, opts).await?;

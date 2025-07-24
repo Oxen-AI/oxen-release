@@ -32,7 +32,7 @@ impl RunCmd for RemoteModeStatusCmd {
     }
     fn args(&self) -> Command {
         Command::new(NAME)
-        // TODO: Update about message
+            // TODO: Update about message
             .about("See at what files are ready to be added or committed")
             .arg(
                 Arg::new("skip")
@@ -61,23 +61,23 @@ impl RunCmd for RemoteModeStatusCmd {
             .arg(
                 Arg::new("paths")
                     .num_args(0..)
-                    .trailing_var_arg(true)  // Collect all remaining args as paths
-                    .help("Specify one or more paths")
+                    .trailing_var_arg(true) // Collect all remaining args as paths
+                    .help("Specify one or more paths"),
             )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-
         let repo_dir = util::fs::get_repo_root_from_current_dir()
             .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
         let repository = LocalRepository::from_dir(&repo_dir)?;
-
 
         let workspace_id = if repository.is_remote_mode() {
             repository.workspace_name.clone().unwrap()
         } else {
             // TODO: New error type
-            return Err(OxenError::basic_str("New err type, can't do rmeote mode command outside remote mode repo"));
+            return Err(OxenError::basic_str(
+                "New err type, can't do rmeote mode command outside remote mode repo",
+            ));
         };
 
         let skip = args
@@ -104,7 +104,7 @@ impl RunCmd for RemoteModeStatusCmd {
             skip,
             limit,
             print_all,
-            is_remote: is_remote.clone(),
+            is_remote,
             ignore: None,
         };
 
@@ -117,9 +117,9 @@ impl RunCmd for RemoteModeStatusCmd {
         let directory = PathBuf::from(".");
 
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
-        let mut repo_status = Self::status(&remote_repo, &workspace_id, &directory, &remote_opts).await?;
+        let mut repo_status =
+            Self::status(&remote_repo, &workspace_id, &directory, &remote_opts).await?;
 
-        
         // Get local status
         is_remote = false;
         let local_opts = StagedDataOpts {
@@ -133,7 +133,7 @@ impl RunCmd for RemoteModeStatusCmd {
 
         status_from_opts_and_staged_data(&repository, &local_opts, &mut repo_status)?;
 
-        // Custom status message clarifying 'untracked' dirs and files 
+        // Custom status message clarifying 'untracked' dirs and files
         repo_status.print_with_params(&local_opts);
 
         Ok(())

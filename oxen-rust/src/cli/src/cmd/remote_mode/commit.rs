@@ -48,7 +48,9 @@ impl RunCmd for RemoteModeCommitCmd {
             &repo.workspace_name.clone().unwrap()
         } else {
             // TODO: This should probably be made a new error type
-            return Err(OxenError::basic_str("Error: Cannot run remote mode commands outside remote mode repo"));
+            return Err(OxenError::basic_str(
+                "Error: Cannot run remote mode commands outside remote mode repo",
+            ));
         };
 
         check_repo_migration_needed(&repo)?;
@@ -72,7 +74,7 @@ impl RunCmd for RemoteModeCommitCmd {
             .await?;
 
         // Update local tree
-        let fetch_opts = FetchOpts::from_branch(&branch.name); 
+        let fetch_opts = FetchOpts::from_branch(&branch.name);
         repositories::fetch::fetch_branch(&repo, &fetch_opts).await?;
 
         Ok(())

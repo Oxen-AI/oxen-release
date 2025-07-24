@@ -3,10 +3,10 @@ use clap::{Arg, Command};
 
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::{repositories, api};
+use liboxen::{api, repositories};
 
-use std::path::Path;
 use colored::Colorize;
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::cmd::RunCmd;
@@ -21,7 +21,6 @@ impl RunCmd for RemoteModeCheckoutCmd {
     }
 
     fn args(&self) -> Command {
-
         Command::new(NAME)
             .about("Checks out a branches in the repository")
             .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
@@ -30,12 +29,11 @@ impl RunCmd for RemoteModeCheckoutCmd {
                     .long("create")
                     .short('b')
                     .help("Create the branch and check it out")
-                    .exclusive(true)
+                    .exclusive(true),
             )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
-
         let mut repo = LocalRepository::from_current_dir()?;
 
         // Parse Args
@@ -49,10 +47,12 @@ impl RunCmd for RemoteModeCheckoutCmd {
     }
 }
 
-
 impl RemoteModeCheckoutCmd {
-    pub async fn checkout_remote_mode(&self, repo: &mut LocalRepository, name: &str) -> Result<(), OxenError> {
-        
+    pub async fn checkout_remote_mode(
+        &self,
+        repo: &mut LocalRepository,
+        name: &str,
+    ) -> Result<(), OxenError> {
         match repositories::checkout(repo, name).await {
             Ok(Some(branch)) => {
                 println!("Checked out branch: {}", branch.name);
@@ -70,7 +70,7 @@ impl RemoteModeCheckoutCmd {
 
         // Set workspace_name to new branch name
         repo.set_workspace(name)?;
-        
+
         Ok(())
     }
 
@@ -79,7 +79,6 @@ impl RemoteModeCheckoutCmd {
         repo: &mut LocalRepository,
         branch_name: &str,
     ) -> Result<(), OxenError> {
-
         repositories::branches::create_checkout(repo, branch_name)?;
 
         // Generate a random workspace id
@@ -88,14 +87,16 @@ impl RemoteModeCheckoutCmd {
         // Use the branch name as the workspace name
         let workspace_name = format!("{}: {workspace_id}", branch_name);
         let Some(remote) = repo.remote() else {
-            return Err(OxenError::basic_str("Error: local repository has no remote"));
+            return Err(OxenError::basic_str(
+                "Error: local repository has no remote",
+            ));
         };
         let remote_repo = api::client::repositories::get_by_remote(&remote)
             .await?
-            .ok_or_else(|| OxenError::remote_repo_not_found(&branch_name))?;
+            .ok_or_else(|| OxenError::remote_repo_not_found(branch_name))?;
 
         // Create the remote branch from the commit
-        let head_commit = repositories::commits::head_commit(&repo)?;
+        let head_commit = repositories::commits::head_commit(repo)?;
         api::client::branches::create_from_commit(&remote_repo, &branch_name, &head_commit).await?;
 
         let workspace = api::client::workspaces::create_with_path(
@@ -110,13 +111,21 @@ impl RemoteModeCheckoutCmd {
         // TODO: Different messages here? Still colorize?
         match workspace.status.as_str() {
             "resource_created" => {
-                println!("{}", "Remote-mode repository initialized successfully!".green().bold());
+                println!(
+                    "{}",
+                    "Remote-mode repository initialized successfully!"
+                        .green()
+                        .bold()
+                );
             }
             "resource_found" => {
-                // TODO: When would this ever occur? 
-                let err_msg = format!("Remote-mode repo for workspace {} already exists", workspace_id.clone());
+                // TODO: When would this ever occur?
+                let err_msg = format!(
+                    "Remote-mode repo for workspace {} already exists",
+                    workspace_id.clone()
+                );
                 println!("{}", err_msg.yellow().bold());
-                return Err(OxenError::basic_str("Err: Cannot "))
+                return Err(OxenError::basic_str("Err: Cannot "));
             }
             other => {
                 println!(
@@ -135,4 +144,3 @@ impl RemoteModeCheckoutCmd {
         Ok(())
     }
 }
-

@@ -32,11 +32,12 @@ impl RunCmd for MergeCmd {
 
         let repository = LocalRepository::from_current_dir()?;
 
-         // Don't allow in remote mode
+        // Don't allow in remote mode
         if repository.is_remote_mode() {
-            return Err(OxenError::basic_str("Error: Command 'oxen merge' not implemented for remote mode repositories"));
+            return Err(OxenError::basic_str(
+                "Error: Command 'oxen merge' not implemented for remote mode repositories",
+            ));
         }
-
 
         // Return immediately if the merge branch is the current branch
         let current = if let Some(current) = repositories::branches::current_branch(&repository)? {

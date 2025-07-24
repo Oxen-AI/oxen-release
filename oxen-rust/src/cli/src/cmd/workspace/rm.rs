@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use clap::{Arg, ArgMatches, ArgGroup, Command};
+use clap::{Arg, ArgGroup, ArgMatches, Command};
 
 use liboxen::{api, core::oxenignore, error::OxenError, model::LocalRepository};
 
@@ -18,12 +18,8 @@ impl RunCmd for WorkspaceRmCmd {
     fn args(&self) -> Command {
         // If in remote repo, workspace id can be found from the config instead
         let is_remote_repo = match LocalRepository::from_current_dir() {
-            Ok(repo) => {
-                repo.is_remote_mode()
-            }
-            Err(_) => {
-                false
-            }
+            Ok(repo) => repo.is_remote_mode(),
+            Err(_) => false,
         };
 
         rm_args()
@@ -43,7 +39,7 @@ impl RunCmd for WorkspaceRmCmd {
             )
             .group(
                 ArgGroup::new("workspace-identifier")
-                    .args(&["workspace-id", "workspace-name"])
+                    .args(["workspace-id", "workspace-name"])
                     .required(!is_remote_repo),
             )
             .arg(
@@ -70,10 +66,9 @@ impl RunCmd for WorkspaceRmCmd {
             .map(PathBuf::from)
             .collect();
 
-
         let repository = LocalRepository::from_current_dir()?;
 
-        let (workspace_identifier, directory) = if repository.is_remote_mode() {
+        let (workspace_identifier, _directory) = if repository.is_remote_mode() {
             (&repository.workspace_name.clone().unwrap(), ".")
         } else {
             let directory = args.get_one::<String>("directory").unwrap(); // safe to unwrap because we have a default value
@@ -112,13 +107,16 @@ impl RunCmd for WorkspaceRmCmd {
 
         // TODO: Use directory
         if args.get_flag("staged") {
-            api::client::workspaces::files::rm_files_from_staged(&remote_repo, workspace_identifier, paths)
-                .await?;
+            api::client::workspaces::files::rm_files_from_staged(
+                &remote_repo,
+                workspace_identifier,
+                paths,
+            )
+            .await?;
         } else {
             api::client::workspaces::files::rm_files(&remote_repo, workspace_identifier, paths)
                 .await?;
         }
-
 
         Ok(())
     }

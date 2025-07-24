@@ -9,7 +9,6 @@ use std::sync::Arc;
 use std::time;
 
 use crate::api::client;
-use reqwest::Client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
 use crate::core::db::merkle_node::merkle_node_db::node_db_prefix;
 use crate::core::progress::push_progress::PushProgress;
@@ -24,6 +23,7 @@ use crate::view::tree::merkle_hashes::NodeHashes;
 use crate::view::tree::MerkleHashResponse;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
+use reqwest::Client;
 
 /// Check if a node exists in the remote repository merkle tree by hash
 pub async fn has_node(
@@ -369,9 +369,9 @@ async fn node_download_request(
 ) -> Result<(), OxenError> {
     let url = url.as_ref();
 
-let client = Client::builder()
-    .timeout(time::Duration::from_secs(12000))  
-    .build()?;
+    let client = Client::builder()
+        .timeout(time::Duration::from_secs(12000))
+        .build()?;
     log::debug!("node_download_request about to send request {}", url);
     let res = client.get(url).send().await?;
     let res = client::handle_non_json_response(url, res).await?;
