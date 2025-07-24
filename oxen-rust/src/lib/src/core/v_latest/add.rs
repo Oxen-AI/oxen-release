@@ -216,7 +216,7 @@ pub async fn add_files(
             log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             let mut opts = RmOpts::from_path(path);
             opts.recursive = true;
-            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, &*staged_db)?;
+            core::v_latest::rm::rm_with_staged_db(paths, repo, &opts, &staged_db)?;
 
             // TODO: Make rm_with_staged_db return the stats of the files it removes
 
