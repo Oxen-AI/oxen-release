@@ -120,11 +120,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         // }
 
         // Compare HEAD with current changes
-        (None, Some(rev_1), None) => {
-            log::debug!("🥳 Comparing HEAD with uncommitted changes");
-
-            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts)
-        }
+        (None, Some(rev_1), None) => diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts),
 
         (Some(path_2), None, None) => {
             // Direct file comparison mode
@@ -140,16 +136,9 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             Ok(vec![result])
         }
 
-        // // Compare
-        // (None, Some(rev_1), None) => {
-
-        // }
-        _ => {
-            log::debug!("🚀 Single file comparison mode");
-            Err(OxenError::basic_str(
-                "Single file comparison mode not supported",
-            ))
-        }
+        _ => Err(OxenError::basic_str(
+            "Single file comparison mode not supported",
+        )),
     }
 }
 
@@ -193,7 +182,7 @@ pub fn diff_revs(
     opts: &DiffOpts,
 ) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!(
-        "🚀 Comparing revisions: {}:{} with {}:{}",
+        "Comparing revisions: {}:{} with {}:{}",
         rev_1,
         path_1.display(),
         rev_2,
