@@ -38,7 +38,7 @@ pub async fn add(
     }
 
     let mut expanded_paths = Vec::new();
-    for path in paths {
+    for path in paths.clone() {
         if path.is_dir() {
             for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
                 if entry.file_type().is_file() {
@@ -52,6 +52,11 @@ pub async fn add(
 
     // TODO: add a progress bar
     upload_multiple_files(remote_repo, workspace_id, directory, expanded_paths).await?;
+
+    println!(
+        "🐂 oxen successfully added paths {paths:?} to workspace {}",
+        workspace_id
+    );
 
     Ok(())
 }
@@ -456,7 +461,7 @@ pub async fn add_many(
 }
 
 // TODO: Merge this with 'rm_files'
-// This is a temporary solution to preserve compatibility with the python repo
+// Splitting them is a temporary solution to preserve compatibility with the python repo
 pub async fn rm(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
@@ -487,6 +492,11 @@ pub async fn rm_files(
     let response = client.delete(&url).json(&paths).send().await?;
     let body = client::parse_json_body(&url, response).await?;
     log::debug!("rm_files got body: {}", body);
+
+    println!(
+        "🐂 oxen successfully staged paths {paths:?} as removed for workspace {}",
+        workspace_id
+    );
     Ok(())
 }
 

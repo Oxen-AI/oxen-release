@@ -133,7 +133,7 @@ impl RunCmd for RemoteModeStatusCmd {
 
         status_from_opts_and_staged_data(&repository, &local_opts, &mut repo_status)?;
 
-        // Custom status message clarifying 'untracked' dirs and files
+        // TODO: Make custom status message clarifying 'untracked' dirs and files
         repo_status.print_with_params(&local_opts);
 
         Ok(())
@@ -175,7 +175,18 @@ impl RemoteModeStatusCmd {
                     StagedEntry::empty_status(StagedEntryStatus::Modified),
                 )
             }));
-        status.staged_files = added_files.into_iter().chain(added_mods).collect();
+        let staged_removals: HashMap<PathBuf, StagedEntry> =
+            HashMap::from_iter(remote_status.removed_files.entries.into_iter().map(|e| {
+                (
+                    PathBuf::from(e.filename()),
+                    StagedEntry::empty_status(StagedEntryStatus::Removed),
+                )
+            }));
+        status.staged_files = added_files
+            .into_iter()
+            .chain(added_mods)
+            .chain(staged_removals)
+            .collect();
 
         Ok(status)
     }

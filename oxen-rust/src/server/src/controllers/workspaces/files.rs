@@ -5,6 +5,7 @@ use crate::params::{app_data, path_param};
 use actix_files::NamedFile;
 
 use liboxen::core;
+use liboxen::core::staged::with_staged_db_manager;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::LocalRepository;
 use liboxen::model::Workspace;
@@ -134,19 +135,54 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    remove_file(&repo, &workspace, &path)
+    remove_file_from_workspace(&repo, &workspace, &path)
 }
 
+// Stage files as removed
 pub async fn rm_files(
     req: HttpRequest,
     payload: web::Json<Vec<PathBuf>>,
 ) -> Result<HttpResponse, OxenHttpError> {
-    // Stage files as removed
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+        return Ok(HttpResponse::NotFound()
+            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
+    };
+
+    let paths_to_remove: Vec<PathBuf> = payload.into_inner();
+
+    let mut ret_files = vec![];
+
+    for path in paths_to_remove {
+        log::debug!("rm_files path {:?}", path);
+        let path = repositories::workspaces::files::rm(&workspace, &path).await?;
+        log::debug!("rm ✅ success! staged file {:?} as removed", path);
+        ret_files.push(path);
+    }
+
+    Ok(HttpResponse::Ok().json(FilePathsResponse {
+        status: StatusMessage::resource_deleted(),
+        paths: ret_files,
+    }))
+}
+
+// Remove files from staging
+pub async fn rm_files_from_staged(
+    req: HttpRequest,
+    payload: web::Json<Vec<PathBuf>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let version_store = repo.version_store()?;
+    log::debug!("rm_files_from_staged found repo {repo_name}, workspace_id {workspace_id}");
 
     let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
         return Ok(HttpResponse::NotFound()
@@ -156,48 +192,30 @@ pub async fn rm_files(
     let paths_to_remove: Vec<PathBuf> = payload.into_inner();
 
     let mut err_paths = vec![];
+
     for path in paths_to_remove {
-        match remove_file(&repo, &workspace, &path) {
-            Ok(_) => {}
+        let Some(staged_entry) =
+            with_staged_db_manager(&workspace.workspace_repo, |staged_db_manager| {
+                // Try to read existing staged entry
+                staged_db_manager.read_from_staged_db(&path)
+            })?
+        else {
+            continue;
+        };
+
+        match remove_file_from_workspace(&repo, &workspace, &path) {
+            Ok(_) => {
+                // Also remove file contents from version store
+                version_store
+                    .delete_version(&staged_entry.node.hash.to_string())
+                    .await?;
+            }
             Err(e) => {
                 log::debug!("Failed to stage file {path:?} for removal: {:?}", e);
                 err_paths.push(path);
             }
         }
     }
-
-    if err_paths.is_empty() {
-        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-    } else {
-        Ok(HttpResponse::PartialContent().json(FilePathsResponse {
-            paths: err_paths,
-            status: StatusMessage::resource_not_found(),
-        }))
-    }
-}
-
-pub async fn rm_files_from_staged(
-    req: HttpRequest,
-    payload: web::Json<Vec<PathBuf>>,
-) -> Result<HttpResponse, OxenHttpError> {
-    // Remove files from staging
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let workspace_id = path_param(&req, "workspace_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
-        return Ok(HttpResponse::NotFound()
-            .json(StatusMessageDescription::workspace_not_found(workspace_id)));
-    };
-
-    let paths_to_remove: Vec<PathBuf> = payload.into_inner();
-
-    let err_paths = core::v_latest::workspaces::files::remove_files_from_staged_db(
-        &workspace,
-        paths_to_remove,
-    )?;
 
     if err_paths.is_empty() {
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
@@ -282,7 +300,7 @@ pub async fn save_parts(
     Ok(files)
 }
 
-fn remove_file(
+fn remove_file_from_workspace(
     repo: &LocalRepository,
     workspace: &Workspace,
     path: &PathBuf,
