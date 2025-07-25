@@ -16,6 +16,7 @@ use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "diff";
+pub const DIFFSEP: &str = "..";
 pub struct DiffCmd;
 
 fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
@@ -37,10 +38,10 @@ impl RunCmd for DiffCmd {
             .about("Show changes between commits, commit and working tree, etc")
             .arg(
                 Arg::new("commits_or_blobs")
-                    .help("Commits, commit ranges (commit1...commit2), or blob objects to compare")
+                    .help(format!("Commits, commit ranges (commit1{DIFFSEP}commit2)"))
                     .num_args(0..)
                     .action(clap::ArgAction::Append)
-                    .value_name("commit|blob"),
+                    .value_name("revision | commit | branch"),
             )
             .arg(
                 Arg::new("paths")
@@ -114,9 +115,9 @@ impl DiffCmd {
             }
             1 => {
                 let arg = &commits_or_blobs[0];
-                if arg.contains("...") {
-                    // oxen diff <commit>...<commit> [--] [<path>…​]
-                    let parts: Vec<&str> = arg.split("...").collect();
+                if arg.contains(DIFFSEP) {
+                    // oxen diff <commit>..<commit> [--] [<path>…​]
+                    let parts: Vec<&str> = arg.split(DIFFSEP).collect();
                     if parts.len() == 2 {
                         let path = if !paths.is_empty() {
                             PathBuf::from(&paths[0])
@@ -136,38 +137,44 @@ impl DiffCmd {
                         } else {
                             PathBuf::from("")
                         };
-                        (path, None, Some(arg.clone()), None)
+                        (path, None, Some(arg.clone()), Some("HEAD".to_string()))
                     }
                 } else {
-                    // oxen diff [<commit>] [--] [<path>…​] - compare commit with working tree
+                    // oxen diff <revision1> [--] [<path>…​] - compare revision1 with HEAD
                     let path = if !paths.is_empty() {
                         PathBuf::from(&paths[0])
                     } else {
                         PathBuf::from("")
                     };
-                    (path, None, Some(arg.clone()), None)
+                    (path, None, Some("HEAD".to_string()), Some(arg.clone()))
                 }
             }
             2 => {
-                // oxen diff blob blob - compare two blobs/files
-                let (file1_str, rev1) = DiffCmd::parse_file_and_revision(&commits_or_blobs[0]);
-                let (file2_str, rev2) = DiffCmd::parse_file_and_revision(&commits_or_blobs[1]);
+                // oxen diff revision1 revision2 [--] [<path>…​] - compare two revisions
+                let path = if !paths.is_empty() {
+                    PathBuf::from(&paths[0])
+                } else {
+                    PathBuf::from("")
+                };
                 (
-                    PathBuf::from(file1_str),
-                    Some(PathBuf::from(file2_str)),
-                    rev1,
-                    rev2,
+                    path.clone(),
+                    Some(path),
+                    Some(commits_or_blobs[0].clone()),
+                    Some(commits_or_blobs[1].clone()),
                 )
             }
             _ => {
-                // Too many arguments, use first two as blobs
-                let (file1_str, rev1) = DiffCmd::parse_file_and_revision(&commits_or_blobs[0]);
-                let (file2_str, rev2) = DiffCmd::parse_file_and_revision(&commits_or_blobs[1]);
+                // Too many arguments, use first two as revisions
+                let path = if !paths.is_empty() {
+                    PathBuf::from(&paths[0])
+                } else {
+                    PathBuf::from("")
+                };
                 (
-                    PathBuf::from(file1_str),
-                    Some(PathBuf::from(file2_str)),
-                    rev1,
-                    rev2,
+                    path.clone(),
+                    Some(path),
+                    Some(commits_or_blobs[0].clone()),
+                    Some(commits_or_blobs[1].clone()),
                 )
             }
         };
@@ -194,15 +201,6 @@ impl DiffCmd {
             revision_2: revision2,
             output,
             ..Default::default()
-        }
-    }
-
-    fn parse_file_and_revision(file_revision: &str) -> (String, Option<String>) {
-        let parts: Vec<&str> = file_revision.split(':').collect();
-        if parts.len() == 2 {
-            (parts[0].to_string(), Some(parts[1].to_string()))
-        } else {
-            (parts[0].to_string(), None)
         }
     }
 
