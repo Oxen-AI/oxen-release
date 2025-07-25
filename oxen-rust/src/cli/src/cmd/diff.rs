@@ -37,7 +37,7 @@ impl RunCmd for DiffCmd {
         Command::new(NAME)
             .about("Show changes between commits, commit and working tree, etc")
             .arg(
-                Arg::new("commits_or_blobs")
+                Arg::new("commits_or_files")
                     .help(format!("Commits, commit ranges (commit1{DIFFSEP}commit2)"))
                     .num_args(0..)
                     .action(clap::ArgAction::Append)
@@ -92,8 +92,8 @@ impl RunCmd for DiffCmd {
 
 impl DiffCmd {
     pub fn parse_args(args: &clap::ArgMatches) -> DiffOpts {
-        let commits_or_blobs: Vec<String> = args
-            .get_many::<String>("commits_or_blobs")
+        let commits_or_files: Vec<String> = args
+            .get_many::<String>("commits_or_files")
             .map(|values| values.cloned().collect())
             .unwrap_or_default();
 
@@ -103,7 +103,7 @@ impl DiffCmd {
             .unwrap_or_default();
 
         // Parse the different forms of diff commands
-        let (file1, file2, revision1, revision2) = match commits_or_blobs.len() {
+        let (file1, file2, revision1, revision2) = match commits_or_files.len() {
             0 => {
                 // oxen diff [--] [<path>…​] - compare working tree with HEAD
                 let path = if !paths.is_empty() {
@@ -114,7 +114,7 @@ impl DiffCmd {
                 (path, None, Some("HEAD".to_string()), None)
             }
             1 => {
-                let arg = &commits_or_blobs[0];
+                let arg = &commits_or_files[0];
                 if arg.contains(DIFFSEP) {
                     // oxen diff <commit>..<commit> [--] [<path>…​]
                     let parts: Vec<&str> = arg.split(DIFFSEP).collect();
@@ -150,18 +150,27 @@ impl DiffCmd {
                 }
             }
             2 => {
-                // oxen diff revision1 revision2 [--] [<path>…​] - compare two revisions
-                let path = if !paths.is_empty() {
-                    PathBuf::from(&paths[0])
+                // Check if both arguments are local files
+                let arg1_path = PathBuf::from(&commits_or_files[0]);
+                let arg2_path = PathBuf::from(&commits_or_files[1]);
+
+                if arg1_path.exists() && arg2_path.exists() {
+                    // oxen diff file1 file2 - compare two local files
+                    (arg1_path, Some(arg2_path), None, None)
                 } else {
-                    PathBuf::from("")
-                };
-                (
-                    path.clone(),
-                    Some(path),
-                    Some(commits_or_blobs[0].clone()),
-                    Some(commits_or_blobs[1].clone()),
-                )
+                    // oxen diff revision1 revision2 [--] [<path>…​] - compare two revisions
+                    let path = if !paths.is_empty() {
+                        PathBuf::from(&paths[0])
+                    } else {
+                        PathBuf::from("")
+                    };
+                    (
+                        path.clone(),
+                        Some(path),
+                        Some(commits_or_files[0].clone()),
+                        Some(commits_or_files[1].clone()),
+                    )
+                }
             }
             _ => {
                 // Too many arguments, use first two as revisions
@@ -173,8 +182,8 @@ impl DiffCmd {
                 (
                     path.clone(),
                     Some(path),
-                    Some(commits_or_blobs[0].clone()),
-                    Some(commits_or_blobs[1].clone()),
+                    Some(commits_or_files[0].clone()),
+                    Some(commits_or_files[1].clone()),
                 )
             }
         };
