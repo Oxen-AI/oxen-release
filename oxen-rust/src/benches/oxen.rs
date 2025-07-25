@@ -120,12 +120,13 @@ fn add_benchmark(c: &mut Criterion) {
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     let mut group = c.benchmark_group("add");
-
+    group.sample_size(10);
     let params = [
         (1000, 20),
         (10000, 20),
         (100000, 20),
         (100000, 100),
+        (100000, 1000),
         (1000000, 1000),
     ];
     for &(repo_size, dir_size) in params.iter() {

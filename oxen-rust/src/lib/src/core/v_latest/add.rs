@@ -37,7 +37,7 @@ use crate::model::merkle_tree::node::{
     EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
 };
 
-const FILE_BATCH_SIZE: usize = 16;
+const FILE_BATCH_SIZE: usize = 64;
 
 #[derive(Clone, Debug)]
 pub struct FileStatus {
