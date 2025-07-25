@@ -49,12 +49,6 @@ impl RunCmd for WorkspaceRmCmd {
                     .help("The destination directory to add the workspace to")
                     .default_value("."),
             )
-            .arg(
-                Arg::new("staged")
-                    .long("staged")
-                    .help("Remove files from the staged db")
-                    .action(clap::ArgAction::SetTrue),
-            )
             .arg_required_else_help(true)
     }
 

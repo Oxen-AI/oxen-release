@@ -53,10 +53,13 @@ pub async fn add(
     // TODO: add a progress bar
     upload_multiple_files(remote_repo, workspace_id, directory, expanded_paths).await?;
 
+    // TODO: We should only be printing this if files were actually added
+    /*
     println!(
         "🐂 oxen successfully added paths {paths:?} to workspace {}",
         workspace_id
     );
+    */
 
     Ok(())
 }
@@ -493,10 +496,14 @@ pub async fn rm_files(
     let body = client::parse_json_body(&url, response).await?;
     log::debug!("rm_files got body: {}", body);
 
+    // TODO: We should only be printing this if files were actually removed
+    /*
     println!(
         "🐂 oxen successfully staged paths {paths:?} as removed for workspace {}",
         workspace_id
     );
+    */
+
     Ok(())
 }
 

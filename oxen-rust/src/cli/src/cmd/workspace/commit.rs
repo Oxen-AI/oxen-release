@@ -21,18 +21,12 @@ impl RunCmd for WorkspaceCommitCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        let is_remote_repo = match LocalRepository::from_current_dir() {
-            Ok(repo) => repo.is_remote_mode(),
-            Err(_) => false,
-        };
-
         Command::new(NAME)
             .about("Commit the staged files to the repository.")
             .arg(
                 Arg::new("workspace-id")
                     .long("workspace-id")
                     .short('w')
-                    .required(!is_remote_repo)
                     .required_unless_present("workspace-name")
                     .help("The workspace_id of the workspace"),
             )
@@ -40,7 +34,6 @@ impl RunCmd for WorkspaceCommitCmd {
                 Arg::new("workspace-name")
                     .long("workspace-name")
                     .short('n')
-                    .required(!is_remote_repo)
                     .required_unless_present("workspace-id")
                     .help("The name of the workspace"),
             )
