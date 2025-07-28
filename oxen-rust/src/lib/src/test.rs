@@ -225,7 +225,6 @@ where
     log::info!("<<<<< run_empty_local_repo_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
-    let new_repo_dir = repo_dir.parent().unwrap().join("forked");
 
     log::info!(">>>>> run_empty_local_repo_test running test");
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match test(repo) {
@@ -235,10 +234,6 @@ where
         }
     }));
 
-    // Remove forked dir
-    if new_repo_dir.exists() {
-        maybe_cleanup_repo(&new_repo_dir)?;
-    }
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
 
@@ -284,7 +279,6 @@ where
     log::info!("<<<<< run_empty_local_repo_test_async start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
-    let new_repo_dir = repo_dir.parent().unwrap().join("forked");
 
     log::info!(">>>>> run_empty_local_repo_test_async running test");
     let result = match test(repo).await {
@@ -294,11 +288,6 @@ where
             false
         }
     };
-
-    // Remove forked dir
-    if new_repo_dir.exists() {
-        maybe_cleanup_repo(&new_repo_dir)?;
-    }
 
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
@@ -316,7 +305,6 @@ where
     log::info!("<<<<< run_one_commit_local_repo_test start");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = repositories::init(&repo_dir)?;
-    let new_repo_dir = repo_dir.parent().unwrap().join("forked");
 
     let txt = generate_random_string(20);
     let file_path = add_txt_file_to_dir(&repo_dir, &txt)?;
@@ -331,10 +319,6 @@ where
         }
     }));
 
-    // Remove forked dir
-    if new_repo_dir.exists() {
-        maybe_cleanup_repo(&new_repo_dir)?;
-    }
     // Remove repo dir
     maybe_cleanup_repo(&repo_dir)?;
 
