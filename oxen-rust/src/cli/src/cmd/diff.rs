@@ -34,6 +34,7 @@ impl RunCmd for DiffCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
+
         Command::new(NAME)
             .about("Show changes between commits, commit and working tree, etc")
             .arg(

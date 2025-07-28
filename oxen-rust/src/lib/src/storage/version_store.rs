@@ -49,14 +49,6 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
     /// * `file_path` - Path to the file to store
     async fn store_version_from_path(&self, hash: &str, file_path: &Path) -> Result<(), OxenError>;
 
-    /// Temporary sync function used in lib/add.rs process_add_dir
-    /// TODO: Convert the version store to async and remove this function
-    ///
-    /// # Arguments
-    /// * `hash` - The content hash that identifies this version
-    /// * `file_path` - Path to the file to store
-    fn store_version_from_path_sync(&self, hash: &str, file_path: &Path) -> Result<(), OxenError>;
-
     /// Store a version file from an async reader
     ///
     /// # Arguments

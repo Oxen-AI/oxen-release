@@ -28,7 +28,6 @@ impl RunCmd for WorkspaceCommitCmd {
                     .long("workspace-id")
                     .short('w')
                     .required_unless_present("workspace-name")
-                    .required(false)
                     .help("The workspace_id of the workspace"),
             )
             .arg(
@@ -36,7 +35,6 @@ impl RunCmd for WorkspaceCommitCmd {
                     .long("workspace-name")
                     .short('n')
                     .required_unless_present("workspace-id")
-                    .required(false)
                     .help("The name of the workspace"),
             )
             .arg(
@@ -57,24 +55,28 @@ impl RunCmd for WorkspaceCommitCmd {
             ));
         };
 
-        let workspace_name = args.get_one::<String>("workspace-name");
-        let workspace_id = args.get_one::<String>("workspace-id");
+        let repo = LocalRepository::from_current_dir()?;
 
-        let workspace_identifier = match workspace_id {
-            Some(id) => id,
-            None => {
-                // If no ID is provided, try to get the workspace by name
-                if let Some(name) = workspace_name {
-                    name
-                } else {
-                    return Err(OxenError::basic_str(
-                        "Either workspace-id or workspace-name must be provided.",
-                    ));
+        let workspace_identifier = if repo.is_remote_mode() {
+            &repo.workspace_name.clone().unwrap()
+        } else {
+            let workspace_name = args.get_one::<String>("workspace-name");
+            let workspace_id = args.get_one::<String>("workspace-id");
+            match workspace_id {
+                Some(id) => id,
+                None => {
+                    // If no ID is provided, try to get the workspace by name
+                    if let Some(name) = workspace_name {
+                        name
+                    } else {
+                        return Err(OxenError::basic_str(
+                            "Either workspace-id or workspace-name must be provided.",
+                        ));
+                    }
                 }
             }
         };
 
-        let repo = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repo)?;
 
         println!("Committing to remote with message: {message}");

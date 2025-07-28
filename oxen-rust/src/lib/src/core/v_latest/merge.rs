@@ -350,7 +350,7 @@ async fn merge_commits_on_branch(
     // Check which type of merge we need to do
     if merge_commits.is_fast_forward_merge() {
         let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge).await?;
-        Ok(Some(commit))
+        Ok(commit)
     } else {
         log::debug!(
             "Three way merge! {} -> {}",
@@ -419,8 +419,13 @@ async fn fast_forward_merge(
     repo: &LocalRepository,
     base_commit: &Commit,
     merge_commit: &Commit,
-) -> Result<Commit, OxenError> {
+) -> Result<Option<Commit>, OxenError> {
     log::debug!("FF merge!");
+
+    if base_commit == merge_commit {
+        // If the base commit is the same as the merge commit, there is nothing to merge
+        return Ok(None);
+    }
 
     // Collect all dir and vnode hashes while loading the merge tree
     // This is done to identify shared dirs/vnodes between the merge and base trees while loading the base tree
@@ -501,7 +506,7 @@ async fn fast_forward_merge(
     // Move the HEAD forward to this commit
     with_ref_manager(repo, |manager| manager.set_head_commit_id(&merge_commit.id))?;
 
-    Ok(merge_commit.clone())
+    Ok(Some(merge_commit.clone()))
 }
 
 fn r_ff_merge_commit(
@@ -713,7 +718,7 @@ async fn merge_commits(
     if merge_commits.is_fast_forward_merge() {
         // User output
         let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge).await?;
-        Ok(Some(commit))
+        Ok(commit)
     } else {
         log::debug!(
             "Three way merge! {} -> {}",

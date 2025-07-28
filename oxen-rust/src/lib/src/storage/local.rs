@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use crate::constants::{VERSION_CHUNKS_DIR, VERSION_CHUNK_FILE_NAME, VERSION_FILE_NAME};
 use crate::error::OxenError;
 use crate::storage::version_store::{ReadSeek, VersionStore};
-use crate::util;
 
 use async_trait::async_trait;
 use tokio::fs::{self, File};
@@ -75,17 +74,6 @@ impl VersionStore for LocalVersionStore {
         let version_path = self.version_path(hash);
         if !version_path.exists() {
             fs::copy(file_path, &version_path).await?;
-        }
-        Ok(())
-    }
-
-    fn store_version_from_path_sync(&self, hash: &str, file_path: &Path) -> Result<(), OxenError> {
-        let version_dir = self.version_dir(hash);
-        util::fs::create_dir_all(&version_dir)?;
-
-        let version_path = self.version_path(hash);
-        if !version_path.exists() {
-            util::fs::copy(file_path, &version_path)?;
         }
         Ok(())
     }
