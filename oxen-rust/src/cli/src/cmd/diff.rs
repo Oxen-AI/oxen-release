@@ -41,7 +41,7 @@ impl RunCmd for DiffCmd {
                     .help(format!("Commits, commit ranges (commit1{DIFFSEP}commit2)"))
                     .num_args(0..)
                     .action(clap::ArgAction::Append)
-                    .value_name("revision | commit | branch"),
+                    .value_name("commit | branch"),
             )
             .arg(
                 Arg::new("paths")
