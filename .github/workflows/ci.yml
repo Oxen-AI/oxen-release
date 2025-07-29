@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - monorepo
+      - "*"
 
 name: 🐂 Continuous integration
 
