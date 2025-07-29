@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::opts::fetch_opts::FetchOpts;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CloneOpts {
     // The url of the remote repository to clone
     pub url: String,

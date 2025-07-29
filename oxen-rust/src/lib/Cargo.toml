@@ -25,7 +25,11 @@ actix-files = "0.6.0"
 actix-web = { version = "4", features = ["rustls"] }
 approx = "0.5.1"
 astral-tokio-tar = "0.5.2"
-async-compression = { version = "0.4.2", features = ["futures-io", "gzip", "tokio"] }
+async-compression = { version = "0.4.2", features = [
+    "futures-io",
+    "gzip",
+    "tokio",
+] }
 async-recursion = "1.0.0"
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-trait = "0.1"
@@ -138,6 +142,9 @@ words-count = "0.1.5"
 xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
 zip = "2.4.1"
 pathdiff = "0.2.3"
+
+[dev-dependencies]
+serial_test = "3.2.0"
 
 [lib]
 name = "liboxen"
