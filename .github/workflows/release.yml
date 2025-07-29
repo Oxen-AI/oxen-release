@@ -2,8 +2,8 @@ name: 🚀 Release
 
 on:
   push:
-    branches:
-      - monorepo
+    tags:
+      - "*"
 
 permissions:
   id-token: write
@@ -32,8 +32,7 @@ jobs:
           echo "AWS_REGION=${{ env.AWS_REGION }}" >> $GITHUB_OUTPUT
           echo "AWS_ROLE=${{ env.AWS_ROLE }}" >> $GITHUB_OUTPUT
           echo "PYTHON_VERSIONS=${{ env.PYTHON_VERSIONS }}" >> $GITHUB_OUTPUT
-          echo "RELEASE_VERSION=v0.106.0" >> $GITHUB_OUTPUT
-          # echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_OUTPUT
 
   release_docker_arm64:
     name: Docker arm64
