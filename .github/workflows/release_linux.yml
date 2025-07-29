@@ -1,0 +1,201 @@
+name: 🚀 Release Linux
+
+on:
+  workflow_call:
+    inputs:
+      ARCHITECTURE:
+        description: "The architecture to build for"
+        required: true
+        default: "x86_64"
+        type: string
+      AWS_ROLE:
+        description: "AWS role to assume"
+        required: true
+        type: string
+      AWS_REGION:
+        description: "AWS region"
+        required: true
+        type: string
+      PYTHON_VERSIONS:
+        description: "Python versions to build"
+        required: true
+        type: string
+      RELEASE_VERSION:
+        description: "Release version"
+        required: true
+        type: string
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN:
+        description: "GitHub personal access token"
+        required: true
+
+defaults:
+  run:
+    shell: bash -leo pipefail {0}
+
+env:
+  EC2_IMAGE_ID_X86_64: ami-0823857dea006a2fa
+  EC2_IMAGE_ID_ARM64: ami-05fa76c95fcf3d338
+  EC2_INSTANCE_TYPE_X86_64: m7i.4xlarge
+  EC2_INSTANCE_TYPE_ARM64: m7g.4xlarge
+
+jobs:
+  start-self-hosted-runner:
+    name: Start self-hosted EC2 runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ inputs.AWS_REGION }}
+
+      - name: Set image and instance type
+        run: |
+          if [ "${{ inputs.ARCHITECTURE }}" = "arm64" ]; then
+            echo "EC2_IMAGE_ID=${{ env.EC2_IMAGE_ID_ARM64 }}" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_TYPE=${{ env.EC2_INSTANCE_TYPE_ARM64 }}" >> $GITHUB_ENV
+          else
+            echo "EC2_IMAGE_ID=${{ env.EC2_IMAGE_ID_X86_64 }}" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_TYPE=${{ env.EC2_INSTANCE_TYPE_X86_64 }}" >> $GITHUB_ENV
+          fi
+
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ${{ env.EC2_IMAGE_ID }}
+          ec2-instance-type: ${{ env.EC2_INSTANCE_TYPE }}
+          subnet-id: subnet-0e28805edbdad482f
+          security-group-id: sg-09c8aa5830122d671
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"}
+            ]
+   
+  release_linux:
+    name: Build Oxen CLI, Server, and Python wheels
+    needs: start-self-hosted-runner
+    runs-on: ${{ needs.start-self-hosted-runner.outputs.label }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create release directory
+        run: mkdir ${{ github.workspace }}/release
+
+      - name: Install rustup
+        run: |
+          echo "export HOME=/root" >> /root/.bashrc
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - name: Install system dependencies
+        run: |
+          dnf group install "Development Tools" -y
+          dnf install -y \
+            openssl-devel \
+            cmake \
+            clang \
+            rubygems
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build oxen binaries
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          cargo build --release
+
+      - name: Update liboxen crate location
+        run: |
+          sed -i 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
+
+      - name: Build Python wheels
+        run: |
+          uv python install ${{ inputs.PYTHON_VERSIONS }}
+          
+          cd ${{ github.workspace }}/oxen-python
+
+          for version in ${{ inputs.PYTHON_VERSIONS }}; do
+            uvx --from 'maturin[patchelf]' maturin build --release --interpreter /root/.local/bin/python${version}
+          done
+
+      - name: Create tarballs with oxen binaries
+        run: |
+          tar -czvf ${{ github.workspace }}/release/oxen-linux-${{ inputs.ARCHITECTURE }}.tar.gz -C ${{ github.workspace }}/oxen-rust/target/release/ oxen
+          tar -czvf ${{ github.workspace }}/release/oxen-server-linux-${{ inputs.ARCHITECTURE }}.tar.gz -C ${{ github.workspace }}/oxen-rust/target/release/ oxen-server
+
+      - name: Create tarballs with Python wheels
+        run: |
+          tar -czvf ${{ github.workspace }}/release/oxen-wheels-linux-${{ inputs.ARCHITECTURE }}.tar.gz -C ${{ github.workspace }}/oxen-python/target/wheels/ .
+
+      - name: Create tarball with all artifacts
+        run: |
+          tar -czvf ${{ github.workspace }}/oxen-linux-${{ inputs.ARCHITECTURE }}-release.tar.gz -C ${{ github.workspace }}/release/ .
+
+      - name: Create deb packages
+        run: |
+          gem install fpm
+
+          fpm \
+            -s dir -t deb \
+            -p ${{ github.workspace }}/release/oxen-linux-${{ inputs.ARCHITECTURE }}.deb \
+            -C ${{ github.workspace }}/oxen-rust/target/release \
+            --name oxen \
+            --version ${{ inputs.RELEASE_VERSION }} \
+            --architecture all \
+            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen=/usr/bin/oxen
+
+          fpm \
+            -s dir -t deb \
+            -p ${{ github.workspace }}/release/oxen-server-linux-${{ inputs.ARCHITECTURE }}.deb \
+            -C ${{ github.workspace }}/oxen-rust/target/release \
+            --name oxen-server \
+            --version ${{ inputs.RELEASE_VERSION }} \
+            --architecture all \
+            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Upload all artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxen-linux-release-${{ inputs.ARCHITECTURE }}.tar.gz
+          path: ${{ github.workspace }}/oxen-linux-${{ inputs.ARCHITECTURE }}-release.tar.gz
+          retention-days: 1
+
+  stop-self-hosted-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-self-hosted-runner
+      - release_linux
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ inputs.AWS_REGION }}
+
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-self-hosted-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-self-hosted-runner.outputs.ec2-instance-id }}
+        

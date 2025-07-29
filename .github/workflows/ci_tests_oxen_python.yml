@@ -1,0 +1,151 @@
+name: 🐂 Continuous integration - Tests oxen-python
+
+on:
+  workflow_call:
+
+jobs:
+  test_linux:
+    name: Test Suite Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-server-linux-x86_64.tar.gz"
+          out-file-path: "."
+      
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-linux-x86_64.tar.gz"
+          out-file-path: "."
+
+      - name: Extract oxen binaries
+        run: |
+          tar -xzf oxen-server-linux-x86_64.tar.gz
+          tar -xzf oxen-linux-x86_64.tar.gz
+
+          mv oxen-server ~/
+          mv oxen ~/
+          
+          chmod +x ~/oxen-server
+          chmod +x ~/oxen
+          
+          rm oxen-server-linux-x86_64.tar.gz
+          rm oxen-linux-x86_64.tar.gz
+
+      - name: Install dependencies
+        run: |
+          cd oxen-python
+          uv pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
+          ~/oxen-server start &
+          pytest -s tests
+      
+  test_macos:
+    name: Test Suite MacOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-server-macos-arm64.tar.gz"
+          out-file-path: "."
+      
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-macos-arm64.tar.gz"
+          out-file-path: "."
+
+      - name: Extract oxen binaries
+        run: |
+          tar -xzf oxen-server-macos-arm64.tar.gz
+          tar -xzf oxen-macos-arm64.tar.gz
+
+          mv oxen-server ~/
+          mv oxen ~/
+          
+          chmod +x ~/oxen-server
+          chmod +x ~/oxen
+          
+          rm oxen-server-macos-arm64.tar.gz
+          rm oxen-macos-arm64.tar.gz
+
+      - name: Install dependencies
+        run: |
+          cd oxen-python
+          uv pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
+          ~/oxen-server start &
+          pytest -s tests
+      
+  test_windows:
+    name: Test Suite Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./oxen
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10"
+
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-server-windows-x86_64.zip"
+          out-file-path: "./oxen"
+      
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "oxen-windows-x86_64.zip"
+          out-file-path: "./oxen"
+
+      - name: Extract oxen binaries
+        run: |
+          Expand-Archive -Path "oxen-server-windows-x86_64.zip" -DestinationPath "." -Force
+          Expand-Archive -Path "oxen-windows-x86_64.zip" -DestinationPath "." -Force
+
+      - name: Install dependencies
+        run: |
+          cd oxen-python
+          uv pip install -r requirements.txt
+
+      - name: Run Tests
+        run: |
+          ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
+          ./oxen-server.exe start &
+
+          cd oxen-python
+          pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py

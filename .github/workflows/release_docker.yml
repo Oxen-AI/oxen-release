@@ -1,0 +1,125 @@
+name: 🚀 Release Docker
+
+on:
+  workflow_call:
+    inputs:
+      ARCHITECTURE:
+        description: "The architecture to build for"
+        required: true
+        default: "x86_64"
+        type: string
+      AWS_ROLE:
+        description: "AWS role to assume"
+        required: true
+        type: string
+      AWS_REGION:
+        description: "AWS region"
+        required: true
+        type: string
+      RELEASE_VERSION:
+        description: "Release version"
+        required: true
+        type: string
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN:
+        description: "GitHub personal access token"
+        required: true
+
+defaults:
+  run:
+    shell: bash -leo pipefail {0}
+
+env:
+  EC2_IMAGE_ID_X86_64: ami-0823857dea006a2fa
+  EC2_IMAGE_ID_ARM64: ami-05fa76c95fcf3d338
+  EC2_INSTANCE_TYPE_X86_64: m7i.4xlarge
+  EC2_INSTANCE_TYPE_ARM64: m7g.4xlarge
+
+jobs:
+  start-self-hosted-runner:
+    name: Start self-hosted EC2 runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ inputs.AWS_REGION }}
+
+      - name: Set image and instance type
+        run: |
+          if [ "${{ inputs.ARCHITECTURE }}" = "arm64" ]; then
+            echo "EC2_IMAGE_ID=${{ env.EC2_IMAGE_ID_ARM64 }}" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_TYPE=${{ env.EC2_INSTANCE_TYPE_ARM64 }}" >> $GITHUB_ENV
+          else
+            echo "EC2_IMAGE_ID=${{ env.EC2_IMAGE_ID_X86_64 }}" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_TYPE=${{ env.EC2_INSTANCE_TYPE_X86_64 }}" >> $GITHUB_ENV
+          fi
+
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ${{ env.EC2_IMAGE_ID }}
+          ec2-instance-type: ${{ env.EC2_INSTANCE_TYPE }}
+          subnet-id: subnet-0e28805edbdad482f
+          security-group-id: sg-09c8aa5830122d671
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"}
+            ]
+   
+  release_docker:
+    name: Build Server
+    needs: start-self-hosted-runner
+    runs-on: ${{ needs.start-self-hosted-runner.outputs.label }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          docker build -t oxen/oxen-server .
+
+      - name: Save Docker
+        run: docker save oxen/oxen-server -o oxen-server-docker-${{ inputs.ARCHITECTURE }}.tar
+
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: oxen-server-docker-${{ inputs.ARCHITECTURE }}.tar
+          path: ${{ github.workspace }}/oxen-server-docker-${{ inputs.ARCHITECTURE }}.tar
+          retention-days: 7
+
+  stop-self-hosted-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-self-hosted-runner
+      - release_docker
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ inputs.AWS_REGION }}
+
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-self-hosted-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-self-hosted-runner.outputs.ec2-instance-id }}
+        

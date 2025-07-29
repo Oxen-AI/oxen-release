@@ -1,0 +1,55 @@
+name: 🐂 Continuous integration - Lint
+
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: Cargo check, format, clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache oxen-rust cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            oxen-rust/target/
+          key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache oxen-python cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            oxen-python/target/
+          key: ${{ runner.os }}-cargo-oxen-python-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy, rustfmt
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Cargo Check
+        run: |
+          cargo check --all-targets --all-features
+
+      - name: Cargo Format
+        run: |
+          cargo fmt --all -- --check
+
+      - name: Cargo Clippy
+        run: |
+          cargo clippy --no-deps -- -D warnings

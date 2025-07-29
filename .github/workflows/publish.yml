@@ -1,0 +1,68 @@
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish_wheels:
+    name: Publish wheels to PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF_NAME#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - uses: robinraju/release-downloader@v1.12
+        id: download-release
+        with:
+          tag: ${{ steps.get_tag.outputs.TAG_NAME }}
+          fileName: oxen-wheels-*
+          out-file-path: oxen-wheels
+
+      - name: Publish wheels to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --skip-existing oxen-wheels/*
+          maturin-version: v1.8.5
+
+  publish_homebrew_oxen:
+    name: Publish Homebrew formula for oxen
+    permissions:
+      pull-requests: write
+      contents: write
+    uses: oxen-ai/homebrew-oxen/.github/workflows/update-formula.yml@main
+    with:
+      version: ${{ github.ref_name }}
+    secrets:
+      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
+
+  publish_homebrew_oxen_server:
+    name: Publish Homebrew formula for oxen-server
+    permissions:
+      pull-requests: write
+      contents: write
+    uses: oxen-ai/homebrew-oxen-server/.github/workflows/update-formula.yml@main
+    with:
+      version: ${{ github.ref_name }}
+    secrets:
+      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
+
+  publish_liboxen_crate:
+    name: Publish liboxen crate to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload to crates.io
+        run: |
+          cd ${{ github.workspace }}/oxen-rust/src/lib
+          cargo login ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish
