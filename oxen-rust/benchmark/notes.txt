@@ -1,0 +1,27 @@
+
+#Timing of pushing 81 commits:
+
+🐂 oxen push origin main -> 1867e8d307b32f627070cdbaa97c3c98
+🐂 push complete 🎉 took 3m 44s 439ms
+
+________________________________________________________
+Executed in  224.59 secs    fish           external
+   usr time    6.98 secs    0.22 millis    6.98 secs
+   sys time    1.33 secs    1.91 millis    1.33 secs
+
+
+# Timing of pushing 30 commits:
+
+🐂 oxen push origin main -> 2da8328200d1a32516ec3324c01333a
+🐂 push complete 🎉 took 1m 1s 925ms
+
+________________________________________________________
+
+
+TODO to speed up:
+
+1) API Call to list missing commits
+2) API Call given missing commits, get all the missing node hashes
+3) Push the missing nodes
+4) API Call to list missing files, given missing node hashes
+5) Push the missing files all at once with progress bar

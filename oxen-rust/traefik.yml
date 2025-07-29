@@ -1,0 +1,11 @@
+# log:
+#   level: DEBUG
+#   filepath: "/etc/traefik/log/traefik.log"
+api:
+  dashboard: true
+  insecure: false  
+  debug: true
+providers:
+  docker:
+    exposedByDefault: false
+

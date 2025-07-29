@@ -1,0 +1,34 @@
+/target
+.DS_Store
+data/test/runs
+data/test/config/user_config.toml
+.vscode
+cli-test/.bundle/
+cli-test/.yardoc
+cli-test/Gemfile.lock
+cli-test/_yardoc/
+cli-test/coverage/
+cli-test/doc/
+cli-test/pkg/
+cli-test/spec/reports/
+cli-test/tmp/
+cli-test/.env
+src/server/.env.local
+
+# rspec failure tracking
+cli-test/.rspec_status
+# Ignore data in fixtures, retain script to generate fixtures through cloning
+cli-test/spec/fixtures/*
+!cli-test/spec/fixtures/create_fixtures.sh
+cli-test/vendor/
+
+# Per-project Cargo config
+# We're currently only using this for configuring mold/sold for local
+# development, so we don't want to track those changes
+.cargo/config.toml
+
+# Nix outputs
+result
+
+# Cursor config
+.cursor/
