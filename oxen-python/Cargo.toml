@@ -1,6 +1,6 @@
 [package]
 name = "oxen"
-version = "0.36.1"
+version = "0.36.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,8 +9,8 @@ name = "oxen"
 crate-type = ["cdylib"]
 
 [dependencies]
-liboxen = "0.36.1"
-# liboxen = { path = "../../Oxen/src/lib" }
+liboxen = "0.36.2"
+# liboxen = { path = "../oxen-rust/src/lib" }
 
 pyo3 = { version = "0.22.0" }
 pyo3-async-runtimes = { version = "0.22", features = [
