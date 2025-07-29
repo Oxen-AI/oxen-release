@@ -63,6 +63,7 @@ impl PyRepo {
                     all,
                     ..FetchOpts::new()
                 },
+                ..Default::default()
             };
             repositories::clone(&opts).await
         })?;
@@ -81,7 +82,8 @@ impl PyRepo {
 
     pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        pyo3_async_runtimes::tokio::get_runtime().block_on(async {repositories::add(&repo, path).await.unwrap()});
+        pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { repositories::add(&repo, path).await.unwrap() });
         Ok(())
     }
 
@@ -227,7 +229,9 @@ impl PyRepo {
 
     pub fn merge(&self, branch: &str) -> Result<Option<PyCommit>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        match pyo3_async_runtimes::tokio::get_runtime().block_on(async {repositories::merge::merge(&repo, branch).await})? {
+        match pyo3_async_runtimes::tokio::get_runtime()
+            .block_on(async { repositories::merge::merge(&repo, branch).await })?
+        {
             Some(commit) => Ok(Some(PyCommit { commit })),
             None => Ok(None),
         }

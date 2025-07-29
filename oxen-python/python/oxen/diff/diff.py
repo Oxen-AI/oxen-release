@@ -86,9 +86,7 @@ def diff(
             Only for tabular diffs. The compares to compare on.
             This is used to compare the values of the two data frames.
     """
-    result = py_diff.diff_paths(
-        path, keys, compares, to, repo_dir, revision_left, revision_right
-    )
+    result = py_diff.diff_paths(path, keys, to, repo_dir, revision_left, revision_right)
     if output:
         df_utils.save(result, output)
     return Diff(result)
