@@ -21,7 +21,6 @@ pub fn diff_paths(
     revision_1: Option<String>,
     revision_2: Option<String>,
 ) -> Result<PyDiff, PyOxenError> {
-
     let opts = DiffOpts {
         path_1,
         path_2,

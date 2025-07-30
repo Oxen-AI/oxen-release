@@ -21,7 +21,8 @@ impl PyDiff {
 
     #[getter]
     pub fn format(&self) -> String {
-        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+        //TODO: This should be more correct instead of picking the first
+        match &self.diff.first() {
             Some(DiffResult::Tabular(_diff)) => "tabular".to_string(),
             Some(DiffResult::Text(_diff)) => "text".to_string(),
             None => "text".to_string(),
@@ -30,7 +31,8 @@ impl PyDiff {
 
     #[getter]
     pub fn tabular(&self) -> Result<PyTabularDiff, PyOxenError> {
-        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+        //TODO: This should be more correct instead of picking the first
+        match &self.diff.first() {
             Some(DiffResult::Tabular(diff)) => Ok(PyTabularDiff::from(diff)),
             _ => Err(OxenError::basic_str("Diff is not tabular").into()),
         }
@@ -38,7 +40,8 @@ impl PyDiff {
 
     #[getter]
     pub fn text(&self) -> Result<PyTextDiff, PyOxenError> {
-        match &self.diff.first() { //TODO: This should be more correct instead of picking the first
+        //TODO: This should be more correct instead of picking the first
+        match &self.diff.first() {
             Some(DiffResult::Text(diff)) => Ok(PyTextDiff::from(diff)),
             _ => Err(OxenError::basic_str("Diff is not text").into()),
         }
