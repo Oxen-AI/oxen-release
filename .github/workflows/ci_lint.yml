@@ -44,7 +44,7 @@ jobs:
 
       - name: Update liboxen crate location
         run: |
-          sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
+          sed -i 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
 
       - name: Cargo Check
         run: |
