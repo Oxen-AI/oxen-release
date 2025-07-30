@@ -67,7 +67,7 @@ dependencies = [
  "minus",
  "mockito",
  "mp4",
- "nom 7.1.3",
+ "nom",
  "num_cpus",
  "os_path",
  "par-stream",
@@ -1133,7 +1133,7 @@ dependencies = [
  "anyhow",
  "arrayvec",
  "log",
- "nom 7.1.3",
+ "nom",
  "num-rational",
  "v_frame",
 ]
@@ -1486,7 +1486,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
 dependencies = [
- "nom 7.1.3",
+ "nom",
 ]
 
 [[package]]
@@ -2158,7 +2158,7 @@ dependencies = [
  "convert_case 0.4.0",
  "proc-macro2",
  "quote",
- "rustc_version 0.4.1",
+ "rustc_version",
  "syn 2.0.104",
 ]
 
@@ -2508,7 +2508,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f1baf0dbf96932ec9a3038d57900329c015b0bfb7b63d904f3bc27e2b02a096"
 dependencies = [
  "bitflags 1.3.2",
- "rustc_version 0.4.1",
+ "rustc_version",
 ]
 
 [[package]]
@@ -3703,7 +3703,7 @@ dependencies = [
  "minus",
  "mockito",
  "mp4",
- "nom 7.1.3",
+ "nom",
  "num_cpus",
  "os_path",
  "par-stream",
@@ -4134,12 +4134,6 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nom"
-version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf51a729ecf40266a2368ad335a5fdde43471f545a967109cd62146ecf8b66ff"
-
-[[package]]
-name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
@@ -4394,7 +4388,6 @@ dependencies = [
  "jwalk",
  "liboxen",
  "minus",
- "procinfo",
  "rocksdb",
  "serde_json",
  "time",
@@ -5297,18 +5290,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "procinfo"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ab1427f3d2635891f842892dda177883dca0639e05fe66796a62c9d2f23b49c"
-dependencies = [
- "byteorder",
- "libc",
- "nom 2.2.1",
- "rustc_version 0.2.3",
-]
-
-[[package]]
 name = "profiling"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5889,20 +5870,11 @@ checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
 name = "rustc_version"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
-dependencies = [
- "semver 0.9.0",
-]
-
-[[package]]
-name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
- "semver 1.0.26",
+ "semver",
 ]
 
 [[package]]
@@ -6098,24 +6070,9 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
-dependencies = [
- "semver-parser",
-]
-
-[[package]]
-name = "semver"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
-
-[[package]]
-name = "semver-parser"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
