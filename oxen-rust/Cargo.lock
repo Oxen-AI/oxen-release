@@ -4387,11 +4387,14 @@ dependencies = [
  "glob",
  "jwalk",
  "liboxen",
+ "log",
  "minus",
  "rocksdb",
  "serde_json",
  "time",
  "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]
