@@ -36,8 +36,6 @@ jobs:
 
       - name: Setup Rust Toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: clippy, rustfmt
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -56,6 +54,8 @@ jobs:
 
       - name: Cargo Format
         run: |
+          rustup component add rustfmt
+
           cd ${{ github.workspace }}/oxen-rust
           cargo fmt --all -- --check
 
