@@ -42,14 +42,36 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
+      - name: Update liboxen crate location
+        run: |
+          sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
+
       - name: Cargo Check
         run: |
+          cd ${{ github.workspace }}/oxen-rust
+          cargo check --all-targets --all-features
+          
+          cd ${{ github.workspace }}/oxen-python
           cargo check --all-targets --all-features
 
       - name: Cargo Format
         run: |
+          cd ${{ github.workspace }}/oxen-rust
+          cargo fmt --all -- --check
+
+          cd ${{ github.workspace }}/oxen-python
           cargo fmt --all -- --check
 
       - name: Cargo Clippy
         run: |
+          cd ${{ github.workspace }}/oxen-rust
           cargo clippy --no-deps -- -D warnings
+
+          cd ${{ github.workspace }}/oxen-python
+          cargo clippy --no-deps -- -D warnings
+
+      - name: Ruff check
+        run: |
+          cd ${{ github.workspace }}/oxen-python
+          
+          uvx ruff check .
