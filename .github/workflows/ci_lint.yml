@@ -5,7 +5,7 @@ on:
 
 jobs:
   check:
-    name: Cargo check, format, clippy
+    name: Cargo check, format, clippy + Ruff
     runs-on: ubuntu-latest
 
     steps:

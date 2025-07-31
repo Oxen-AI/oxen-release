@@ -69,7 +69,7 @@ jobs:
           ~/oxen-server start &
 
           cd ${{ github.workspace }}/oxen-python
-          pytest -s tests
+          uvx pytest -s tests
 
   test_macos:
     name: Test Suite MacOS
@@ -133,7 +133,7 @@ jobs:
           ~/oxen-server start &
 
           cd ${{ github.workspace }}/oxen-python
-          pytest -s tests
+          uvx pytest -s tests
 
   test_windows:
     name: Test Suite Windows
@@ -190,4 +190,4 @@ jobs:
           ${{ github.workspace }}\oxen-server.exe start &
 
           cd ${{ github.workspace }}\oxen-python
-          pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
+          uvx pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
