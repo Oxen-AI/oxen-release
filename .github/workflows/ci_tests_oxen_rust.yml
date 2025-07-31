@@ -96,7 +96,7 @@ jobs:
 
       - name: Run Rspec Tests
         env:
-          PATH: ${{ env.PATH }};${{ github.workspace }}/oxen-rust/target/debug
+          PATH: ${{ env.PATH }}:${{ github.workspace }}/oxen-rust/target/debug
         run: |
           cd ${{ github.workspace }}/oxen-rust
           
