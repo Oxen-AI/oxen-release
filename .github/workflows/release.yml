@@ -131,7 +131,7 @@ jobs:
 
           for file in ${{ steps.download-artifacts.outputs.download-path }}/*.tar.gz; do tar -xzvf "$file" -C ${{ steps.download-artifacts.outputs.download-path }}/release; done
           for file in ${{ steps.download-artifacts.outputs.download-path }}/*.zip; do unzip "$file" -d ${{ steps.download-artifacts.outputs.download-path }}/release; done
-          
+
           ls -la ${{ steps.download-artifacts.outputs.download-path }}/release
 
       - name: Create release draft
@@ -158,7 +158,7 @@ jobs:
 
             🐧 Linux Binaries
             The Linux binaries require a minimum glibc version of 2.34.
-            
+
             These are the minimum versions of common distributions with glibc 2.34 or later.
 
             | Distribution | First version with glibc 2.34+ |

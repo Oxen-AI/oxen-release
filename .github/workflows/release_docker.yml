@@ -75,7 +75,7 @@ jobs:
             [
               {"Key": "Name", "Value": "ec2-github-runner"}
             ]
-   
+
   release_docker:
     name: Build Server
     needs: start-self-hosted-runner
@@ -122,4 +122,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-self-hosted-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-self-hosted-runner.outputs.ec2-instance-id }}
-        

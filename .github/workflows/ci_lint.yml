@@ -54,7 +54,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}/oxen-rust
           cargo check --all-targets --all-features
-          
+
           cd ${{ github.workspace }}/oxen-python
           cargo check --all-targets --all-features
 
@@ -77,5 +77,5 @@ jobs:
       - name: Ruff check
         run: |
           cd ${{ github.workspace }}/oxen-python
-          
+
           uvx ruff check .

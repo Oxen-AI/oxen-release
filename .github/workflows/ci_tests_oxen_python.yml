@@ -17,17 +17,25 @@ jobs:
         with:
           python-version: "3.10"
 
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-server-linux-x86_64.tar.gz"
-          out-file-path: "."
-      
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-linux-x86_64.tar.gz"
-          out-file-path: "."
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-server-linux-x86_64.tar.gz"
+      #     out-file-path: "."
+
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-linux-x86_64.tar.gz"
+      #     out-file-path: "."
+
+      - name: Download oxen-server
+        run: |
+          curl -L -o oxen-server-linux-x86_64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-linux-server-binary-x86_64-latest.tar.gz
+
+      - name: Download oxen
+        run: |
+          curl -L -o oxen-linux-x86_64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-linux-binary-x86_64-latest.tar.gz
 
       - name: Extract oxen binaries
         run: |
@@ -36,24 +44,24 @@ jobs:
 
           mv oxen-server ~/
           mv oxen ~/
-          
+
           chmod +x ~/oxen-server
           chmod +x ~/oxen
-          
+
           rm oxen-server-linux-x86_64.tar.gz
           rm oxen-linux-x86_64.tar.gz
 
       - name: Install dependencies
         run: |
           cd oxen-python
-          uv pip install -r requirements.txt
+          uv sync
 
       - name: Run Tests
         run: |
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ~/oxen-server start &
           pytest -s tests
-      
+
   test_macos:
     name: Test Suite MacOS
     runs-on: macos-latest
@@ -67,17 +75,25 @@ jobs:
         with:
           python-version: "3.10"
 
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-server-macos-arm64.tar.gz"
-          out-file-path: "."
-      
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-macos-arm64.tar.gz"
-          out-file-path: "."
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-server-macos-arm64.tar.gz"
+      #     out-file-path: "."
+
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-macos-arm64.tar.gz"
+      #     out-file-path: "."
+
+      - name: Download oxen-server
+        run: |
+          curl -L -o oxen-server-macos-arm64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-server-mac-13.0.tar.gz
+
+      - name: Download oxen
+        run: |
+          curl -L -o oxen-macos-arm64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-mac-13.0.tar.gz
 
       - name: Extract oxen binaries
         run: |
@@ -86,24 +102,24 @@ jobs:
 
           mv oxen-server ~/
           mv oxen ~/
-          
+
           chmod +x ~/oxen-server
           chmod +x ~/oxen
-          
+
           rm oxen-server-macos-arm64.tar.gz
           rm oxen-macos-arm64.tar.gz
 
       - name: Install dependencies
         run: |
           cd oxen-python
-          uv pip install -r requirements.txt
+          uv sync
 
       - name: Run Tests
         run: |
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ~/oxen-server start &
           pytest -s tests
-      
+
   test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
@@ -120,27 +136,35 @@ jobs:
         with:
           python-version: "3.10"
 
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-server-windows-x86_64.zip"
-          out-file-path: "./oxen"
-      
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "oxen-windows-x86_64.zip"
-          out-file-path: "./oxen"
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-server-windows-x86_64.zip"
+      #     out-file-path: "./oxen"
 
-      - name: Extract oxen binaries
+      # - uses: robinraju/release-downloader@v1.8
+      #   with:
+      #     latest: true
+      #     fileName: "oxen-windows-x86_64.zip"
+      #     out-file-path: "./oxen"
+
+      - name: Download oxen-server
         run: |
-          Expand-Archive -Path "oxen-server-windows-x86_64.zip" -DestinationPath "." -Force
-          Expand-Archive -Path "oxen-windows-x86_64.zip" -DestinationPath "." -Force
+          Invoke-WebRequest -Uri "https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-server.exe" -OutFile "oxen-server.exe"
+
+      - name: Download oxen
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen.exe" -OutFile "oxen.exe"
+
+      # - name: Extract oxen binaries
+      #   run: |
+      #     Expand-Archive -Path "oxen-server-windows-x86_64.zip" -DestinationPath "." -Force
+      #     Expand-Archive -Path "oxen-windows-x86_64.zip" -DestinationPath "." -Force
 
       - name: Install dependencies
         run: |
           cd oxen-python
-          uv pip install -r requirements.txt
+          uv sync
 
       - name: Run Tests
         run: |

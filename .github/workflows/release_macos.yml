@@ -41,11 +41,11 @@ jobs:
       - name: Update liboxen crate location
         run: |
           sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
-      
+
       - name: Build Python wheels
         run: |
           uv python install ${{ inputs.PYTHON_VERSIONS }}
-          
+
           cd ${{ github.workspace }}/oxen-python
 
           rustup target add aarch64-apple-darwin

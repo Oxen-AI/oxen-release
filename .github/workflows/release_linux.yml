@@ -79,7 +79,7 @@ jobs:
             [
               {"Key": "Name", "Value": "ec2-github-runner"}
             ]
-   
+
   release_linux:
     name: Build Oxen CLI, Server, and Python wheels
     needs: start-self-hosted-runner
@@ -121,7 +121,7 @@ jobs:
       - name: Build Python wheels
         run: |
           uv python install ${{ inputs.PYTHON_VERSIONS }}
-          
+
           cd ${{ github.workspace }}/oxen-python
 
           for version in ${{ inputs.PYTHON_VERSIONS }}; do
@@ -198,4 +198,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-self-hosted-runner.outputs.label }}
           ec2-instance-id: ${{ needs.start-self-hosted-runner.outputs.ec2-instance-id }}
-        
