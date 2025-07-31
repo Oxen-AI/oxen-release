@@ -13,7 +13,11 @@ jobs:
   oxen-rust-tests:
     name: oxen-rust tests
     uses: ./.github/workflows/ci_tests_oxen_rust.yml
+    needs:
+      - lint
 
   oxen-python-tests:
     name: oxen-python tests
     uses: ./.github/workflows/ci_tests_oxen_python.yml
+    needs:
+      - oxen-rust-tests

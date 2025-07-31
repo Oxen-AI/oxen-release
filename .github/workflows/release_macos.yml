@@ -38,10 +38,6 @@ jobs:
           cargo build --release --target aarch64-apple-darwin
           cargo build --release --target x86_64-apple-darwin
 
-      - name: Update liboxen crate location
-        run: |
-          sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
-
       - name: Build Python wheels
         run: |
           uv python install ${{ inputs.PYTHON_VERSIONS }}

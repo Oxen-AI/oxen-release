@@ -114,10 +114,6 @@ jobs:
           cd ${{ github.workspace }}/oxen-rust
           cargo build --release
 
-      - name: Update liboxen crate location
-        run: |
-          sed -i 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
-
       - name: Build Python wheels
         run: |
           uv python install ${{ inputs.PYTHON_VERSIONS }}

@@ -9,8 +9,7 @@ name = "oxen"
 crate-type = ["cdylib"]
 
 [dependencies]
-liboxen = "0.36.2"
-# liboxen = { path = "../oxen-rust/src/lib" }
+liboxen = { path = "../oxen-rust/src/lib" }
 
 pyo3 = { version = "0.22.0" }
 pyo3-async-runtimes = { version = "0.22", features = [

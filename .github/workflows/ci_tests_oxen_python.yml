@@ -12,51 +12,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Copy binaries to home directory
+        run: |
+          cp oxen-rust/target/debug/oxen ~/oxen
+          cp oxen-rust/target/debug/oxen-server ~/oxen-server
+          chmod +x ~/oxen ~/oxen-server
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.10"
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-server-linux-x86_64.tar.gz"
-      #     out-file-path: "."
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-linux-x86_64.tar.gz"
-      #     out-file-path: "."
-
-      - name: Download oxen-server
-        run: |
-          curl -L -o oxen-server-linux-x86_64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-linux-server-binary-x86_64-latest.tar.gz
-
-      - name: Download oxen
-        run: |
-          curl -L -o oxen-linux-x86_64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-linux-binary-x86_64-latest.tar.gz
-
-      - name: Extract oxen binaries
-        run: |
-          tar -xzf oxen-server-linux-x86_64.tar.gz
-          tar -xzf oxen-linux-x86_64.tar.gz
-
-          mv oxen-linux-server-binary-x86_64-latest/oxen-server ~/
-          mv oxen-linux-binary-x86_64-latest/oxen ~/
-
-          # mv oxen-server ~/
-          # mv oxen ~/
-
-          chmod +x ~/oxen-server
-          chmod +x ~/oxen
-
-          rm oxen-server-linux-x86_64.tar.gz
-          rm oxen-linux-x86_64.tar.gz
-
-      - name: Update liboxen crate location
-        run: |
-          sed -i 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
 
       - name: Install dependencies
         run: |
@@ -79,48 +52,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Copy binaries to home directory
+        run: |
+          cp oxen-rust/target/debug/oxen ~/oxen
+          cp oxen-rust/target/debug/oxen-server ~/oxen-server
+          chmod +x ~/oxen ~/oxen-server
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.10"
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-server-macos-arm64.tar.gz"
-      #     out-file-path: "."
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-macos-arm64.tar.gz"
-      #     out-file-path: "."
-
-      - name: Download oxen-server
-        run: |
-          curl -L -o oxen-server-macos-arm64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-server-mac-13.0.tar.gz
-
-      - name: Download oxen
-        run: |
-          curl -L -o oxen-macos-arm64.tar.gz https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-mac-13.0.tar.gz
-
-      - name: Extract oxen binaries
-        run: |
-          tar -xzf oxen-server-macos-arm64.tar.gz
-          tar -xzf oxen-macos-arm64.tar.gz
-
-          mv oxen-server ~/
-          mv oxen ~/
-
-          chmod +x ~/oxen-server
-          chmod +x ~/oxen
-
-          rm oxen-server-macos-arm64.tar.gz
-          rm oxen-macos-arm64.tar.gz
-
-      - name: Update liboxen crate location
-        run: |
-          sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
 
       - name: Install dependencies
         run: |
@@ -143,41 +92,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
+          fail-on-cache-miss: true
+
+      - name: Copy binaries to workspace root
+        run: |
+          copy oxen-rust\target\debug\oxen.exe ${{ github.workspace }}\oxen.exe
+          copy oxen-rust\target\debug\oxen-server.exe ${{ github.workspace }}\oxen-server.exe
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.10"
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-server-windows-x86_64.zip"
-      #     out-file-path: "."
-
-      # - uses: robinraju/release-downloader@v1.8
-      #   with:
-      #     latest: true
-      #     fileName: "oxen-windows-x86_64.zip"
-      #     out-file-path: "."
-
-      - name: Download oxen-server
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen-server.exe" -OutFile "oxen-server.exe"
-
-      - name: Download oxen
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/Oxen-AI/oxen-archive/releases/download/v0.36.1/oxen.exe" -OutFile "oxen.exe"
-
-      # - name: Extract oxen binaries
-      #   run: |
-      #     Expand-Archive -Path "oxen-server-windows-x86_64.zip" -DestinationPath "." -Force
-      #     Expand-Archive -Path "oxen-windows-x86_64.zip" -DestinationPath "." -Force
-
-      - name: Update liboxen crate location
-        run: |
-          $content = Get-Content "${{ github.workspace }}\oxen-python\Cargo.toml"
-          $content = $content -replace 'liboxen = ".*', 'liboxen = { path = "../oxen-rust/src/lib" }'
-          Set-Content "${{ github.workspace }}\oxen-python\Cargo.toml" -Value $content
 
       - name: Install dependencies
         run: |

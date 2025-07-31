@@ -12,10 +12,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Copy rust-toolchain.toml to root
+        run: |
+          cp ${{ github.workspace }}/oxen-rust/rust-toolchain.toml .
+
       - name: Setup Rust Toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Cache oxen-rust cargo
+      - name: Cache based on dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -24,6 +28,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             oxen-rust/target/
+            oxen-python/target/
           key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests
@@ -41,6 +46,13 @@ jobs:
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=3
 
+      - name: Cache build artifacts
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
+
   test_macos:
     name: MacOS tests + RSpec Tests
     runs-on: macos-latest
@@ -57,7 +69,7 @@ jobs:
           ruby-version: "3.0"
           bundler-cache: true
 
-      - name: Cache oxen-rust cargo
+      - name: Cache based on dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -66,6 +78,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             oxen-rust/target/
+            oxen-python/target/
           key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install dependencies
@@ -93,6 +106,13 @@ jobs:
 
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=3
+
+      - name: Cache build artifacts
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
 
       - name: Run Rspec Tests
         env:
@@ -122,7 +142,7 @@ jobs:
           ruby-version: "3.0"
           bundler-cache: true
 
-      - name: Cache oxen-rust cargo
+      - name: Cache based on dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -131,6 +151,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             oxen-rust/target/
+            oxen-python/target/
           key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run Tests
@@ -147,20 +168,18 @@ jobs:
           Start-Process -FilePath "${{ github.workspace }}\oxen-rust\target\debug\oxen-server.exe" -WindowStyle Hidden -ArgumentList "start"
           cargo test -- --test-threads=1
 
+      - name: Cache build artifacts
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            oxen-rust/target/debug/
+          key: ${{ runner.os }}-oxen-rust-artifacts-${{ github.sha }}
+
       - name: Run Rspec Tests
         env:
           PATH: ${{ env.PATH }};${{ github.workspace }}/oxen-rust/target/debug
         run: |
           cd ${{ github.workspace }}/oxen-rust
-
-          # echo "Adding user"
-          # .\target\debug\oxen-server.exe add-user --email ox@oxen.ai --name Ox --output user_config.toml
-
-          # echo "Copying user config"
-          # cp user_config.toml data\test\config\user_config.toml
-
-          # echo "Starting server"
-          # cmd /c "START /B .\target\debug\oxen-server.exe start"
 
           echo "🐂 Running tests"
           cd cli-test

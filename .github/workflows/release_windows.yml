@@ -83,12 +83,6 @@ jobs:
           cd ${{ github.workspace }}\oxen-rust
           cargo build --release
 
-      - name: Update liboxen crate location
-        run: |
-          $content = Get-Content "${{ github.workspace }}\oxen-python\Cargo.toml"
-          $content = $content -replace 'liboxen = ".*', 'liboxen = { path = "../oxen-rust/src/lib" }'
-          Set-Content "${{ github.workspace }}\oxen-python\Cargo.toml" -Value $content
-
       - name: Build Python wheels
         run: |
           refreshenv
