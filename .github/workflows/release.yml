@@ -142,7 +142,6 @@ jobs:
           draft: true
           name: "🚀 Release ${{ needs.set_env.outputs.release_version }}"
           replacesArtifacts: true
-          tag: ${{ needs.set_env.outputs.release_version }}
           updateOnlyUnreleased: true
           body: |
             🚀 Release ${{ needs.set_env.outputs.release_version }}

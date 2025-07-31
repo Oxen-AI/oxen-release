@@ -42,8 +42,11 @@ jobs:
           tar -xzf oxen-server-linux-x86_64.tar.gz
           tar -xzf oxen-linux-x86_64.tar.gz
 
-          mv oxen-server ~/
-          mv oxen ~/
+          mv oxen-linux-server-binary-x86_64-latest/oxen-server ~/
+          mv oxen-linux-binary-x86_64-latest/oxen ~/
+
+          # mv oxen-server ~/
+          # mv oxen ~/
 
           chmod +x ~/oxen-server
           chmod +x ~/oxen
@@ -51,15 +54,21 @@ jobs:
           rm oxen-server-linux-x86_64.tar.gz
           rm oxen-linux-x86_64.tar.gz
 
+      - name: Update liboxen crate location
+        run: |
+          sed -i 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
+
       - name: Install dependencies
         run: |
-          cd oxen-python
+          cd ${{ github.workspace }}/oxen-python
           uv sync
 
       - name: Run Tests
         run: |
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ~/oxen-server start &
+
+          cd ${{ github.workspace }}/oxen-python
           pytest -s tests
 
   test_macos:
@@ -109,23 +118,26 @@ jobs:
           rm oxen-server-macos-arm64.tar.gz
           rm oxen-macos-arm64.tar.gz
 
+      - name: Update liboxen crate location
+        run: |
+          sed -i .tmp 's|liboxen = ".*|liboxen = { path = "..\/oxen-rust\/src\/lib" }|' ${{ github.workspace }}/oxen-python/Cargo.toml
+
       - name: Install dependencies
         run: |
-          cd oxen-python
+          cd ${{ github.workspace }}/oxen-python
           uv sync
 
       - name: Run Tests
         run: |
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ~/oxen-server start &
+
+          cd ${{ github.workspace }}/oxen-python
           pytest -s tests
 
   test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: ./oxen
 
     steps:
       - name: Checkout
@@ -140,13 +152,13 @@ jobs:
       #   with:
       #     latest: true
       #     fileName: "oxen-server-windows-x86_64.zip"
-      #     out-file-path: "./oxen"
+      #     out-file-path: "."
 
       # - uses: robinraju/release-downloader@v1.8
       #   with:
       #     latest: true
       #     fileName: "oxen-windows-x86_64.zip"
-      #     out-file-path: "./oxen"
+      #     out-file-path: "."
 
       - name: Download oxen-server
         run: |
@@ -161,15 +173,21 @@ jobs:
       #     Expand-Archive -Path "oxen-server-windows-x86_64.zip" -DestinationPath "." -Force
       #     Expand-Archive -Path "oxen-windows-x86_64.zip" -DestinationPath "." -Force
 
+      - name: Update liboxen crate location
+        run: |
+          $content = Get-Content "${{ github.workspace }}\oxen-python\Cargo.toml"
+          $content = $content -replace 'liboxen = ".*', 'liboxen = { path = "../oxen-rust/src/lib" }'
+          Set-Content "${{ github.workspace }}\oxen-python\Cargo.toml" -Value $content
+
       - name: Install dependencies
         run: |
-          cd oxen-python
+          cd ${{ github.workspace }}\oxen-python
           uv sync
 
       - name: Run Tests
         run: |
-          ./oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
-          ./oxen-server.exe start &
+          ${{ github.workspace }}\oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
+          ${{ github.workspace }}\oxen-server.exe start &
 
-          cd oxen-python
+          cd ${{ github.workspace }}\oxen-python
           pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py

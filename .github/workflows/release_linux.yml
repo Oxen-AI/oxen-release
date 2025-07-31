@@ -137,10 +137,6 @@ jobs:
         run: |
           tar -czvf ${{ github.workspace }}/release/oxen-wheels-linux-${{ inputs.ARCHITECTURE }}.tar.gz -C ${{ github.workspace }}/oxen-python/target/wheels/ .
 
-      - name: Create tarball with all artifacts
-        run: |
-          tar -czvf ${{ github.workspace }}/oxen-linux-${{ inputs.ARCHITECTURE }}-release.tar.gz -C ${{ github.workspace }}/release/ .
-
       - name: Create deb packages
         run: |
           gem install fpm
@@ -168,6 +164,10 @@ jobs:
             --url "https://oxen.ai" \
             --maintainer "OxenAI hello@oxen.ai" \
             oxen-server=/usr/bin/oxen-server
+
+      - name: Create tarball with all artifacts
+        run: |
+          tar -czvf ${{ github.workspace }}/oxen-linux-${{ inputs.ARCHITECTURE }}-release.tar.gz -C ${{ github.workspace }}/release/ .
 
       - name: Upload all artifacts
         uses: actions/upload-artifact@v4
