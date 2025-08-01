@@ -1,7 +1,5 @@
 on:
-  push:
-    branches:
-      - "*"
+  push
 
 name: 🐂 Continuous integration
 
@@ -10,14 +8,6 @@ jobs:
     name: Lint
     uses: ./.github/workflows/ci_lint.yml
 
-  oxen-rust-tests:
-    name: oxen-rust tests
-    uses: ./.github/workflows/ci_tests_oxen_rust.yml
-    needs:
-      - lint
-
-  oxen-python-tests:
-    name: oxen-python tests
-    uses: ./.github/workflows/ci_tests_oxen_python.yml
-    needs:
-      - oxen-rust-tests
+  test:
+    name: Test Suite
+    uses: ./.github/workflows/ci_test.yml
