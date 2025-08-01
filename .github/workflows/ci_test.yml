@@ -139,7 +139,7 @@ jobs:
         if: matrix.platform != 'windows'
         run: |
           cp ${{ github.workspace }}/oxen-rust/target/debug/oxen ~/oxen
-          chmod +x ~/oxen ~/oxen-server
+          chmod +x ~/oxen ~/oxen
 
       - name: Copy binaries for Python tests (Windows)
         if: matrix.platform == 'windows'
