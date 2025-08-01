@@ -29,7 +29,7 @@ jobs:
             ~/.cargo/git/db/
             oxen-rust/target/
             oxen-python/target/
-          key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-dependencies-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests
         run: |
@@ -79,7 +79,7 @@ jobs:
             ~/.cargo/git/db/
             oxen-rust/target/
             oxen-python/target/
-          key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-dependencies-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install dependencies
         run: |
@@ -152,7 +152,7 @@ jobs:
             ~/.cargo/git/db/
             oxen-rust/target/
             oxen-python/target/
-          key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-dependencies-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run Tests
         run: |
