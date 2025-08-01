@@ -494,7 +494,7 @@ wheels = [
 
 [[package]]
 name = "oxenai"
-version = "0.36.2"
+version = "0.36.3"
 source = { editable = "." }
 dependencies = [
     { name = "fsspec", version = "2023.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.8'" },

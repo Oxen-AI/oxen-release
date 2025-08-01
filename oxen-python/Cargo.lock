@@ -3205,7 +3205,7 @@ checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
 name = "liboxen"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "actix-web",
  "approx",
@@ -3913,7 +3913,7 @@ dependencies = [
 
 [[package]]
 name = "oxen"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "bindgen 0.71.1",
  "cc",

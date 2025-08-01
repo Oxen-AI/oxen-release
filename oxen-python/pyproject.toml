@@ -1,5 +1,5 @@
 [project]
-version = "0.36.2"
+version = "0.36.3"
 name = "oxenai"
 description = "Data version control for machine learning"
 requires-python = ">=3.7"
