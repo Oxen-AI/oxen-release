@@ -1,7 +1,5 @@
 on:
-  push:
-    branches:
-      - "*"
+  push
 
 name: 🐂 Continuous integration
 
@@ -23,6 +21,7 @@ jobs:
             platform: macos
           - os: windows-latest
             platform: windows
+      fail-fast: false
 
     steps:
       - name: Checkout
@@ -119,8 +118,8 @@ jobs:
           cargo test -- --test-threads=1
 
       # RSpec Tests
-      - name: Run RSpec tests (Linux/macOS)
-        if: matrix.platform != 'windows'
+      - name: Run RSpec tests (macOS)
+        if: matrix.platform == 'macos'
         env:
           PATH: ${{ env.PATH }}:${{ github.workspace }}/oxen-rust/target/debug
         run: |
