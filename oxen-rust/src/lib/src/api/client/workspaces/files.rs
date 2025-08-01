@@ -12,7 +12,6 @@ use rand::{thread_rng, Rng};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-use walkdir::WalkDir;
 
 const BASE_WAIT_TIME: usize = 300;
 const MAX_WAIT_TIME: usize = 10_000;
@@ -37,29 +36,8 @@ pub async fn add(
         return Ok(());
     }
 
-    let mut expanded_paths = Vec::new();
-    for path in paths.clone() {
-        if path.is_dir() {
-            for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
-                if entry.file_type().is_file() {
-                    expanded_paths.push(entry.path().to_path_buf());
-                }
-            }
-        } else {
-            expanded_paths.push(path);
-        }
-    }
-
     // TODO: add a progress bar
-    upload_multiple_files(remote_repo, workspace_id, directory, expanded_paths).await?;
-
-    // TODO: We should only be printing this if files were actually added
-    /*
-    println!(
-        "🐂 oxen successfully added paths {paths:?} to workspace {}",
-        workspace_id
-    );
-    */
+    upload_multiple_files(remote_repo, workspace_id, directory, paths).await?;
 
     Ok(())
 }
@@ -463,8 +441,6 @@ pub async fn add_many(
     }
 }
 
-// TODO: Merge this with 'rm_files'
-// Splitting them is a temporary solution to preserve compatibility with the python repo
 pub async fn rm(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
@@ -478,49 +454,6 @@ pub async fn rm(
     let response = client.delete(&url).send().await?;
     let body = client::parse_json_body(&url, response).await?;
     log::debug!("rm_file got body: {}", body);
-    Ok(())
-}
-
-pub async fn rm_files(
-    remote_repo: &RemoteRepository,
-    workspace_id: impl AsRef<str>,
-    paths: Vec<PathBuf>,
-) -> Result<(), OxenError> {
-    let workspace_id = workspace_id.as_ref();
-
-    let uri = format!("/workspaces/{workspace_id}/versions");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("rm_files: {}", url);
-    let client = client::new_for_url(&url)?;
-    let response = client.delete(&url).json(&paths).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    log::debug!("rm_files got body: {}", body);
-
-    // TODO: We should only be printing this if files were actually removed
-    /*
-    println!(
-        "🐂 oxen successfully staged paths {paths:?} as removed for workspace {}",
-        workspace_id
-    );
-    */
-
-    Ok(())
-}
-
-pub async fn rm_files_from_staged(
-    remote_repo: &RemoteRepository,
-    workspace_id: impl AsRef<str>,
-    paths: Vec<PathBuf>,
-) -> Result<(), OxenError> {
-    let workspace_id = workspace_id.as_ref();
-
-    let uri = format!("/workspaces/{workspace_id}/staged");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("rm_files: {}", url);
-    let client = client::new_for_url(&url)?;
-    let response = client.delete(&url).json(&paths).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    log::debug!("rm_files got body: {}", body);
     Ok(())
 }
 
@@ -1396,24 +1329,4 @@ mod tests {
         })
         .await
     }
-
-    // Test adding and committing file in remote mode in empty repo
-    /*
-
-        1. Make remote mode repo w/ empty remote;
-        2. Check whether repo exists, is_remote, has a branch, has created workspace
-        3. Create file in the working dir: run status, ensure that the file is untracked
-        4. Add the file; Call status, check for added file
-        5. Commit; Call status, check for is_clean message; check for new file node locally
-        6. Modify file locally; Call status, check for modified file
-        7. Add + Commit; Call status, check for is_clean message; check for new file node locally
-        8. Clone new local repo with same remote. Check for identical commit tree, both files in the versions folder, modified file in the working dir
-
-    */
-
-    // Test adding/committing multiple files in remote mode from populated repo
-    /*
-        Copy/Paste the above, except with populated repo. Add multiple files before committing, track which are modified when
-
-    */
 }

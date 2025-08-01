@@ -28,9 +28,6 @@ pub use list::WorkspaceListCmd;
 pub mod restore;
 pub use restore::WorkspaceRestoreCmd;
 
-pub mod rm;
-pub use rm::WorkspaceRmCmd;
-
 pub mod status;
 pub use status::WorkspaceStatusCmd;
 
@@ -59,7 +56,7 @@ impl RunCmd for WorkspaceCmd {
 
         // These are all the subcommands for the schemas command
         // including `create`, `add`, `rm`, `commit`, and `status`
-        let sub_commands = Self::get_subcommands();
+        let sub_commands = self.get_subcommands();
         for cmd in sub_commands.values() {
             command = command.subcommand(cmd.args());
         }
@@ -67,7 +64,7 @@ impl RunCmd for WorkspaceCmd {
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
-        let sub_commands = Self::get_subcommands();
+        let sub_commands = self.get_subcommands();
         if let Some((name, sub_matches)) = args.subcommand() {
             let Some(cmd) = sub_commands.get(name) else {
                 eprintln!("Unknown schema subcommand {name}");
@@ -86,7 +83,7 @@ impl RunCmd for WorkspaceCmd {
 }
 
 impl WorkspaceCmd {
-    fn get_subcommands() -> HashMap<String, Box<dyn RunCmd>> {
+    fn get_subcommands(&self) -> HashMap<String, Box<dyn RunCmd>> {
         let commands: Vec<Box<dyn RunCmd>> = vec![
             Box::new(WorkspaceAddCmd),
             Box::new(WorkspaceClearCmd),
@@ -96,7 +93,6 @@ impl WorkspaceCmd {
             Box::new(WorkspaceDiffCmd),
             Box::new(WorkspaceDeleteCmd),
             Box::new(WorkspaceListCmd),
-            Box::new(WorkspaceRmCmd),
             Box::new(WorkspaceStatusCmd),
             Box::new(WorkspaceDownloadCmd),
         ];
@@ -105,23 +101,5 @@ impl WorkspaceCmd {
             runners.insert(cmd.name().to_string(), cmd);
         }
         runners
-    }
-
-    pub async fn run_subcommands(
-        name: &str,
-        sub_matches: &clap::ArgMatches,
-    ) -> Result<(), OxenError> {
-        let sub_commands = Self::get_subcommands();
-        let Some(cmd) = sub_commands.get(name) else {
-            return Err(OxenError::basic_str(format!(
-                "Command `oxen {name}` not available for workspaces"
-            )));
-        };
-
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(cmd.run(sub_matches))
-        })?;
-
-        Ok(())
     }
 }

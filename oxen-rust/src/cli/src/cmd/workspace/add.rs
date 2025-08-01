@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use clap::{Arg, ArgGroup, ArgMatches, Command};
+use clap::{Arg, ArgMatches, Command};
 
 use liboxen::{api, core::oxenignore, error::OxenError, model::LocalRepository};
 
@@ -16,17 +16,12 @@ impl RunCmd for WorkspaceAddCmd {
     }
 
     fn args(&self) -> Command {
-        // If in remote repo, workspace id can be found from the config instead
-        let is_remote_repo = match LocalRepository::from_current_dir() {
-            Ok(repo) => repo.is_remote_mode(),
-            Err(_) => false,
-        };
-
         add_args()
             .arg(
                 Arg::new("workspace-id")
                     .long("workspace-id")
                     .short('w')
+                    .required_unless_present("workspace-name")
                     .help("The workspace ID of the workspace")
                     .conflicts_with("workspace-name"),
             )
@@ -34,13 +29,9 @@ impl RunCmd for WorkspaceAddCmd {
                 Arg::new("workspace-name")
                     .long("workspace-name")
                     .short('n')
+                    .required_unless_present("workspace-id")
                     .help("The name of the workspace")
                     .conflicts_with("workspace-id"),
-            )
-            .group(
-                ArgGroup::new("workspace-identifier")
-                    .args(["workspace-id", "workspace-name"])
-                    .required(!is_remote_repo),
             )
             .arg(
                 Arg::new("directory")
@@ -60,30 +51,25 @@ impl RunCmd for WorkspaceAddCmd {
             .map(PathBuf::from)
             .collect();
 
-        let repository = LocalRepository::from_current_dir()?;
+        let workspace_name = args.get_one::<String>("workspace-name");
+        let workspace_id = args.get_one::<String>("workspace-id");
+        let directory = args.get_one::<String>("directory").unwrap(); // safe to unwrap because we have a default value
 
-        let (workspace_identifier, directory) = if repository.is_remote_mode() {
-            (&repository.workspace_name.clone().unwrap(), ".")
-        } else {
-            let directory = args.get_one::<String>("directory").unwrap(); // safe to unwrap because we have a default value
-
-            let workspace_name = args.get_one::<String>("workspace-name");
-            let workspace_id = args.get_one::<String>("workspace-id");
-            match workspace_id {
-                Some(id) => (id, directory.as_str()),
-                None => {
-                    // If no ID is provided, try to get the workspace by name
-                    if let Some(name) = workspace_name {
-                        (name, directory.as_str())
-                    } else {
-                        return Err(OxenError::basic_str(
-                            "Either workspace-id or workspace-name must be provided.",
-                        ));
-                    }
+        let workspace_identifier = match workspace_id {
+            Some(id) => id,
+            None => {
+                // If no ID is provided, try to get the workspace by name
+                if let Some(name) = workspace_name {
+                    name
+                } else {
+                    return Err(OxenError::basic_str(
+                        "Either workspace-id or workspace-name must be provided.",
+                    ));
                 }
             }
         };
 
+        let repository = LocalRepository::from_current_dir()?;
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
 
         // Handle .oxenignore filtering

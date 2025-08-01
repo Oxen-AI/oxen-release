@@ -63,15 +63,4 @@ mod tests {
             Ok(())
         })
     }
-
-    #[test]
-    fn test_repositories_not_set_as_remote_mode_by_default() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|repo_dir| {
-            // Init repo
-            let repo = repositories::init(repo_dir)?;
-            assert!(!repo.is_remote_mode());
-
-            Ok(())
-        })
-    }
 }

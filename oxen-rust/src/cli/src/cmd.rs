@@ -87,9 +87,6 @@ pub use remote::RemoteCmd;
 pub mod restore;
 pub use restore::RestoreCmd;
 
-pub mod remote_mode;
-pub use remote_mode::RemoteModeCmd;
-
 pub mod rm;
 pub use rm::RmCmd;
 

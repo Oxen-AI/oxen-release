@@ -44,6 +44,14 @@ impl VersionStore for S3VersionStore {
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }
 
+    fn store_version_from_path_sync(
+        &self,
+        _hash: &str,
+        _file_path: &Path,
+    ) -> Result<(), OxenError> {
+        Err(OxenError::basic_str("S3VersionStore not yet implemented"))
+    }
+
     async fn store_version_from_reader(
         &self,
         _hash: &str,

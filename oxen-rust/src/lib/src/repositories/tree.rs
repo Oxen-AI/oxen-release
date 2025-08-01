@@ -529,6 +529,7 @@ pub fn list_missing_file_hashes_from_commits(
 }
 
 /// Given a set of commit ids, return the hashes that are missing from the tree
+/// TODO: Partial loads for this
 pub fn list_missing_file_hashes_from_nodes(
     repo: &LocalRepository,
     commit_ids: &HashSet<MerkleHash>,
@@ -559,6 +560,7 @@ pub fn list_missing_file_hashes_from_nodes(
         // It is much faster to check the subtree directly than to walk the entire tree
         if let Some(subtree_paths) = subtree_paths {
             for path in subtree_paths {
+                // TODO: Use the partial load
                 let Some(tree) = CommitMerkleTreeLatest::from_path_depth_unique_children(
                     repo,
                     &commit,
@@ -582,6 +584,7 @@ pub fn list_missing_file_hashes_from_nodes(
                 });
             }
         } else {
+            // TODO: Use partial load
             let Some(tree) = CommitMerkleTreeLatest::get_unique_children_for_commit(
                 repo,
                 &commit,
@@ -827,15 +830,6 @@ fn r_list_files_and_dirs(
     dir_nodes: &mut HashSet<DirNodeWithPath>,
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
-
-    if let EMerkleTreeNode::File(file_node) = &node.node {
-        file_nodes.insert(FileNodeWithDir {
-            file_node: file_node.to_owned(),
-            dir: traversed_path.to_owned(),
-        });
-        return Ok(());
-    }
-
     for child in &node.children {
         // log::debug!("Found child: {child}");
         match &child.node {
