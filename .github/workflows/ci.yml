@@ -162,7 +162,11 @@ jobs:
         run: |
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ~/oxen-server start &
+
           cd ${{ github.workspace }}/oxen-python
+
+          source .venv/bin/activate
+          uvx maturin develop
           uvx pytest -s tests
 
       - name: Run oxen-python tests (Windows)
@@ -170,5 +174,9 @@ jobs:
         run: |
           ${{ github.workspace }}\oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
           ${{ github.workspace }}\oxen-server.exe start &
+
           cd ${{ github.workspace }}\oxen-python
+
+          .venv\Scripts\activate
+          uvx maturin develop
           uvx pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
