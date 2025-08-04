@@ -1,4 +1,4 @@
-name: Test Suite
+name: 🐂 Continuous integration - Test Suite
 
 on:
   workflow_call:
@@ -45,7 +45,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.10"
+          python-version: "3.10" # Test against the earliest supported Python version
 
       - name: Cache based on dependencies
         uses: actions/cache@v4
@@ -151,13 +151,10 @@ jobs:
         run: |
           cd ${{ github.workspace }}/oxen-python
 
-          uv run python -m venv .venv
-          source .venv/bin/activate
-          uv run pip install -r requirements.txt
-
           ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
 
-          uv run maturin develop
+          uv sync --no-install-project
+          uv run maturin develop --uv
           uv run pytest -s tests
 
       - name: Run oxen-python tests (Windows)
@@ -165,11 +162,8 @@ jobs:
         run: |
           cd ${{ github.workspace }}\oxen-python
 
-          uv run python -m venv .venv
-          .venv\Scripts\activate
-          uv run pip install -r requirements.txt
-
           ${{ github.workspace }}\oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
 
-          uv run maturin develop
+          uv sync --no-install-project
+          uv run maturin develop --uv
           uv run pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
