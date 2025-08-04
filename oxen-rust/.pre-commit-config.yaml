@@ -8,16 +8,16 @@ repos:
     hooks:
       - id: cargo-fmt
         name: cargo fmt
-        entry: cd oxen-rust && cargo fmt -- --check
+        entry: cargo fmt -- --check
         language: system
         types: [rust]
-        files: 'oxen-rust/.*'
+        pass_filenames: false
         always_run: true
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: cd oxen-rust && cargo clippy --no-deps -- -D warnings
+        entry: cargo clippy --no-deps -- -D warnings
         language: system
         types: [rust]
-        files: 'oxen-rust/.*'
+        pass_filenames: false
         always_run: true
