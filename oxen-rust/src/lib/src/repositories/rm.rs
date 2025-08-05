@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
@@ -20,7 +21,9 @@ use crate::util;
 pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
+    println!("path: {:?}",repo.path);
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
+    println!("paths: {paths:?}");
 
     log::debug!("paths: {paths:?}");
     p_rm(&paths, repo, opts)?;
@@ -78,6 +81,7 @@ mod tests {
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
+    use crate::constants::OXEN_HIDDEN_DIR;
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
     use crate::model::StagedEntryStatus;
@@ -1040,6 +1044,72 @@ mod tests {
             for (_, staged_entry) in status.staged_files.iter() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rm_dot_excludes_oxen_hidden_dir() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+            // Create some test files in the repo root
+            let test_file1 = repo.path.join("test1.txt");
+            let test_file2 = repo.path.join("test2.txt");
+            util::fs::write_to_path(&test_file1, "test content 1")?;
+            util::fs::write_to_path(&test_file2, "test content 2")?;
+
+            // Create a test directory
+            let test_dir = repo.path.join("test_dir");
+            util::fs::create_dir_all(&test_dir)?;
+            let test_file_in_dir = test_dir.join("file_in_dir.txt");
+            util::fs::write_to_path(&test_file_in_dir, "file in directory")?;
+
+            // Add and commit all files
+            repositories::add(&repo, &repo.path).await?;
+            repositories::commit(&repo, "Initial commit with test files")?;
+
+            // Verify .oxen directory exists
+            let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
+            assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should exist");
+
+            // Use rm with "." pattern (this should exclude .oxen directory)
+            let opts = RmOpts {
+                path: PathBuf::from("."),
+                staged: false,
+                recursive: true,
+            };
+            repositories::rm(&repo, &opts)?;
+
+            // Verify that .oxen directory still exists after rm operation
+            assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should not be removed by 'oxen rm .'");
+
+            // Verify that the test files were staged for removal
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Should have staged the test files for removal but not .oxen
+            assert!(status.staged_files.len() > 0, "Some files should be staged for removal");
+            
+            // Verify that none of the staged files are the .oxen directory
+            for (path, staged_entry) in status.staged_files.iter() {
+                assert_ne!(path.to_str().unwrap_or(""), OXEN_HIDDEN_DIR, 
+                    "OXEN_HIDDEN_DIR should not be staged for removal");
+                assert!(!path.starts_with(OXEN_HIDDEN_DIR), 
+                    "No files within OXEN_HIDDEN_DIR should be staged for removal");
+                assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
+            }
+
+            // Also test direct attempt to remove .oxen directory
+            let direct_oxen_opts = RmOpts {
+                path: PathBuf::from(OXEN_HIDDEN_DIR),
+                staged: false,
+                recursive: true,
+            };
+            repositories::rm(&repo, &direct_oxen_opts)?;
+
+            // Verify .oxen directory still exists after direct removal attempt
+            assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should not be removed by direct 'oxen rm .oxen'");
 
             Ok(())
         })
