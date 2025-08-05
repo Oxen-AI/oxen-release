@@ -31,7 +31,6 @@ pub async fn pull_remote_branch(
     repo: &LocalRepository,
     fetch_opts: &FetchOpts,
 ) -> Result<(), OxenError> {
-    let party_ppl_filename1 = "party_ppl.txt";
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => core::v_latest::pull::pull_remote_branch(repo, fetch_opts).await,
