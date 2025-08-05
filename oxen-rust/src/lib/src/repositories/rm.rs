@@ -5,7 +5,6 @@
 
 use std::collections::HashSet;
 
-use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
@@ -21,9 +20,7 @@ use crate::util;
 pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
-    println!("path: {:?}",repo.path);
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
-    println!("paths: {paths:?}");
 
     log::debug!("paths: {paths:?}");
     p_rm(&paths, repo, opts)?;
