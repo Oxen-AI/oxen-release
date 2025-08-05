@@ -19,7 +19,9 @@ dependencies = [
     "polars>=1.32.0",
     "pyarrow>=21.0.0",
     "pytest>=8.4.1",
+    "pytest-datadir>=1.8.0",
     "requests>=2.32.4",
+    "ruff>=0.12.7",
     "toml>=0.10.2",
     "tqdm>=4.67.1",
 ]
