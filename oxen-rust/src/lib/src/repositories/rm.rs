@@ -20,6 +20,7 @@ use crate::util;
 pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
     let path: &Path = opts.path.as_ref();
+
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo)?;
 
     log::debug!("paths: {paths:?}");
@@ -1103,7 +1104,9 @@ mod tests {
                 staged: false,
                 recursive: true,
             };
-            repositories::rm(&repo, &direct_oxen_opts)?;
+            let err = repositories::rm(&repo, &direct_oxen_opts);
+
+            assert!(err.is_err());
 
             // Verify .oxen directory still exists after direct removal attempt
             assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should not be removed by direct 'oxen rm .oxen'");
