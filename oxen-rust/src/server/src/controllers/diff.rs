@@ -566,7 +566,7 @@ pub async fn get_df_diff(
         &compare_id,
         Some(left_entry.clone()),
         Some(right_entry.clone()),
-    )?;
+    ).await?;
 
     if let Some(diff) = maybe_cached_diff {
         let mut messages: Vec<OxenMessage> = vec![];

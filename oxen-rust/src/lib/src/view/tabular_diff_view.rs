@@ -35,7 +35,7 @@ pub struct TabularDiffViewImpl {
 }
 
 impl TabularDiffView {
-    pub fn from_commit_entries(
+    pub async fn from_commit_entries(
         repo: &LocalRepository,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
@@ -144,24 +144,36 @@ impl TabularDiffView {
                     (added_rows_view, removed_rows_view)
                 };
 
+                let added_cols = match added_cols {
+                    Some(df) => Some(df),
+                    None => None,
+                };
+                let removed_cols = match removed_cols {
+                    Some(df) => Some(df),
+                    None => None,
+                };
+
+                let added_rows = match added_rows_view {
+                    Some(df) => Some(df),
+                    None => None,
+                };
+                let removed_rows = match removed_rows_view {
+                    Some(df) => Some(df),
+                    None => None,
+                };
+
+                let num_added_cols = added_cols.as_ref().map(|df| df.full_size.width).unwrap_or(0);
+                let num_removed_cols = removed_cols.as_ref().map(|df| df.full_size.width).unwrap_or(0);
+                let num_added_rows = added_rows.as_ref().map(|df| df.size.height).unwrap_or(0);
+                let num_removed_rows = removed_rows.as_ref().map(|df| df.size.height).unwrap_or(0);
+
+
                 let summary = TabularDiffSummary {
                     summary: TabularDiffSummaryImpl {
-                        num_added_rows: added_rows_view
-                            .as_ref()
-                            .map(|df| df.size.height)
-                            .unwrap_or(0),
-                        num_added_cols: added_cols
-                            .as_ref()
-                            .map(|df| df.full_size.width)
-                            .unwrap_or(0),
-                        num_removed_rows: removed_rows_view
-                            .as_ref()
-                            .map(|df| df.size.height)
-                            .unwrap_or(0),
-                        num_removed_cols: removed_cols
-                            .as_ref()
-                            .map(|df| df.full_size.width)
-                            .unwrap_or(0),
+                        num_added_rows,
+                        num_added_cols,
+                        num_removed_rows,
+                        num_removed_cols,
                         schema_has_changed,
                     },
                 };
@@ -174,9 +186,9 @@ impl TabularDiffView {
                         base_schema: Some(base_schema),
                         head_schema: Some(head_schema),
                         added_rows: None,
-                        added_rows_view,
+                        added_rows_view: added_rows,
                         removed_rows: None,
-                        removed_rows_view,
+                        removed_rows_view: removed_rows,
                         added_cols,
                         added_cols_view,
                         removed_cols,
@@ -205,17 +217,23 @@ impl TabularDiffView {
                     .removed_rows
                     .map(|df| JsonDataFrameView::from_df_opts(df, base_schema.clone(), &df_opts));
 
+                let added_rows = match added_rows {
+                    Some(df) => df,
+                    None => JsonDataFrame::empty(&base_schema),
+                };
+                let removed_rows = match removed_rows {
+                    Some(df) => df,
+                    None => JsonDataFrame::empty(&base_schema),
+                };
+
+                let num_added_rows = added_rows.full_size.height;
+                let num_removed_rows = removed_rows.full_size.height;
+
                 let summary = TabularDiffSummary {
                     summary: TabularDiffSummaryImpl {
-                        num_added_rows: added_rows
-                            .as_ref()
-                            .map(|df| df.full_size.height)
-                            .unwrap_or(0),
+                        num_added_rows,
                         num_added_cols: 0,
-                        num_removed_rows: removed_rows
-                            .as_ref()
-                            .map(|df| df.full_size.height)
-                            .unwrap_or(0),
+                        num_removed_rows,
                         num_removed_cols: 0,
                         schema_has_changed,
                     },
@@ -226,9 +244,9 @@ impl TabularDiffView {
                         summary,
                         base_schema: Some(base_schema),
                         head_schema: Some(head_schema),
-                        added_rows,
+                        added_rows: Some(added_rows),
                         added_rows_view,
-                        removed_rows,
+                        removed_rows: Some(removed_rows),
                         removed_rows_view,
                         added_cols: None,
                         added_cols_view: None,
@@ -253,10 +271,18 @@ impl TabularDiffView {
                 &df_opts,
             ));
 
+
+            let added_df = match added_df {
+                Some(df) => df,
+                None => JsonDataFrame::empty(&head_schema),
+            };
+
+            let num_added_cols = added_df.full_size.width;
+
             let summary = TabularDiffSummary {
                 summary: TabularDiffSummaryImpl {
-                    num_added_rows: added_df.as_ref().map(|df| df.full_size.height).unwrap_or(0),
-                    num_added_cols: added_df.as_ref().map(|df| df.full_size.width).unwrap_or(0),
+                    num_added_rows: added_df.full_size.height,
+                    num_added_cols,
                     num_removed_rows: 0,
                     num_removed_cols: 0,
                     schema_has_changed,
@@ -268,7 +294,7 @@ impl TabularDiffView {
                     summary,
                     base_schema: None,
                     head_schema: Some(head_schema),
-                    added_rows: added_df,
+                    added_rows: Some(added_df),
                     added_rows_view: added_df_view,
                     removed_rows: None,
                     removed_rows_view: None,
@@ -294,18 +320,17 @@ impl TabularDiffView {
                 &df_opts,
             ));
 
+            let removed_df = match removed_df {
+                Some(df) => df,
+                None => JsonDataFrame::empty(&base_schema),
+            };
+
             let summary = TabularDiffSummary {
                 summary: TabularDiffSummaryImpl {
                     num_added_rows: 0,
                     num_added_cols: 0,
-                    num_removed_rows: removed_df
-                        .as_ref()
-                        .map(|df| df.full_size.height)
-                        .unwrap_or(0),
-                    num_removed_cols: removed_df
-                        .as_ref()
-                        .map(|df| df.full_size.width)
-                        .unwrap_or(0),
+                    num_removed_rows: removed_df.full_size.height,
+                    num_removed_cols: removed_df.full_size.width,
                     schema_has_changed,
                 },
             };
@@ -317,7 +342,7 @@ impl TabularDiffView {
                     head_schema: None,
                     added_rows: None,
                     added_rows_view: None,
-                    removed_rows: removed_df,
+                    removed_rows: Some(removed_df),
                     removed_rows_view: removed_df_view,
                     added_cols: None,
                     added_cols_view: None,

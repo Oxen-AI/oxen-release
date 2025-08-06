@@ -60,7 +60,7 @@ fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
     util::fs::is_utf8(file_1.as_ref()) && util::fs::is_utf8(file_2.as_ref())
 }
 
-pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
+pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
     log::debug!(
         "Starting diff function with keys: {:?} and targets: {:?}",
         opts.keys,
@@ -100,7 +100,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
 
     match (&opts.path_2, &opts.revision_1, &opts.revision_2) {
         (Some(path_2), Some(rev_1), Some(rev_2)) => {
-            diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, &opts)
+            diff_revs(&repo, rev_1, &opts.path_1.clone(), rev_2, path_2, &opts).await
         }
 
         // Compare same path with two revisions
@@ -111,7 +111,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             rev_2,
             &opts.path_1.clone(),
             &opts,
-        ),
+        ).await,
 
         // Compare rev_1 with current changes.
         // (Some(path_2), Some(rev_1), None) => {
@@ -120,7 +120,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         // }
 
         // Compare HEAD with current changes
-        (None, Some(rev_1), None) => diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts),
+        (None, Some(rev_1), None) => diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts).await,
 
         (Some(path_2), None, None) => {
             // Direct file comparison mode
@@ -142,7 +142,7 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
     }
 }
 
-pub fn diff_uncommitted(
+pub async fn diff_uncommitted(
     repo: &LocalRepository,
     rev_1: &str,
     path_1: &Path,
@@ -167,13 +167,13 @@ pub fn diff_uncommitted(
             opts.keys.clone(),
             opts.targets.clone(),
             vec![],
-        )?);
+        ).await?);
     }
 
     Ok(diff_result)
 }
 
-pub fn diff_revs(
+pub async fn diff_revs(
     repo: &LocalRepository,
     rev_1: &str,
     path_1: &Path,
@@ -193,7 +193,7 @@ pub fn diff_revs(
     let commit_2 = repositories::revisions::get(repo, rev_2)?
         .ok_or_else(|| OxenError::revision_not_found(rev_2.to_string().into()))?;
 
-    let dir_diff = diff_path(repo, &commit_1, &commit_2, path_1, path_2, opts)?;
+    let dir_diff = diff_path(repo, &commit_1, &commit_2, path_1, path_2, opts).await?;
     log::debug!(
         "Directory structural diff found {} entries",
         dir_diff.entries.len()
@@ -220,7 +220,7 @@ pub fn diff_revs(
                 opts.keys.clone(),
                 opts.targets.clone(),
                 vec![],
-            ) {
+            ).await {
                 Ok(result) => {
                     log::debug!("Content diff successful for file: {:?}", head_res.path);
                     content_diffs.push(result);
@@ -242,7 +242,7 @@ pub fn diff_revs(
     Ok(content_diffs)
 }
 
-pub fn diff_commits(
+pub async fn diff_commits(
     repo: &LocalRepository,
     cpath_1: CommitPath,
     cpath_2: CommitPath,
@@ -306,7 +306,7 @@ pub fn diff_commits(
         (Some(node_1), Some(node_2)) => {
             let compare_result = repositories::diffs::diff_file_nodes(
                 repo, &node_1, &node_2, keys, targets, display,
-            )?;
+            ).await?;
 
             log::debug!("compare result: {:?}", compare_result);
 
@@ -319,7 +319,7 @@ pub fn diff_commits(
 }
 
 /// Diffs a directory between two commits, returning a summary of changes.
-pub fn diff_path(
+pub async fn diff_path(
     repo: &LocalRepository,
     base_commit: &Commit,
     head_commit: &Commit,
@@ -401,7 +401,7 @@ pub fn diff_files(
 }
 
 // TODO: merge this and diff_file_and_node
-pub fn diff_file_and_node(
+pub async fn diff_file_and_node(
     repo: &LocalRepository,
     file_node: &FileNode,
     file_path: impl AsRef<Path>,
@@ -413,7 +413,7 @@ pub fn diff_file_and_node(
         EntryDataType::Tabular => {
             let result = diff_tabular_file_and_file_node(
                 repo, file_node, file_path, keys, targets, display,
-            )?;
+            ).await?;
             Ok(DiffResult::Tabular(result))
         }
         EntryDataType::Text => {
@@ -428,7 +428,7 @@ pub fn diff_file_and_node(
     }
 }
 
-pub fn diff_file_nodes(
+pub async fn diff_file_nodes(
     repo: &LocalRepository,
     file_1: &FileNode,
     file_2: &FileNode,
@@ -465,7 +465,7 @@ pub fn diff_file_nodes(
     }
 }
 
-pub fn diff_tabular_file_and_file_node(
+pub async fn diff_tabular_file_and_file_node(
     repo: &LocalRepository,
     file_node: &FileNode,
     file_1_path: impl AsRef<Path>,
@@ -1051,7 +1051,7 @@ fn write_diff_dupes(
     Ok(())
 }
 
-pub fn get_cached_diff(
+pub async fn get_cached_diff(
     repo: &LocalRepository,
     compare_id: &str,
     compare_entry_1: Option<CommitEntry>,
@@ -1674,9 +1674,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
         .await
     }
 
-    #[test]
-    fn test_diff_txt_files() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
+    #[tokio::test]
+    async fn test_diff_txt_files() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|dir| async move {
             let file1 = dir.join("file1.txt");
             let file2 = dir.join("file2.txt");
             println!("file1: {:?}", file1);
@@ -1699,7 +1699,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             };
 
             println!("!!!!!!!!!");
-            let diff = repositories::diffs::diff(opts)?;
+            let diff = repositories::diffs::diff(opts).await?;
 
             match diff.first() {
                 Some(DiffResult::Text(ref result)) => {
@@ -1730,6 +1730,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             Ok(())
         })
+        .await
     }
 
     #[tokio::test]
@@ -1760,7 +1761,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             };
 
             let compare_result =
-                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
+                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![]).await?;
 
             let diff_col = DIFF_STATUS_COL;
             match compare_result {
@@ -1827,7 +1828,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
                 vec![],
-            )?;
+            )
+            .await?;
 
             let diff_col = DIFF_STATUS_COL;
             match compare_result {
@@ -1898,7 +1900,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
                 vec![],
-            )?;
+            )
+            .await?;
 
             let diff_col = DIFF_STATUS_COL;
             match compare_result {
@@ -1969,7 +1972,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string(), "d".to_string()],
                 vec![],
-            )?;
+            )
+            .await?;
 
             // Should return empty df
             let diff_col = DIFF_STATUS_COL;
@@ -2033,7 +2037,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             };
 
             let compare_result =
-                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
+                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![])
+                    .await?;
 
             // Should return empty df
             let diff_col = DIFF_STATUS_COL;
@@ -2104,7 +2109,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 vec!["a".to_string(), "b".to_string(), "c".to_string()],
                 vec![],
                 vec![],
-            )?;
+            )
+            .await?;
 
             // Should return empty df
             let diff_col = DIFF_STATUS_COL;

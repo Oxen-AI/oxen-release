@@ -55,7 +55,7 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
+    pub async fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
         let full_height = df.height();
         let full_width = df.width();
 
@@ -109,7 +109,7 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn to_df(&self) -> DataFrame {
+    pub async fn to_df(&self) -> DataFrame {
         if self.data == serde_json::Value::Null {
             DataFrame::empty()
         } else {
