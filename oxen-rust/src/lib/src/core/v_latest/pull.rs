@@ -49,7 +49,7 @@ pub async fn pull_remote_branch(
     fetch_opts.should_update_branch_head = false;
     let remote_branch = fetch::fetch_remote_branch(repo, &remote_repo, &fetch_opts).await?;
 
-    let mut new_head_commit = repositories::revisions::get(repo, &remote_branch.commit_id)?.ok_or(
+    let new_head_commit = repositories::revisions::get(repo, &remote_branch.commit_id)?.ok_or(
         OxenError::revision_not_found(remote_branch.commit_id.to_owned().into()),
     )?;
 
@@ -67,7 +67,10 @@ pub async fn pull_remote_branch(
             )
             .await
             {
-                Ok(Some(commit)) => new_head_commit = commit,
+                Ok(Some(commit)) =>{
+                    // Merge successful, update branch head
+                    repositories::branches::update(repo, branch, commit.id)?;
+                },
                 Ok(None) => {
                     // Merge conflict, keep the previous commit
                     return Err(OxenError::merge_conflict(
@@ -79,13 +82,6 @@ pub async fn pull_remote_branch(
         }
     }
 
-    log::debug!(
-        "Setting branch {} commit id to {}",
-        branch,
-        remote_branch.commit_id
-    );
-
-    repositories::branches::update(repo, branch, new_head_commit.id)?;
     api::client::repositories::post_pull(&remote_repo).await?;
 
     Ok(())

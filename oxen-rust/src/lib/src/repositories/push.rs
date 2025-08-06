@@ -1596,6 +1596,9 @@ A: Checkout Oxen.ai
                 repositories::add(&original_repo, &original_file1_path).await?;
                 repositories::commit(&original_repo, "Modify file1.txt in original")?;
 
+                // Capture the head commit before pull to verify it doesn't change
+                let head_before_pull = repositories::commits::head_commit(&original_repo)?;
+
                 // Pull should create a merge conflict
                 let pull_result = repositories::pull(&original_repo).await;
                 assert!(
@@ -1603,16 +1606,21 @@ A: Checkout Oxen.ai
                     "Pull should fail due to merge conflict"
                 );
 
+                // Verify the head commit is unchanged after failed pull
+                let head_after_pull = repositories::commits::head_commit(&original_repo)?;
+                assert_eq!(
+                    head_before_pull.id,
+                    head_after_pull.id,
+                    "Head commit should not change when pull fails due to merge conflict"
+                );
+
                 // Verify we have merge conflicts
                 let status = repositories::status(&original_repo)?;
                 assert!(status.has_merge_conflicts(), "Should have merge conflicts");
 
-                // After merge conflict, pushing should fail
+                // Verify we can't push
                 let push_result = repositories::push(&original_repo).await;
-                assert!(
-                    push_result.is_err(),
-                    "Push should fail after merge conflict"
-                );
+                assert!(push_result.is_err(), "Push should fail due to merge conflict");
 
                 Ok(())
             })
