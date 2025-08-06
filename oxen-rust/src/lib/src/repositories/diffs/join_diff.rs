@@ -55,7 +55,7 @@ pub fn diff(
     let display: Vec<&str> = display.iter().map(|k| k.as_ref()).collect();
 
     let output_columns = get_output_columns(
-        &Schema::from_polars(&df_2.schema()),
+        &Schema::from_polars(df_2.schema()),
         keys.clone(),
         targets.clone(),
         display.clone(),
@@ -119,9 +119,9 @@ pub fn diff(
     };
 
     let schemas = TabularDiffSchemas {
-        left: Schema::from_polars(&df_1.schema()),
-        right: Schema::from_polars(&df_2.schema()),
-        diff: Schema::from_polars(&joined_df.schema()),
+        left: Schema::from_polars(df_1.schema()),
+        right: Schema::from_polars(df_2.schema()),
+        diff: Schema::from_polars(joined_df.schema()),
     };
 
     let diff = TabularDiff {
@@ -314,7 +314,8 @@ fn join_hashed_dfs(
             // the issue. It might be fixed in Polars 0.47.1, but that version
             // introduces several async issues for us.
             // See: https://github.com/pola-rs/polars/pull/22380
-            joined_df = joined_df.lazy()
+            joined_df = joined_df
+                .lazy()
                 .rename([col.as_str()], [&format!("{}.right", col)], false)
                 .collect()?;
         }
@@ -322,7 +323,8 @@ fn join_hashed_dfs(
 
     for col in schema_diff.removed_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df = joined_df.lazy()
+            joined_df = joined_df
+                .lazy()
                 .rename([col.as_str()], [&format!("{}.left", col)], false)
                 .collect()?;
         }
@@ -335,12 +337,14 @@ fn join_hashed_dfs(
         let right_after = format!("{}.right", target);
         // Rename conditionally for asymetric targets
         if joined_df.schema().contains(&left_before) {
-            joined_df = joined_df.lazy()
+            joined_df = joined_df
+                .lazy()
                 .rename([&left_before], [&left_after], false)
                 .collect()?;
         }
         if joined_df.schema().contains(&right_before) {
-            joined_df = joined_df.lazy()
+            joined_df = joined_df
+                .lazy()
                 .rename([&right_before], [&right_after], false)
                 .collect()?;
         }

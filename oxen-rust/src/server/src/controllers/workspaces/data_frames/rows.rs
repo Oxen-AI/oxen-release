@@ -179,7 +179,7 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     log::debug!("Modified row in controller is {:?}", modified_row);
-    let schema = Schema::from_polars(&modified_row.schema());
+    let schema = Schema::from_polars(modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&modified_row, &schema),
@@ -216,7 +216,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     )?;
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
-    let schema = Schema::from_polars(&df.schema());
+    let schema = Schema::from_polars(df.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&df, &schema),
@@ -258,7 +258,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     log::debug!("Restored row in controller is {:?}", restored_row);
-    let schema = Schema::from_polars(&restored_row.schema());
+    let schema = Schema::from_polars(restored_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&restored_row, &schema),
