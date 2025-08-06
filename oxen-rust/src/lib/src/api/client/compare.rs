@@ -586,7 +586,7 @@ mod tests {
             // 1 modified, 1 added, 1 removed?
             let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n9,0,1,2";
             let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n0,1,9,2";
-        
+
 
             let left_path = "left.csv";
             let right_path = "right.csv";
