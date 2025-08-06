@@ -695,7 +695,7 @@ mod tests {
             let new_df = derived_df.to_df();
 
             // Nothing should've changed! Compare wasn't updated.
-            let are_equal = new_df == df;
+            assert!(new_df == df);
             assert_eq!(new_df, df);
 
             // Now, update the compare - using the exact same body as before, only the commits have changed
@@ -740,7 +740,7 @@ mod tests {
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
             let new_df = derived_df.to_df();
-            let are_different = new_df != df;
+            assert!(new_df != df);
 
             assert_ne!(new_df, df);
             assert_eq!(new_df.height(), 2);

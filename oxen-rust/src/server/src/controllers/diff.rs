@@ -28,6 +28,7 @@ use liboxen::view::{
     JsonDataFrameViews, Pagination, StatusMessage,
 };
 use liboxen::{constants, repositories, util};
+use tokio::task;
 
 use crate::helpers::get_repo;
 use crate::params::{
@@ -353,14 +354,36 @@ pub async fn create_df_diff(
         .collect();
     let targets = get_targets_from_req(targets);
 
-    let diff_result = repositories::diffs::diff_tabular_file_nodes(
-        &repository,
-        &node_1,
-        &node_2,
+    let repo = repository.clone();
+    let node_1_copy = node_1.clone();
+    let node_2_copy = node_2.clone();
+
+    let diff_result = task::spawn_blocking(move || {repositories::diffs::diff_tabular_file_nodes(
+        &repo,
+        &node_1_copy,
+        &node_2_copy,
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-    )?;
+    )}).await;
+
+    let diff_result = match diff_result {
+        Ok(Ok(diff)) => {
+            // The blocking function succeeded
+            diff
+        }
+        Ok(Err(e)) => {
+            // The blocking function returned an error
+            eprintln!("Error in blocking task: {:?}", e);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
+        Err(e) => {
+            // The blocking task itself panicked
+            eprintln!("Blocking task panicked: {:?}", e);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
+    };
+    
 
     // Cache the diff on the server
     let entry_1 = CommitEntry::from_file_node(&node_1);
@@ -579,7 +602,20 @@ pub async fn get_derived_df(
     // TODO: If this structure holds for diff + query, there is some amt of reusability with
     // controllers::df::get logic
 
-    let df = tabular::read_df(derived_df_path, DFOpts::empty())?;
+    
+    let df = task::spawn_blocking(move || {
+        tabular::read_df(derived_df_path, DFOpts::empty())
+    }).await;
+
+    let df = match df {
+        Ok(Ok(df)) => df,
+        _ => {
+            // Handle errors from the blocking task or the dataframe loading
+            return Err(OxenHttpError::InternalServerError);
+        }
+    };
+
+
     let og_schema = Schema::from_polars(df.schema());
 
     let mut opts = DFOpts::empty();

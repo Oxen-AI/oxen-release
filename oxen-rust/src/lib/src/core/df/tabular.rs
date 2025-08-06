@@ -100,7 +100,7 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     //     "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
     //     path.as_ref(),
     //     args.n_rows
-    // );
+    // )
     LazyFrame::scan_parquet(&path, args).map_err(|_| {
         OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
@@ -1007,10 +1007,7 @@ pub fn read_df_with_extension(
     let path = path.as_ref();
     let extension = extension.as_ref();
 
-    p_read_df_with_extension(path, extension, opts).map_err(|e| {
-        log::error!("Error Reading DataFrame {e:?} - {:?}", path);
-        OxenError::DataFrameError(format!("Error Reading DataFrame {e:?}").into())
-    })
+    p_read_df_with_extension(path, extension, opts)
 }
 
 pub fn p_read_df_with_extension(
