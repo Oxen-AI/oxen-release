@@ -809,7 +809,7 @@ mod tests {
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Run repositories::checkout::checkout_theirs() and make sure their changes get kept
-            repositories::checkout::checkout_combine(&repo, bbox_filename)?;
+            repositories::checkout::checkout_combine(&repo, bbox_filename).await?;
             let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
             // This doesn't guarantee order, but let's make sure we have 7 annotations now
@@ -862,7 +862,7 @@ mod tests {
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Run repositories::checkout::checkout_theirs() and make sure we cannot
-            let result = repositories::checkout::checkout_combine(&repo, bbox_filename);
+            let result = repositories::checkout::checkout_combine(&repo, bbox_filename).await;
             println!("{result:?}");
             assert!(result.is_err());
 
