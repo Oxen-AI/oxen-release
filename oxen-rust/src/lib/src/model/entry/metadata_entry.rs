@@ -80,7 +80,9 @@ impl MetadataEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         entry.as_ref()?;
-        repositories::metadata::from_commit_entry(repo, &entry.unwrap(), commit).await.ok()
+        repositories::metadata::from_commit_entry(repo, &entry.unwrap(), commit)
+            .await
+            .ok()
     }
 
     pub fn from_file_node(

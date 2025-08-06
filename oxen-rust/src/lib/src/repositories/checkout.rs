@@ -128,7 +128,10 @@ pub async fn checkout_ours(
 
 /// # Combine Conflicting Tabular Data Files
 /// This overwrites the current file with the changes in their file
-pub async fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+pub async fn checkout_combine<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    path: P,
+) -> Result<(), OxenError> {
     let conflicts = repositories::merge::list_conflicts(repo)?;
 
     log::debug!(

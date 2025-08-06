@@ -162,11 +162,16 @@ impl TabularDiffView {
                     None => None,
                 };
 
-                let num_added_cols = added_cols.as_ref().map(|df| df.full_size.width).unwrap_or(0);
-                let num_removed_cols = removed_cols.as_ref().map(|df| df.full_size.width).unwrap_or(0);
+                let num_added_cols = added_cols
+                    .as_ref()
+                    .map(|df| df.full_size.width)
+                    .unwrap_or(0);
+                let num_removed_cols = removed_cols
+                    .as_ref()
+                    .map(|df| df.full_size.width)
+                    .unwrap_or(0);
                 let num_added_rows = added_rows.as_ref().map(|df| df.size.height).unwrap_or(0);
                 let num_removed_rows = removed_rows.as_ref().map(|df| df.size.height).unwrap_or(0);
-
 
                 let summary = TabularDiffSummary {
                     summary: TabularDiffSummaryImpl {
@@ -270,7 +275,6 @@ impl TabularDiffView {
                 head_schema.clone(),
                 &df_opts,
             ));
-
 
             let added_df = match added_df {
                 Some(df) => df,

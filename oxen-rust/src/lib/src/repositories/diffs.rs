@@ -104,14 +104,17 @@ pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         }
 
         // Compare same path with two revisions
-        (None, Some(rev_1), Some(rev_2)) => diff_revs(
-            &repo,
-            rev_1,
-            &opts.path_1.clone(),
-            rev_2,
-            &opts.path_1.clone(),
-            &opts,
-        ).await,
+        (None, Some(rev_1), Some(rev_2)) => {
+            diff_revs(
+                &repo,
+                rev_1,
+                &opts.path_1.clone(),
+                rev_2,
+                &opts.path_1.clone(),
+                &opts,
+            )
+            .await
+        }
 
         // Compare rev_1 with current changes.
         // (Some(path_2), Some(rev_1), None) => {
@@ -120,7 +123,9 @@ pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         // }
 
         // Compare HEAD with current changes
-        (None, Some(rev_1), None) => diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts).await,
+        (None, Some(rev_1), None) => {
+            diff_uncommitted(&repo, rev_1, &opts.path_1.clone(), &opts).await
+        }
 
         (Some(path_2), None, None) => {
             // Direct file comparison mode
@@ -160,14 +165,17 @@ pub async fn diff_uncommitted(
             repositories::entries::get_file(repo, &commit_1, file.as_path())?.ok_or_else(|| {
                 OxenError::ResourceNotFound(format!("{}@{}", file.display(), commit_1.id).into())
             })?;
-        diff_result.push(diff_file_and_node(
-            repo,
-            &node_1,
-            file.as_path(),
-            opts.keys.clone(),
-            opts.targets.clone(),
-            vec![],
-        ).await?);
+        diff_result.push(
+            diff_file_and_node(
+                repo,
+                &node_1,
+                file.as_path(),
+                opts.keys.clone(),
+                opts.targets.clone(),
+                vec![],
+            )
+            .await?,
+        );
     }
 
     Ok(diff_result)
@@ -220,7 +228,9 @@ pub async fn diff_revs(
                 opts.keys.clone(),
                 opts.targets.clone(),
                 vec![],
-            ).await {
+            )
+            .await
+            {
                 Ok(result) => {
                     log::debug!("Content diff successful for file: {:?}", head_res.path);
                     content_diffs.push(result);
@@ -306,7 +316,8 @@ pub async fn diff_commits(
         (Some(node_1), Some(node_2)) => {
             let compare_result = repositories::diffs::diff_file_nodes(
                 repo, &node_1, &node_2, keys, targets, display,
-            ).await?;
+            )
+            .await?;
 
             log::debug!("compare result: {:?}", compare_result);
 
@@ -411,9 +422,9 @@ pub async fn diff_file_and_node(
 ) -> Result<DiffResult, OxenError> {
     match file_node.data_type() {
         EntryDataType::Tabular => {
-            let result = diff_tabular_file_and_file_node(
-                repo, file_node, file_path, keys, targets, display,
-            ).await?;
+            let result =
+                diff_tabular_file_and_file_node(repo, file_node, file_path, keys, targets, display)
+                    .await?;
             Ok(DiffResult::Tabular(result))
         }
         EntryDataType::Text => {
@@ -2037,8 +2048,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             };
 
             let compare_result =
-                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![])
-                    .await?;
+                repositories::diffs::diff_commits(&repo, c1, c2, vec![], vec![], vec![]).await?;
 
             // Should return empty df
             let diff_col = DIFF_STATUS_COL;

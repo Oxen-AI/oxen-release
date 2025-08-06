@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 use crate::error::OxenError;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
@@ -11,8 +9,6 @@ use crate::model::{Commit, DiffEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::repositories;
 use crate::util;
-use futures::stream::{self, TryStreamExt};
-use futures_util::stream::StreamExt;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

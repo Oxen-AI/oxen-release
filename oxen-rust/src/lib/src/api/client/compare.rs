@@ -26,18 +26,7 @@ pub async fn create_compare(
     compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
-    log::debug!("🔄 create_compare() Starting with parameters:");
-    log::debug!("  - compare_id: {}", compare_id);
-    log::debug!("  - left_path: {}", left_path);
-    log::debug!("  - left_revision: {}", left_revision);
-    log::debug!("  - right_path: {}", right_path);
-    log::debug!("  - right_revision: {}", right_revision);
-    log::debug!("  - keys.len(): {}", keys.len());
-    log::debug!("  - compare.len(): {}", compare.len());
-    log::debug!("  - display.len(): {}", display.len());
-    log::debug!("  - remote_repo.remote.url: {}", remote_repo.remote.url);
 
-    log::debug!("🔧 Building request body...");
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
         left: TabularCompareResourceBody {
@@ -52,53 +41,27 @@ pub async fn create_compare(
         compare,
         display,
     };
-    log::debug!("✅ Request body built successfully");
 
-    log::debug!("🌐 Constructing URL...");
     let uri = "/compare/data_frames".to_string();
-    log::debug!("  - URI: {}", uri);
+
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("  - Full URL: {}", url);
 
-    log::debug!("📡 Creating HTTP client...");
     let client = client::new_for_url(&url)?;
-    log::debug!("✅ HTTP client created successfully");
 
-    log::debug!("📤 Sending POST request...");
-    log::debug!("  - URL: {}", url);
-    log::debug!("  - Method: POST");
-    log::debug!("  - Content-Type: application/json");
 
     match client.post(&url).json(&json!(req_body)).send().await {
         Ok(res) => {
-            log::debug!("✅ POST request successful");
-            log::debug!("  - Response status: {}", res.status());
-            log::debug!("  - Response headers: {:?}", res.headers());
-
-            log::debug!("📥 Parsing response body...");
             let body = client::parse_json_body(&url, res).await?;
-            log::debug!("✅ Response body parsed successfully");
-            log::debug!("  - Body length: {} bytes", body.len());
-            log::debug!("  - Body preview: {}",
-                if body.len() > 200 {
-                    format!("{}...", &body[..200])
-                } else {
-                    body.clone()
-                });
-
-            log::debug!("🔄 Deserializing response to CompareTabularResponse...");
-            let response: Result<CompareTabularResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<CompareTabularResponse, serde_json::Error> =
+                serde_json::from_str(&body);
 
             match response {
                 Ok(tabular_compare) => {
-                    log::debug!("✅ Successfully deserialized CompareTabularResponse");
-                    log::debug!("🎉 create_compare() completed successfully");
+
                     Ok(tabular_compare.dfs)
-                },
+                }
                 Err(err) => {
-                    log::error!("❌ Failed to deserialize CompareTabularResponse");
-                    log::error!("  - Error: {}", err);
-                    log::error!("  - Response body: {}", body);
+
                     Err(OxenError::basic_str(format!(
                         "create_compare() Could not deserialize response [{err}]\n{body}"
                     )))
@@ -106,11 +69,9 @@ pub async fn create_compare(
             }
         }
         Err(err) => {
-            log::error!("❌ POST request failed");
-            log::error!("  - Error: {}", err);
-            log::error!("  - URL: {}", url);
             Err(OxenError::basic_str(format!(
-                "create_compare() Request failed: {}", err
+                "create_compare() Request failed: {}",
+                err
             )))
         }
     }
@@ -128,18 +89,7 @@ pub async fn update_compare(
     compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
-    log::debug!("🔄 update_compare() Starting with parameters:");
-    log::debug!("  - compare_id: {}", compare_id);
-    log::debug!("  - left_path: {}", left_path);
-    log::debug!("  - left_revision: {}", left_revision);
-    log::debug!("  - right_path: {}", right_path);
-    log::debug!("  - right_revision: {}", right_revision);
-    log::debug!("  - keys.len(): {}", keys.len());
-    log::debug!("  - compare.len(): {}", compare.len());
-    log::debug!("  - display.len(): {}", display.len());
-    log::debug!("  - remote_repo.remote.url: {}", remote_repo.remote.url);
 
-    log::debug!("🔧 Building request body...");
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
         left: TabularCompareResourceBody {
@@ -154,55 +104,28 @@ pub async fn update_compare(
         compare,
         display,
     };
-    log::debug!("✅ Request body built successfully");
 
-    log::debug!("🌐 Constructing URL...");
     let uri = format!("/compare/data_frames/{compare_id}");
-    log::debug!("  - URI: {}", uri);
+
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("  - Full URL: {}", url);
 
-    log::debug!("📡 Creating HTTP client...");
     let client = client::new_for_url(&url)?;
-    log::debug!("✅ HTTP client created successfully");
 
-    log::debug!("📤 Sending PUT request...");
-    log::debug!("  - URL: {}", url);
-    log::debug!("  - Method: PUT");
-    log::debug!("  - Content-Type: application/json");
 
     match client.put(&url).json(&json!(req_body)).send().await {
         Ok(res) => {
-            log::debug!("✅ PUT request successful");
-            log::debug!("  - Response status: {}", res.status());
-            log::debug!("  - Response headers: {:?}", res.headers());
 
-            log::debug!("📥 Parsing response body...");
             let body = client::parse_json_body(&url, res).await?;
-            log::debug!("✅ Response body parsed successfully");
-            log::debug!("  - Body length: {} bytes", body.len());
-            log::debug!("  - Body preview: {}",
-                if body.len() > 200 {
-                    format!("{}...", &body[..200])
-                } else {
-                    body.clone()
-                });
 
-            log::debug!("🔄 Deserializing response to CompareTabularResponse...");
             let response: Result<CompareTabularResponse, serde_json::Error> =
                 serde_json::from_str(&body);
 
             match response {
                 Ok(tabular_compare) => {
-                    log::debug!("✅ Successfully deserialized CompareTabularResponse");
-                    // log::debug!("  - Compare data available: {}", tabular_compare.dfs.to_string().len() > 0);
-                    log::debug!("🎉 update_compare() completed successfully");
+
                     Ok(tabular_compare.dfs)
-                },
+                }
                 Err(err) => {
-                    log::error!("❌ Failed to deserialize CompareTabularResponse");
-                    log::error!("  - Error: {}", err);
-                    log::error!("  - Response body: {}", body);
                     Err(OxenError::basic_str(format!(
                         "update_compare() Could not deserialize response [{err}]\n{body}"
                     )))
@@ -210,11 +133,9 @@ pub async fn update_compare(
             }
         }
         Err(err) => {
-            log::error!("❌ PUT request failed");
-            log::error!("  - Error: {}", err);
-            log::error!("  - URL: {}", url);
             Err(OxenError::basic_str(format!(
-                "update_compare() Request failed: {}", err
+                "update_compare() Request failed: {}",
+                err
             )))
         }
     }

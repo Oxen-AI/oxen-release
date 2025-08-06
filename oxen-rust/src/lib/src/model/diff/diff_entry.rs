@@ -171,7 +171,7 @@ impl DiffEntry {
         should_do_full_diff: bool,
         df_opts: Option<DFOpts>, // only for tabular
     ) -> Result<DiffEntry, OxenError> {
-    log::debug!(
+        log::debug!(
             "from_file_nodes: base_entry: {:?}, head_entry: {:?}",
             base_entry,
             head_entry

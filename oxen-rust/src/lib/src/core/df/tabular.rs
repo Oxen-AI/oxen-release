@@ -993,7 +993,8 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     if let Some(extension) = extension {
         read_df_with_extension(path, extension, &opts)
     } else {
-        let err = format!("Could not load data frame with path: {path:?} and extension: {extension:?}");
+        let err =
+            format!("Could not load data frame with path: {path:?} and extension: {extension:?}");
         Err(OxenError::basic_str(err))
     }
 }
