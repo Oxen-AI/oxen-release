@@ -151,23 +151,34 @@ pub fn diff_uncommitted(
     let status_opts = StagedDataOpts::from_paths(&[path_1.to_path_buf()]);
     let status = repositories::status::status_from_opts(repo, &status_opts)?;
     let unstaged_files = status.unstaged_files();
+    log::debug!("unstaged_files: {:?}", unstaged_files);
     let commit_1 = repositories::revisions::get(repo, rev_1)?
         .ok_or_else(|| OxenError::revision_not_found(rev_1.to_string().into()))?;
+    log::debug!("commit_1: {:?}", commit_1);
     let mut diff_result = Vec::new();
+    log::debug!("diff_result: {:?}", diff_result);
 
     for file in unstaged_files {
-        let node_1 =
-            repositories::entries::get_file(repo, &commit_1, file.as_path())?.ok_or_else(|| {
-                OxenError::ResourceNotFound(format!("{}@{}", file.display(), commit_1.id).into())
-            })?;
+        log::debug!("file: {:?}", file);
+
+        let node_1 = match repositories::entries::get_file(repo, &commit_1, file.as_path()) {
+            Ok(node) => node,
+            Err(err) => {
+                log::error!("Failed to get file {:?}: {}", file, err);
+                None
+            }
+        };
+
+        log::debug!("node_1: {:?}", node_1);
         diff_result.push(diff_file_and_node(
             repo,
-            &node_1,
+            node_1,
             file.as_path(),
             opts.keys.clone(),
             opts.targets.clone(),
             vec![],
         )?);
+        log::debug!("diff_result: {:?}", diff_result);
     }
 
     Ok(diff_result)
@@ -389,7 +400,10 @@ pub fn diff_files(
         let result = tabular(path_1, path_2, keys, targets, display)?;
         Ok(DiffResult::Tabular(result))
     } else if is_files_utf8(&path_1, &path_2) {
-        let result = utf8_diff::diff(path_1, path_2)?;
+        let result = utf8_diff::diff(
+            Some(path_1.as_ref().to_path_buf()),
+            Some(path_2.as_ref().to_path_buf()),
+        )?;
         Ok(DiffResult::Text(result))
     } else {
         Err(OxenError::invalid_file_type(format!(
@@ -400,31 +414,74 @@ pub fn diff_files(
     }
 }
 
-// TODO: merge this and diff_file_and_node
 pub fn diff_file_and_node(
     repo: &LocalRepository,
-    file_node: &FileNode,
+    file_node: Option<FileNode>,
     file_path: impl AsRef<Path>,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<DiffResult, OxenError> {
-    match file_node.data_type() {
-        EntryDataType::Tabular => {
-            let result = diff_tabular_file_and_file_node(
-                repo, file_node, file_path, keys, targets, display,
-            )?;
-            Ok(DiffResult::Tabular(result))
+    match file_node {
+        Some(file_node) => match file_node.data_type() {
+            EntryDataType::Tabular => {
+                let result = diff_tabular_file_and_file_node(
+                    repo,
+                    Some(&file_node),
+                    file_path,
+                    keys,
+                    targets,
+                    display,
+                )?;
+                Ok(DiffResult::Tabular(result))
+            }
+            EntryDataType::Text => {
+                log::debug!(
+                    "diff_file_and_node: diffing text files {:?} and {:?}",
+                    file_path.as_ref(),
+                    file_node.hash().to_string()
+                );
+                let result = diff_text_file_and_node(repo, Some(&file_node), file_path)?;
+                log::debug!(
+                    "diff_file_and_node: diffing text files {:?} and {:?}",
+                    file_node.hash().to_string(),
+                    result
+                );
+                Ok(result)
+            }
+            _ => Err(OxenError::invalid_file_type(format!(
+                "Compare not supported for files, found {:?} and {:?}",
+                file_path.as_ref(),
+                file_node.hash().to_string()
+            ))),
+        },
+        None => {
+            //we didn't get the file node, so we are comparing to a new file
+
+            let file_type = util::fs::file_data_type(file_path.as_ref());
+            match file_type {
+                EntryDataType::Tabular => {
+                    let result = diff_tabular_file_and_file_node(
+                        repo, None, file_path, keys, targets, display,
+                    )?;
+
+                    Ok(DiffResult::Tabular(result))
+                }
+                EntryDataType::Text => {
+                    log::debug!(
+                        "diff_file_and_node: diffing text files {:?}",
+                        file_path.as_ref()
+                    );
+                    let result = diff_text_file_and_node(repo, None, file_path)?;
+                    log::debug!("diff_file_and_node: diffing text files {:?}", result);
+                    Ok(result)
+                }
+                _ => Err(OxenError::invalid_file_type(format!(
+                    "Compare not supported for files, found {:?}",
+                    file_path.as_ref(),
+                ))),
+            }
         }
-        EntryDataType::Text => {
-            let result = diff_text_file_and_node(repo, file_node, file_path)?;
-            Ok(result)
-        }
-        _ => Err(OxenError::invalid_file_type(format!(
-            "Compare not supported for files, found {:?} and {:?}",
-            file_path.as_ref(),
-            file_node.hash().to_string()
-        ))),
     }
 }
 
@@ -453,9 +510,9 @@ pub fn diff_file_nodes(
         result.filename2 = Some(file_2.name().to_string());
         Ok(DiffResult::Tabular(result))
     } else if is_files_utf8(&version_path_1, &version_path_2) {
-        let mut result = utf8_diff::diff(version_path_1, version_path_2)?;
-        result.filename1 = Some(file_1.name().to_string());
-        result.filename2 = Some(file_2.name().to_string());
+        let mut result = utf8_diff::diff(Some(version_path_1), Some(version_path_2))?;
+        result.filename1 = Some(file_1.name().to_string().into());
+        result.filename2 = Some(file_2.name().to_string().into());
         Ok(DiffResult::Text(result))
     } else {
         Err(OxenError::invalid_file_type(format!(
@@ -467,16 +524,26 @@ pub fn diff_file_nodes(
 
 pub fn diff_tabular_file_and_file_node(
     repo: &LocalRepository,
-    file_node: &FileNode,
+    file_node: Option<&FileNode>,
     file_1_path: impl AsRef<Path>,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<TabularDiff, OxenError> {
-    let file_node_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-
-    let df_1 = tabular::read_df(file_node_path, DFOpts::empty())?;
-    let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+    let (df_1, df_2) = match file_node {
+        Some(file_node) => {
+            let file_node_path =
+                util::fs::version_path_from_hash(repo, file_node.hash().to_string());
+            let df_1 = tabular::read_df(file_node_path, DFOpts::empty())?;
+            let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+            (df_1, df_2)
+        }
+        None => {
+            let df_1 = tabular::new_df(); //TODO: should we create a new df with the schema of the file?
+            let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+            (df_1, df_2)
+        }
+    };
 
     let schema_1 = Schema::from_polars(&df_1.schema());
     let schema_2 = Schema::from_polars(&df_2.schema());
@@ -511,11 +578,17 @@ pub fn diff_tabular_file_nodes(
 
 pub fn diff_text_file_and_node(
     repo: &LocalRepository,
-    file_node: &FileNode,
+    file_node: Option<&FileNode>,
     file_path: impl AsRef<Path>,
 ) -> Result<DiffResult, OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-    let result = utf8_diff::diff(&version_path, file_path)?;
+    let version_path: Option<PathBuf> = match file_node {
+        Some(file_node) => Some(util::fs::version_path_from_hash(
+            repo,
+            file_node.hash().to_string(),
+        )),
+        None => None,
+    };
+    let result = utf8_diff::diff(version_path, Some(file_path.as_ref().to_path_buf()))?;
     Ok(DiffResult::Text(result))
 }
 
@@ -527,7 +600,7 @@ pub fn diff_text_file_nodes(
     let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
     let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
 
-    let result = utf8_diff::diff(&version_path_1, &version_path_2)?;
+    let result = utf8_diff::diff(Some(version_path_1), Some(version_path_2))?;
     Ok(DiffResult::Text(result))
 }
 
