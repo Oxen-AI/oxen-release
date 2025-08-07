@@ -309,28 +309,44 @@ fn join_hashed_dfs(
 
     for col in schema_diff.added_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.right", col)))?;
+            // TODO: it seems like a bug was introduced in Polars 0.46.0 that
+            // broke rename. `lazy().rename(...).collect()` seems to work around
+            // the issue. It might be fixed in Polars 0.47.1, but that version
+            // introduces several async issues for us.
+            // See: https://github.com/pola-rs/polars/pull/22380
+            joined_df = joined_df
+                .lazy()
+                .rename([col.as_str()], [&format!("{}.right", col)], false)
+                .collect()?;
         }
     }
 
     for col in schema_diff.removed_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.left", col)))?;
+            joined_df = joined_df
+                .lazy()
+                .rename([col.as_str()], [&format!("{}.left", col)], false)
+                .collect()?;
         }
     }
 
     for target in cols_to_rename.iter() {
-        log::debug!("trying to rename col: {}", target);
         let left_before = target.to_string();
         let left_after = format!("{}.left", target);
         let right_before = format!("{}_right", target);
         let right_after = format!("{}.right", target);
         // Rename conditionally for asymetric targets
         if joined_df.schema().contains(&left_before) {
-            joined_df.rename(&left_before, PlSmallStr::from_str(&left_after))?;
+            joined_df = joined_df
+                .lazy()
+                .rename([&left_before], [&left_after], false)
+                .collect()?;
         }
         if joined_df.schema().contains(&right_before) {
-            joined_df.rename(&right_before, PlSmallStr::from_str(&right_after))?;
+            joined_df = joined_df
+                .lazy()
+                .rename([&right_before], [&right_after], false)
+                .collect()?;
         }
     }
 
@@ -343,12 +359,19 @@ fn add_diff_status_column(
     targets: Vec<&str>,
 ) -> Result<DataFrame, OxenError> {
     // Columns required for determining group membership in the closure
-    let col_names = [
-        format!("{}.left", keys[0]),
-        format!("{}.right", keys[0]),
-        format!("{}.left", TARGETS_HASH_COL),
-        format!("{}.right", TARGETS_HASH_COL),
-    ];
+    let col_names = if !keys.is_empty() {
+        vec![
+            format!("{}.left", keys[0]),
+            format!("{}.right", keys[0]),
+            format!("{}.left", TARGETS_HASH_COL),
+            format!("{}.right", TARGETS_HASH_COL),
+        ]
+    } else {
+        vec![
+            format!("{}.left", TARGETS_HASH_COL),
+            format!("{}.right", TARGETS_HASH_COL),
+        ]
+    };
 
     let mut field_names = vec![];
     for col_name in &col_names {

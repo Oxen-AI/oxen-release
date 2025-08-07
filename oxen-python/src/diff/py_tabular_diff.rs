@@ -52,7 +52,7 @@ impl From<&TabularDiff> for PyTabularDiff {
         let mods = PyTabularDiffMods { rows };
         let summary = PyTabularDiffSummary {
             modifications: mods,
-            schema: Schema::from_polars(&df.schema()),
+            schema: Schema::from_polars(df.schema()),
         };
         let data = PyDataFrame(df.clone());
         Self { summary, data }

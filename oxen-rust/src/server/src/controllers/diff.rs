@@ -615,7 +615,6 @@ pub async fn get_derived_df(
         }
     };
 
-
     let og_schema = Schema::from_polars(df.schema());
 
     let mut opts = DFOpts::empty();
