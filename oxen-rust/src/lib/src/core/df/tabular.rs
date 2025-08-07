@@ -212,11 +212,7 @@ pub async fn add_col_lazy(
         df.with_column(column)
             .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     }
-    let df = match task::spawn_blocking(move || df.lazy()).await {
-        Ok(df) => df,
-        Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
-    };
-
+    let df = df.lazy();
     Ok(df)
 }
 
