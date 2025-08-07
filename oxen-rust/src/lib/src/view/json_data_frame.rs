@@ -68,7 +68,7 @@ impl JsonDataFrame {
         let schema = Schema::from_polars(df.schema());
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
-        let mut view_df = tabular::transform(df, opts).unwrap();
+        let mut view_df = tabular::transform(df, opts).await.unwrap();
         let view_schema = Schema::from_polars(view_df.schema());
 
         JsonDataFrame {
@@ -86,12 +86,12 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
+    pub async fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
         let full_height = df.height();
         let full_width = df.width();
 
         let schema = Schema::from_polars(df.schema());
-        let mut view_df = tabular::transform(df, opts).unwrap();
+        let mut view_df = tabular::transform(df, opts).await.unwrap();
         let view_schema = Schema::from_polars(view_df.schema());
 
         JsonDataFrame {
@@ -126,7 +126,7 @@ impl JsonDataFrame {
                         let df = JsonReader::new(content).finish().unwrap();
 
                         let opts = DFOpts::from_column_names(columns);
-                        tabular::transform(df, opts).unwrap()
+                        tabular::transform(df, opts).await.unwrap()
                     } else {
                         let cols = columns
                             .iter()

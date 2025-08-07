@@ -108,7 +108,7 @@ pub async fn entries(
         PathBuf::from(""),
         page,
         page_size,
-    )?;
+    ).await?;
 
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
@@ -206,7 +206,7 @@ pub async fn dir_entries(
         dir.clone(),
         page,
         page_size,
-    )?;
+    ).await?;
 
     log::debug!("entries_diff: {:?}", entries_diff);
 
@@ -278,7 +278,7 @@ pub async fn file(
         head_entry,
         &head_commit,
         opts,
-    )?;
+    ).await?;
 
     let view = CompareEntryResponse {
         status: StatusMessage::resource_found(),
@@ -358,31 +358,15 @@ pub async fn create_df_diff(
     let node_1_copy = node_1.clone();
     let node_2_copy = node_2.clone();
 
-    let diff_result = task::spawn_blocking(move || {repositories::diffs::diff_tabular_file_nodes(
+    let diff_result = repositories::diffs::diff_tabular_file_nodes(
         &repo,
         &node_1_copy,
         &node_2_copy,
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-    )}).await;
+    ).await?;
 
-    let diff_result = match diff_result {
-        Ok(Ok(diff)) => {
-            // The blocking function succeeded
-            diff
-        }
-        Ok(Err(e)) => {
-            // The blocking function returned an error
-            eprintln!("Error in blocking task: {:?}", e);
-            return Ok(HttpResponse::InternalServerError().finish());
-        }
-        Err(e) => {
-            // The blocking task itself panicked
-            eprintln!("Blocking task panicked: {:?}", e);
-            return Ok(HttpResponse::InternalServerError().finish());
-        }
-    };
     
 
     // Cache the diff on the server
@@ -474,7 +458,7 @@ pub async fn update_df_diff(
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-    )?;
+    ).await?;
 
     let entry_1 = CommitEntry::from_file_node(&node_1);
     let entry_2 = CommitEntry::from_file_node(&node_2);
@@ -603,12 +587,10 @@ pub async fn get_derived_df(
     // controllers::df::get logic
 
     
-    let df = task::spawn_blocking(move || {
-        tabular::read_df(derived_df_path, DFOpts::empty())
-    }).await;
+    let df = tabular::read_df(derived_df_path, DFOpts::empty()).await;
 
     let df = match df {
-        Ok(Ok(df)) => df,
+        Ok(df) => df,
         _ => {
             // Handle errors from the blocking task or the dataframe loading
             return Err(OxenHttpError::InternalServerError);
@@ -636,7 +618,7 @@ pub async fn get_derived_df(
     let opts_view = DFOptsView::from_df_opts(&opts);
 
     // We have to run the query param transforms, then paginate separately
-    match tabular::transform(df, opts) {
+    match tabular::transform(df, opts).await {
         Ok(view_df) => {
             log::debug!("View df {:?}", view_df);
 
@@ -646,7 +628,7 @@ pub async fn get_derived_df(
             // Paginate after transform
             let mut paginate_opts = DFOpts::empty();
             paginate_opts.slice = Some(format!("{}..{}", start, end));
-            let mut paginated_df = tabular::transform(view_df, paginate_opts)?;
+            let mut paginated_df = tabular::transform(view_df, paginate_opts).await?;
 
             let total_pages = (view_height as f64 / page_size as f64).ceil() as usize;
             let source_size = DataFrameSize {

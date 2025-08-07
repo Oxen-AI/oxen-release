@@ -85,7 +85,7 @@ pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
             opts.keys.clone(),
             opts.targets.clone(),
             vec![],
-        )?;
+        ).await?;
         return Ok(vec![result]);
     }
     let repo = repo.unwrap();
@@ -131,7 +131,7 @@ pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
                 opts.keys.clone(),
                 opts.targets.clone(),
                 vec![],
-            )?;
+            ).await?;
             log::debug!("🚀 Direct file comparison completed successfully");
             Ok(vec![result])
         }
@@ -363,7 +363,7 @@ pub async fn diff_path(
             head_path.as_ref().to_path_buf(),
             opts.page,
             opts.page_size,
-        ),
+        ).await,
         _ => {
             println!("Unable to compare directory and file");
             Err(OxenError::basic_str(
@@ -373,7 +373,7 @@ pub async fn diff_path(
     }
 }
 
-pub fn diff_files(
+pub async fn diff_files(
     path_1: impl AsRef<Path>,
     path_2: impl AsRef<Path>,
     keys: Vec<String>,
@@ -386,7 +386,7 @@ pub fn diff_files(
         path_2.as_ref()
     );
     if is_files_tabular(&path_1, &path_2) {
-        let result = tabular(path_1, path_2, keys, targets, display)?;
+        let result = tabular(path_1, path_2, keys, targets, display).await?;
         Ok(DiffResult::Tabular(result))
     } else if is_files_utf8(&path_1, &path_2) {
         let result = utf8_diff::diff(path_1, path_2)?;
@@ -448,7 +448,7 @@ pub async fn diff_file_nodes(
     if *file_1.data_type() == EntryDataType::Tabular
         && *file_2.data_type() == EntryDataType::Tabular
     {
-        let mut result = diff_tabular_file_nodes(repo, file_1, file_2, keys, targets, display)?;
+        let mut result = diff_tabular_file_nodes(repo, file_1, file_2, keys, targets, display).await?;
         result.filename1 = Some(file_1.name().to_string());
         result.filename2 = Some(file_2.name().to_string());
         Ok(DiffResult::Tabular(result))
@@ -475,8 +475,8 @@ pub async fn diff_tabular_file_and_file_node(
 ) -> Result<TabularDiff, OxenError> {
     let file_node_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
 
-    let df_1 = tabular::read_df(file_node_path, DFOpts::empty())?;
-    let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+    let df_1 = tabular::read_df(file_node_path, DFOpts::empty()).await?;
+    let df_2 = tabular::read_df(file_1_path, DFOpts::empty()).await?;
 
     let schema_1 = Schema::from_polars(df_1.schema());
     let schema_2 = Schema::from_polars(df_2.schema());
@@ -497,9 +497,11 @@ pub async fn diff_tabular_file_nodes(
     let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
     let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
     let df_1 =
-        tabular::read_df_with_extension(version_path_1, file_1.extension(), &DFOpts::empty())?;
+        tabular::read_df_with_extension(version_path_1, file_1.extension(), &DFOpts::empty())
+            .await?;
     let df_2 =
-        tabular::read_df_with_extension(version_path_2, file_2.extension(), &DFOpts::empty())?;
+        tabular::read_df_with_extension(version_path_2, file_2.extension(), &DFOpts::empty())
+            .await?;
 
     let schema_1 = Schema::from_polars(df_1.schema());
     let schema_2 = Schema::from_polars(df_2.schema());
@@ -531,15 +533,15 @@ pub fn diff_text_file_nodes(
     Ok(DiffResult::Text(result))
 }
 
-pub fn tabular(
+pub async fn tabular(
     file_1: impl AsRef<Path>,
     file_2: impl AsRef<Path>,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<TabularDiff, OxenError> {
-    let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
-    let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
+    let df_1 = tabular::read_df(file_1, DFOpts::empty()).await?;
+    let df_2 = tabular::read_df(file_2, DFOpts::empty()).await?;
 
     let schema_1 = Schema::from_polars(df_1.schema());
     let schema_2 = Schema::from_polars(df_2.schema());
@@ -840,7 +842,7 @@ pub fn compute_new_row_indices(
     Ok((added_indices, removed_indices))
 }
 
-pub fn compute_new_rows(
+pub async fn compute_new_rows(
     base_df: &DataFrame,
     head_df: &DataFrame,
     schema: &Schema,
@@ -851,7 +853,7 @@ pub fn compute_new_rows(
     // Take added from the current df
     let added_rows = if !added_indices.is_empty() {
         let opts = DFOpts::from_schema_columns(schema);
-        let head_df = tabular::transform(head_df.clone(), opts)?;
+        let head_df = tabular::transform(head_df.clone(), opts).await?;
         Some(tabular::take(head_df.lazy(), added_indices)?)
     } else {
         None
@@ -861,7 +863,7 @@ pub fn compute_new_rows(
     // Take removed from versioned df
     let removed_rows = if !removed_indices.is_empty() {
         let opts = DFOpts::from_schema_columns(schema);
-        let base_df = tabular::transform(base_df.clone(), opts)?;
+        let base_df = tabular::transform(base_df.clone(), opts).await?;
         Some(tabular::take(base_df.lazy(), removed_indices)?)
     } else {
         None
@@ -878,7 +880,7 @@ pub fn compute_new_rows(
     })
 }
 
-pub fn compute_new_rows_proj(
+pub async fn compute_new_rows_proj(
     // the lowest common schema dataframes
     base_df: &DataFrame,
     head_df: &DataFrame,
@@ -895,7 +897,7 @@ pub fn compute_new_rows_proj(
     // Take added from the current df
     let added_rows = if !added_indices.is_empty() {
         let opts = DFOpts::from_schema_columns(head_schema);
-        let proj_head_df = tabular::transform(proj_head_df.clone(), opts)?;
+        let proj_head_df = tabular::transform(proj_head_df.clone(), opts).await?;
         Some(tabular::take(proj_head_df.lazy(), added_indices)?)
     } else {
         None
@@ -905,7 +907,7 @@ pub fn compute_new_rows_proj(
     // Take removed from versioned df
     let removed_rows = if !removed_indices.is_empty() {
         let opts = DFOpts::from_schema_columns(base_schema);
-        let proj_base_df = tabular::transform(proj_base_df.clone(), opts)?;
+        let proj_base_df = tabular::transform(proj_base_df.clone(), opts).await?;
         Some(tabular::take(proj_base_df.lazy(), removed_indices)?)
     } else {
         None
@@ -922,7 +924,7 @@ pub fn compute_new_rows_proj(
     })
 }
 
-pub fn compute_new_columns_from_dfs(
+pub async fn compute_new_columns_from_dfs(
     base_df: DataFrame,
     head_df: DataFrame,
     base_schema: &Schema,
@@ -933,7 +935,7 @@ pub fn compute_new_columns_from_dfs(
 
     let added_cols = if !added_fields.is_empty() {
         let opts = DFOpts::from_columns(added_fields);
-        let df_added = tabular::transform(head_df, opts)?;
+        let df_added = tabular::transform(head_df, opts).await?;
         log::debug!("Got added col df: {}", df_added);
         if df_added.width() > 0 {
             Some(df_added)
@@ -946,7 +948,7 @@ pub fn compute_new_columns_from_dfs(
 
     let removed_cols = if !removed_fields.is_empty() {
         let opts = DFOpts::from_columns(removed_fields);
-        let df_removed = tabular::transform(base_df, opts)?;
+        let df_removed = tabular::transform(base_df, opts).await?;
         log::debug!("Got removed col df: {}", df_removed);
         if df_removed.width() > 0 {
             Some(df_removed)
@@ -967,7 +969,7 @@ pub fn compute_new_columns_from_dfs(
     })
 }
 
-pub fn diff_entries(
+pub async fn diff_entries(
     repo: &LocalRepository,
     file_path: impl AsRef<Path>,
     base_entry: Option<FileNode>,
@@ -986,7 +988,7 @@ pub fn diff_entries(
             head_entry,
             head_commit,
             df_opts,
-        ),
+        ).await,
     }
 }
 
@@ -1081,7 +1083,7 @@ pub async fn get_cached_diff(
             &left_entry.path,
         )?,
         DFOpts::empty(),
-    )?;
+    ).await?;
     let right_full_df = tabular::read_df(
         repositories::revisions::get_version_file_from_commit_id(
             repo,
@@ -1089,14 +1091,14 @@ pub async fn get_cached_diff(
             &right_entry.path,
         )?,
         DFOpts::empty(),
-    )?;
+    ).await?;
 
     let schema_diff = TabularSchemaDiff::from_schemas(
         &Schema::from_polars(left_full_df.schema()),
         &Schema::from_polars(right_full_df.schema()),
     )?;
 
-    let diff_df = tabular::read_df(get_diff_cache_path(repo, compare_id), DFOpts::empty())?;
+    let diff_df = tabular::read_df(get_diff_cache_path(repo, compare_id), DFOpts::empty()).await?;
 
     let schemas = TabularDiffSchemas {
         left: Schema::from_polars(left_full_df.schema()),
@@ -1140,7 +1142,7 @@ fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<TabularDiffDup
     Ok(dupes)
 }
 
-pub fn list_diff_entries(
+pub async fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
     head_commit: &Commit,
@@ -1159,7 +1161,7 @@ pub fn list_diff_entries(
             head_dir,
             page,
             page_size,
-        ),
+        ).await,
     }
 }
 
@@ -1312,7 +1314,7 @@ mod tests {
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
             let entries = entries.entries;
             assert_eq!(2, entries.len());
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[0].status);
@@ -1356,7 +1358,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
             let entries = entries.entries;
             // Recursively marks parent dirs as modified
             assert_eq!(3, entries.len());
@@ -1397,7 +1399,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
 
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
@@ -1489,7 +1491,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
@@ -1557,7 +1559,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
 
             let entries = entries.entries;
 
@@ -1569,7 +1571,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from("annotations"),
                 0,
                 10,
-            )?;
+            ).await?;
 
             // We should have...
             // 1. A modification in the `annotations` directory
@@ -1649,7 +1651,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 PathBuf::from(""),
                 0,
                 10,
-            )?;
+            ).await?;
 
             println!("counts: {:?}", entries.counts);
 

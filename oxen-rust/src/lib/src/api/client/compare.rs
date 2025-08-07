@@ -546,7 +546,7 @@ mod tests {
             let derived_df =
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
-            let df = derived_df.to_df();
+            let df = derived_df.to_df().await;
             println!("df: {:?}", df);
 
             assert_eq!(df.height(), 3);
@@ -652,7 +652,7 @@ mod tests {
             let derived_df =
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
-            let df = derived_df.to_df();
+            let df = derived_df.to_df().await;
 
 
             assert_eq!(df.height(), 3);
@@ -692,7 +692,7 @@ mod tests {
             let derived_df =
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
-            let new_df = derived_df.to_df();
+            let new_df = derived_df.to_df().await;
 
             // Nothing should've changed! Compare wasn't updated.
             assert!(new_df == df);
@@ -739,7 +739,7 @@ mod tests {
             let derived_df =
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
-            let new_df = derived_df.to_df();
+            let new_df = derived_df.to_df().await;
             assert!(new_df != df);
 
             assert_ne!(new_df, df);
