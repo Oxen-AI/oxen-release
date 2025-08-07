@@ -1751,7 +1751,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_jsonl() -> Result<(), OxenError> {
-        let df = tabular::read_df_jsonl("data/test/text/test.jsonl")?.collect()?;
+        let df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
+            tabular::read_df_jsonl("data/test/text/test.jsonl")?.collect().map_err(|e| OxenError::from(e))
+        })
+        .await? {
+            Ok(df) => df,
+            Err(e) => return Err(e),
+        };
 
         println!("{df}");
 
