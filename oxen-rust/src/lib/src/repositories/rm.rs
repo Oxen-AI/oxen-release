@@ -1080,21 +1080,32 @@ mod tests {
             repositories::rm(&repo, &opts)?;
 
             // Verify that .oxen directory still exists after rm operation
-            assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should not be removed by 'oxen rm .'");
+            assert!(
+                oxen_dir.exists(),
+                "OXEN_HIDDEN_DIR should not be removed by 'oxen rm .'"
+            );
 
             // Verify that the test files were staged for removal
             let status = repositories::status(&repo)?;
             status.print();
 
             // Should have staged the test files for removal but not .oxen
-            assert!(status.staged_files.len() > 0, "Some files should be staged for removal");
-            
+            assert!(
+                status.staged_files.len() > 0,
+                "Some files should be staged for removal"
+            );
+
             // Verify that none of the staged files are the .oxen directory
             for (path, staged_entry) in status.staged_files.iter() {
-                assert_ne!(path.to_str().unwrap_or(""), OXEN_HIDDEN_DIR, 
-                    "OXEN_HIDDEN_DIR should not be staged for removal");
-                assert!(!path.starts_with(OXEN_HIDDEN_DIR), 
-                    "No files within OXEN_HIDDEN_DIR should be staged for removal");
+                assert_ne!(
+                    path.to_str().unwrap_or(""),
+                    OXEN_HIDDEN_DIR,
+                    "OXEN_HIDDEN_DIR should not be staged for removal"
+                );
+                assert!(
+                    !path.starts_with(OXEN_HIDDEN_DIR),
+                    "No files within OXEN_HIDDEN_DIR should be staged for removal"
+                );
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
 
@@ -1109,7 +1120,10 @@ mod tests {
             assert!(err.is_err());
 
             // Verify .oxen directory still exists after direct removal attempt
-            assert!(oxen_dir.exists(), "OXEN_HIDDEN_DIR should not be removed by direct 'oxen rm .oxen'");
+            assert!(
+                oxen_dir.exists(),
+                "OXEN_HIDDEN_DIR should not be removed by direct 'oxen rm .oxen'"
+            );
 
             Ok(())
         })
