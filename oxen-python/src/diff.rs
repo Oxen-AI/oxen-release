@@ -31,9 +31,8 @@ pub fn diff_paths(
         ..Default::default()
     };
 
-    let diff = pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-        repositories::diffs::diff(opts).await
-    })?;
+    let diff = pyo3_async_runtimes::tokio::get_runtime()
+        .block_on(async { repositories::diffs::diff(opts).await })?;
 
     Ok(PyDiff { diff })
 }
