@@ -14,7 +14,7 @@
     <img src="https://img.shields.io/pypi/v/oxenai.svg?color=245AF0" alt="PyPi Latest Release"/>
   </a>
   <a href="https://discord.com/invite/s3tBEn7Ptg" style="padding: 2px;">
-    <img src="https://dcbadge.vercel.app/api/server/s3tBEn7Ptg?compact=true&style=flat" alt ="Oxen.ai Discord">
+    <img src="https://img.shields.io/badge/join-discord-245AF0?logo=discord" alt ="Oxen.ai Discord">
   </a>
   <a href="https://twitter.com/oxen_ai" style="padding: 2px;">
     <img src="https://img.shields.io/twitter/url/https/twitter.com/oxenai.svg?style=social&label=Follow%20%40Oxen.ai" alt ="Oxen.ai Twitter">
