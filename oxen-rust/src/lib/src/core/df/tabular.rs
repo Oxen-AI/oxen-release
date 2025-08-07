@@ -1562,6 +1562,7 @@ mod tests {
     use crate::view::JsonDataFrameView;
     use crate::{error::OxenError, opts::DFOpts};
     use polars::prelude::*;
+    use tokio::task;
 
     #[test]
     fn test_filter_single_expr() -> Result<(), OxenError> {
@@ -1800,7 +1801,13 @@ mod tests {
         opts.slice = Some("329..333".to_string());
         let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", 333)?;
         let df = tabular::transform_lazy(df, opts.clone()).await?;
-        let mut df = tabular::transform_slice_lazy(df.lazy(), &opts)?.collect()?;
+
+        let mut df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
+            tabular::transform_slice_lazy(df.lazy(), &opts)?.collect().map_err(|e| OxenError::from(e))
+        }).await? {
+            Ok(df) => df,
+            Err(e) => return Err(e),
+        };
         println!("{df:?}");
 
         assert_eq!(df.width(), 3);
