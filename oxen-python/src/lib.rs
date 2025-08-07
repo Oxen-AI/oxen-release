@@ -78,9 +78,9 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<py_workspace_data_frame::PyWorkspaceDataFrame>()?;
 
     // Workspace
-    let workspace_module = PyModule::new_bound(m.py(), "workspace")?;
+    let workspace_module = PyModule::new(m.py(), "workspace")?;
     // Workspace Data Frame
-    let workspace_dataset_module = PyModule::new_bound(workspace_module.py(), "dataset")?;
+    let workspace_dataset_module = PyModule::new(workspace_module.py(), "dataset")?;
     workspace_dataset_module.add_function(wrap_pyfunction!(
         py_workspace_data_frame::index,
         &workspace_dataset_module
@@ -89,42 +89,42 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_submodule(&workspace_module)?;
 
     // Util Module
-    let util_module = PyModule::new_bound(m.py(), "util")?;
+    let util_module = PyModule::new(m.py(), "util")?;
     util_module.add_function(wrap_pyfunction!(util::is_tabular, &util_module)?)?;
     util_module.add_function(wrap_pyfunction!(util::read_df, &util_module)?)?;
     util_module.add_function(wrap_pyfunction!(util::get_oxen_config_dir, &util_module)?)?;
     m.add_submodule(&util_module)?;
 
     // Auth Module
-    let auth_module = PyModule::new_bound(m.py(), "auth")?;
+    let auth_module = PyModule::new(m.py(), "auth")?;
     auth_module.add_function(wrap_pyfunction!(auth::config_auth, &auth_module)?)?;
     m.add_submodule(&auth_module)?;
 
     // User Module
-    let user_module = PyModule::new_bound(m.py(), "user")?;
+    let user_module = PyModule::new(m.py(), "user")?;
     user_module.add_function(wrap_pyfunction!(user::config_user, &user_module)?)?;
     user_module.add_function(wrap_pyfunction!(user::current_user, &user_module)?)?;
     m.add_submodule(&user_module)?;
 
     // Remote Module
-    let remote_module = PyModule::new_bound(m.py(), "remote")?;
+    let remote_module = PyModule::new(m.py(), "remote")?;
     remote_module.add_function(wrap_pyfunction!(remote::get_repo, &remote_module)?)?;
     remote_module.add_function(wrap_pyfunction!(remote::create_repo, &remote_module)?)?;
     m.add_submodule(&remote_module)?;
 
     // Diff Module
-    let diff_module = PyModule::new_bound(m.py(), "diff")?;
+    let diff_module = PyModule::new(m.py(), "diff")?;
     diff_module.add_function(wrap_pyfunction!(diff::diff_paths, &diff_module)?)?;
     m.add_submodule(&diff_module)?;
 
     // DataFrame (df) Module
-    let df_module = PyModule::new_bound(m.py(), "df_utils")?;
+    let df_module = PyModule::new(m.py(), "df_utils")?;
     df_module.add_function(wrap_pyfunction!(df_utils::save, &df_module)?)?;
     df_module.add_function(wrap_pyfunction!(df_utils::load, &df_module)?)?;
     m.add_submodule(&df_module)?;
 
     // Notebooks Module
-    let notebooks_module = PyModule::new_bound(m.py(), "py_notebooks")?;
+    let notebooks_module = PyModule::new(m.py(), "py_notebooks")?;
     notebooks_module.add_function(wrap_pyfunction!(
         py_notebooks::py_start_notebook,
         &notebooks_module

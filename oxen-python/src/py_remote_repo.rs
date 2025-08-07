@@ -192,15 +192,12 @@ impl PyRemoteRepo {
         pyo3_async_runtimes::tokio::get_runtime().block_on(async {
             if !revision.is_empty() {
                 repositories::download(&self.repo, &remote_path, &local_path, revision).await
+            } else if let Some(revision) = &self.revision {
+                repositories::download(&self.repo, &remote_path, &local_path, &revision).await
             } else {
-                if let Some(revision) = &self.revision {
-                    repositories::download(&self.repo, &remote_path, &local_path, &revision).await
-                } else {
-                    Err(OxenError::basic_str(
-                        "Invalid Revision: Cannot download without a version.",
-                    )
-                    .into())
-                }
+                Err(OxenError::basic_str(
+                    "Invalid Revision: Cannot download without a version.",
+                ))
             }
         })?;
 

@@ -24,7 +24,7 @@ impl PyEntry {
 
     #[getter]
     pub fn filename(&self) -> &str {
-        &self._entry.filename()
+        self._entry.filename()
     }
 
     #[getter]
@@ -34,7 +34,7 @@ impl PyEntry {
 
     #[getter]
     pub fn mime_type(&self) -> &str {
-        &self._entry.mime_type()
+        self._entry.mime_type()
     }
 
     #[getter]

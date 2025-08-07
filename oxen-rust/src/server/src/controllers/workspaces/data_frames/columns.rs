@@ -379,7 +379,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let diff =
         repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
-    let schema = Schema::from_polars(&restored_column.schema());
+    let schema = Schema::from_polars(restored_column.schema());
     log::debug!("Restored column in controller is {:?}", restored_column);
 
     let mut df_views = JsonDataFrameViews {
