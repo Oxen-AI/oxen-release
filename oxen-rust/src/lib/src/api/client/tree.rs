@@ -23,7 +23,6 @@ use crate::view::tree::merkle_hashes::NodeHashes;
 use crate::view::tree::MerkleHashResponse;
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
-use reqwest::Client;
 
 /// Check if a node exists in the remote repository merkle tree by hash
 pub async fn has_node(
@@ -369,7 +368,7 @@ async fn node_download_request(
 ) -> Result<(), OxenError> {
     let url = url.as_ref();
 
-    let client = Client::builder()
+    let client = client::builder_for_url(url)?
         .timeout(time::Duration::from_secs(12000))
         .build()?;
     log::debug!("node_download_request about to send request {}", url);

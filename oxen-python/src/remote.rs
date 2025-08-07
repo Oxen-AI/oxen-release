@@ -31,13 +31,13 @@ pub fn get_repo(
         return Ok(None);
     };
 
-    return Ok(Some(PyRemoteRepo {
+    Ok(Some(PyRemoteRepo {
         repo: remote_repo.clone(),
         host: host.clone(),
         scheme: scheme.to_string(),
         revision: Some(branch_name.to_string()),
         commit_id: revision.commit.map(|r| r.id),
-    }));
+    }))
 }
 
 #[pyfunction]

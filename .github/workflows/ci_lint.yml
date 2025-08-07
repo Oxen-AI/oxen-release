@@ -34,7 +34,7 @@ jobs:
             ~/.cargo/git/db/
             oxen-rust/target/
             oxen-python/target/
-          key: ${{ runner.os }}-cargo-oxen-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-dependencies-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cargo Check
         run: |
@@ -54,16 +54,16 @@ jobs:
           cd ${{ github.workspace }}/oxen-python
           cargo fmt --all -- --check
 
-      # - name: Cargo Clippy
-      #   run: |
-      #     cd ${{ github.workspace }}/oxen-rust
-      #     cargo clippy --no-deps -- -D warnings
+      - name: Cargo Clippy
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          cargo clippy --no-deps -- -D warnings
 
-      #     cd ${{ github.workspace }}/oxen-python
-      #     cargo clippy --no-deps -- -D warnings
+          cd ${{ github.workspace }}/oxen-python
+          cargo clippy --no-deps -- -D warnings
 
-      # - name: Ruff check
-      #   run: |
-      #     cd ${{ github.workspace }}/oxen-python
+      - name: Ruff check
+        run: |
+          cd ${{ github.workspace }}/oxen-python
 
-      #     uvx ruff check .
+          uvx ruff check .
