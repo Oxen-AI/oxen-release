@@ -6,7 +6,8 @@ use liboxen::repositories;
 use liboxen::util;
 use liboxen::api;
 use liboxen::command;
-use liboxen::test::create_remote_repo;
+use liboxen::constants;
+use liboxen::test::{create_remote_repo, repo_remote_url_from};
 use rand::distributions::Alphanumeric;
 use rand::{Rng, RngCore};
 use std::fs;
@@ -63,12 +64,11 @@ async fn setup_repo_for_add_benchmark(
     num_files_to_add_in_benchmark: usize,
     dir_size: usize,
 ) -> Result<(LocalRepository, Vec<PathBuf>, PathBuf), OxenError> {
+    log::debug!("setup_repo_for_add_benchmark base_dir {:?}, repo_size {repo_size}, dir_size {dir_size}", base_dir);
     let repo_dir = base_dir.join(format!("repo_{}", num_files_to_add_in_benchmark));
-    if repo_dir.exists() {
-        util::fs::remove_dir_all(&repo_dir)?;
-    }
-
+                   
     let repo = repositories::init(&repo_dir)?;
+    
 
     let files_dir = repo_dir.join("files");
     util::fs::create_dir_all(&files_dir)?;
@@ -142,21 +142,18 @@ async fn setup_repo_for_push_benchmark(
     num_files_to_push_in_benchmark: usize,
     dir_size: usize,
 ) -> Result<(LocalRepository, RemoteRepository), OxenError> {
+    log::debug!("setup_repo_for_push_benchmark base_dir {:?}, repo_size {repo_size}, dir_size {dir_size}", base_dir);
     let repo_dir = base_dir.join(format!("repo_{}", num_files_to_push_in_benchmark));
     if repo_dir.exists() {
         util::fs::remove_dir_all(&repo_dir)?;
     }
 
     let mut repo = repositories::init(&repo_dir)?;
-    let remote_repo = create_remote_repo(&repo).await?;
 
     // Set remote
-    command::config::set_remote(
-        &mut repo,
-        
-        format!("repo_{}", num_files_to_push_in_benchmark).as_ref(),
-        &remote_repo.remote.url,
-    )?;
+    let remote_repo = create_remote_repo(&repo).await?;
+    let remote_url = repo_remote_url_from(&repo.dirname());
+    command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
 
     let files_dir = repo_dir.join("files");
     util::fs::create_dir_all(&files_dir)?;
@@ -272,10 +269,18 @@ fn add_benchmark(c: &mut Criterion) {
                         .unwrap();
 
                     let _ = util::fs::remove_dir_all(repo.path.join(".oxen/staging"));
-                })
+
+                    })
             },
         );
+
+        let repo_dir = base_dir.join(format!("repo_{}", num_files_to_add));
+
+        if repo_dir.exists() {
+            let _ = util::fs::remove_dir_all(&repo_dir);
+        }
     }
+
     group.finish();
 
     // Cleanup
@@ -290,7 +295,7 @@ fn push_benchmark(c: &mut Criterion) {
     util::fs::create_dir_all(&base_dir).unwrap();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let mut group = c.benchmark_group("add");
+    let mut group = c.benchmark_group("push");
     group.sample_size(10);
     let params = [
         (1000, 20),
@@ -325,16 +330,24 @@ fn push_benchmark(c: &mut Criterion) {
                         .await
                         .unwrap();
 
-                    // Cleanup remote repo
-                    let _ = api::client::repositories::delete(&remote_repo).await.unwrap();
-                })
+                   })
             },
         );
+
+        // Cleanup repositories
+        let repo_dir = base_dir.join(format!("repo_{}", num_files_to_push));
+        if repo_dir.exists() {
+            let _ = util::fs::remove_dir_all(&repo_dir);
+        }
+
+        let _ = rt.block_on(api::client::repositories::delete(&remote_repo)).unwrap();
+
     }
     group.finish();
 
     // Cleanup
     util::fs::remove_dir_all(base_dir).unwrap();
+
 }
 
 // Register Benchmark functions
