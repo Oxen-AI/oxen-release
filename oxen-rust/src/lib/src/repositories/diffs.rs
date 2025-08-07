@@ -271,7 +271,7 @@ pub fn diff_commits(
         (Some(commit_1), Some(commit_2)) => {
             let node_1 = Some(
                 // TODO: instead of returning error, we should handle no file case
-                repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?.ok_or_else( 
+                repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?.ok_or_else(
                     || {
                         OxenError::ResourceNotFound(
                             format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
@@ -498,13 +498,13 @@ pub fn diff_file_nodes(
     match (file_1, file_2) {
         (Some(file_1), Some(file_2)) => {
 
-            
+
             log::debug!(
                 " version_path_1: {:?}",
                 *file_1.data_type() == EntryDataType::Tabular
                 && *file_2.data_type() == EntryDataType::Tabular
             );
-            
+
             match (file_1.data_type(), file_2.data_type()) {
                 (EntryDataType::Tabular, EntryDataType::Tabular) => {
                     let mut result = diff_tabular_file_nodes(repo, Some(file_1), Some(file_2), keys, targets, display)?;
@@ -572,7 +572,7 @@ pub fn diff_tabular_file_nodes(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<TabularDiff, OxenError> {
-    
+
     match (file_1, file_2) {
         (Some(file_1), Some(file_2)) => {
             let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
