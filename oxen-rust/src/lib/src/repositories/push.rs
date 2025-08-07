@@ -1557,6 +1557,83 @@ A: Checkout Oxen.ai
     }
 
     #[tokio::test]
+    async fn test_merge_conflict_push_failure() -> Result<(), OxenError> {
+        // Test that after a merge conflict, pushing again should fail
+        // 1) Create repo, push
+        // 2) Clone to different location
+        // 3) Modify dir1/file1.txt in clone, add, commit, push
+        // 4) Modify dir1/file1.txt in original, add, commit, pull (expect merge conflict)
+        // 5) After merge conflict, pushing should fail
+
+        test::run_training_data_fully_sync_remote(|original_repo, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Create dir1/file1.txt in the original repo
+            let dir1_path = original_repo.path.join("dir1");
+            util::fs::create_dir_all(&dir1_path)?;
+            let file1_path = dir1_path.join("file1.txt");
+            util::fs::write(&file1_path, "Original content")?;
+            repositories::add(&original_repo, &file1_path).await?;
+            repositories::commit(&original_repo, "Add dir1/file1.txt")?;
+            repositories::push(&original_repo).await?;
+
+            // Clone to a different location
+            test::run_empty_dir_test_async(|clone_dir| async move {
+                let clone_repo_path = clone_dir.join("cloned_repo");
+                let clone_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &clone_repo_path).await?;
+
+                // Modify dir1/file1.txt in the clone
+                let clone_file1_path = clone_repo.path.join("dir1").join("file1.txt");
+                util::fs::write(&clone_file1_path, "Clone modified content")?;
+                repositories::add(&clone_repo, &clone_file1_path).await?;
+                repositories::commit(&clone_repo, "Modify file1.txt in clone")?;
+                repositories::push(&clone_repo).await?;
+
+                // Modify dir1/file1.txt in the original repo (different content)
+                let original_file1_path = original_repo.path.join("dir1").join("file1.txt");
+                util::fs::write(&original_file1_path, "Original repo modified content")?;
+                repositories::add(&original_repo, &original_file1_path).await?;
+                repositories::commit(&original_repo, "Modify file1.txt in original")?;
+
+                // Capture the head commit before pull to verify it doesn't change
+                let head_before_pull = repositories::commits::head_commit(&original_repo)?;
+
+                // Pull should create a merge conflict
+                let pull_result = repositories::pull(&original_repo).await;
+                assert!(
+                    pull_result.is_err(),
+                    "Pull should fail due to merge conflict"
+                );
+
+                // Verify the head commit is unchanged after failed pull
+                let head_after_pull = repositories::commits::head_commit(&original_repo)?;
+                assert_eq!(
+                    head_before_pull.id, head_after_pull.id,
+                    "Head commit should not change when pull fails due to merge conflict"
+                );
+
+                // Verify we have merge conflicts
+                let status = repositories::status(&original_repo)?;
+                assert!(status.has_merge_conflicts(), "Should have merge conflicts");
+
+                // Verify we can't push
+                let push_result = repositories::push(&original_repo).await;
+                assert!(
+                    push_result.is_err(),
+                    "Push should fail due to merge conflict"
+                );
+
+                Ok(())
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_create_nodes_before_starting_push() -> Result<(), OxenError> {
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
             // Add a single new file
