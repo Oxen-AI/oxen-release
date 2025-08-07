@@ -52,6 +52,10 @@ fn base_lazy_csv_reader(
         .with_encoding(CsvEncoding::LossyUtf8)
 }
 
+pub fn new_df() -> DataFrame {
+    DataFrame::empty()
+}
+
 pub fn read_df_csv(
     path: impl AsRef<Path>,
     delimiter: u8,

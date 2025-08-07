@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crate::model::diff::change_type::ChangeType;
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +12,6 @@ pub struct LineDiff {
 #[derive(Default, Deserialize, Serialize, Debug, Clone)]
 pub struct TextDiff {
     pub lines: Vec<LineDiff>,
-    pub filename1: Option<String>,
-    pub filename2: Option<String>,
+    pub filename1: Option<PathBuf>,
+    pub filename2: Option<PathBuf>,
 }
