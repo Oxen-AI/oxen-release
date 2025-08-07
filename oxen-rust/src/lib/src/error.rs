@@ -5,13 +5,13 @@
 
 use derive_more::{Debug, Error};
 use duckdb::arrow::error::ArrowError;
-use tokio::task::JoinError;
 use std::fmt;
 use std::io;
 use std::num::ParseIntError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::path::StripPrefixError;
+use tokio::task::JoinError;
 
 use crate::model::Schema;
 use crate::model::Workspace;

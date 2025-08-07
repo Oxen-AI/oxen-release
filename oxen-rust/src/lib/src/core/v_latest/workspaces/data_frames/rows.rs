@@ -283,11 +283,9 @@ pub async fn prepare_modified_or_removed_row(
     );
 
     // TODONOW should not be using all rows - just need to parse delim
-    let lazy_df = tabular::read_df_with_extension(
-        committed_df_path,
-        file_node.extension(),
-        &DFOpts::empty(),
-    ).await?;
+    let lazy_df =
+        tabular::read_df_with_extension(committed_df_path, file_node.extension(), &DFOpts::empty())
+            .await?;
 
     // Get the row by index
     let mut row = lazy_df.slice(row_idx_og, 1_usize);
@@ -341,7 +339,8 @@ pub async fn restore_row_in_db(
                 &workspace.commit,
                 path.as_ref(),
                 &row,
-            ).await?;
+            )
+            .await?;
             log::debug!("restore_row() insert_row: {:?}", insert_row);
             rows::revert_row_changes(&db, row_id.to_owned())?;
             log::debug!("restore_row() after revert");

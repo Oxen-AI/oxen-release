@@ -107,7 +107,8 @@ pub async fn entries(
         PathBuf::from(""),
         page,
         page_size,
-    ).await?;
+    )
+    .await?;
 
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
@@ -205,7 +206,8 @@ pub async fn dir_entries(
         dir.clone(),
         page,
         page_size,
-    ).await?;
+    )
+    .await?;
 
     log::debug!("entries_diff: {:?}", entries_diff);
 
@@ -277,7 +279,8 @@ pub async fn file(
         head_entry,
         &head_commit,
         opts,
-    ).await?;
+    )
+    .await?;
 
     let view = CompareEntryResponse {
         status: StatusMessage::resource_found(),
@@ -291,7 +294,6 @@ pub async fn create_df_diff(
     _query: web::Query<DFOptsQuery>,
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -311,27 +313,21 @@ pub async fn create_df_diff(
         }
     };
 
-
     let resource_1 = PathBuf::from(data.left.path.clone());
     let resource_2 = PathBuf::from(data.right.path.clone());
     let keys = data.keys.clone();
     let targets = data.compare.clone();
     let display = data.display.clone();
 
-
     let display_by_column = get_display_by_columns(display);
 
     let compare_id = data.compare_id.clone();
 
-    let commit_1 =
-        repositories::revisions::get(&repository, &data.left.version)?.ok_or_else(|| {
-            OxenError::revision_not_found(data.left.version.into())
-        })?;
+    let commit_1 = repositories::revisions::get(&repository, &data.left.version)?
+        .ok_or_else(|| OxenError::revision_not_found(data.left.version.into()))?;
 
-    let commit_2 =
-        repositories::revisions::get(&repository, &data.right.version)?.ok_or_else(|| {
-            OxenError::revision_not_found(data.right.version.into())
-        })?;
+    let commit_2 = repositories::revisions::get(&repository, &data.right.version)?
+        .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
 
     let node_1 =
         repositories::entries::get_file(&repository, &commit_1, &resource_1)?.ok_or_else(|| {
@@ -345,12 +341,7 @@ pub async fn create_df_diff(
 
     // TODO: Remove the next two lines when we want to allow mapping
     // different keys and targets from left and right file.
-    let keys: Vec<String> = keys
-        .iter()
-        .map(|k| {
-            k.left.clone()
-        })
-        .collect();
+    let keys: Vec<String> = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
     let repo = repository.clone();
@@ -364,9 +355,8 @@ pub async fn create_df_diff(
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-    ).await?;
-
-
+    )
+    .await?;
 
     // Cache the diff on the server
     let entry_1 = CommitEntry::from_file_node(&node_1);
@@ -382,10 +372,8 @@ pub async fn create_df_diff(
 
     let mut messages: Vec<OxenMessage> = vec![];
 
-
     let cdupes = CompareDupes::from_tabular_diff_dupes(&diff_result.summary.dupes);
     messages.push(cdupes.to_message());
-
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
@@ -457,7 +445,8 @@ pub async fn update_df_diff(
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-    ).await?;
+    )
+    .await?;
 
     let entry_1 = CommitEntry::from_file_node(&node_1);
     let entry_2 = CommitEntry::from_file_node(&node_2);
@@ -584,7 +573,6 @@ pub async fn get_derived_df(
 
     // TODO: If this structure holds for diff + query, there is some amt of reusability with
     // controllers::df::get logic
-
 
     let df = tabular::read_df(derived_df_path, DFOpts::empty()).await;
 

@@ -248,23 +248,23 @@ pub async fn list_diff_entries(
         files.len()
     );
     let file_entries: Vec<DiffEntry> = stream::iter(files)
-    .map(|entry| async move {
-        DiffEntry::from_file_nodes(
-            repo,
-            entry.path,
-            entry.base_entry,
-            base_commit,
-            entry.head_entry,
-            head_commit,
-            entry.status,
-            false,
-            None,
-        )
-        .await
-    })
-    .buffer_unordered(10)// TODO: make this configurable?
-    .try_collect::<Vec<DiffEntry>>()
-    .await?;
+        .map(|entry| async move {
+            DiffEntry::from_file_nodes(
+                repo,
+                entry.path,
+                entry.base_entry,
+                base_commit,
+                entry.head_entry,
+                head_commit,
+                entry.status,
+                false,
+                None,
+            )
+            .await
+        })
+        .buffer_unordered(10) // TODO: make this configurable?
+        .try_collect::<Vec<DiffEntry>>()
+        .await?;
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
@@ -464,7 +464,8 @@ pub async fn diff_entries(
         status,
         should_do_full_diff,
         Some(df_opts),
-    ).await?;
+    )
+    .await?;
 
     Ok(entry)
 }

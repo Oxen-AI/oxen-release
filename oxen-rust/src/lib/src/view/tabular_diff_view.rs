@@ -97,12 +97,32 @@ impl TabularDiffView {
                 };
 
                 let (added_cols_view, num_added_cols) = match &added_cols {
-                    Some(df) => (Some(JsonDataFrameView::from_df_opts(df.to_df().await, head_schema.clone(), &df_opts).await), df.full_size.width),
+                    Some(df) => (
+                        Some(
+                            JsonDataFrameView::from_df_opts(
+                                df.to_df().await,
+                                head_schema.clone(),
+                                &df_opts,
+                            )
+                            .await,
+                        ),
+                        df.full_size.width,
+                    ),
                     None => (None, 0),
                 };
 
                 let (removed_cols_view, num_removed_cols) = match &removed_cols {
-                    Some(df) => (Some(JsonDataFrameView::from_df_opts(df.to_df().await, head_schema.clone(), &df_opts).await), df.full_size.width),
+                    Some(df) => (
+                        Some(
+                            JsonDataFrameView::from_df_opts(
+                                df.to_df().await,
+                                head_schema.clone(),
+                                &df_opts,
+                            )
+                            .await,
+                        ),
+                        df.full_size.width,
+                    ),
                     None => (None, 0),
                 };
 
@@ -150,7 +170,6 @@ impl TabularDiffView {
                     });
                     (added_rows_view, removed_rows_view)
                 };
-
 
                 let added_rows = match added_rows_view {
                     Some(df) => Some(df.await),
@@ -212,7 +231,14 @@ impl TabularDiffView {
                 };
 
                 let added_rows_view = match &added_rows {
-                    Some(df) => Some(JsonDataFrameView::from_df_opts(df.to_df().await, base_schema.clone(), &df_opts).await),
+                    Some(df) => Some(
+                        JsonDataFrameView::from_df_opts(
+                            df.to_df().await,
+                            base_schema.clone(),
+                            &df_opts,
+                        )
+                        .await,
+                    ),
                     None => None,
                 };
 
@@ -222,7 +248,14 @@ impl TabularDiffView {
                 };
 
                 let removed_rows_view = match &removed_rows {
-                    Some(df) => Some(JsonDataFrameView::from_df_opts(df.to_df().await, base_schema.clone(), &df_opts).await),
+                    Some(df) => Some(
+                        JsonDataFrameView::from_df_opts(
+                            df.to_df().await,
+                            base_schema.clone(),
+                            &df_opts,
+                        )
+                        .await,
+                    ),
                     None => None,
                 };
 
@@ -270,15 +303,10 @@ impl TabularDiffView {
             // we added the dataframe
             let head_schema = head_schema.clone().unwrap();
             let head_df = head_df.unwrap();
-            let added_df = Some(JsonDataFrame::from_df_opts(
-                head_df.clone(),
-                df_opts.clone(),
-            ).await);
-            let added_df_view = Some(JsonDataFrameView::from_df_opts(
-                head_df,
-                head_schema.clone(),
-                &df_opts,
-            ).await);
+            let added_df =
+                Some(JsonDataFrame::from_df_opts(head_df.clone(), df_opts.clone()).await);
+            let added_df_view =
+                Some(JsonDataFrameView::from_df_opts(head_df, head_schema.clone(), &df_opts).await);
 
             let added_df = match added_df {
                 Some(df) => df,
@@ -318,15 +346,10 @@ impl TabularDiffView {
             // we removed the dataframe
             let base_schema = base_schema.clone().unwrap();
             let base_df = base_df.unwrap();
-            let removed_df = Some(JsonDataFrame::from_df_opts(
-                base_df.clone(),
-                df_opts.clone(),
-            ).await);
-            let removed_df_view = Some(JsonDataFrameView::from_df_opts(
-                base_df,
-                base_schema.clone(),
-                &df_opts,
-            ).await);
+            let removed_df =
+                Some(JsonDataFrame::from_df_opts(base_df.clone(), df_opts.clone()).await);
+            let removed_df_view =
+                Some(JsonDataFrameView::from_df_opts(base_df, base_schema.clone(), &df_opts).await);
 
             let removed_df = match removed_df {
                 Some(df) => df,

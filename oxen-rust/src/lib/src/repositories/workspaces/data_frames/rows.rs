@@ -105,7 +105,8 @@ pub async fn restore(
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => panic!("v0.10.0 no longer supported"),
         _ => {
-            core::v_latest::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id).await
+            core::v_latest::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id)
+                .await
         }
     }
 }

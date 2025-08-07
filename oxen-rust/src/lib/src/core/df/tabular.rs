@@ -1,10 +1,10 @@
 use duckdb::ToSql;
 use polars::prelude::*;
 use serde_json::json;
-use tokio::task;
 use std::collections::HashSet;
 use std::fs::File;
 use std::num::NonZeroUsize;
+use tokio::task;
 
 use crate::constants;
 use crate::constants::EXCLUDE_OXEN_COLS;
@@ -189,9 +189,12 @@ pub async fn add_col_lazy(
     dtype: &str,
     at: Option<usize>,
 ) -> Result<LazyFrame, OxenError> {
-    let mut df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError>{
-        Ok(df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))?)
-    }).await? {
+    let mut df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
+        df.collect()
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    })
+    .await?
+    {
         Ok(df) => df,
         Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
     };
@@ -209,9 +212,7 @@ pub async fn add_col_lazy(
         df.with_column(column)
             .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     }
-    let df = match task::spawn_blocking(move || {
-        df.lazy()
-    }).await {
+    let df = match task::spawn_blocking(move || df.lazy()).await {
         Ok(df) => df,
         Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
     };
@@ -237,10 +238,12 @@ pub fn add_col(
 }
 
 pub async fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
-
     let df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
-        df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))
-    }).await? {
+        df.collect()
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    })
+    .await?
+    {
         Ok(df) => df,
         Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
     };
@@ -431,12 +434,9 @@ pub async fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
         log::debug!("transform_lazy Got files to stack {:?}", vstack);
         for path in vstack.iter() {
             let empty_opts = DFOpts::empty();
-            let extension =
-                path.extension()
-                    .and_then(OsStr::to_str)
-                    .ok_or_else(|| {
-                        OxenError::basic_str(format!("Cannot vstack file without extension: {path:?}"))
-                    })?;
+            let extension = path.extension().and_then(OsStr::to_str).ok_or_else(|| {
+                OxenError::basic_str(format!("Cannot vstack file without extension: {path:?}"))
+            })?;
 
             // Use the new non-transforming reader to break recursion
             let new_df = _read_lazy_df_with_extension(path.clone(), extension, &empty_opts)
@@ -460,7 +460,8 @@ pub async fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
             &col_vals.value,
             &col_vals.dtype,
             opts.at,
-        ).await?;
+        )
+        .await?;
     }
 
     if let Some(data) = &opts.add_row {
@@ -1102,7 +1103,6 @@ pub async fn p_read_df_with_extension(
         .map_err(|e| OxenError::basic_str(format!("Collect task panicked: {}", e)))?
 }
 
-
 pub async fn maybe_read_df_with_extension(
     repo: &LocalRepository,
     version_path: impl AsRef<Path>,
@@ -1366,7 +1366,10 @@ pub fn write_df(df: &mut DataFrame, path: impl AsRef<Path>) -> Result<(), OxenEr
     }
 }
 
-pub async fn copy_df(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
+pub async fn copy_df(
+    input: impl AsRef<Path>,
+    output: impl AsRef<Path>,
+) -> Result<DataFrame, OxenError> {
     let mut df = read_df(input, DFOpts::empty()).await?;
     write_df_arrow(&mut df, output)?;
     Ok(df)
@@ -1752,9 +1755,12 @@ mod tests {
     #[tokio::test]
     async fn test_read_jsonl() -> Result<(), OxenError> {
         let df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
-            tabular::read_df_jsonl("data/test/text/test.jsonl")?.collect().map_err(|e| OxenError::from(e))
+            tabular::read_df_jsonl("data/test/text/test.jsonl")?
+                .collect()
+                .map_err(|e| OxenError::from(e))
         })
-        .await? {
+        .await?
+        {
             Ok(df) => df,
             Err(e) => return Err(e),
         };
@@ -1809,8 +1815,12 @@ mod tests {
         let df = tabular::transform_lazy(df, opts.clone()).await?;
 
         let mut df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
-            tabular::transform_slice_lazy(df.lazy(), &opts)?.collect().map_err(|e| OxenError::from(e))
-        }).await? {
+            tabular::transform_slice_lazy(df.lazy(), &opts)?
+                .collect()
+                .map_err(|e| OxenError::from(e))
+        })
+        .await?
+        {
             Ok(df) => df,
             Err(e) => return Err(e),
         };
@@ -1857,7 +1867,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_file_with_unmatched_quotes() -> Result<(), OxenError> {
-        let df = tabular::read_df("data/test/csvs/spam_ham_data_w_quote.tsv", DFOpts::empty()).await?;
+        let df =
+            tabular::read_df("data/test/csvs/spam_ham_data_w_quote.tsv", DFOpts::empty()).await?;
         assert_eq!(df.width(), 2);
         assert_eq!(df.height(), 100);
         Ok(())

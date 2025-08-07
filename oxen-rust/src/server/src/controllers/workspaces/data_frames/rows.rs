@@ -250,7 +250,8 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let restored_row = repositories::workspaces::data_frames::rows::restore(
         &repo, &workspace, &file_path, &row_id,
-    ).await?;
+    )
+    .await?;
 
     let row_index = repositories::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
     let row_id = repositories::workspaces::data_frames::rows::get_row_id(&restored_row)?;

@@ -126,7 +126,8 @@ impl WorkspaceJsonDataFrameViewResponse {
 
 impl JsonDataFrameViews {
     pub async fn empty() -> JsonDataFrameViews {
-        JsonDataFrameViews::from_df_and_opts(DataFrame::empty(), Schema::empty(), &DFOpts::empty()).await
+        JsonDataFrameViews::from_df_and_opts(DataFrame::empty(), Schema::empty(), &DFOpts::empty())
+            .await
     }
 }
 
@@ -135,7 +136,11 @@ impl JsonDataFrameView {
         JsonDataFrameView::empty_with_schema(&Schema::empty(), 0, &DFOpts::empty())
     }
 
-    pub async fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
+    pub async fn from_df_opts(
+        df: DataFrame,
+        og_schema: Schema,
+        opts: &DFOpts,
+    ) -> JsonDataFrameView {
         let full_width = df.width();
         let full_height = df.height();
 
@@ -306,7 +311,11 @@ impl JsonDataFrameView {
 }
 
 impl JsonDataFrameViews {
-    pub async fn from_df_and_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameViews {
+    pub async fn from_df_and_opts(
+        df: DataFrame,
+        og_schema: Schema,
+        opts: &DFOpts,
+    ) -> JsonDataFrameViews {
         let source = DataFrameSchemaSize::from_df(&df, &og_schema);
         let view = JsonDataFrameView::from_df_opts(df, og_schema, opts).await;
         JsonDataFrameViews { source, view }
@@ -321,7 +330,8 @@ impl JsonDataFrameViews {
         opts: &DFOpts,
     ) -> JsonDataFrameViews {
         let source = DataFrameSchemaSize::from_df(&df, &og_schema);
-        let view = JsonDataFrameView::from_df_opts_unpaginated(df, og_schema, og_height, opts).await;
+        let view =
+            JsonDataFrameView::from_df_opts_unpaginated(df, og_schema, og_height, opts).await;
         JsonDataFrameViews { source, view }
     }
 }

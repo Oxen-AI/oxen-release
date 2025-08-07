@@ -26,7 +26,6 @@ pub async fn create_compare(
     compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
-
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
         left: TabularCompareResourceBody {
@@ -48,7 +47,6 @@ pub async fn create_compare(
 
     let client = client::new_for_url(&url)?;
 
-
     match client.post(&url).json(&json!(req_body)).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
@@ -56,24 +54,16 @@ pub async fn create_compare(
                 serde_json::from_str(&body);
 
             match response {
-                Ok(tabular_compare) => {
-
-                    Ok(tabular_compare.dfs)
-                }
-                Err(err) => {
-
-                    Err(OxenError::basic_str(format!(
-                        "create_compare() Could not deserialize response [{err}]\n{body}"
-                    )))
-                }
+                Ok(tabular_compare) => Ok(tabular_compare.dfs),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "create_compare() Could not deserialize response [{err}]\n{body}"
+                ))),
             }
         }
-        Err(err) => {
-            Err(OxenError::basic_str(format!(
-                "create_compare() Request failed: {}",
-                err
-            )))
-        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "create_compare() Request failed: {}",
+            err
+        ))),
     }
 }
 
@@ -89,7 +79,6 @@ pub async fn update_compare(
     compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
-
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
         left: TabularCompareResourceBody {
@@ -111,33 +100,24 @@ pub async fn update_compare(
 
     let client = client::new_for_url(&url)?;
 
-
     match client.put(&url).json(&json!(req_body)).send().await {
         Ok(res) => {
-
             let body = client::parse_json_body(&url, res).await?;
 
             let response: Result<CompareTabularResponse, serde_json::Error> =
                 serde_json::from_str(&body);
 
             match response {
-                Ok(tabular_compare) => {
-
-                    Ok(tabular_compare.dfs)
-                }
-                Err(err) => {
-                    Err(OxenError::basic_str(format!(
-                        "update_compare() Could not deserialize response [{err}]\n{body}"
-                    )))
-                }
+                Ok(tabular_compare) => Ok(tabular_compare.dfs),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "update_compare() Could not deserialize response [{err}]\n{body}"
+                ))),
             }
         }
-        Err(err) => {
-            Err(OxenError::basic_str(format!(
-                "update_compare() Request failed: {}",
-                err
-            )))
-        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "update_compare() Request failed: {}",
+            err
+        ))),
     }
 }
 
@@ -581,25 +561,20 @@ mod tests {
     #[tokio::test]
     async fn test_remote_compare_does_not_update_automatically() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-
             // Keying on first 3, targeting on d - should be:
             // 1 modified, 1 added, 1 removed?
             let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n9,0,1,2";
             let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n0,1,9,2";
 
-
             let left_path = "left.csv";
             let right_path = "right.csv";
-
 
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
-
             repositories::add(&local_repo, &local_repo.path).await?;
 
             repositories::commit(&local_repo, "committing files")?;
-
 
             // set remote
 
@@ -653,7 +628,6 @@ mod tests {
                 api::client::compare::get_derived_compare_df(&remote_repo, compare_id).await?;
 
             let df = derived_df.to_df().await;
-
 
             assert_eq!(df.height(), 3);
 
