@@ -157,31 +157,35 @@ async fn push_to_existing_branch(
         return Ok(());
     }
 
-    match repositories::commits::list_from(repo, &commit.id){
+    match repositories::commits::list_from(repo, &commit.id) {
         Ok(commits) => {
-            if commits.iter().any(|c| c.id == remote_branch.commit_id) { //we're ahead       
-            
-            let latest_remote_commit = repositories::commits::get_by_id(repo, &remote_branch.commit_id)?.unwrap();
-    
-            let mut commits = repositories::commits::list_between(repo, &latest_remote_commit, commit)?;
-            commits.reverse();
-        
-            push_commits(repo, remote_repo, Some(latest_remote_commit), &commits).await?;
-            api::client::branches::update(remote_repo, &remote_branch.name, commit).await?;
-            }
-            else { //we're behind
+            if commits.iter().any(|c| c.id == remote_branch.commit_id) {
+                //we're ahead
+
+                let latest_remote_commit =
+                    repositories::commits::get_by_id(repo, &remote_branch.commit_id)?.ok_or_else(
+                        || OxenError::revision_not_found(remote_branch.commit_id.clone().into()),
+                    )?;
+
+                let mut commits =
+                    repositories::commits::list_between(repo, &latest_remote_commit, commit)?;
+                commits.reverse();
+
+                push_commits(repo, remote_repo, Some(latest_remote_commit), &commits).await?;
+                api::client::branches::update(remote_repo, &remote_branch.name, commit).await?;
+            } else {
+                //we're behind
                 let err_str = format!(
                     "Branch {} is behind {} must pull.\n\nRun `oxen pull` to update your local branch",
                     remote_branch.name, remote_branch.commit_id
                 );
                 return Err(OxenError::basic_str(err_str));
             }
-        },
+        }
         Err(err) => {
             return Err(err);
         }
     };
-
 
     Ok(())
 }

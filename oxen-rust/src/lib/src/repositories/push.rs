@@ -1609,8 +1609,7 @@ A: Checkout Oxen.ai
                 // Verify the head commit is unchanged after failed pull
                 let head_after_pull = repositories::commits::head_commit(&original_repo)?;
                 assert_eq!(
-                    head_before_pull.id,
-                    head_after_pull.id,
+                    head_before_pull.id, head_after_pull.id,
                     "Head commit should not change when pull fails due to merge conflict"
                 );
 
@@ -1620,7 +1619,10 @@ A: Checkout Oxen.ai
 
                 // Verify we can't push
                 let push_result = repositories::push(&original_repo).await;
-                assert!(push_result.is_err(), "Push should fail due to merge conflict");
+                assert!(
+                    push_result.is_err(),
+                    "Push should fail due to merge conflict"
+                );
 
                 Ok(())
             })

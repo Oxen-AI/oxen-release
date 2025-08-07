@@ -54,7 +54,6 @@ pub async fn pull_remote_branch(
     )?;
 
     match previous_head_commit {
-
         Some(previous_head_commit) => {
             log::debug!(
                 "checking if we need to merge previous {} new {}",
@@ -69,10 +68,10 @@ pub async fn pull_remote_branch(
                 )
                 .await
                 {
-                    Ok(Some(commit)) =>{
+                    Ok(Some(commit)) => {
                         // Merge successful, update branch head
                         repositories::branches::update(repo, branch, commit.id)?;
-                    },
+                    }
                     Ok(None) => {
                         // Merge conflict, keep the previous commit
                         return Err(OxenError::merge_conflict(
@@ -84,7 +83,7 @@ pub async fn pull_remote_branch(
             }
         }
 
-        None =>{
+        None => {
             repositories::branches::update(repo, branch, new_head_commit.id)?;
         }
     }
