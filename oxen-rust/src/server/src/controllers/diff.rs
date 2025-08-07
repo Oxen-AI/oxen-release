@@ -28,7 +28,6 @@ use liboxen::view::{
     JsonDataFrameViews, Pagination, StatusMessage,
 };
 use liboxen::{constants, repositories, util};
-use tokio::task;
 
 use crate::helpers::get_repo;
 use crate::params::{
