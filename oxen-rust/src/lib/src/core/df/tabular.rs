@@ -236,10 +236,15 @@ pub fn add_col(
     Ok(df)
 }
 
-pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
-    let df = df
-        .collect()
-        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+pub async fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
+
+    let df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError> {
+        df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    }).await? {
+        Ok(df) => df,
+        Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
+    };
+
     let new_row = row_from_str_and_schema(data, df.schema())?;
     log::debug!("add_row og df: {:?}", df);
     log::debug!("add_row new_row: {:?}", new_row);
@@ -459,7 +464,7 @@ pub async fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
     }
 
     if let Some(data) = &opts.add_row {
-        df = add_row(df, data.to_owned())?;
+        df = add_row(df, data.to_owned()).await?;
     }
 
     match opts.get_filter() {

@@ -400,7 +400,7 @@ mod tests {
                 let workspace_id = "my_workspace";
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
-                
+
                 println!("workspace created: {workspace_id}");
 
                 // Index the dataset
