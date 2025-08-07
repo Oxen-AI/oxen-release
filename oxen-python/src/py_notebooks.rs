@@ -51,6 +51,7 @@ impl PyNotebook {
 }
 
 /// Start a notebook
+#[allow(clippy::too_many_arguments)]
 #[pyfunction]
 #[pyo3(signature = (
     repo,

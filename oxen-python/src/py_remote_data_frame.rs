@@ -35,7 +35,7 @@ impl PyRemoteDataFrame {
 
             let response = api::client::data_frames::get(
                 &self.repo.repo,
-                &revision,
+                revision,
                 &self.path,
                 DFOpts::empty(),
             )
@@ -58,7 +58,7 @@ impl PyRemoteDataFrame {
             opts.slice = Some(format!("{}..{}", row, row + 1));
 
             let response =
-                api::client::data_frames::get(&self.repo.repo, &revision, &self.path, opts).await?;
+                api::client::data_frames::get(&self.repo.repo, revision, &self.path, opts).await?;
 
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {
@@ -93,7 +93,7 @@ impl PyRemoteDataFrame {
             }
 
             let response =
-                api::client::data_frames::get(&self.repo.repo, &revision, &self.path, opts).await?;
+                api::client::data_frames::get(&self.repo.repo, revision, &self.path, opts).await?;
 
             // convert view to json string
             match serde_json::to_string(&response.data_frame.view.data) {
