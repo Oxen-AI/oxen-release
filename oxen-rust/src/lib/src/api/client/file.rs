@@ -135,9 +135,9 @@ mod tests {
 
             // Pull changes from remote to local repo
             repositories::pull(&local_repo).await?;
-            repositories::checkout(&local_repo, "main").await?;
+            repositories::checkout(&local_repo, branch_name).await?;
 
-            // Check that the file exists in the local repo after pulling
+            // // Check that the file exists in the local repo after pulling
             let file_path_in_repo = local_repo.path.join(directory_name).join("test.jpeg");
             println!("file_path_in_repo: {:?}", file_path_in_repo);
             assert!(file_path_in_repo.exists());
