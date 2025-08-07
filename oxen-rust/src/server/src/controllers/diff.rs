@@ -367,7 +367,7 @@ pub async fn create_df_diff(
         display_by_column, // TODONOW: add display handling here
     ).await?;
 
-    
+
 
     // Cache the diff on the server
     let entry_1 = CommitEntry::from_file_node(&node_1);
@@ -586,7 +586,7 @@ pub async fn get_derived_df(
     // TODO: If this structure holds for diff + query, there is some amt of reusability with
     // controllers::df::get logic
 
-    
+
     let df = tabular::read_df(derived_df_path, DFOpts::empty()).await;
 
     let df = match df {

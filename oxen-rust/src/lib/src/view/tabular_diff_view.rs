@@ -103,7 +103,7 @@ impl TabularDiffView {
 
                 let (removed_cols_view, num_removed_cols) = match &removed_cols {
                     Some(df) => (Some(JsonDataFrameView::from_df_opts(df.to_df().await, head_schema.clone(), &df_opts).await), df.full_size.width),
-                    None => (None, 0),  
+                    None => (None, 0),
                 };
 
                 // If the schema is changed, in order to figure out the added rows and removed rows,

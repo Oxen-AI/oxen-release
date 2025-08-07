@@ -182,16 +182,19 @@ pub fn scan_df_arrow(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFr
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-pub fn add_col_lazy(
+pub async fn add_col_lazy(
     df: LazyFrame,
     name: &str,
     val: &str,
     dtype: &str,
     at: Option<usize>,
 ) -> Result<LazyFrame, OxenError> {
-    let mut df = df
-        .collect()
-        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let mut df = match task::spawn_blocking(move || -> Result<DataFrame, OxenError>{
+        Ok(df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))?)
+    }).await? {
+        Ok(df) => df,
+        Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
+    };
 
     let dtype = DataType::from_string(dtype).to_polars();
 
@@ -206,7 +209,13 @@ pub fn add_col_lazy(
         df.with_column(column)
             .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     }
-    let df = df.lazy();
+    let df = match task::spawn_blocking(move || {
+        df.lazy()
+    }).await {
+        Ok(df) => df,
+        Err(e) => return Err(OxenError::basic_str(format!("{e:?}"))),
+    };
+
     Ok(df)
 }
 
@@ -446,7 +455,7 @@ pub async fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame
             &col_vals.value,
             &col_vals.dtype,
             opts.at,
-        )?;
+        ).await?;
     }
 
     if let Some(data) = &opts.add_row {

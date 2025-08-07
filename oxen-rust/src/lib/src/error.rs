@@ -5,6 +5,7 @@
 
 use derive_more::{Debug, Error};
 use duckdb::arrow::error::ArrowError;
+use tokio::task::JoinError;
 use std::fmt;
 use std::io;
 use std::num::ParseIntError;
@@ -675,6 +676,12 @@ impl From<StripPrefixError> for OxenError {
 }
 impl From<ParseIntError> for OxenError {
     fn from(error: ParseIntError) -> Self {
+        OxenError::basic_str(error.to_string())
+    }
+}
+
+impl From<JoinError> for OxenError {
+    fn from(error: JoinError) -> Self {
         OxenError::basic_str(error.to_string())
     }
 }
