@@ -1,3 +1,5 @@
+name: 📢 Publish
+
 on:
   release:
     types: [published]
@@ -12,16 +14,19 @@ jobs:
     name: Publish wheels to PyPI
     runs-on: ubuntu-latest
     steps:
-      - name: Get tag name
-        id: get_tag
-        run: echo "TAG_NAME=${GITHUB_REF_NAME#refs/tags/}" >> $GITHUB_OUTPUT
-
       - uses: robinraju/release-downloader@v1.12
         id: download-release
         with:
-          tag: ${{ steps.get_tag.outputs.TAG_NAME }}
+          tag: ${{ github.ref_name }}
           fileName: oxen-wheels-*
           out-file-path: oxen-wheels
+
+      - name: Extract wheels
+        run: |
+          cd ${{ github.workspace }}/oxen-wheels
+
+          for file in ${{ github.workspace }}/oxen-wheels/*.tar.gz; do tar -xzvf "$file" -C ${{ github.workspace }}/oxen-wheels; done
+          for file in ${{ github.workspace }}/oxen-wheels/*.zip; do unzip "$file" -d ${{ github.workspace }}/oxen-wheels; done
 
       - name: Publish wheels to PyPI
         uses: PyO3/maturin-action@v1
@@ -29,30 +34,8 @@ jobs:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
-          args: --skip-existing oxen-wheels/*
+          args: --skip-existing ${{ github.workspace }}/oxen-wheels/*.whl
           maturin-version: v1.8.5
-
-  publish_homebrew_oxen:
-    name: Publish Homebrew formula for oxen
-    permissions:
-      pull-requests: write
-      contents: write
-    uses: oxen-ai/homebrew-oxen/.github/workflows/update-formula.yml@main
-    with:
-      version: ${{ github.ref_name }}
-    secrets:
-      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
-
-  publish_homebrew_oxen_server:
-    name: Publish Homebrew formula for oxen-server
-    permissions:
-      pull-requests: write
-      contents: write
-    uses: oxen-ai/homebrew-oxen-server/.github/workflows/update-formula.yml@main
-    with:
-      version: ${{ github.ref_name }}
-    secrets:
-      token: ${{ secrets.HOMEBREW_DEPLOY_PAT }}
 
   publish_liboxen_crate:
     name: Publish liboxen crate to crates.io
@@ -66,3 +49,92 @@ jobs:
           cd ${{ github.workspace }}/oxen-rust/src/lib
           cargo login ${{ secrets.CRATES_IO_TOKEN }}
           cargo publish
+
+  publish_homebrew_oxen:
+    name: Update oxen formula on homebrew-core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update oxen formula on homebrew-core
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: oxen
+          formula-path: Formula/o/oxen.rb
+          homebrew-tap: Homebrew/homebrew-core
+          base-branch: main
+          download-url: https://github.com/Oxen-AI/Oxen/archive/${{ github.ref }}.tar.gz
+          commit-message: |
+            {{formulaName}} {{version}}
+
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+
+  publish_homebrew_oxen_server:
+    name: Update oxen-server formula on Oxen-AI/homebrew-oxen-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: Oxen-AI/homebrew-oxen-server
+          path: homebrew-oxen-server
+          token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+
+      - name: Set release version
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Set download URLs
+        run: |
+          echo "ARM64_URL=https://github.com/Oxen-AI/Oxen/releases/download/${{ github.ref_name }}/oxen-server-macos-arm64.tar.gz" >> $GITHUB_ENV
+          echo "X86_64_URL=https://github.com/Oxen-AI/Oxen/releases/download/${{ github.ref_name }}/oxen-server-macos-x86_64.tar.gz" >> $GITHUB_ENV
+
+      - name: Download release files
+        run: |
+          curl -L -o oxen-server-macos-arm64.tar.gz "$ARM64_URL"
+          curl -L -o oxen-server-macos-x86_64.tar.gz "$X86_64_URL"
+
+      - name: Calculate SHA256
+        run: |
+          ARM64_SHA256=$(sha256sum oxen-server-macos-arm64.tar.gz | cut -d' ' -f1)
+          X86_64_SHA256=$(sha256sum oxen-server-macos-x86_64.tar.gz | cut -d' ' -f1)
+          echo "ARM64_SHA256=$ARM64_SHA256" >> $GITHUB_ENV
+          echo "X86_64_SHA256=$X86_64_SHA256" >> $GITHUB_ENV
+
+      - name: Update formula
+        run: |
+          cat << EOF > ${{ github.workspace }}/homebrew-oxen-server/Formula/oxen-server.rb
+          class OxenServer < Formula
+            desc "Lightning fast data version control system for structured and unstructured machine learning datasets. We aim to make versioning datasets as easy as versioning code."
+            homepage "https://oxen.ai"
+            license "Apache-2.0"
+            version "${{ env.RELEASE_VERSION }}"
+
+            on_macos do
+              depends_on macos: :big_sur
+
+              on_arm do
+                url "${{ env.ARM64_URL }}"
+                sha256 "${{ env.ARM64_SHA256 }}"
+              end
+
+              on_intel do
+                url "${{ env.X86_64_URL }}"
+                sha256 "${{ env.X86_64_SHA256 }}"
+              end
+            end
+
+            def install
+              bin.install "oxen-server"
+            end
+          end
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          cd ${{ github.workspace }}/homebrew-oxen-server
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/oxen-server.rb
+          git commit -m "chore: update oxen-server to ${{ github.ref_name }}"
+          git push origin main

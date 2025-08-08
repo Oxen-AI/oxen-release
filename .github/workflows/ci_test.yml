@@ -1,0 +1,169 @@
+name: 🐂 Continuous integration - Test Suite
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy rust-toolchain.toml to root
+        if: matrix.platform != 'windows'
+        run: |
+          cp ${{ github.workspace }}/oxen-rust/rust-toolchain.toml .
+
+      - name: Copy rust-toolchain.toml to root (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          copy ${{ github.workspace }}\oxen-rust\rust-toolchain.toml .
+
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.0"
+          bundler-cache: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.10" # Test against the earliest supported Python version
+
+      - name: Cache based on dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            oxen-rust/target/
+            oxen-python/target/
+          key: ${{ matrix.os }}-cargo-dependencies-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install dependencies (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          brew update
+          brew install ffmpeg imagemagick redis
+          brew services start redis
+
+      # Oxen Rust Tests
+      - name: Setup test directories (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          mkdir -p data/test/runs
+          mkdir -p /tmp/oxen_sync/
+
+      - name: Setup test directories (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          cd ${{ github.workspace }}\oxen-rust
+          mkdir .\data\test\runs
+
+      - name: Build oxen-rust
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          cargo build
+
+      - name: Setup oxen-server user (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          cp user_config.toml data/test/config/user_config.toml
+
+      - name: Setup oxen-server user (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          cd ${{ github.workspace }}\oxen-rust
+          .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          copy user_config.toml data\test\config\user_config.toml
+
+      - name: Run oxen-rust tests (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          cd ${{ github.workspace }}/oxen-rust
+          ./target/debug/oxen-server start &
+          cargo test -- --test-threads=3
+
+      - name: Run oxen-rust tests (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          cd ${{ github.workspace }}\oxen-rust
+          Start-Process -FilePath "${{ github.workspace }}\oxen-rust\target\debug\oxen-server.exe" -WindowStyle Hidden -ArgumentList "start"
+          cargo test -- --test-threads=1
+
+      # RSpec Tests
+      - name: Run RSpec tests (macOS)
+        if: matrix.platform == 'macos'
+        env:
+          PATH: ${{ env.PATH }}:${{ github.workspace }}/oxen-rust/target/debug
+        run: |
+          cd ${{ github.workspace }}/oxen-rust/cli-test
+          bundle config path vendor/bundle
+          bundle install
+          bundle exec rspec spec/test_cases/**/tests.rb
+
+      - name: Run RSpec tests (Windows)
+        if: matrix.platform == 'windows'
+        env:
+          PATH: ${{ env.PATH }};${{ github.workspace }}/oxen-rust/target/debug
+        run: |
+          cd ${{ github.workspace }}/oxen-rust/cli-test
+          bundle config path vendor/bundle
+          bundle install
+          bundle exec rspec spec/test_cases/**/tests.rb
+
+      # Oxen Python Tests
+      - name: Copy binaries for Python tests (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          cp ${{ github.workspace }}/oxen-rust/target/debug/oxen ~/oxen
+          chmod +x ~/oxen ~/oxen
+
+      - name: Copy binaries for Python tests (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          copy oxen-rust\target\debug\oxen.exe ${{ github.workspace }}\oxen.exe
+
+      - name: Run oxen-python tests (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: |
+          cd ${{ github.workspace }}/oxen-python
+
+          ~/oxen config --name "Bessie Testington" --email "bessie@yourcompany.com"
+
+          uv sync --no-install-project
+          uv run maturin develop --uv
+          uv run pytest -s tests
+
+      - name: Run oxen-python tests (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          cd ${{ github.workspace }}\oxen-python
+
+          ${{ github.workspace }}\oxen.exe config --name "Bessie Testington" --email "bessie@yourcompany.com"
+
+          uv sync --no-install-project
+          uv run maturin develop --uv
+          uv run pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py

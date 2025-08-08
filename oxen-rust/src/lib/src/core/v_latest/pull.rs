@@ -49,43 +49,45 @@ pub async fn pull_remote_branch(
     fetch_opts.should_update_branch_head = false;
     let remote_branch = fetch::fetch_remote_branch(repo, &remote_repo, &fetch_opts).await?;
 
-    let mut new_head_commit = repositories::revisions::get(repo, &remote_branch.commit_id)?.ok_or(
+    let new_head_commit = repositories::revisions::get(repo, &remote_branch.commit_id)?.ok_or(
         OxenError::revision_not_found(remote_branch.commit_id.to_owned().into()),
     )?;
 
-    if let Some(previous_head_commit) = &previous_head_commit {
-        log::debug!(
-            "checking if we need to merge previous {} new {}",
-            previous_head_commit.id,
-            new_head_commit.id
-        );
-        if previous_head_commit.id != new_head_commit.id {
-            match repositories::merge::merge_commit_into_base(
-                repo,
-                &new_head_commit,
-                previous_head_commit,
-            )
-            .await
-            {
-                Ok(Some(commit)) => new_head_commit = commit,
-                Ok(None) => {
-                    // Merge conflict, keep the previous commit
-                    return Err(OxenError::merge_conflict(
-                        "There was a merge conflict, please resolve it before pulling",
-                    ));
+    match previous_head_commit {
+        Some(previous_head_commit) => {
+            log::debug!(
+                "checking if we need to merge previous {} new {}",
+                previous_head_commit.id,
+                new_head_commit.id
+            );
+            if previous_head_commit.id != new_head_commit.id {
+                match repositories::merge::merge_commit_into_base(
+                    repo,
+                    &new_head_commit,
+                    &previous_head_commit,
+                )
+                .await
+                {
+                    Ok(Some(commit)) => {
+                        // Merge successful, update branch head
+                        repositories::branches::update(repo, branch, commit.id)?;
+                    }
+                    Ok(None) => {
+                        // Merge conflict, keep the previous commit
+                        return Err(OxenError::merge_conflict(
+                            "There was a merge conflict, please resolve it before pulling",
+                        ));
+                    }
+                    Err(e) => return Err(e),
                 }
-                Err(e) => return Err(e),
             }
+        }
+
+        None => {
+            repositories::branches::update(repo, branch, new_head_commit.id)?;
         }
     }
 
-    log::debug!(
-        "Setting branch {} commit id to {}",
-        branch,
-        remote_branch.commit_id
-    );
-
-    repositories::branches::update(repo, branch, new_head_commit.id)?;
     api::client::repositories::post_pull(&remote_repo).await?;
 
     Ok(())
