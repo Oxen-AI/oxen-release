@@ -574,15 +574,7 @@ pub async fn get_derived_df(
     // TODO: If this structure holds for diff + query, there is some amt of reusability with
     // controllers::df::get logic
 
-    let df = tabular::read_df(derived_df_path, DFOpts::empty()).await;
-
-    let df = match df {
-        Ok(df) => df,
-        _ => {
-            // Handle errors from the blocking task or the dataframe loading
-            return Err(OxenHttpError::InternalServerError);
-        }
-    };
+    let df = tabular::read_df(derived_df_path, DFOpts::empty()).await?;
 
     let og_schema = Schema::from_polars(df.schema());
 

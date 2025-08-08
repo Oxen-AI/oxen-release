@@ -390,22 +390,16 @@ mod tests {
                     repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo"))
                         .await?;
 
-                println!("cloned repo: {cloned_repo:?}");
-
                 // Remote stage row
                 let path = test::test_nlp_classification_csv();
 
-                println!("path: {path:?}");
                 // Create workspace
                 let workspace_id = "my_workspace";
                 api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
 
-                println!("workspace created: {workspace_id}");
-
                 // Index the dataset
                 repositories::workspaces::df::index(&cloned_repo, workspace_id, &path).await?;
-                println!("dataset indexed");
 
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
@@ -413,7 +407,6 @@ mod tests {
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
                 repositories::workspaces::df(&cloned_repo, workspace_id, &path, opts).await?;
-                println!("row added");
 
                 // Local add col
                 let full_path = cloned_repo.path.join(path);
@@ -422,12 +415,10 @@ mod tests {
                 opts.output = Some(full_path.to_path_buf()); // write back to same path
                 command::df(&full_path, opts).await?;
                 repositories::add(&cloned_repo, &full_path).await?;
-                println!("column added");
 
                 // Commit and push the changed schema
                 repositories::commit(&cloned_repo, "Changed the schema 😇")?;
                 repositories::push(&cloned_repo).await?;
-                println!("pushed");
 
                 // Try to commit the remote changes, should fail
                 let body = NewCommitBody {
@@ -442,7 +433,6 @@ mod tests {
                     &body,
                 )
                 .await;
-                println!("{:?}", result);
                 assert!(result.is_err());
 
                 // Status should have one modified file

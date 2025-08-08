@@ -47,22 +47,13 @@ pub async fn create_compare(
 
     let client = client::new_for_url(&url)?;
 
-    match client.post(&url).json(&json!(req_body)).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            let response: Result<CompareTabularResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-
-            match response {
-                Ok(tabular_compare) => Ok(tabular_compare.dfs),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "create_compare() Could not deserialize response [{err}]\n{body}"
-                ))),
-            }
-        }
+    let res = client.post(&url).json(&json!(req_body)).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<CompareTabularResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(tabular_compare) => Ok(tabular_compare.dfs),
         Err(err) => Err(OxenError::basic_str(format!(
-            "create_compare() Request failed: {}",
-            err
+            "create_compare() Could not deserialize response [{err}]\n{body}"
         ))),
     }
 }
@@ -100,24 +91,18 @@ pub async fn update_compare(
 
     let client = client::new_for_url(&url)?;
 
-    match client.put(&url).json(&json!(req_body)).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-
-            let response: Result<CompareTabularResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-
-            match response {
-                Ok(tabular_compare) => Ok(tabular_compare.dfs),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "update_compare() Could not deserialize response [{err}]\n{body}"
-                ))),
-            }
+    if let Ok(res) = client.put(&url).json(&json!(req_body)).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<CompareTabularResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(tabular_compare) => Ok(tabular_compare.dfs),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "update_compare() Could not deserialize response [{err}]\n{body}"
+            ))),
         }
-        Err(err) => Err(OxenError::basic_str(format!(
-            "update_compare() Request failed: {}",
-            err
-        ))),
+    } else {
+        Err(OxenError::basic_str("update_compare() Request failed"))
     }
 }
 

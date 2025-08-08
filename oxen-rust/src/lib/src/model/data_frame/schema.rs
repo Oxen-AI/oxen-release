@@ -9,10 +9,10 @@ pub use field::Field;
 
 use crate::util::hasher;
 use itertools::Itertools;
-use polars::prelude::SchemaExt;
+use polars::prelude::{SchemaExt, SchemaRef};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, fmt, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fmt, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Schema {
@@ -57,7 +57,7 @@ impl Schema {
         schema
     }
 
-    pub fn from_polars(schema: &Arc<polars::prelude::Schema>) -> Schema {
+    pub fn from_polars(schema: &SchemaRef) -> Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
             let f = Field::new(field.name(), field.dtype().to_string().as_str());

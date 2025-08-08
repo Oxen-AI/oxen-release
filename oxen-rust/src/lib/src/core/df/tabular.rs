@@ -34,7 +34,7 @@ use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
 
 const READ_ERROR: &str = "Could not read tabular data from path";
 
-pub fn base_lazy_csv_reader(
+fn base_lazy_csv_reader(
     path: impl AsRef<Path>,
     delimiter: u8,
     quote_char: Option<u8>,
@@ -64,7 +64,7 @@ fn read_df_csv(
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
+fn read_df_jsonl(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     let path = path
         .as_ref()
         .to_str()
@@ -75,7 +75,7 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path)))
 }
 
-pub fn scan_df_json(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
+fn scan_df_json(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     // cannot lazy read json array
     let df = read_df_json(path)?;
     Ok(df)
