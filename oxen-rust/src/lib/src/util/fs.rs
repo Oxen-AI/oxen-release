@@ -15,6 +15,7 @@ use std::io::BufReader;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
@@ -31,9 +32,11 @@ use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
+use crate::model::MerkleHash;
 use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
+use crate::storage::version_store::VersionStore;
 use crate::view::health::DiskUsage;
 use filetime::FileTime;
 use image::ImageFormat;
@@ -136,6 +139,26 @@ pub fn resized_path_for_staged_entry(
     let img_hash = util::hasher::hash_file_contents(img_path)?;
     let img_version_path = version_path_from_hash_and_file(branch_repo.path, img_hash, img_path);
     let extension = img_version_path.extension().unwrap().to_str().unwrap();
+    let width = width.map(|w| w.to_string());
+    let height = height.map(|w| w.to_string());
+    let resized_path = img_version_path.parent().unwrap().join(format!(
+        "{}x{}.{}",
+        width.unwrap_or("".to_string()),
+        height.unwrap_or("".to_string()),
+        extension
+    ));
+    Ok(resized_path)
+}
+
+pub fn resized_path_for_staged_entry_version_store(
+    version_store: Arc<dyn VersionStore>,
+    img_hash: &str,
+    img_path: &Path,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<PathBuf, OxenError> {
+    let img_version_path = version_store.get_version_path(img_hash)?;
+    let extension = img_path.extension().unwrap().to_str().unwrap();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = img_version_path.parent().unwrap().join(format!(
@@ -1672,6 +1695,63 @@ pub fn resize_cache_image(
     let image_format = detect_image_format(image_path);
     let img = match image_format {
         Ok(format) => image::load(BufReader::new(File::open(image_path)?), format)?,
+        Err(_) => {
+            log::debug!("Could not detect image format, opening file without format");
+            image::open(image_path)?
+        }
+    };
+
+    let resized_img = if resize.width.is_some() && resize.height.is_some() {
+        img.resize_exact(
+            resize.width.unwrap(),
+            resize.height.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else if resize.width.is_some() {
+        img.resize(
+            resize.width.unwrap(),
+            resize.width.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else if resize.height.is_some() {
+        img.resize(
+            resize.height.unwrap(),
+            resize.height.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else {
+        img
+    };
+    log::debug!("about to save {:?}", resize_path);
+
+    let resize_parent = resize_path.parent().unwrap_or(Path::new(""));
+    if !resize_parent.exists() {
+        util::fs::create_dir_all(resize_parent).unwrap();
+    }
+
+    resized_img.save(resize_path).unwrap();
+    log::debug!("saved {:?}", resize_path);
+    Ok(())
+}
+
+pub fn resize_cache_image_version_store(
+    version_store: Arc<dyn VersionStore>,
+    img_hash: &MerkleHash,
+    image_path: &Path,
+    resize_path: &Path,
+    resize: ImgResize,
+) -> Result<(), OxenError> {
+    log::debug!("resize to path {:?} from {:?}", resize_path, image_path);
+    if resize_path.exists() {
+        return Ok(());
+    }
+
+    let image_format = detect_image_format(image_path);
+    let img = match image_format {
+        Ok(format) => {
+            let reader = version_store.open_version(&img_hash.to_string())?;
+            image::load(BufReader::new(reader), format)?
+        }
         Err(_) => {
             log::debug!("Could not detect image format, opening file without format");
             image::open(image_path)?
