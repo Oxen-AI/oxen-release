@@ -1,5 +1,4 @@
 use crate::common::{TestEnvironment, RepoType};
-use std::fs;
 use liboxen::repositories::commits;
 use liboxen::repositories::entries;
 
@@ -90,7 +89,7 @@ async fn test_put_raw_payload_update_file() -> Result<(), Box<dyn std::error::Er
     
     // Get the repository info before starting the server to avoid lock conflicts
     let repo_path = test_dir.join("test_user").join("test_repo");
-    let repo = liboxen::model::LocalRepository::from_dir(&repo_path)?;
+    let repo = retry_repository_access(&repo_path, 3, 100).await?;
     let commits = commits::list(&repo)?;
     let last_commit = commits.first().unwrap();
     let file_path = std::path::PathBuf::from("test.txt");

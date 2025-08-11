@@ -1,4 +1,4 @@
-use crate::common::{TestEnvironment, TestRepoBuilder, RepoType};
+use crate::common::{TestEnvironment, RepoType};
 
 /// Test DELETE file with bearer token authentication
 /// This test demonstrates deleting a file from an existing repository with proper authentication

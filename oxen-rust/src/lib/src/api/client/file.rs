@@ -103,8 +103,7 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
-    use crate::{api, repositories, test, util};
+    use crate::{api, test, util};
 
 
     #[tokio::test]
