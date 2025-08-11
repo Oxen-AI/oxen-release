@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::OxenError;
+use crate::model::diff::TextDiff;
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::{Commit, EntryDataType, MetadataEntry, ParsedResource};
 use crate::opts::DFOpts;
@@ -236,18 +237,12 @@ impl DiffEntry {
         }
 
         // TODO: handle all diff types more generically
-        let diff = if should_do_full_diff && data_type == EntryDataType::Text {
-            if base_entry.is_some() && head_entry.is_some() {
-                match repositories::diffs::diff_text_file_nodes(
-                    repo,
-                    &base_entry.clone().unwrap(),
-                    &head_entry.clone().unwrap(),
-                )? {
-                    DiffResult::Text(diff) => Some(GenericDiff::TextDiff(diff)),
-                    _ => None,
-                }
-            } else {
-                None
+        let diff: Option<GenericDiff> = if should_do_full_diff && data_type == EntryDataType::Text {
+            match (&base_entry, &head_entry) {
+                (Some(base), Some(head)) => Some(GenericDiff::TextDiff(
+                    repositories::diffs::diff_text_file_nodes(repo, Some(base), Some(head))?,
+                )),
+                _ => None,
             }
         } else {
             None

@@ -344,8 +344,8 @@ pub async fn create_df_diff(
 
     let diff_result = repositories::diffs::diff_tabular_file_nodes(
         &repository,
-        &node_1,
-        &node_2,
+        Some(&node_1),
+        Some(&node_2),
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
@@ -434,8 +434,8 @@ pub async fn update_df_diff(
 
     let diff_result = repositories::diffs::diff_tabular_file_nodes(
         &repository,
-        &node_1,
-        &node_2,
+        Some(&node_1),
+        Some(&node_2),
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here

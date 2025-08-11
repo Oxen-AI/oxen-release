@@ -46,8 +46,12 @@ pub fn diff(
     // );
 
     let mut result = TextDiff {
-        filename1: version_file_1.clone(),
-        filename2: version_file_2.clone(),
+        filename1: version_file_1
+            .clone()
+            .map(|p| p.to_string_lossy().to_string()),
+        filename2: version_file_2
+            .clone()
+            .map(|p| p.to_string_lossy().to_string()),
         ..Default::default()
     };
     let original_data = util::fs::read_file(version_file_1)?;

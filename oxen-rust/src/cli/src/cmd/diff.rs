@@ -312,8 +312,8 @@ impl DiffCmd {
             p,
             &format!(
                 "--- from file: {}\n+++ to file: {}\n",
-                filename1.unwrap_or(PathBuf::from("")).display(),
-                filename2.unwrap_or(PathBuf::from("")).display(),
+                filename1.unwrap_or(String::from("")),
+                filename2.unwrap_or(String::from("")),
             ),
         )?;
 

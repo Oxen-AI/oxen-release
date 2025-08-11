@@ -41,8 +41,8 @@ use std::str::FromStr;
 
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::schema_diff::SchemaDiff;
-use crate::model::diff::{AddRemoveModifyCounts, TextDiff};
 use crate::model::diff::DiffResult;
+use crate::model::diff::{AddRemoveModifyCounts, TextDiff};
 
 use crate::opts::{DFOpts, DiffOpts};
 
@@ -314,20 +314,10 @@ pub fn diff_commits(
         _ => (None, None),
     };
 
-    match (node_1, node_2) {
-        (Some(node_1), Some(node_2)) => {
-            let compare_result = repositories::diffs::diff_file_nodes(
-                repo, Some(node_1), Some(node_2), keys, targets, display,
-            )?;
+    let compare_result =
+        repositories::diffs::diff_file_nodes(repo, node_1, node_2, keys, targets, display)?;
 
-            log::debug!("compare result: {:?}", compare_result);
-
-            Ok(compare_result)
-        }
-        _ => Err(OxenError::basic_str(
-            "Could not find one or both of the files to compare",
-        )),
-    }
+    Ok(compare_result)
 }
 
 /// Diffs a directory between two commits, returning a summary of changes.
@@ -494,31 +484,32 @@ pub fn diff_file_nodes(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<DiffResult, OxenError> {
-
     match (file_1, file_2) {
         (Some(file_1), Some(file_2)) => {
-
-
             log::debug!(
                 " version_path_1: {:?}",
                 *file_1.data_type() == EntryDataType::Tabular
-                && *file_2.data_type() == EntryDataType::Tabular
+                    && *file_2.data_type() == EntryDataType::Tabular
             );
 
             match (file_1.data_type(), file_2.data_type()) {
                 (EntryDataType::Tabular, EntryDataType::Tabular) => {
-                    let mut result = diff_tabular_file_nodes(repo, Some(file_1), Some(file_2), keys, targets, display)?;
+                    let mut result = diff_tabular_file_nodes(
+                        repo,
+                        Some(&file_1),
+                        Some(&file_2),
+                        keys,
+                        targets,
+                        display,
+                    )?;
                     result.filename1 = Some(file_1.name().to_string());
                     result.filename2 = Some(file_2.name().to_string());
                     Ok(DiffResult::Tabular(result))
                 }
                 (EntryDataType::Text, EntryDataType::Text) => {
-                    let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
-                    let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
-
-                    let mut result = diff_text_file_nodes(repo, Some(file_1), Some(file_2))?;
-                    result.filename1 = Some(file_1.name().as_ref());
-                    result.filename2 = Some(file_2.name().as_ref());
+                    let mut result = diff_text_file_nodes(repo, Some(&file_1), Some(&file_2))?;
+                    result.filename1 = Some(file_1.name().to_string());
+                    result.filename2 = Some(file_2.name().to_string());
                     Ok(DiffResult::Text(result))
                 }
                 _ => Err(OxenError::invalid_file_type(format!(
@@ -527,10 +518,13 @@ pub fn diff_file_nodes(
                     file_2.data_type()
                 ))),
             }
-        },
-        _ => return Err(OxenError::basic_str("Could not find one or both of the files to compare")),
+        }
+        _ => {
+            return Err(OxenError::basic_str(
+                "Could not find one or both of the files to compare",
+            ))
+        }
     }
-
 }
 
 pub fn diff_tabular_file_and_file_node(
@@ -566,21 +560,26 @@ pub fn diff_tabular_file_and_file_node(
 
 pub fn diff_tabular_file_nodes(
     repo: &LocalRepository,
-    file_1: Option<FileNode>,
-    file_2: Option<FileNode>,
+    file_1: Option<&FileNode>,
+    file_2: Option<&FileNode>,
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<TabularDiff, OxenError> {
-
     match (file_1, file_2) {
         (Some(file_1), Some(file_2)) => {
             let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
             let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
-            let df_1 =
-                tabular::read_df_with_extension(version_path_1, file_1.extension(), &DFOpts::empty())?;
-            let df_2 =
-                tabular::read_df_with_extension(version_path_2, file_2.extension(), &DFOpts::empty())?;
+            let df_1 = tabular::read_df_with_extension(
+                version_path_1,
+                file_1.extension(),
+                &DFOpts::empty(),
+            )?;
+            let df_2 = tabular::read_df_with_extension(
+                version_path_2,
+                file_2.extension(),
+                &DFOpts::empty(),
+            )?;
             let schema_1 = Schema::from_polars(&df_1.schema());
             let schema_2 = Schema::from_polars(&df_2.schema());
             validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
@@ -588,21 +587,31 @@ pub fn diff_tabular_file_nodes(
         }
         (Some(file_1), None) => {
             let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
-            let df_1 =
-                tabular::read_df_with_extension(version_path_1, file_1.extension(), &DFOpts::empty())?;
+            let df_1 = tabular::read_df_with_extension(
+                version_path_1,
+                file_1.extension(),
+                &DFOpts::empty(),
+            )?;
             let schema_1 = Schema::from_polars(&df_1.schema());
             validate_required_fields(schema_1.clone(), schema_1, keys.clone(), targets.clone())?;
             diff_dfs(&df_1, &df_1, keys, targets, display)
         }
         (None, Some(file_2)) => {
             let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
-            let df_2 =
-                tabular::read_df_with_extension(version_path_2, file_2.extension(), &DFOpts::empty())?;
+            let df_2 = tabular::read_df_with_extension(
+                version_path_2,
+                file_2.extension(),
+                &DFOpts::empty(),
+            )?;
             let schema_2 = Schema::from_polars(&df_2.schema());
             validate_required_fields(schema_2.clone(), schema_2, keys.clone(), targets.clone())?;
             diff_dfs(&df_2, &df_2, keys, targets, display)
         }
-        _ => return Err(OxenError::basic_str("Could not find one or both of the files to compare")),
+        _ => {
+            return Err(OxenError::basic_str(
+                "Could not find one or both of the files to compare",
+            ))
+        }
     }
 }
 
@@ -624,10 +633,9 @@ pub fn diff_text_file_and_node(
 
 pub fn diff_text_file_nodes(
     repo: &LocalRepository,
-    file_1: Option<FileNode>,
-    file_2: Option<FileNode>,
-) ->  Result<TextDiff, OxenError> {
-
+    file_1: Option<&FileNode>,
+    file_2: Option<&FileNode>,
+) -> Result<TextDiff, OxenError> {
     match (file_1, file_2) {
         (Some(file_1), Some(file_2)) => {
             let version_path_1 = util::fs::version_path_from_hash(repo, file_1.hash().to_string());
@@ -642,7 +650,11 @@ pub fn diff_text_file_nodes(
             let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
             utf8_diff::diff(None, Some(version_path_2))
         }
-        (None, None) => return Err(OxenError::basic_str("Could not find one or both of the files to compare")),
+        (None, None) => {
+            return Err(OxenError::basic_str(
+                "Could not find one or both of the files to compare",
+            ))
+        }
     }
 }
 
