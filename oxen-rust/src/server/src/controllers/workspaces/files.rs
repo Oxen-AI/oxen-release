@@ -2,10 +2,9 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use actix_files::NamedFile;
-
 use liboxen::core;
 use liboxen::core::staged::with_staged_db_manager;
+use liboxen::error::OxenError;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::LocalRepository;
 use liboxen::model::Workspace;
@@ -22,40 +21,70 @@ use actix_web::Error;
 use futures_util::TryStreamExt as _;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::BufReader;
+use tokio_util::io::ReaderStream;
 
 pub async fn get(
     req: HttpRequest,
     query: web::Query<ImgResize>,
-) -> Result<NamedFile, OxenHttpError> {
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let version_store = repo.version_store()?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
         return Err(OxenHttpError::NotFound);
     };
     let path = path_param(&req, "path")?;
+    log::debug!("got workspace file path {:?}", &path);
 
-    // The path in a workspace context is just the working path of the workspace repo
-    let path = workspace.workspace_repo.path.join(path);
-
-    log::debug!("got workspace file path {:?}", path);
+    // Get the file from the version store
+    let file_node =
+        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, &path)?
+            .ok_or(OxenError::path_does_not_exist(&path))?;
+    let file_hash = file_node.hash();
+    let mime_type = file_node.mime_type();
+    let version_path = version_store.get_version_path(&file_hash.to_string())?;
+    log::debug!("got workspace file version path {:?}", &version_path);
 
     // TODO: This probably isn't the best place for the resize logic
     let img_resize = query.into_inner();
     if img_resize.width.is_some() || img_resize.height.is_some() {
-        let resized_path = util::fs::resized_path_for_staged_entry(
-            repo,
-            &path,
+        // TODO: Change the resized path from version store to a server location
+        let resized_path = util::fs::resized_path_for_staged_entry_version_store(
+            Arc::clone(&version_store),
+            &file_hash.to_string(),
+            &PathBuf::from(path),
             img_resize.width,
             img_resize.height,
         )?;
 
-        util::fs::resize_cache_image(&path, &resized_path, img_resize)?;
-        return Ok(NamedFile::open(resized_path)?);
+        util::fs::resize_cache_image_version_store(
+            version_store,
+            file_hash,
+            &version_path,
+            &resized_path,
+            img_resize,
+        )?;
+
+        // Generate stream for the resized image
+        let file = File::open(&resized_path).await?;
+        let reader = BufReader::new(file);
+        let stream = ReaderStream::new(reader);
+
+        return Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream));
     }
-    Ok(NamedFile::open(path)?)
+
+    // Stream the file
+    let (stream, _file_size) = version_store
+        .get_version_stream(&file_hash.to_string())
+        .await?;
+
+    Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream))
 }
 
 pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {

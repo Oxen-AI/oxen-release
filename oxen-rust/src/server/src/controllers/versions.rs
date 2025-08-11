@@ -54,9 +54,13 @@ pub async fn download(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let version_store = repo.version_store()?;
 
-    // TODO: stream the file
-    let file_data = version_store.get_version(&version_id).await?;
-    Ok(HttpResponse::Ok().body(file_data))
+    // Stream the file for better memory efficiency
+    let (stream, file_size) = version_store.get_version_stream(&version_id).await?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/octet-stream")
+        .append_header(("Content-Length", file_size.to_string()))
+        .streaming(stream))
 }
 
 pub async fn batch_upload(
