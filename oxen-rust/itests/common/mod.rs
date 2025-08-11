@@ -597,8 +597,8 @@ impl TestEnvironment {
 
         // Manually create and store the token in the database like AccessKeyManager does
         use jsonwebtoken::{encode, EncodingKey, Header};
-        use serde::{Deserialize, Serialize};
         use rocksdb::{DBWithThreadMode, MultiThreaded, Options};
+        use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Serialize, Deserialize)]
         struct Claims {
@@ -618,14 +618,14 @@ impl TestEnvironment {
             &claims,
             &EncodingKey::from_secret(secret.as_ref()),
         )?;
-        
+
         // Store the token in the database like AccessKeyManager::create does
         let mut opts = Options::default();
         opts.create_if_missing(true);
         let db = DBWithThreadMode::<MultiThreaded>::open(&opts, &keys_dir)?;
         let encoded_claim = serde_json::to_string(&claims)?;
         db.put(&token, encoded_claim)?;
-        
+
         Ok(token)
     }
 

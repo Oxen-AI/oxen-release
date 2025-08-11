@@ -106,7 +106,6 @@ impl VersionStore for InMemoryVersionStore {
         self.store_version(hash, &data).await
     }
 
-
     async fn store_version_from_reader(
         &self,
         hash: &str,

@@ -1,4 +1,4 @@
-use crate::common::{TestEnvironment, RepoType};
+use crate::common::{RepoType, TestEnvironment};
 
 /// Test DELETE file with bearer token authentication
 /// This test demonstrates deleting a file from an existing repository with proper authentication
@@ -12,24 +12,30 @@ async fn test_delete_file_with_bearer_token() -> Result<(), Box<dyn std::error::
 
     // Create a valid bearer token for testing
     let bearer_token = env.create_test_bearer_token()?;
-    
+
     let (_test_dir, server, client) = env.into_parts();
-    
+
     // Get the current revision to use in oxen-based-on header by fetching the file
     let get_response = client
-        .get(&format!("{}/api/repos/test_user/test_repo/file/main/test.txt", server.base_url()))
+        .get(&format!(
+            "{}/api/repos/test_user/test_repo/file/main/test.txt",
+            server.base_url()
+        ))
         .header("Authorization", format!("Bearer {}", bearer_token))
         .send()
         .await?;
-    
+
     let current_revision = get_response
         .headers()
         .get("oxen-revision-id")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("unknown");
-    
+
     let response = client
-        .delete(&format!("{}/api/repos/test_user/test_repo/file/main/test.txt", server.base_url()))
+        .delete(&format!(
+            "{}/api/repos/test_user/test_repo/file/main/test.txt",
+            server.base_url()
+        ))
         .header("Authorization", format!("Bearer {}", bearer_token))
         .header("oxen-based-on", current_revision)
         .send()
@@ -37,7 +43,7 @@ async fn test_delete_file_with_bearer_token() -> Result<(), Box<dyn std::error::
 
     let status = response.status();
     let body = response.text().await?;
-    
+
     println!("Status: {}", status);
     println!("Response: {}", body);
     
@@ -71,7 +77,7 @@ async fn test_delete_file_without_bearer_token_should_fail() -> Result<(), Box<d
 
     let status = response.status();
     let body = response.text().await?;
-    
+
     println!("Status: {}", status);
     println!("Response: {}", body);
     
@@ -109,7 +115,7 @@ async fn test_delete_file_with_invalid_bearer_token_should_fail() -> Result<(), 
 
     let status = response.status();
     let body = response.text().await?;
-    
+
     println!("Status: {}", status);
     println!("Response: {}", body);
     
@@ -148,7 +154,7 @@ async fn test_delete_file_with_invalid_oxen_based_on_should_fail() -> Result<(),
 
     let status = response.status();
     let body = response.text().await?;
-    
+
     println!("Status: {}", status);
     println!("Response: {}", body);
     
