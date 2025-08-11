@@ -21,3 +21,7 @@ pub mod test_put_binary_data;
 pub mod test_put_error_paths;
 
 pub mod test_import_with_bearer_token;
+
+pub mod test_webhook_registration_and_notification;
+pub mod test_webhook_http_logic;
+pub mod test_webhook_hierarchical_matching;

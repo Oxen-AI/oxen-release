@@ -162,6 +162,33 @@ Some tests still use manual port assignment via `TestServer::start_with_sync_dir
 - **Auto-allocated ports**: 3000-4000 (managed by `TestPortAllocator` in `port_leaser.rs`)
 - **Manual ports**: Use sparingly and check for conflicts
 
+## Webhook Integration Tests
+
+The integration tests include comprehensive webhook functionality testing:
+
+### Key Webhook Test Scenarios
+- **Authentication validation** - Ensures webhook registration requires valid bearer tokens
+- **Revision validation** - Tests currentOxenRevision checking and "no" error responses  
+- **End-to-end notifications** - Validates webhook triggers on repository changes
+- **Auto-removal after failures** - Tests webhook cleanup after 5 consecutive failed notifications
+- **Configuration management** - Tests webhook deployment mode switching (Inline vs Queue)
+- **Rate limiting** - Validates 60-second minimum notification intervals
+
+### Mock Webhook Server Architecture
+The tests use a mock HTTP webhook server that:
+- **Captures notifications** - Stores all received webhook payloads for verification
+- **Configurable responses** - Can return 200, 404, 500 status codes to test failure scenarios
+- **Thread-safe operation** - Uses `Arc<Mutex<>>` for concurrent access during async testing
+
+### Running Webhook Tests
+```bash
+# Run all webhook tests
+cargo test --test integration_tests webhook -- --nocapture
+
+# Run specific webhook test
+cargo test --test integration_tests test_webhook_registration_requires_authentication -- --nocapture
+```
+
 ## CI Considerations
 
 - Tests should be **deterministic** and not rely on external services
