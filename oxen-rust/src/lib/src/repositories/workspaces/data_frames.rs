@@ -149,7 +149,7 @@ pub fn query(
     log::debug!("query() opts: {:?}", opts);
 
     with_df_db_manager(db_path, |manager| {
-        manager.with_conn(|conn| {
+        manager.with_conn_mut(|conn| {
             // Get the schema of this commit entry
             let schema = df_db::get_schema(conn, TABLE_NAME)?;
 
@@ -158,13 +158,16 @@ pub fn query(
             // Right now embeddings and sql are mutually exclusive
             let df = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
                 log::debug!("querying embeddings: {:?}", embedding_opts);
-                repositories::workspaces::data_frames::embeddings::query(
+                repositories::workspaces::data_frames::embeddings::query_with_conn(
+                    conn,
                     workspace,
                     &embedding_opts,
                 )?
             } else if let Some(sql) = &opts.sql {
-                return manager.with_conn_mut(|conn| sql::query_df(conn, sql.clone(), None));
+                log::debug!("querying sql: {:?}", sql);
+                return sql::query_df(conn, sql.clone(), None);
             } else {
+                log::debug!("querying select cols: {:?}", col_names);
                 let select = Select::new().select(&col_names).from(TABLE_NAME);
                 df_db::select(conn, &select, Some(opts))?
             };
@@ -188,7 +191,8 @@ pub fn export(
         manager.with_conn(|conn| {
             let sql = if let Some(embedding_opts) = opts.get_sort_by_embedding_query() {
                 let exclude_cols = true;
-                repositories::workspaces::data_frames::embeddings::similarity_query(
+                repositories::workspaces::data_frames::embeddings::similarity_query_with_conn(
+                    conn,
                     workspace,
                     &embedding_opts,
                     exclude_cols,
@@ -200,7 +204,7 @@ pub fn export(
                 add_exclude_to_sql(&sql)?
             };
 
-            // log::debug!("exporting data frame with sql: {:?}", sql);
+            log::debug!("exporting data frame with sql: {:?}", sql);
 
             sql::export_df(conn, sql, Some(opts), temp_file)?;
 
