@@ -106,13 +106,13 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     {
         schema
     } else {
-        Schema::from_polars(&df.schema())
+        Schema::from_polars(df.schema())
     };
 
     df_schema.update_metadata_from_schema(&og_schema);
 
     let mut df_views =
-        JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+        JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts).await;
 
     repositories::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,

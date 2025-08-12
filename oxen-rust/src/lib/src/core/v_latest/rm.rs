@@ -1,3 +1,4 @@
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::db;
 use crate::error::OxenError;
 use crate::model::staged_data::StagedDataOpts;
@@ -398,7 +399,10 @@ fn remove_inner(
                 log::debug!("REMOVING DIR: {full_path:?}");
                 if full_path.exists() {
                     // user might have removed dir manually before using `oxen rm`
-                    util::fs::remove_dir_all(&full_path)?;
+                    if full_path != repo.path && full_path != repo.path.join(OXEN_HIDDEN_DIR) {
+                        util::fs::remove_dir_all(&full_path)?;
+                        log::debug!("Successfully removed directory from filesystem");
+                    }
                 }
                 // TODO: Currently, there's no way to avoid re-staging the parent dirs with glob paths
                 // Potentially, we can could a mutex global to all paths?

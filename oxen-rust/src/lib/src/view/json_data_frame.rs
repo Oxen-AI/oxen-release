@@ -39,7 +39,7 @@ impl JsonDataFrame {
     }
 
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
-        let schema = Schema::from_polars(&df.schema());
+        let schema = Schema::from_polars(df.schema());
         JsonDataFrame {
             schema: schema.to_owned(),
             view_schema: schema.to_owned(),
@@ -55,7 +55,7 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
+    pub async fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
         let full_height = df.height();
         let full_width = df.width();
 
@@ -65,11 +65,11 @@ impl JsonDataFrame {
         let start = if page == 0 { 0 } else { page_size * (page - 1) };
         let end = page_size * page;
 
-        let schema = Schema::from_polars(&df.schema());
+        let schema = Schema::from_polars(df.schema());
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
-        let mut view_df = tabular::transform(df, opts).unwrap();
-        let view_schema = Schema::from_polars(&view_df.schema());
+        let mut view_df = tabular::transform(df, opts).await.unwrap();
+        let view_schema = Schema::from_polars(view_df.schema());
 
         JsonDataFrame {
             schema,
@@ -86,13 +86,13 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
+    pub async fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
         let full_height = df.height();
         let full_width = df.width();
 
-        let schema = Schema::from_polars(&df.schema());
-        let mut view_df = tabular::transform(df, opts).unwrap();
-        let view_schema = Schema::from_polars(&view_df.schema());
+        let schema = Schema::from_polars(df.schema());
+        let mut view_df = tabular::transform(df, opts).await.unwrap();
+        let view_schema = Schema::from_polars(view_df.schema());
 
         JsonDataFrame {
             schema,
@@ -109,7 +109,7 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn to_df(&self) -> DataFrame {
+    pub async fn to_df(&self) -> DataFrame {
         if self.data == serde_json::Value::Null {
             DataFrame::empty()
         } else {
@@ -126,7 +126,7 @@ impl JsonDataFrame {
                         let df = JsonReader::new(content).finish().unwrap();
 
                         let opts = DFOpts::from_column_names(columns);
-                        tabular::transform(df, opts).unwrap()
+                        tabular::transform(df, opts).await.unwrap()
                     } else {
                         let cols = columns
                             .iter()

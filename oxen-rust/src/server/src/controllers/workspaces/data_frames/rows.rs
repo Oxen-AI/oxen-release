@@ -64,9 +64,9 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         repositories::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
-    let row_schema = Schema::from_polars(&row_df.schema().clone());
+    let row_schema = Schema::from_polars(row_df.schema());
     let row_df_source = DataFrameSchemaSize::from_df(&row_df, &row_schema);
-    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts).await;
 
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
@@ -109,9 +109,9 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let row_index = repositories::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
-    let row_schema = Schema::from_polars(&row_df.schema().clone());
+    let row_schema = Schema::from_polars(row_df.schema());
     let row_df_source = DataFrameSchemaSize::from_df(&row_df, &row_schema);
-    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts).await;
 
     let response = JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
@@ -179,11 +179,11 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     log::debug!("Modified row in controller is {:?}", modified_row);
-    let schema = Schema::from_polars(&modified_row.schema());
+    let schema = Schema::from_polars(modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&modified_row, &schema),
-            view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
+            view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()).await,
         },
         diff: Some(diff),
         commit: None,
@@ -216,11 +216,11 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     )?;
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
-    let schema = Schema::from_polars(&df.schema());
+    let schema = Schema::from_polars(df.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&df, &schema),
-            view: JsonDataFrameView::from_df_opts(df, schema, &DFOpts::empty()),
+            view: JsonDataFrameView::from_df_opts(df, schema, &DFOpts::empty()).await,
         },
         diff: Some(diff),
         commit: None,
@@ -250,7 +250,8 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let restored_row = repositories::workspaces::data_frames::rows::restore(
         &repo, &workspace, &file_path, &row_id,
-    )?;
+    )
+    .await?;
 
     let row_index = repositories::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
     let row_id = repositories::workspaces::data_frames::rows::get_row_id(&restored_row)?;
@@ -258,11 +259,11 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     log::debug!("Restored row in controller is {:?}", restored_row);
-    let schema = Schema::from_polars(&restored_row.schema());
+    let schema = Schema::from_polars(restored_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: DataFrameSchemaSize::from_df(&restored_row, &schema),
-            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
+            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()).await,
         },
         diff: Some(diff),
         commit: None,

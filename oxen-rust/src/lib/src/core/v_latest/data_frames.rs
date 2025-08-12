@@ -14,7 +14,7 @@ use std::path::Path;
 
 pub mod schemas;
 
-pub fn get_slice(
+pub async fn get_slice(
     repo: &LocalRepository,
     commit: &Commit,
     path: impl AsRef<Path>,
@@ -46,13 +46,13 @@ pub fn get_slice(
         height: metadata.height,
     };
 
-    let handle_sql_result = handle_sql_querying(repo, commit, path, opts, &data_frame_size);
+    let handle_sql_result = handle_sql_querying(repo, commit, path, opts, &data_frame_size).await;
     if let Ok(response) = handle_sql_result {
         return Ok(response);
     }
     // Read the data frame from the version path
     let version_path = util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-    let df = tabular::read_df_with_extension(version_path, file_node.extension(), opts)?;
+    let df = tabular::read_df_with_extension(version_path, file_node.extension(), opts).await?;
     log::debug!("get_slice df {:?}", df.height());
 
     // Check what the view height is
@@ -63,7 +63,7 @@ pub fn get_slice(
     };
 
     // Update the schema metadata from the source schema
-    let mut slice_schema = Schema::from_polars(&df.schema());
+    let mut slice_schema = Schema::from_polars(df.schema());
     slice_schema.update_metadata_from_schema(&source_schema);
     log::debug!("get_slice slice_schema {:?}", slice_schema);
     // Return a DataFrameSlice
@@ -86,7 +86,7 @@ pub fn get_slice(
     })
 }
 
-fn handle_sql_querying(
+async fn handle_sql_querying(
     repo: &LocalRepository,
     commit: &Commit,
     path: impl AsRef<Path>,
@@ -113,17 +113,17 @@ fn handle_sql_querying(
 
         let df = sql::query_df(&mut conn, sql, None)?;
         log::debug!("handle_sql_querying got df {:?}", df);
-        let paginated_df = transform_new(df.clone().lazy(), opts.clone())?.collect()?;
+        let paginated_df = transform_new(df.clone().lazy(), opts).await?.collect()?;
 
         let source_schema = if let Some(schema) =
             repositories::data_frames::schemas::get_by_path(repo, &workspace.commit, path)?
         {
             schema
         } else {
-            Schema::from_polars(&paginated_df.schema())
+            Schema::from_polars(paginated_df.schema())
         };
 
-        let mut slice_schema = Schema::from_polars(&df.schema());
+        let mut slice_schema = Schema::from_polars(df.schema());
         slice_schema.update_metadata_from_schema(&source_schema);
 
         return Ok(DataFrameSlice {
