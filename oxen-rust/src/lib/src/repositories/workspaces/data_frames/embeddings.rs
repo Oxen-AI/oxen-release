@@ -6,7 +6,7 @@ use crate::config::embedding_config::{EmbeddingColumn, EmbeddingStatus};
 use crate::config::EmbeddingConfig;
 use crate::config::EMBEDDING_CONFIG_FILENAME;
 use crate::constants::{EXCLUDE_OXEN_COLS, TABLE_NAME};
-use crate::core::db::data_frames::df_db;
+use crate::core::db::data_frames::df_db::{self, with_df_db_manager};
 use crate::error::OxenError;
 use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
@@ -94,20 +94,23 @@ fn perform_indexing(
     vector_length: usize,
 ) -> Result<(), OxenError> {
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
-    let conn = df_db::get_connection(&db_path)?;
+    with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| {
+            // Execute VSS commands separately
+            conn.execute("INSTALL vss;", [])?;
+            conn.execute("LOAD vss;", [])?;
+            conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
 
-    // Execute VSS commands separately
-    conn.execute("INSTALL vss;", [])?;
-    conn.execute("LOAD vss;", [])?;
-    conn.execute("SET hnsw_enable_experimental_persistence = true;", [])?;
-
-    // Convert column type
-    let sql = format!(
-        "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
-        column_name, vector_length
-    );
-    log::debug!("Updating column type: {}", sql);
-    conn.execute(&sql, [])?;
+            // Convert column type
+            let sql = format!(
+                "ALTER TABLE df ALTER COLUMN {} TYPE FLOAT[{}];",
+                column_name, vector_length
+            );
+            log::debug!("Updating column type: {}", sql);
+            conn.execute(&sql, [])?;
+            Ok(())
+        })
+    })?;
 
     log::debug!(
         "Completed indexing embeddings for column `{}` on {}",
@@ -165,11 +168,14 @@ fn get_embedding_length(
     let column = column.as_ref();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("Embedding index DB Path: {:?}", db_path);
-    let conn = df_db::get_connection(&db_path)?;
-
-    // Make sure the existing column is a float vector
-    let sql = format!("SELECT {} FROM df LIMIT 1;", column);
-    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    let result_set = with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| {
+            // Make sure the existing column is a float vector
+            let sql = format!("SELECT {} FROM df LIMIT 1;", column);
+            let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+            Ok(result_set)
+        })
+    })?;
     let Some(item) = result_set.first() else {
         return Err(OxenError::basic_str("No items found"));
     };
@@ -266,8 +272,9 @@ pub fn similarity_query(
 
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
     log::debug!("Embedding query DB Path: {:?}", db_path);
-    let conn = df_db::get_connection(&db_path)?;
-    let (avg_embedding, vector_length) = embedding_from_query(&conn, workspace, path, opts)?;
+    let (avg_embedding, vector_length) = with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| embedding_from_query(conn, workspace, path.clone(), opts))
+    })?;
 
     // log::debug!("Avg embedding: {:?}", avg_embedding);
     let embedding_str = format!(
@@ -279,7 +286,9 @@ pub fn similarity_query(
             .join(",")
     );
 
-    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let schema = with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| df_db::get_schema(conn, TABLE_NAME))
+    })?;
     let columns = schema
         .fields
         .iter()
@@ -303,7 +312,6 @@ pub fn nearest_neighbors(
     // Time the query
     let start = std::time::Instant::now();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
-    let conn = df_db::get_connection(&db_path)?;
 
     let column = column.as_ref();
     let vector_length = embedding.len();
@@ -316,29 +324,34 @@ pub fn nearest_neighbors(
             .collect::<Vec<String>>()
             .join(",")
     );
-    let mut schema = df_db::get_schema(&conn, TABLE_NAME)?;
-    let columns = schema
-        .fields
-        .iter()
-        .map(|f| f.name.as_str())
-        .filter(|c| !(EXCLUDE_OXEN_COLS.contains(c) && exclude_cols))
-        .collect::<Vec<&str>>();
-    let columns_str = columns.join(", ");
+    let (result_set, mut schema) = with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| {
+            let schema = df_db::get_schema(conn, TABLE_NAME)?;
+            let columns = schema
+                .fields
+                .iter()
+                .map(|f| f.name.as_str())
+                .filter(|c| !(EXCLUDE_OXEN_COLS.contains(c) && exclude_cols))
+                .collect::<Vec<&str>>();
+            let columns_str = columns.join(", ");
 
-    let mut sql = format!("SELECT {columns_str}, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
-    let limit = pagination.page_size;
-    let page_num = if pagination.page_num > 0 {
-        pagination.page_num
-    } else {
-        1
-    };
-    let offset = (page_num - 1) * limit;
-    sql = format!("{} LIMIT {} OFFSET {}", sql, limit, offset);
+            let mut sql = format!("SELECT {columns_str}, array_cosine_similarity({column}, {embedding_str}::FLOAT[{vector_length}]) as {similarity_column} FROM df ORDER BY {similarity_column} DESC");
+            let limit = pagination.page_size;
+            let page_num = if pagination.page_num > 0 {
+                pagination.page_num
+            } else {
+                1
+            };
+            let offset = (page_num - 1) * limit;
+            sql = format!("{} LIMIT {} OFFSET {}", sql, limit, offset);
 
-    // Print just the first 50 characters of the query
-    log::debug!("Executing similarity query: {}", &sql);
+            // Print just the first 50 characters of the query
+            log::debug!("Executing similarity query: {}", &sql);
 
-    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+            let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+            Ok((result_set, schema))
+        })
+    })?;
     log::debug!("Similarity query took: {:?}", start.elapsed());
 
     schema.fields.push(Field::new(similarity_column, "f32"));
@@ -374,12 +387,14 @@ pub fn query(workspace: &Workspace, opts: &EmbeddingQueryOpts) -> Result<DataFra
     // Time the query
     let start = std::time::Instant::now();
     let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
-    let conn = df_db::get_connection(&db_path)?;
-    let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    let (result_set, mut schema) = with_df_db_manager(&db_path, |manager| {
+        manager.with_conn(|conn| {
+            let result_set: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+            let schema = df_db::get_schema(conn, TABLE_NAME)?;
+            Ok((result_set, schema))
+        })
+    })?;
     log::debug!("Similarity query took: {:?}", start.elapsed());
-
-    // Print the schema
-    let mut schema = df_db::get_schema(&conn, TABLE_NAME)?;
     schema.fields.push(Field::new(&similarity_column, "f32"));
 
     let start = std::time::Instant::now();
