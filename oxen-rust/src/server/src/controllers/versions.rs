@@ -59,8 +59,7 @@ pub async fn download(
     let resource = parse_resource(&req, &repo)?;
     let commit = resource.clone().commit.unwrap();
     let path = resource.path.clone();
-    println!("{}", repo_name);
-    println!("{:?}", path);
+
     log::debug!("Download resource {namespace}/{repo_name}/{resource} version file");
 
     let entry = repositories::entries::get_file(&repo, &commit, &path)?

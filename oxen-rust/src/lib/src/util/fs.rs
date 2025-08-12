@@ -39,7 +39,7 @@ use crate::opts::CountLinesOpts;
 use crate::storage::version_store::VersionStore;
 use crate::view::health::DiskUsage;
 use filetime::FileTime;
-use image::ImageFormat;
+use image::{ImageFormat, ImageReader};
 
 use crate::repositories;
 use crate::util;
@@ -1749,7 +1749,10 @@ pub fn resize_cache_image_version_store(
         return Ok(());
     }
 
-    let image_format = detect_image_format(image_path);
+    let file_extension = image_path.extension().unwrap_or_default().to_string_lossy();
+    let image_format = ImageFormat::from_extension(&*file_extension).ok_or(OxenError::basic_str(
+        "Failed to get image format from extension",
+    ));
     let img = match image_format {
         Ok(format) => {
             let reader = version_store.open_version(&img_hash.to_string())?;
@@ -1757,7 +1760,11 @@ pub fn resize_cache_image_version_store(
         }
         Err(_) => {
             log::debug!("Could not detect image format, opening file without format");
-            image::open(image_path)?
+            let reader = version_store.open_version(&img_hash.to_string())?;
+
+            ImageReader::new(BufReader::new(reader))
+                .with_guessed_format()?
+                .decode()?
         }
     };
 
