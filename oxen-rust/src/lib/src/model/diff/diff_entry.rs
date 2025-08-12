@@ -243,7 +243,7 @@ impl DiffEntry {
                 head_entry.as_ref(),
             ) {
                 Ok(text_diff) => Some(GenericDiff::TextDiff(text_diff)),
-                Err(_) => None, 
+                Err(_) => None,
             }
         } else {
             None
