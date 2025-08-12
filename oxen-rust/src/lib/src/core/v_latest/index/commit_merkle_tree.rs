@@ -283,7 +283,7 @@ impl CommitMerkleTree {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
 
-        let root = if let Some(node_hash) = node_hash {
+        if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
             match CommitMerkleTree::read_node(repo, &node_hash, load_recursive) {
@@ -303,8 +303,7 @@ impl CommitMerkleTree {
                     Ok(None)
                 }
             }
-        };
-        root
+        }
     }
 
     pub fn from_path(

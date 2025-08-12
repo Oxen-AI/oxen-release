@@ -613,7 +613,7 @@ pub fn diff_file_nodes(
         },
 
         (None, None) => {
-            return Err(OxenError::basic_str(
+            Err(OxenError::basic_str(
                 "Could not find one or both of the files to compare",
             ))
         }
@@ -700,11 +700,9 @@ pub fn diff_tabular_file_nodes(
             validate_required_fields(schema_2.clone(), schema_2, keys.clone(), targets.clone())?;
             diff_dfs(&df_2, &df_2, keys, targets, display)
         }
-        _ => {
-            return Err(OxenError::basic_str(
-                "Could not find one or both of the files to compare",
-            ))
-        }
+        _ => Err(OxenError::basic_str(
+            "Could not find one or both of the files to compare",
+        )),
     }
 }
 
@@ -713,13 +711,9 @@ pub fn diff_text_file_and_node(
     file_node: Option<&FileNode>,
     file_path: impl AsRef<Path>,
 ) -> Result<DiffResult, OxenError> {
-    let version_path: Option<PathBuf> = match file_node {
-        Some(file_node) => Some(util::fs::version_path_from_hash(
-            repo,
-            file_node.hash().to_string(),
-        )),
-        None => None,
-    };
+    let version_path= file_node.map(|file_node| {
+        util::fs::version_path_from_hash(repo, file_node.hash().to_string())
+    });
     let result = utf8_diff::diff(version_path, Some(file_path.as_ref().to_path_buf()))?;
     Ok(DiffResult::Text(result))
 }
@@ -743,11 +737,9 @@ pub fn diff_text_file_nodes(
             let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
             utf8_diff::diff(None, Some(version_path_2))
         }
-        (None, None) => {
-            return Err(OxenError::basic_str(
-                "Could not find one or both of the files to compare",
-            ))
-        }
+        (None, None) => Err(OxenError::basic_str(
+            "Could not find one or both of the files to compare",
+        )),
     }
 }
 
