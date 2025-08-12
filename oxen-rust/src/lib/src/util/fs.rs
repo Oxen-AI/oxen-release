@@ -1179,11 +1179,6 @@ pub fn rcount_files_with_extension(dir: &Path, exts: &HashSet<String>) -> usize 
     count
 }
 
-pub fn create_empty_file() -> PathBuf {
-    let file = tempfile::NamedTempFile::new().unwrap();
-    file.into_temp_path().to_path_buf()
-}
-
 pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = vec![];
     if !dir.is_dir() {
