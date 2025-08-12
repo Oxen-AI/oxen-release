@@ -48,26 +48,20 @@ pub async fn get(
             .ok_or(OxenError::path_does_not_exist(&path))?;
     let file_hash = file_node.hash();
     let mime_type = file_node.mime_type();
+    let last_commit_id = file_node.last_commit_id().to_string();
     let version_path = version_store.get_version_path(&file_hash.to_string())?;
     log::debug!("got workspace file version path {:?}", &version_path);
 
     // TODO: This probably isn't the best place for the resize logic
     let img_resize = query.into_inner();
     if img_resize.width.is_some() || img_resize.height.is_some() {
-        // TODO: Change the resized path from version store to a server location
-        let resized_path = util::fs::resized_path_for_staged_entry_version_store(
-            Arc::clone(&version_store),
-            &file_hash.to_string(),
-            &PathBuf::from(path),
-            img_resize.width,
-            img_resize.height,
-        )?;
+        log::debug!("img_resize {:?}", img_resize);
 
-        util::fs::resize_cache_image_version_store(
-            version_store,
-            file_hash,
+        let resized_path = util::fs::handle_image_resize(
+            Arc::clone(&version_store),
+            file_hash.to_string(),
+            &PathBuf::from(path),
             &version_path,
-            &resized_path,
             img_resize,
         )?;
 
@@ -76,7 +70,10 @@ pub async fn get(
         let reader = BufReader::new(file);
         let stream = ReaderStream::new(reader);
 
-        return Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream));
+        return Ok(HttpResponse::Ok()
+            .content_type(mime_type)
+            .insert_header(("oxen-revision-id", last_commit_id.as_str()))
+            .streaming(stream));
     }
 
     // Stream the file
@@ -84,7 +81,10 @@ pub async fn get(
         .get_version_stream(&file_hash.to_string())
         .await?;
 
-    Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream))
+    Ok(HttpResponse::Ok()
+        .content_type(mime_type)
+        .insert_header(("oxen-revision-id", last_commit_id.as_str()))
+        .streaming(stream))
 }
 
 pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {

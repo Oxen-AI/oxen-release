@@ -57,7 +57,10 @@ pub async fn download(
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let version_store = repo.version_store()?;
     let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.unwrap();
+    let commit = resource
+        .clone()
+        .commit
+        .ok_or_else(|| OxenError::basic_str("Resource commit not found"))?;
     let path = resource.path.clone();
 
     log::debug!("Download resource {namespace}/{repo_name}/{resource} version file");
@@ -66,6 +69,7 @@ pub async fn download(
         .ok_or(OxenError::path_does_not_exist(path.clone()))?;
     let file_hash = entry.hash();
     let mime_type = entry.mime_type();
+    let last_commit_id = entry.last_commit_id().to_string();
     let version_path = version_store.get_version_path(&file_hash.to_string())?;
 
     // TODO: refactor out of here and check for type,
@@ -74,28 +78,23 @@ pub async fn download(
     if img_resize.width.is_some() || img_resize.height.is_some() {
         log::debug!("img_resize {:?}", img_resize);
 
-        let resized_path = util::fs::resized_path_for_file_node_version_store(
+        let resized_path = util::fs::handle_image_resize(
             Arc::clone(&version_store),
-            &entry,
-            img_resize.width,
-            img_resize.height,
-        )?;
-
-        util::fs::resize_cache_image_version_store(
-            version_store,
-            file_hash,
+            file_hash.to_string(),
+            &path,
             &version_path,
-            &resized_path,
             img_resize,
         )?;
 
-        log::debug!("In the resize cache! {:?}", resized_path);
         // Generate stream for the resized image
         let file = File::open(&resized_path).await?;
         let reader = BufReader::new(file);
         let stream = ReaderStream::new(reader);
 
-        return Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream));
+        return Ok(HttpResponse::Ok()
+            .content_type(mime_type)
+            .insert_header(("oxen-revision-id", last_commit_id.as_str()))
+            .streaming(stream));
     } else {
         log::debug!("did not hit the resize cache");
     }
@@ -103,7 +102,10 @@ pub async fn download(
     let stream = version_store
         .get_version_stream(&file_hash.to_string())
         .await?;
-    Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream))
+    Ok(HttpResponse::Ok()
+        .content_type(mime_type)
+        .insert_header(("oxen-revision-id", last_commit_id.as_str()))
+        .streaming(stream))
 }
 
 pub async fn batch_upload(

@@ -32,7 +32,6 @@ use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
-use crate::model::MerkleHash;
 use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
@@ -111,6 +110,34 @@ pub fn version_path_for_commit_id(
     }
 }
 
+pub fn handle_image_resize(
+    version_store: Arc<dyn VersionStore>,
+    file_hash: String,
+    file_path: &Path,
+    version_path: &Path,
+    img_resize: ImgResize,
+) -> Result<PathBuf, OxenError> {
+    log::debug!("img_resize {:?}", img_resize);
+    let resized_path = resized_path_for_version_store_file(
+        Arc::clone(&version_store),
+        &file_hash,
+        file_path,
+        img_resize.width,
+        img_resize.height,
+    )?;
+
+    resize_cache_image_version_store(
+        version_store,
+        &file_hash,
+        version_path,
+        &resized_path,
+        img_resize,
+    )?;
+
+    log::debug!("In the resize cache! {:?}", resized_path);
+    Ok(resized_path)
+}
+
 // TODO: Remove this func when file download is refactored to use the new version store endpoint
 pub fn resized_path_for_file_node(
     repo: &LocalRepository,
@@ -131,27 +158,8 @@ pub fn resized_path_for_file_node(
     Ok(resized_path)
 }
 
-// Same logic as resized_path_for_file_node() but with the new version store interface
-pub fn resized_path_for_file_node_version_store(
-    version_store: Arc<dyn VersionStore>,
-    file_node: &FileNode,
-    width: Option<u32>,
-    height: Option<u32>,
-) -> Result<PathBuf, OxenError> {
-    let version_path = version_store.get_version_path(&file_node.hash().to_string())?;
-    let extension = file_node.extension().to_string();
-    let width = width.map(|w| w.to_string());
-    let height = height.map(|w| w.to_string());
-    let resized_path = version_path.parent().unwrap().join(format!(
-        "{}x{}.{}",
-        width.unwrap_or("".to_string()),
-        height.unwrap_or("".to_string()),
-        extension
-    ));
-    Ok(resized_path)
-}
-
-pub fn resized_path_for_staged_entry_version_store(
+// TODO: Change the resized path from version store to a server location
+pub fn resized_path_for_version_store_file(
     version_store: Arc<dyn VersionStore>,
     img_hash: &str,
     img_path: &Path,
@@ -1739,7 +1747,7 @@ pub fn resize_cache_image(
 // resize_cache_image() with the new version store interface
 pub fn resize_cache_image_version_store(
     version_store: Arc<dyn VersionStore>,
-    img_hash: &MerkleHash,
+    img_hash: &str,
     image_path: &Path,
     resize_path: &Path,
     resize: ImgResize,
@@ -1749,18 +1757,22 @@ pub fn resize_cache_image_version_store(
         return Ok(());
     }
 
-    let file_extension = image_path.extension().unwrap_or_default().to_string_lossy();
+    let file_extension = image_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_ascii_lowercase();
     let image_format = ImageFormat::from_extension(&*file_extension).ok_or(OxenError::basic_str(
         "Failed to get image format from extension",
     ));
     let img = match image_format {
         Ok(format) => {
-            let reader = version_store.open_version(&img_hash.to_string())?;
+            let reader = version_store.open_version(img_hash)?;
             image::load(BufReader::new(reader), format)?
         }
         Err(_) => {
             log::debug!("Could not detect image format, opening file without format");
-            let reader = version_store.open_version(&img_hash.to_string())?;
+            let reader = version_store.open_version(img_hash)?;
 
             ImageReader::new(BufReader::new(reader))
                 .with_guessed_format()?
@@ -1793,7 +1805,7 @@ pub fn resize_cache_image_version_store(
 
     let resize_parent = resize_path.parent().unwrap_or(Path::new(""));
     if !resize_parent.exists() {
-        util::fs::create_dir_all(resize_parent).unwrap();
+        util::fs::create_dir_all(resize_parent)?;
     }
 
     resized_img.save(resize_path).unwrap();
