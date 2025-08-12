@@ -1,4 +1,3 @@
-
 use crate::model::diff::change_type::ChangeType;
 use serde::{Deserialize, Serialize};
 

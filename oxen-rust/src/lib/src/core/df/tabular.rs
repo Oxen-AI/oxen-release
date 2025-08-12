@@ -53,7 +53,6 @@ fn base_lazy_csv_reader(
         .with_encoding(CsvEncoding::LossyUtf8)
 }
 
-
 pub fn new_df() -> DataFrame {
     DataFrame::empty()
 }
