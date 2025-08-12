@@ -59,7 +59,8 @@ pub async fn download(
     let resource = parse_resource(&req, &repo)?;
     let commit = resource.clone().commit.unwrap();
     let path = resource.path.clone();
-
+    println!("{}", repo_name);
+    println!("{:?}", path);
     log::debug!("Download resource {namespace}/{repo_name}/{resource} version file");
 
     let entry = repositories::entries::get_file(&repo, &commit, &path)?
@@ -293,17 +294,15 @@ mod tests {
 
         // create test file and commit
         util::fs::create_dir_all(repo.path.join("data"))?;
-        let hello_file = repo.path.join("data/hello.txt");
+        let relative_path = "data/hello.txt";
+        let hello_file = repo.path.join(relative_path);
         let file_content = "Hello";
         util::fs::write_to_path(&hello_file, file_content)?;
         repositories::add(&repo, &hello_file).await?;
         repositories::commit(&repo, "First commit")?;
 
-        // get file version id
-        let file_hash = util::hasher::hash_str(file_content);
-
         // test download
-        let uri = format!("/oxen/{namespace}/{repo_name}/versions/{file_hash}");
+        let uri = format!("/oxen/{namespace}/{repo_name}/versions/main/{relative_path}");
         let req = actix_web::test::TestRequest::get()
             .uri(&uri)
             .app_data(OxenAppData::new(sync_dir.to_path_buf()))
@@ -313,7 +312,7 @@ mod tests {
             App::new()
                 .app_data(OxenAppData::new(sync_dir.clone()))
                 .route(
-                    "/oxen/{namespace}/{repo_name}/versions/{version_id}",
+                    "/oxen/{namespace}/{repo_name}/versions/{resource:.*}",
                     web::get().to(controllers::versions::download),
                 ),
         )
