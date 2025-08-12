@@ -245,7 +245,7 @@ pub fn diff_revs(
                         content_diffs.push(result);
                     }
                     Err(err) => {
-                        log::error!(
+                        log::debug!(
                             "Failed to compute diff for file {:?}: {}",
                             head_res.path,
                             err
@@ -277,7 +277,7 @@ pub fn diff_revs(
                         content_diffs.push(result);
                     }
                     Err(err) => {
-                        log::error!("Failed to compute diff for file {}", err);
+                        log::debug!("Failed to compute diff for file {}", err);
                     }
                 }
             }
@@ -306,7 +306,7 @@ pub fn diff_revs(
                         content_diffs.push(result);
                     }
                     Err(err) => {
-                        log::error!("Failed to compute diff for file {}", err);
+                        log::debug!("Failed to compute diff for file {}", err);
                     }
                 }
             }
