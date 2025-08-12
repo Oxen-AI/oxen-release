@@ -89,7 +89,7 @@ pub async fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
                 opts.keys.clone(),
                 opts.targets.clone(),
                 vec![],
-            )?;
+            ).await?;
             return Ok(vec![result]);
         }
         Ok(repo) => repo,
@@ -188,7 +188,7 @@ pub async fn diff_uncommitted(
             opts.keys.clone(),
             opts.targets.clone(),
             vec![],
-        )?);
+        ).await?);
         log::debug!("diff_result: {:?}", diff_result);
     }
 
@@ -277,7 +277,7 @@ pub async fn diff_revs(
                     opts.keys.clone(),
                     opts.targets.clone(),
                     vec![],
-                ) {
+                ).await {
                     Ok(result) => {
                         // log::debug!("Content diff successful for file: {:?}", base_res.path);
                         content_diffs.push(result);
@@ -306,7 +306,7 @@ pub async fn diff_revs(
                     opts.keys.clone(),
                     opts.targets.clone(),
                     vec![],
-                ) {
+                ).await {
                     Ok(result) => {
                         // log::debug!("Content diff successful for file: {:?}", head_res.path);
                         content_diffs.push(result);
@@ -492,7 +492,7 @@ pub async fn diff_file_and_node(
                     keys,
                     targets,
                     display,
-                )?;
+                ).await?;
                 Ok(DiffResult::Tabular(result))
             }
             EntryDataType::Text => {
@@ -571,7 +571,7 @@ pub async fn diff_file_nodes(
                         keys,
                         targets,
                         display,
-                    )?;
+                    ).await?;
                     result.filename1 = Some(file_1.name().to_string());
                     result.filename2 = Some(file_2.name().to_string());
                     Ok(DiffResult::Tabular(result))
@@ -592,7 +592,7 @@ pub async fn diff_file_nodes(
         (Some(file_1), None) => match file_1.data_type() {
             EntryDataType::Tabular => {
                 let mut result =
-                    diff_tabular_file_nodes(repo, Some(&file_1), None, keys, targets, display)?;
+                    diff_tabular_file_nodes(repo, Some(&file_1), None, keys, targets, display).await?;
                 result.filename1 = Some(file_1.name().to_string());
                 Ok(DiffResult::Tabular(result))
             }
@@ -609,7 +609,7 @@ pub async fn diff_file_nodes(
         (None, Some(file_2)) => match file_2.data_type() {
             EntryDataType::Tabular => {
                 let result =
-                    diff_tabular_file_nodes(repo, None, Some(&file_2), keys, targets, display)?;
+                    diff_tabular_file_nodes(repo, None, Some(&file_2), keys, targets, display).await?;
                 Ok(DiffResult::Tabular(result))
             }
             EntryDataType::Text => {
@@ -641,13 +641,13 @@ pub async fn diff_tabular_file_and_file_node(
         Some(file_node) => {
             let file_node_path =
                 util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-            let df_1 = tabular::read_df(file_node_path, DFOpts::empty())?;
-            let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+            let df_1 = tabular::read_df(file_node_path, DFOpts::empty()).await?;
+            let df_2 = tabular::read_df(file_1_path, DFOpts::empty()).await?;
             (df_1, df_2)
         }
         None => {
             let df_1 = tabular::new_df(); //TODO: should we create a new df with the schema of the file?
-            let df_2 = tabular::read_df(file_1_path, DFOpts::empty())?;
+            let df_2 = tabular::read_df(file_1_path, DFOpts::empty()).await?;
             (df_1, df_2)
         }
     };
@@ -676,12 +676,12 @@ pub async fn diff_tabular_file_nodes(
                 version_path_1,
                 file_1.extension(),
                 &DFOpts::empty(),
-            )?;
+            ).await?;
             let df_2 = tabular::read_df_with_extension(
                 version_path_2,
                 file_2.extension(),
                 &DFOpts::empty(),
-            )?;
+            ).await?;
             let schema_1 = Schema::from_polars(&df_1.schema());
             let schema_2 = Schema::from_polars(&df_2.schema());
             validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
@@ -693,7 +693,7 @@ pub async fn diff_tabular_file_nodes(
                 version_path_1,
                 file_1.extension(),
                 &DFOpts::empty(),
-            )?;
+            ).await?;
             let schema_1 = Schema::from_polars(&df_1.schema());
             validate_required_fields(schema_1.clone(), schema_1, keys.clone(), targets.clone())?;
             diff_dfs(&df_1, &df_1, keys, targets, display)
@@ -704,7 +704,7 @@ pub async fn diff_tabular_file_nodes(
                 version_path_2,
                 file_2.extension(),
                 &DFOpts::empty(),
-            )?;
+            ).await?;
             let schema_2 = Schema::from_polars(&df_2.schema());
             validate_required_fields(schema_2.clone(), schema_2, keys.clone(), targets.clone())?;
             diff_dfs(&df_2, &df_2, keys, targets, display)
