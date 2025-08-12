@@ -715,11 +715,14 @@ pub async fn diff_tabular_file_nodes(
             )
             .await?;
             let schema_1 = Schema::from_polars(df_1.schema());
+            let df_2 = tabular::new_df();
+
             validate_required_fields(schema_1.clone(), schema_1, keys.clone(), targets.clone())?;
-            diff_dfs(&df_1, &df_1, keys, targets, display)
+            diff_dfs(&df_1, &df_2, keys, targets, display)
         }
         (None, Some(file_2)) => {
             let version_path_2 = util::fs::version_path_from_hash(repo, file_2.hash().to_string());
+            let df_1 = tabular::new_df();
             let df_2 = tabular::read_df_with_extension(
                 version_path_2,
                 file_2.extension(),
@@ -728,7 +731,7 @@ pub async fn diff_tabular_file_nodes(
             .await?;
             let schema_2 = Schema::from_polars(df_2.schema());
             validate_required_fields(schema_2.clone(), schema_2, keys.clone(), targets.clone())?;
-            diff_dfs(&df_2, &df_2, keys, targets, display)
+            diff_dfs(&df_1, &df_2, keys, targets, display)
         }
         _ => Err(OxenError::basic_str(
             "Could not find one or both of the files to compare",
