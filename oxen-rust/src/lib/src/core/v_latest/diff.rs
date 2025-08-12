@@ -38,10 +38,10 @@ pub async fn list_diff_entries(
 
     let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
     let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
-    let base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
-    let head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
 
-    let (base_files, base_dirs, head_files, head_dirs) = match (base_tree, head_tree) {
+    match (base_tree, head_tree) {
         (Some(base_tree), Some(head_tree)) => {
             //we found some nodes
 
@@ -49,22 +49,29 @@ pub async fn list_diff_entries(
                 (MerkleTreeNodeType::File, MerkleTreeNodeType::File) => {
                     base_files.insert(FileNodeWithDir {
                         file_node: base_tree.file()?,
-                        dir: base_path.parent().unwrap().to_owned(),
+                        dir: base_path
+                            .parent()
+                            .unwrap_or(&PathBuf::from(""))
+                            .to_path_buf(),
                     });
                     head_files.insert(FileNodeWithDir {
                         file_node: head_tree.file()?,
-                        dir: head_path.parent().unwrap().to_owned(),
+                        dir: head_path
+                            .parent()
+                            .unwrap_or(&PathBuf::from(""))
+                            .to_path_buf(),
                     });
-
-                    (base_files, base_dirs, head_files, head_dirs)
                 }
                 (MerkleTreeNodeType::Dir, MerkleTreeNodeType::Dir) => {
-                    let (base_files, base_dirs) =
-                        repositories::tree::list_files_and_dirs(&base_tree)?;
-                    let (head_files, head_dirs) =
-                        repositories::tree::list_files_and_dirs(&head_tree)?;
+                    let (files, dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
 
-                    (base_files, base_dirs, head_files, head_dirs)
+                    base_files.extend(files);
+                    base_dirs.extend(dirs);
+
+                    let (files, dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+
+                    head_files.extend(files);
+                    head_dirs.extend(dirs);
                 }
                 _ => {
                     return Err(OxenError::basic_str(format!(
@@ -79,14 +86,17 @@ pub async fn list_diff_entries(
             MerkleTreeNodeType::File => {
                 base_files.insert(FileNodeWithDir {
                     file_node: base_tree.file()?,
-                    dir: base_path.parent().unwrap().to_owned(),
+                    dir: base_path
+                        .parent()
+                        .unwrap_or(&PathBuf::from(""))
+                        .to_path_buf(),
                 });
-                (base_files, base_dirs, head_files, head_dirs)
             }
             MerkleTreeNodeType::Dir => {
-                let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
+                let (files, dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
 
-                (base_files, base_dirs, head_files, head_dirs)
+                base_files.extend(files);
+                base_dirs.extend(dirs);
             }
             _ => {
                 return Err(OxenError::basic_str(format!(
@@ -100,13 +110,17 @@ pub async fn list_diff_entries(
             MerkleTreeNodeType::File => {
                 head_files.insert(FileNodeWithDir {
                     file_node: head_tree.file()?,
-                    dir: head_path.parent().unwrap().to_owned(),
+                    dir: head_path
+                        .parent()
+                        .unwrap_or(&PathBuf::from(""))
+                        .to_path_buf(),
                 });
-                (base_files, base_dirs, head_files, head_dirs)
             }
             MerkleTreeNodeType::Dir => {
-                let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
-                (base_files, base_dirs, head_files, head_dirs)
+                let (files, dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+
+                head_files.extend(files);
+                head_dirs.extend(dirs);
             }
             _ => {
                 return Err(OxenError::basic_str(format!(
@@ -116,7 +130,9 @@ pub async fn list_diff_entries(
             }
         },
 
-        (None, None) => (base_files, base_dirs, head_files, head_dirs),
+        (None, None) => {
+            log::debug!("no trees found");
+        }
     };
 
     log::debug!(
