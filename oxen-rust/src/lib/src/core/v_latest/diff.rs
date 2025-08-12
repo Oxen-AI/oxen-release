@@ -36,24 +36,6 @@ pub async fn list_diff_entries(
     let base_tree = CommitMerkleTree::node_from_path_maybe(repo, base_commit, &base_path, true)?;
     let head_tree = CommitMerkleTree::node_from_path_maybe(repo, head_commit, &head_path, true)?;
 
-    // let Some(base_tree) =
-    //     repositories::tree::get_node_by_path_with_children(repo, base_commit, &base_path)?
-    // else {
-    //     return Err(OxenError::basic_str(format!(
-    //         "Failed to get base tree for commit: {}",
-    //         base_commit
-    //     )));
-    // };
-
-    // let Some(head_tree) =
-    //     repositories::tree::get_node_by_path_with_children(repo, head_commit, &head_path)?
-    // else {
-    //     return Err(OxenError::basic_str(format!(
-    //         "Failed to get head tree for commit: {}",
-    //         head_commit
-    //     )));
-    // };
-
     let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
     let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
     let base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
@@ -137,73 +119,6 @@ pub async fn list_diff_entries(
         (None, None) => (base_files, base_dirs, head_files, head_dirs),
     };
 
-    // let (base_files, base_dirs, head_files, head_dirs) =
-    //     match (base_path.clone().is_file(), head_path.clone().is_file()) {
-    //         (true, true) => {
-    //             let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
-    //             let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
-    //             let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
-    //             let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
-
-    //             base_files.insert(FileNodeWithDir {
-    //                 file_node: base_tree.file()?,
-    //                 dir: base_path.parent().unwrap().to_owned(),
-    //             });
-
-    //             let Some(base_dir_node) = repositories::tree::get_node_by_path_with_children(
-    //                 repo,
-    //                 base_commit,
-    //                 base_path.parent().unwrap(),
-    //             )?
-    //             else {
-    //                 return Err(OxenError::basic_str(format!(
-    //                     "Failed to get base tree for commit: {}",
-    //                     base_commit
-    //                 )));
-    //             };
-
-    //             base_dirs.insert(DirNodeWithPath {
-    //                 dir_node: base_dir_node.dir()?,
-    //                 path: base_path.clone(),
-    //             });
-
-    //             head_files.insert(FileNodeWithDir {
-    //                 file_node: head_tree.file()?,
-    //                 dir: head_path.parent().unwrap().to_owned(),
-    //             });
-
-    //             let Some(head_dir_node) = repositories::tree::get_node_by_path(
-    //                 repo,
-    //                 head_commit,
-    //                 head_path.parent().unwrap(),
-    //             )?
-    //             else {
-    //                 return Err(OxenError::basic_str(format!(
-    //                     "Failed to get head tree for commit: {}",
-    //                     head_commit
-    //                 )));
-    //             };
-
-    //             head_dirs.insert(DirNodeWithPath {
-    //                 dir_node: head_dir_node.dir()?,
-    //                 path: head_path.clone(),
-    //             });
-
-    //             (base_files, base_dirs, head_files, head_dirs)
-    //         }
-    //         _ => {
-    //             let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
-    //             let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
-
-    //             (base_files, base_dirs, head_files, head_dirs)
-    //         }
-    //     };
-
-    // log::debug!(
-    //     "list_diff_entries base_dir: '{:?}' collected {} head_files",
-    //     base_path,
-    //     head_files.len()
-    // );
     log::debug!(
         "list_diff_entries dir: '{:?}' collected {} head_dirs",
         base_path,
