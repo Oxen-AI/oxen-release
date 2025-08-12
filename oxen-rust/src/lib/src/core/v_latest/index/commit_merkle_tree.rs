@@ -291,9 +291,8 @@ impl CommitMerkleTree {
                 Err(e) => {
                     log::debug!("Failed to read node {:?}: {}", node_path, e);
                     Ok(None)
-                },
+                }
             }
-
         } else {
             // We are skipping to a file in the tree using the dir_hashes db
             log::debug!("Look up file 📄 {:?}", node_path);
@@ -302,7 +301,7 @@ impl CommitMerkleTree {
                 Err(e) => {
                     log::debug!("Failed to read file {:?}: {}", node_path, e);
                     Ok(None)
-                },
+                }
             }
         };
         root

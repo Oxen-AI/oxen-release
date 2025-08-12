@@ -1,3 +1,4 @@
+use crate::core::v_latest::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
@@ -5,7 +6,7 @@ use crate::model::diff::diff_file_node::DiffFileNode;
 use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::merkle_tree::node::{DirNodeWithPath, FileNode, FileNodeWithDir};
-use crate::model::{Commit, DiffEntry, LocalRepository};
+use crate::model::{Commit, DiffEntry, LocalRepository, MerkleTreeNodeType};
 use crate::opts::DFOpts;
 use crate::repositories;
 use crate::util;
@@ -30,85 +31,172 @@ pub fn list_diff_entries(
         base_commit,
         head_commit
     );
-    let Some(base_tree) =
-        repositories::tree::get_node_by_path_with_children(repo, base_commit, &base_path)?
-    else {
-        return Err(OxenError::basic_str(format!(
-            "Failed to get base tree for commit: {}",
-            base_commit
-        )));
-    };
 
-    let Some(head_tree) =
-        repositories::tree::get_node_by_path_with_children(repo, head_commit, &head_path)?
-    else {
-        return Err(OxenError::basic_str(format!(
-            "Failed to get head tree for commit: {}",
-            head_commit
-        )));
-    };
+    let base_tree = CommitMerkleTree::node_from_path_maybe(repo, base_commit, &base_path, true)?;
+    let head_tree = CommitMerkleTree::node_from_path_maybe(repo, head_commit, &head_path, true)?;
 
-    let (base_files, base_dirs, head_files, head_dirs) =
-        match (base_path.clone().is_file(), head_path.clone().is_file()) {
-            (true, true) => {
-                let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
-                let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
-                let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
-                let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    // let Some(base_tree) =
+    //     repositories::tree::get_node_by_path_with_children(repo, base_commit, &base_path)?
+    // else {
+    //     return Err(OxenError::basic_str(format!(
+    //         "Failed to get base tree for commit: {}",
+    //         base_commit
+    //     )));
+    // };
 
-                base_files.insert(FileNodeWithDir {
-                    file_node: base_tree.file()?,
-                    dir: base_path.parent().unwrap().to_owned(),
-                });
+    // let Some(head_tree) =
+    //     repositories::tree::get_node_by_path_with_children(repo, head_commit, &head_path)?
+    // else {
+    //     return Err(OxenError::basic_str(format!(
+    //         "Failed to get head tree for commit: {}",
+    //         head_commit
+    //     )));
+    // };
 
-                let Some(base_dir_node) = repositories::tree::get_node_by_path_with_children(
-                    repo,
-                    base_commit,
-                    base_path.parent().unwrap(),
-                )?
-                else {
+    let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
+    let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
+    let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+
+    let (base_files, base_dirs, head_files, head_dirs) = match (base_tree, head_tree) {
+        (Some(base_tree), Some(head_tree)) => {
+            //we found some nodes
+
+            match (base_tree.node.node_type(), head_tree.node.node_type()) {
+                (MerkleTreeNodeType::File, MerkleTreeNodeType::File) => {
+                    base_files.insert(FileNodeWithDir {
+                        file_node: base_tree.file()?,
+                        dir: base_path.parent().unwrap().to_owned(),
+                    });
+                    head_files.insert(FileNodeWithDir {
+                        file_node: head_tree.file()?,
+                        dir: head_path.parent().unwrap().to_owned(),
+                    });
+
+                    (base_files, base_dirs, head_files, head_dirs)
+                }
+                (MerkleTreeNodeType::Dir, MerkleTreeNodeType::Dir) => {
+                    let (base_files, base_dirs) =
+                        repositories::tree::list_files_and_dirs(&base_tree)?;
+                    let (head_files, head_dirs) =
+                        repositories::tree::list_files_and_dirs(&head_tree)?;
+
+                    (base_files, base_dirs, head_files, head_dirs)
+                }
+                _ => {
                     return Err(OxenError::basic_str(format!(
                         "Failed to get base tree for commit: {}",
                         base_commit
                     )));
-                };
+                }
+            }
+        }
 
-                base_dirs.insert(DirNodeWithPath {
-                    dir_node: base_dir_node.dir()?,
-                    path: base_path.clone(),
+        (Some(base_tree), None) => match base_tree.node.node_type() {
+            MerkleTreeNodeType::File => {
+                base_files.insert(FileNodeWithDir {
+                    file_node: base_tree.file()?,
+                    dir: base_path.parent().unwrap().to_owned(),
                 });
-
-                head_files.insert(FileNodeWithDir {
-                    file_node: head_tree.file()?,
-                    dir: head_path.parent().unwrap().to_owned(),
-                });
-
-                let Some(head_dir_node) = repositories::tree::get_node_by_path(
-                    repo,
-                    head_commit,
-                    head_path.parent().unwrap(),
-                )?
-                else {
-                    return Err(OxenError::basic_str(format!(
-                        "Failed to get head tree for commit: {}",
-                        head_commit
-                    )));
-                };
-
-                head_dirs.insert(DirNodeWithPath {
-                    dir_node: head_dir_node.dir()?,
-                    path: head_path.clone(),
-                });
+                (base_files, base_dirs, head_files, head_dirs)
+            }
+            MerkleTreeNodeType::Dir => {
+                let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
 
                 (base_files, base_dirs, head_files, head_dirs)
             }
             _ => {
-                let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
-                let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+                return Err(OxenError::basic_str(format!(
+                    "Failed to get base tree for commit: {}",
+                    base_commit
+                )));
+            }
+        },
 
+        (None, Some(head_tree)) => match head_tree.node.node_type() {
+            MerkleTreeNodeType::File => {
+                head_files.insert(FileNodeWithDir {
+                    file_node: head_tree.file()?,
+                    dir: head_path.parent().unwrap().to_owned(),
+                });
                 (base_files, base_dirs, head_files, head_dirs)
             }
-        };
+            MerkleTreeNodeType::Dir => {
+                let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+                (base_files, base_dirs, head_files, head_dirs)
+            }
+            _ => {
+                return Err(OxenError::basic_str(format!(
+                    "Failed to get head tree for commit: {}",
+                    head_commit
+                )));
+            }
+        },
+
+        (None, None) => (base_files, base_dirs, head_files, head_dirs),
+    };
+
+    // let (base_files, base_dirs, head_files, head_dirs) =
+    //     match (base_path.clone().is_file(), head_path.clone().is_file()) {
+    //         (true, true) => {
+    //             let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
+    //             let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
+    //             let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    //             let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+
+    //             base_files.insert(FileNodeWithDir {
+    //                 file_node: base_tree.file()?,
+    //                 dir: base_path.parent().unwrap().to_owned(),
+    //             });
+
+    //             let Some(base_dir_node) = repositories::tree::get_node_by_path_with_children(
+    //                 repo,
+    //                 base_commit,
+    //                 base_path.parent().unwrap(),
+    //             )?
+    //             else {
+    //                 return Err(OxenError::basic_str(format!(
+    //                     "Failed to get base tree for commit: {}",
+    //                     base_commit
+    //                 )));
+    //             };
+
+    //             base_dirs.insert(DirNodeWithPath {
+    //                 dir_node: base_dir_node.dir()?,
+    //                 path: base_path.clone(),
+    //             });
+
+    //             head_files.insert(FileNodeWithDir {
+    //                 file_node: head_tree.file()?,
+    //                 dir: head_path.parent().unwrap().to_owned(),
+    //             });
+
+    //             let Some(head_dir_node) = repositories::tree::get_node_by_path(
+    //                 repo,
+    //                 head_commit,
+    //                 head_path.parent().unwrap(),
+    //             )?
+    //             else {
+    //                 return Err(OxenError::basic_str(format!(
+    //                     "Failed to get head tree for commit: {}",
+    //                     head_commit
+    //                 )));
+    //             };
+
+    //             head_dirs.insert(DirNodeWithPath {
+    //                 dir_node: head_dir_node.dir()?,
+    //                 path: head_path.clone(),
+    //             });
+
+    //             (base_files, base_dirs, head_files, head_dirs)
+    //         }
+    //         _ => {
+    //             let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
+    //             let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+
+    //             (base_files, base_dirs, head_files, head_dirs)
+    //         }
+    //     };
 
     // log::debug!(
     //     "list_diff_entries base_dir: '{:?}' collected {} head_files",

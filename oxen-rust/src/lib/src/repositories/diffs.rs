@@ -218,37 +218,100 @@ pub fn diff_revs(
     let mut content_diffs = vec![];
 
     for entry in dir_diff.entries {
-        if let (Some(head_res), Some(base_res)) = (entry.head_resource, entry.base_resource) {
-            log::debug!("Computing content diff for file: {:?}", head_res.path);
-            let cpath_1 = CommitPath {
-                commit: Some(commit_1.clone()),
-                path: head_res.path.clone(),
-            };
-            let cpath_2 = CommitPath {
-                commit: Some(commit_2.clone()),
-                path: base_res.path,
-            };
+        log::debug!("entry: {:#?}", entry);
 
-            match diff_commits(
-                repo,
-                cpath_1,
-                cpath_2,
-                opts.keys.clone(),
-                opts.targets.clone(),
-                vec![],
-            ) {
-                Ok(result) => {
-                    log::debug!("Content diff successful for file: {:?}", head_res.path);
-                    content_diffs.push(result);
-                }
-                Err(err) => {
-                    log::error!(
-                        "Failed to compute diff for file {:?}: {}",
-                        head_res.path,
-                        err
-                    );
+        match (entry.head_resource, entry.base_resource) {
+            (Some(head_res), Some(base_res)) => {
+                log::debug!("Computing content diff for file: {:?}", head_res.path);
+                let cpath_1 = CommitPath {
+                    commit: Some(commit_1.clone()),
+                    path: head_res.path.clone(),
+                };
+                let cpath_2 = CommitPath {
+                    commit: Some(commit_2.clone()),
+                    path: base_res.path,
+                };
+
+                match diff_commits(
+                    repo,
+                    cpath_1,
+                    cpath_2,
+                    opts.keys.clone(),
+                    opts.targets.clone(),
+                    vec![],
+                ) {
+                    Ok(result) => {
+                        log::debug!("Content diff successful for file: {:?}", head_res.path);
+                        content_diffs.push(result);
+                    }
+                    Err(err) => {
+                        log::error!(
+                            "Failed to compute diff for file {:?}: {}",
+                            head_res.path,
+                            err
+                        );
+                    }
                 }
             }
+            (None, Some(base_res)) => {
+                log::debug!("Computing content diff for file: {:?}", base_res.path);
+                let cpath_1 = CommitPath {
+                    commit: Some(commit_1.clone()),
+                    path: base_res.path.clone(),
+                };
+                let cpath_2 = CommitPath {
+                    commit: Some(commit_2.clone()),
+                    path: base_res.path,
+                };
+
+                match diff_commits(
+                    repo,
+                    cpath_1,
+                    cpath_2,
+                    opts.keys.clone(),
+                    opts.targets.clone(),
+                    vec![],
+                ) {
+                    Ok(result) => {
+                        // log::debug!("Content diff successful for file: {:?}", base_res.path);
+                        content_diffs.push(result);
+                    }
+                    Err(err) => {
+                        log::error!("Failed to compute diff for file {}", err);
+                    }
+                }
+            }
+
+            (Some(head_res), None) => {
+                log::debug!("Computing content diff for file: {:?}", head_res.path);
+                let cpath_1 = CommitPath {
+                    commit: Some(commit_1.clone()),
+                    path: head_res.path.clone(),
+                };
+                let cpath_2 = CommitPath {
+                    commit: Some(commit_2.clone()),
+                    path: head_res.path,
+                };
+
+                match diff_commits(
+                    repo,
+                    cpath_1,
+                    cpath_2,
+                    opts.keys.clone(),
+                    opts.targets.clone(),
+                    vec![],
+                ) {
+                    Ok(result) => {
+                        // log::debug!("Content diff successful for file: {:?}", head_res.path);
+                        content_diffs.push(result);
+                    }
+                    Err(err) => {
+                        log::error!("Failed to compute diff for file {}", err);
+                    }
+                }
+            }
+
+            _ => {}
         }
     }
     log::debug!(
@@ -274,49 +337,49 @@ pub fn diff_commits(
 
     let (node_1, node_2) = match (cpath_1.commit, cpath_2.commit) {
         (Some(commit_1), Some(commit_2)) => {
-            let node_1 = Some(
-                // TODO: instead of returning error, we should handle no file case
-                repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?.ok_or_else(
-                    || {
-                        OxenError::ResourceNotFound(
-                            format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
-                        )
-                    },
-                )?,
-            );
+            log::debug!("Diffing commits: {:?} and {:?}", commit_1, commit_2);
+            let node_1 = repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?;
 
+            // log::debug!("Diffing nodes: {:?} and {:?}", node_1, node_2);
+            log::debug!("Diffing commits: {:?} and {:?}", commit_1, commit_2);
             let merger = EntryMergeConflictReader::new(repo)?;
+            log::debug!("Diffing merger:",);
 
             let node_2 = match merger.has_conflicts()? {
                 true => {
                     let merger = EntryMergeConflictReader::new(repo)?;
-                    Some(
-                        repositories::entries::get_file(
-                            repo,
-                            &merger.get_conflict_commit()?.unwrap(),
-                            &cpath_2.path,
-                        )?
-                        .ok_or_else(|| {
-                            OxenError::ResourceNotFound(
-                                format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
-                            )
-                        })?,
-                    )
+                    log::debug!("Diffing merger: ");
+
+                    repositories::entries::get_file(
+                        repo,
+                        &merger.get_conflict_commit()?.unwrap(),
+                        &cpath_2.path,
+                    )?
                 }
-                false => Some(
-                    repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(
-                        || {
-                            OxenError::ResourceNotFound(
-                                format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
-                            )
-                        },
-                    )?,
-                ),
+                false => repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?,
             };
 
             (node_1, node_2)
         }
-        _ => (None, None),
+        (Some(commit_1), None) => {
+            let node_1 = repositories::entries::get_file(repo, &commit_1, &cpath_1.path)?;
+
+            (node_1, None)
+        }
+        (None, Some(commit_2)) => {
+            let node_2 = Some(
+                // TODO: instead of returning error, we should handle no file case
+                repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(
+                    || {
+                        OxenError::ResourceNotFound(
+                            format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
+                        )
+                    },
+                )?,
+            );
+            (None, node_2)
+        }
+        (None, None) => (None, None),
     };
 
     let compare_result =
@@ -498,6 +561,7 @@ pub fn diff_file_nodes(
             );
 
             match (file_1.data_type(), file_2.data_type()) {
+                // is there no better way to do this?
                 (EntryDataType::Tabular, EntryDataType::Tabular) => {
                     let mut result = diff_tabular_file_nodes(
                         repo,
@@ -524,7 +588,40 @@ pub fn diff_file_nodes(
                 ))),
             }
         }
-        _ => {
+        (Some(file_1), None) => match file_1.data_type() {
+            EntryDataType::Tabular => {
+                let mut result =
+                    diff_tabular_file_nodes(repo, Some(&file_1), None, keys, targets, display)?;
+                result.filename1 = Some(file_1.name().to_string());
+                Ok(DiffResult::Tabular(result))
+            }
+            EntryDataType::Text => {
+                let mut result = diff_text_file_nodes(repo, Some(&file_1), None)?;
+                result.filename1 = Some(file_1.name().to_string());
+                Ok(DiffResult::Text(result))
+            }
+            _ => Err(OxenError::invalid_file_type(format!(
+                "Compare not supported for files, found {:?}",
+                file_1.data_type()
+            ))),
+        },
+        (None, Some(file_2)) => match file_2.data_type() {
+            EntryDataType::Tabular => {
+                let result =
+                    diff_tabular_file_nodes(repo, None, Some(&file_2), keys, targets, display)?;
+                Ok(DiffResult::Tabular(result))
+            }
+            EntryDataType::Text => {
+                let result = diff_text_file_nodes(repo, None, Some(&file_2))?;
+                Ok(DiffResult::Text(result))
+            }
+            _ => Err(OxenError::invalid_file_type(format!(
+                "Compare not supported for files, found {:?}",
+                file_2.data_type()
+            ))),
+        },
+
+        (None, None) => {
             return Err(OxenError::basic_str(
                 "Could not find one or both of the files to compare",
             ))
