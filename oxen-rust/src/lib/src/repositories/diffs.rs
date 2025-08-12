@@ -67,6 +67,8 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         opts.targets
     );
 
+    log::debug!("opts: {:?}", opts);
+
     let repo = match &opts.repo_dir {
         Some(dir) => {
             log::debug!("dir: {:?}", dir);
@@ -78,17 +80,20 @@ pub fn diff(opts: DiffOpts) -> Result<Vec<DiffResult>, OxenError> {
         }
     };
 
-    if repo.is_err() {
-        let result = diff_files(
-            opts.path_1,
-            opts.path_2.unwrap(),
-            opts.keys.clone(),
-            opts.targets.clone(),
-            vec![],
-        )?;
-        return Ok(vec![result]);
-    }
-    let repo = repo.unwrap();
+    let repo = match repo {
+        Err(e) => {
+            log::error!("Failed to get repo: {}", e);
+            let result = diff_files(
+                opts.path_1,
+                opts.path_2.unwrap(),
+                opts.keys.clone(),
+                opts.targets.clone(),
+                vec![],
+            )?;
+            return Ok(vec![result]);
+        }
+        Ok(repo) => repo,
+    };
 
     log::debug!(
         "Processing paths and revisions - path_2: {:?}, revision_1: {:?}, revision_2: {:?}, path_1: {:?}",
