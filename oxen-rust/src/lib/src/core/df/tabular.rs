@@ -1011,6 +1011,7 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
 }
 
 pub async fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    log::debug!("Reading df with path: {:?}", path.as_ref());
     let path = path.as_ref();
     if !path.exists() {
         return Err(OxenError::path_does_not_exist(path));

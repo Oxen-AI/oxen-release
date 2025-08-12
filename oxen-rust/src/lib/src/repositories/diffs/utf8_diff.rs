@@ -37,12 +37,6 @@ pub fn diff(
     version_file_1: Option<PathBuf>,
     version_file_2: Option<PathBuf>,
 ) -> Result<TextDiff, OxenError> {
-    // log::debug!(
-    //     "diffing text files {:?} and {:?}",
-    //     version_file_1.as_ref(),
-    //     version_file_2.as_ref()
-    // );
-
     let mut result = TextDiff {
         filename1: version_file_1
             .clone()

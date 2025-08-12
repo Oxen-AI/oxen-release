@@ -225,8 +225,8 @@ impl DiffCmd {
                         &mut p,
                         &format!(
                             "--- from file: {}\n+++ to file: {}\n",
-                            diff.filename1.as_ref().unwrap(),
-                            diff.filename2.as_ref().unwrap()
+                            diff.filename1.as_ref().unwrap_or(&"".to_string()),
+                            diff.filename2.as_ref().unwrap_or(&"".to_string())
                         ),
                     )?;
                     DiffCmd::print_column_changes(&mut p, &diff.summary.modifications)?;

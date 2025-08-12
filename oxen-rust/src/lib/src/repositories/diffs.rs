@@ -653,7 +653,12 @@ pub async fn diff_tabular_file_and_file_node(
         Some(file_node) => {
             let file_node_path =
                 util::fs::version_path_from_hash(repo, file_node.hash().to_string());
-            let df_1 = tabular::read_df(file_node_path, DFOpts::empty()).await?;
+            let df_1 = tabular::read_df_with_extension(
+                file_node_path,
+                file_node.extension(),
+                &DFOpts::empty(),
+            )
+            .await?;
             let df_2 = tabular::read_df(file_1_path, DFOpts::empty()).await?;
             (df_1, df_2)
         }
@@ -696,8 +701,8 @@ pub async fn diff_tabular_file_nodes(
                 &DFOpts::empty(),
             )
             .await?;
-            let schema_1 = Schema::from_polars(&df_1.schema());
-            let schema_2 = Schema::from_polars(&df_2.schema());
+            let schema_1 = Schema::from_polars(df_1.schema());
+            let schema_2 = Schema::from_polars(df_2.schema());
             validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
             diff_dfs(&df_1, &df_2, keys, targets, display)
         }
@@ -709,7 +714,7 @@ pub async fn diff_tabular_file_nodes(
                 &DFOpts::empty(),
             )
             .await?;
-            let schema_1 = Schema::from_polars(&df_1.schema());
+            let schema_1 = Schema::from_polars(df_1.schema());
             validate_required_fields(schema_1.clone(), schema_1, keys.clone(), targets.clone())?;
             diff_dfs(&df_1, &df_1, keys, targets, display)
         }
@@ -721,7 +726,7 @@ pub async fn diff_tabular_file_nodes(
                 &DFOpts::empty(),
             )
             .await?;
-            let schema_2 = Schema::from_polars(&df_2.schema());
+            let schema_2 = Schema::from_polars(df_2.schema());
             validate_required_fields(schema_2.clone(), schema_2, keys.clone(), targets.clone())?;
             diff_dfs(&df_2, &df_2, keys, targets, display)
         }
