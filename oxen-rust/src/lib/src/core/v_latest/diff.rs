@@ -55,8 +55,8 @@ pub fn list_diff_entries(
 
     let mut base_files: HashSet<FileNodeWithDir> = HashSet::new();
     let mut head_files: HashSet<FileNodeWithDir> = HashSet::new();
-    let mut base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
-    let mut head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    let base_dirs: HashSet<DirNodeWithPath> = HashSet::new();
+    let head_dirs: HashSet<DirNodeWithPath> = HashSet::new();
 
     let (base_files, base_dirs, head_files, head_dirs) = match (base_tree, head_tree) {
         (Some(base_tree), Some(head_tree)) => {

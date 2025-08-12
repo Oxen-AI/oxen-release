@@ -1,4 +1,3 @@
-use std::path::{Path, PathBuf};
 
 use crate::model::diff::change_type::ChangeType;
 use serde::{Deserialize, Serialize};

@@ -367,16 +367,7 @@ pub fn diff_commits(
             (node_1, None)
         }
         (None, Some(commit_2)) => {
-            let node_2 = Some(
-                // TODO: instead of returning error, we should handle no file case
-                repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?.ok_or_else(
-                    || {
-                        OxenError::ResourceNotFound(
-                            format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
-                        )
-                    },
-                )?,
-            );
+            let node_2 = repositories::entries::get_file(repo, &commit_2, &cpath_2.path)?;
             (None, node_2)
         }
         (None, None) => (None, None),

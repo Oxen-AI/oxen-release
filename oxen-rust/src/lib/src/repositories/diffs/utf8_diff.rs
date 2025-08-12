@@ -3,10 +3,8 @@ use crate::model::diff::change_type::ChangeType;
 use crate::model::diff::text_diff::LineDiff;
 use crate::model::diff::text_diff::TextDiff;
 use crate::util;
-use crate::util::fs;
 
 use difference::{Changeset, Difference};
-use std::path::Path;
 use std::path::PathBuf;
 
 /// Adds a slice of lines from a text block to the result vector with a given modification type.

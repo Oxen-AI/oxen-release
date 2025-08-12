@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::OxenError;
-use crate::model::diff::TextDiff;
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::{Commit, EntryDataType, MetadataEntry, ParsedResource};
 use crate::opts::DFOpts;
@@ -15,7 +14,6 @@ use super::dir_diff_summary::DirDiffSummary;
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
 use super::tabular_diff_summary::TabularDiffWrapper;
-use super::DiffResult;
 
 #[derive(Default, Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
