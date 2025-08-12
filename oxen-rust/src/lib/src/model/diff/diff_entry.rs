@@ -236,11 +236,14 @@ impl DiffEntry {
 
         // TODO: handle all diff types more generically
         let diff: Option<GenericDiff> = if should_do_full_diff && data_type == EntryDataType::Text {
-            match (&base_entry, &head_entry) {
-                (Some(base), Some(head)) => Some(GenericDiff::TextDiff(
-                    repositories::diffs::diff_text_file_nodes(repo, Some(base), Some(head))?,
-                )),
-                _ => None,
+            // Use the Option-aware API to also support add/remove scenarios
+            match repositories::diffs::diff_text_file_nodes(
+                repo,
+                base_entry.as_ref(),
+                head_entry.as_ref(),
+            ) {
+                Ok(text_diff) => Some(GenericDiff::TextDiff(text_diff)),
+                Err(_) => None, 
             }
         } else {
             None
