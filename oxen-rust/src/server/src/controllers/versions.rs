@@ -2,19 +2,26 @@ pub mod chunks;
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, path_param};
+use crate::params::{app_data, parse_resource, path_param};
 
 use actix_multipart::Multipart;
-use actix_web::{Error, HttpRequest, HttpResponse};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
 use futures_util::TryStreamExt as _;
 use liboxen::error::OxenError;
+use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
+use liboxen::util;
 use liboxen::view::versions::{VersionFile, VersionFileResponse};
 use liboxen::view::{ErrorFileInfo, ErrorFilesResponse, StatusMessage};
 use mime;
 use std::io::Read as StdRead;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::BufReader;
+use tokio_util::io::ReaderStream;
 
 pub async fn metadata(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -39,28 +46,64 @@ pub async fn metadata(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     }))
 }
 
-pub async fn download(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+// TODO: Refactor places that call /file/{resource:*} to use this new version store download endpoint
+pub async fn download(
+    req: HttpRequest,
+    query: web::Query<ImgResize>,
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let version_id = path_param(&req, "version_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-
-    log::debug!(
-        "download file for repo: {:?}, file_hash: {}",
-        repo.path,
-        version_id
-    );
-
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let version_store = repo.version_store()?;
+    let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.unwrap();
+    let path = resource.path.clone();
 
-    // Stream the file for better memory efficiency
-    let (stream, file_size) = version_store.get_version_stream(&version_id).await?;
+    log::debug!("Download resource {namespace}/{repo_name}/{resource} version file");
 
-    Ok(HttpResponse::Ok()
-        .content_type("application/octet-stream")
-        .append_header(("Content-Length", file_size.to_string()))
-        .streaming(stream))
+    let entry = repositories::entries::get_file(&repo, &commit, &path)?
+        .ok_or(OxenError::path_does_not_exist(path.clone()))?;
+    let file_hash = entry.hash();
+    let mime_type = entry.mime_type();
+    let version_path = version_store.get_version_path(&file_hash.to_string())?;
+
+    // TODO: refactor out of here and check for type,
+    // but seeing if it works to resize the image and cache it to disk if we have a resize query
+    let img_resize = query.into_inner();
+    if img_resize.width.is_some() || img_resize.height.is_some() {
+        log::debug!("img_resize {:?}", img_resize);
+
+        let resized_path = util::fs::resized_path_for_file_node_version_store(
+            Arc::clone(&version_store),
+            &entry,
+            img_resize.width,
+            img_resize.height,
+        )?;
+
+        util::fs::resize_cache_image_version_store(
+            version_store,
+            file_hash,
+            &version_path,
+            &resized_path,
+            img_resize,
+        )?;
+
+        log::debug!("In the resize cache! {:?}", resized_path);
+        // Generate stream for the resized image
+        let file = File::open(&resized_path).await?;
+        let reader = BufReader::new(file);
+        let stream = ReaderStream::new(reader);
+
+        return Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream));
+    } else {
+        log::debug!("did not hit the resize cache");
+    }
+
+    let stream = version_store
+        .get_version_stream(&file_hash.to_string())
+        .await?;
+    Ok(HttpResponse::Ok().content_type(mime_type).streaming(stream))
 }
 
 pub async fn batch_upload(

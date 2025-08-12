@@ -76,13 +76,8 @@ impl VersionStore for S3VersionStore {
     async fn get_version_stream(
         &self,
         _hash: &str,
-    ) -> Result<
-        (
-            Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>,
-            u64,
-        ),
-        OxenError,
-    > {
+    ) -> Result<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>, OxenError>
+    {
         // TODO: Implement S3 version stream retrieval
         Err(OxenError::basic_str("S3VersionStore not yet implemented"))
     }

@@ -142,13 +142,7 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
     async fn get_version_stream(
         &self,
         hash: &str,
-    ) -> Result<
-        (
-            Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>,
-            u64,
-        ),
-        OxenError,
-    >;
+    ) -> Result<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>, OxenError>;
 
     /// Get the path to a version file (sync operation)
     ///

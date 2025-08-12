@@ -111,6 +111,7 @@ pub fn version_path_for_commit_id(
     }
 }
 
+// TODO: Remove this func when file download is refactored to use the new version store endpoint
 pub fn resized_path_for_file_node(
     repo: &LocalRepository,
     file_node: &FileNode,
@@ -122,6 +123,26 @@ pub fn resized_path_for_file_node(
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = path.parent().unwrap().join(format!(
+        "{}x{}.{}",
+        width.unwrap_or("".to_string()),
+        height.unwrap_or("".to_string()),
+        extension
+    ));
+    Ok(resized_path)
+}
+
+// Same logic as resized_path_for_file_node() but with the new version store interface
+pub fn resized_path_for_file_node_version_store(
+    version_store: Arc<dyn VersionStore>,
+    file_node: &FileNode,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<PathBuf, OxenError> {
+    let version_path = version_store.get_version_path(&file_node.hash().to_string())?;
+    let extension = file_node.extension().to_string();
+    let width = width.map(|w| w.to_string());
+    let height = height.map(|w| w.to_string());
+    let resized_path = version_path.parent().unwrap().join(format!(
         "{}x{}.{}",
         width.unwrap_or("".to_string()),
         height.unwrap_or("".to_string()),
@@ -1662,7 +1683,7 @@ fn detect_image_format(path: &Path) -> Result<ImageFormat, OxenError> {
 }
 
 // Caller must provide out path because it differs between remote staged vs. committed files
-// TODO: Refactor the controllers/files/get() to use the new version store interface
+// TODO: Refactor the controllers/files/get() to use the new resize_cache_image_version_store()
 pub fn resize_cache_image(
     image_path: &Path,
     resize_path: &Path,

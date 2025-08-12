@@ -131,22 +131,14 @@ impl VersionStore for LocalVersionStore {
     async fn get_version_stream(
         &self,
         hash: &str,
-    ) -> Result<
-        (
-            Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>,
-            u64,
-        ),
-        OxenError,
-    > {
+    ) -> Result<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin>, OxenError>
+    {
         let path = self.version_path(hash);
-        let metadata = fs::metadata(&path).await?;
-        let file_len = metadata.len();
-
         let file = File::open(&path).await?;
         let reader = BufReader::new(file);
         let stream = ReaderStream::new(reader);
 
-        Ok((Box::new(stream), file_len))
+        Ok(Box::new(stream))
     }
 
     fn get_version_path(&self, hash: &str) -> Result<PathBuf, OxenError> {

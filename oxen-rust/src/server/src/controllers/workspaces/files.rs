@@ -80,7 +80,7 @@ pub async fn get(
     }
 
     // Stream the file
-    let (stream, _file_size) = version_store
+    let stream = version_store
         .get_version_stream(&file_hash.to_string())
         .await?;
 

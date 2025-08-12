@@ -80,7 +80,7 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     latest_commit.ok_or(OxenError::no_commits_found())
 }
 
-fn head_commit_id(repo: &LocalRepository) -> Result<MerkleHash, OxenError> {
+pub fn head_commit_id(repo: &LocalRepository) -> Result<MerkleHash, OxenError> {
     let commit_id = with_ref_manager(repo, |manager| manager.head_commit_id())?;
     match commit_id {
         Some(commit_id) => MerkleHash::from_str(&commit_id),
