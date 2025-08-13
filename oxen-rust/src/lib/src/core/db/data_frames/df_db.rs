@@ -80,14 +80,13 @@ where
 
     let df_db = {
         // 1. If df db exists in cache, return the existing connection
-        {
+        // Fast path: try to get a cloned handle under a short-lived read lock.
+        if let Some(db_lock) = {
             let cache_r = DF_DB_INSTANCES.read();
-            if let Some(db_lock) = cache_r.peek(&db_path) {
-                // Read lock guard is dropped here, return the existing connection
-                return operation(&DfDBManager {
-                    df_db: db_lock.clone(),
-                });
-            }
+            cache_r.peek(&db_path).cloned()
+        } {
+            // Read lock has been dropped before executing user code.
+            return operation(&DfDBManager { df_db: db_lock });
         }
 
         // 2. If not exists, create the directory and open the db
