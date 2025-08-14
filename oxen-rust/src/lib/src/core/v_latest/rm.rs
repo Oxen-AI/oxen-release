@@ -485,12 +485,27 @@ pub fn remove_dir(
     commit: &Commit,
     path: &Path,
 ) -> Result<CumulativeStats, OxenError> {
+
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     remove_dir_inner(repo, commit, path, &staged_db)
+}
+
+pub fn remove_dir_node(
+    repo: &LocalRepository,
+    dir_node: &MerkleTreeNode,
+    path: &Path,
+) -> Result<CumulativeStats, OxenError> {
+
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    process_remove_dir(repo, path, &dir_node, &staged_db)
 }
 
 // Stage dir and all its children for removal
@@ -513,7 +528,7 @@ fn process_remove_dir(
     let progress_1_clone = Arc::clone(&progress_1);
 
     // recursive helper function
-    log::debug!("Begin r_process_remove_dir");
+    println!("Begin r_process_remove_dir");
     let cumulative_stats = r_process_remove_dir(&repo, path, dir_node, staged_db);
 
     // Add all the parent dirs to the staged db
@@ -536,7 +551,7 @@ fn process_remove_dir(
             node: MerkleTreeNode::default_dir_from_path(&relative_path),
         };
 
-        log::debug!("writing dir to staged db: {}", dir_entry);
+        println!("writing dir to staged db: {}", dir_entry);
         let mut buf = Vec::new();
         dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
         staged_db.put(relative_path_str, &buf).unwrap();
@@ -651,3 +666,4 @@ fn r_process_remove_dir(
 
     Ok(total)
 }
+
