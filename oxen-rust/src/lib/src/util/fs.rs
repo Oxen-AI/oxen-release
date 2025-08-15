@@ -16,6 +16,7 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::io::SeekFrom;
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
@@ -135,26 +136,6 @@ pub fn handle_image_resize(
     )?;
 
     log::debug!("In the resize cache! {:?}", resized_path);
-    Ok(resized_path)
-}
-
-// TODO: Remove this func when file download is refactored to use the new version store endpoint
-pub fn resized_path_for_file_node(
-    repo: &LocalRepository,
-    file_node: &FileNode,
-    width: Option<u32>,
-    height: Option<u32>,
-) -> Result<PathBuf, OxenError> {
-    let path = version_path_from_hash(repo, file_node.hash().to_string());
-    let extension = file_node.extension().to_string();
-    let width = width.map(|w| w.to_string());
-    let height = height.map(|w| w.to_string());
-    let resized_path = path.parent().unwrap().join(format!(
-        "{}x{}.{}",
-        width.unwrap_or("".to_string()),
-        height.unwrap_or("".to_string()),
-        extension
-    ));
     Ok(resized_path)
 }
 
@@ -1676,75 +1657,29 @@ pub fn open_file(path: impl AsRef<Path>) -> Result<File, OxenError> {
     }
 }
 
-fn detect_image_format(path: &Path) -> Result<ImageFormat, OxenError> {
-    let mut file = File::open(path)?;
-    let mut buffer = [0; 10];
-    file.read_exact(&mut buffer)?;
+fn detect_image_format_from_version(
+    versioned_store: Arc<dyn VersionStore>,
+    hash: &str,
+) -> Result<ImageFormat, OxenError> {
+    let mut file = versioned_store.open_version(hash)?;
 
-    match image::guess_format(&buffer) {
-        Ok(format) => Ok(format),
-        Err(_) => Err(OxenError::basic_str(format!(
-            "Unknown image format for file: {:?}",
-            path
-        ))),
-    }
+    let mut header = [0u8; 10];
+    let n = file.read(&mut header).map_err(|e| {
+        OxenError::basic_str(format!("Failed to read version file {}: {}", hash, e))
+    })?;
+    // Set the pointer back to the front
+    file.seek(SeekFrom::Start(0)).map_err(|e| {
+        OxenError::basic_str(format!("Failed to seek version file {}: {}", hash, e))
+    })?;
+
+    // detect format
+    let format = image::guess_format(&header[..n])
+        .map_err(|_| OxenError::basic_str(format!("Unknown image format for version: {}", hash)))?;
+
+    Ok(format)
 }
 
 // Caller must provide out path because it differs between remote staged vs. committed files
-// TODO: Refactor the controllers/files/get() to use the new resize_cache_image_version_store()
-pub fn resize_cache_image(
-    image_path: &Path,
-    resize_path: &Path,
-    resize: ImgResize,
-) -> Result<(), OxenError> {
-    log::debug!("resize to path {:?} from {:?}", resize_path, image_path);
-    if resize_path.exists() {
-        return Ok(());
-    }
-
-    let image_format = detect_image_format(image_path);
-    let img = match image_format {
-        Ok(format) => image::load(BufReader::new(File::open(image_path)?), format)?,
-        Err(_) => {
-            log::debug!("Could not detect image format, opening file without format");
-            image::open(image_path)?
-        }
-    };
-
-    let resized_img = if resize.width.is_some() && resize.height.is_some() {
-        img.resize_exact(
-            resize.width.unwrap(),
-            resize.height.unwrap(),
-            image::imageops::FilterType::Lanczos3,
-        )
-    } else if resize.width.is_some() {
-        img.resize(
-            resize.width.unwrap(),
-            resize.width.unwrap(),
-            image::imageops::FilterType::Lanczos3,
-        )
-    } else if resize.height.is_some() {
-        img.resize(
-            resize.height.unwrap(),
-            resize.height.unwrap(),
-            image::imageops::FilterType::Lanczos3,
-        )
-    } else {
-        img
-    };
-    log::debug!("about to save {:?}", resize_path);
-
-    let resize_parent = resize_path.parent().unwrap_or(Path::new(""));
-    if !resize_parent.exists() {
-        util::fs::create_dir_all(resize_parent).unwrap();
-    }
-
-    resized_img.save(resize_path).unwrap();
-    log::debug!("saved {:?}", resize_path);
-    Ok(())
-}
-
-// resize_cache_image() with the new version store interface
 pub fn resize_cache_image_version_store(
     version_store: Arc<dyn VersionStore>,
     img_hash: &str,
@@ -1757,14 +1692,7 @@ pub fn resize_cache_image_version_store(
         return Ok(());
     }
 
-    let file_extension = image_path
-        .extension()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_ascii_lowercase();
-    let image_format = ImageFormat::from_extension(&*file_extension).ok_or(OxenError::basic_str(
-        "Failed to get image format from extension",
-    ));
+    let image_format = detect_image_format_from_version(Arc::clone(&version_store), img_hash);
     let img = match image_format {
         Ok(format) => {
             let reader = version_store.open_version(img_hash)?;

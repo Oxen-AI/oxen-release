@@ -5,6 +5,7 @@ use crate::params::{app_data, path_param};
 use liboxen::core;
 use liboxen::core::staged::with_staged_db_manager;
 use liboxen::error::OxenError;
+use liboxen::model::merkle_tree::node::EMerkleTreeNode;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::LocalRepository;
 use liboxen::model::Workspace;
@@ -43,9 +44,20 @@ pub async fn get(
     log::debug!("got workspace file path {:?}", &path);
 
     // Get the file from the version store
-    let file_node =
-        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, &path)?
-            .ok_or(OxenError::path_does_not_exist(&path))?;
+    let file_node = with_staged_db_manager(&workspace.workspace_repo, |staged_db_manager| {
+        let staged_node = staged_db_manager
+            .read_from_staged_db(&path)?
+            .ok_or_else(|| OxenError::basic_str("File not found in staged DB"))?;
+
+        let file_node = match staged_node.node.node {
+            EMerkleTreeNode::File(f) => Ok(f),
+            _ => Err(OxenError::basic_str(
+                "Only single file download is supported",
+            )),
+        }?;
+        Ok(file_node)
+    })?;
+
     let file_hash = file_node.hash();
     let mime_type = file_node.mime_type();
     let last_commit_id = file_node.last_commit_id().to_string();
@@ -64,6 +76,7 @@ pub async fn get(
             &version_path,
             img_resize,
         )?;
+        log::debug!("In the resize cache! {:?}", resized_path);
 
         // Generate stream for the resized image
         let file = File::open(&resized_path).await?;
@@ -74,6 +87,8 @@ pub async fn get(
             .content_type(mime_type)
             .insert_header(("oxen-revision-id", last_commit_id.as_str()))
             .streaming(stream));
+    } else {
+        log::debug!("did not hit the resize cache");
     }
 
     // Stream the file
