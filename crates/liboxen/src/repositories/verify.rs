@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use crate::constants::MAX_CONCURRENT_VERSION_PROBES;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, MerkleHash, NewCommit};
 use crate::repositories;
@@ -23,9 +24,6 @@ use crate::repositories::workspaces;
 
 /// Examples of each finding a report carries alongside the count.
 const SAMPLE_LIMIT: usize = 10;
-
-/// Concurrent size probes against the version store.
-const MAX_CONCURRENT_SIZE_PROBES: usize = 16;
 
 /// One class of finding: how many there are, and a bounded sample for triage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -432,7 +430,7 @@ async fn check_versions(
 ) -> Result<(), OxenError> {
     let version_store = repo.version_store();
 
-    let max_concurrent = MAX_CONCURRENT_SIZE_PROBES.min(versions.len().max(1));
+    let max_concurrent = MAX_CONCURRENT_VERSION_PROBES.min(versions.len().max(1));
     let mut probes = futures_util::stream::iter(versions)
         .map(|(hash, declared)| {
             let version_store = version_store.clone();
