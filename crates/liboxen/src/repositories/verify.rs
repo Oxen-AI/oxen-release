@@ -516,7 +516,9 @@ async fn check_versions(
 mod tests {
     use super::*;
     use crate::core::db::dir_hashes::dir_hashes_db::remove_from_cache_with_children;
+    use crate::core::db::merkle_node::MerkleNodeDB;
     use crate::model::Workspace;
+    use crate::model::merkle_tree::node::CommitNode;
     use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
     use crate::test;
     use crate::util;
@@ -1009,10 +1011,8 @@ mod tests {
                 message: "Add a, but edited afterwards".to_string(),
                 ..commit.clone()
             };
-            assert!(
-                misaddressed_commit(&tampered)?.is_some(),
-                "a commit whose fields changed no longer hashes to its id"
-            );
+            let expected = misaddressed_commit(&tampered)?
+                .expect("a commit whose fields changed no longer hashes to its id");
             assert!(
                 misaddressed_commit(&commit)?.is_none(),
                 "an untouched commit hashes to its id"
@@ -1022,6 +1022,35 @@ mod tests {
             assert_eq!(
                 report.misaddressed_commits.count, 0,
                 "the repository's own commit is sound"
+            );
+
+            // Store the tampered fields under the original id, keeping the tree it points at.
+            let stored = repositories::tree::get_node_by_id_with_children(&repo, &commit.hash()?)?
+                .expect("the commit has a node");
+            let mut commit_db = MerkleNodeDB::open_read_write(
+                repo.merkle_node_store(),
+                &CommitNode::from_commit(tampered),
+                stored.parent_id,
+            )?;
+            for child in &stored.children {
+                if let EMerkleTreeNode::Directory(dir) = &child.node {
+                    commit_db.add_child(dir)?;
+                }
+            }
+            commit_db.close()?;
+
+            let report = verify_repo(&repo).await?;
+            assert_eq!(
+                report.misaddressed_commits.count, 1,
+                "a stored commit that does not hash to its id is a finding: {report:?}"
+            );
+            let finding = &report.misaddressed_commits.sample[0];
+            assert_eq!(finding.recorded_id, commit.id);
+            assert_eq!(finding.computed_id, expected.computed_id);
+            assert_eq!(
+                report.total_findings(),
+                1,
+                "only the id is wrong, and the tree it points at is intact: {report:?}"
             );
 
             Ok(())
