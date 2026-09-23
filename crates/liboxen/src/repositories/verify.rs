@@ -368,7 +368,9 @@ async fn check_tree_nodes(
                     .first()
                     .and_then(|id| id.parse::<MerkleHash>().ok())
                     .and_then(|hash| by_hash.get(&hash).copied());
-                let added = match repositories::tree::added_objects(&walk_repo, base, commit) {
+                let added = match repositories::tree::added_objects::<HashMap<String, DeclaredSizes>>(
+                    &walk_repo, base, commit,
+                ) {
                     Ok(Some(added)) => added,
                     Ok(None) => {
                         // No root directory node means the commit's tree was never written.
