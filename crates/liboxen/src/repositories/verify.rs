@@ -128,6 +128,9 @@ pub struct VerifyReport {
     pub missing_versions: Findings<String>,
     pub size_mismatches: Findings<SizeMismatch>,
     pub unchecked_versions: Findings<UncheckedVersion>,
+    /// Nodes already counted in `unreadable_nodes`, however many references reach each one.
+    #[serde(skip)]
+    unreadable_seen: HashSet<MerkleHash>,
 }
 
 impl VerifyReport {
@@ -156,6 +159,16 @@ impl VerifyReport {
             + self.size_mismatches.count
             + self.unchecked_versions.count
     }
+
+    /// Record a node that could not be read, once per node.
+    fn record_unreadable(&mut self, hash: MerkleHash, error: String) {
+        if self.unreadable_seen.insert(hash) {
+            self.unreadable_nodes.record(UnreadableNode {
+                hash: hash.to_string(),
+                error,
+            });
+        }
+    }
 }
 
 /// Check that everything the repository's commits and workspaces reference is present and the
@@ -167,41 +180,12 @@ impl VerifyReport {
 pub async fn verify_repo(repo: &LocalRepository) -> Result<VerifyReport, OxenError> {
     let mut report = VerifyReport::default();
 
-    check_branch_heads(repo, &mut report).await?;
-    check_workspace_pins(repo, &mut report).await?;
     let commits = check_commits(repo, &mut report).await?;
+    check_workspace_pins(repo, &mut report).await?;
     let versions = check_tree_nodes(repo, &commits, &mut report).await?;
     check_versions(repo, versions, &mut report).await?;
 
     Ok(report)
-}
-
-/// Every branch head names a commit the repository holds.
-async fn check_branch_heads(
-    repo: &LocalRepository,
-    report: &mut VerifyReport,
-) -> Result<(), OxenError> {
-    let branches = repositories::branches::list(repo).await?;
-    report.branches_checked = branches.len();
-
-    let walk_repo = repo.clone();
-    let dangling =
-        tokio::task::spawn_blocking(move || -> Result<Findings<DanglingBranch>, OxenError> {
-            let mut dangling = Findings::default();
-            for branch in branches {
-                if repositories::commits::get_by_id(&walk_repo, &branch.commit_id)?.is_none() {
-                    dangling.record(DanglingBranch {
-                        branch: branch.name,
-                        commit_id: branch.commit_id,
-                    });
-                }
-            }
-            Ok(dangling)
-        })
-        .await??;
-
-    report.dangling_branches = dangling;
-    Ok(())
 }
 
 /// Every workspace's pinned commit resolves.
@@ -212,15 +196,20 @@ async fn check_workspace_pins(
     repo: &LocalRepository,
     report: &mut VerifyReport,
 ) -> Result<(), OxenError> {
-    type WorkspaceFindings = (usize, Findings<DanglingWorkspace>);
+    type WorkspaceFindings = (
+        usize,
+        Findings<DanglingWorkspace>,
+        Vec<(MerkleHash, String)>,
+    );
 
     // Sync core: listing workspace dirs, reading each config, and resolving each pin is file and
     // DB IO, one blocking unit.
     let walk_repo = repo.clone();
-    let (checked, dangling) =
+    let (checked, dangling, unreadable) =
         tokio::task::spawn_blocking(move || -> Result<WorkspaceFindings, OxenError> {
             let mut checked = 0;
             let mut dangling = Findings::default();
+            let mut unreadable = Vec::new();
 
             for dir in workspaces::list_dirs(&walk_repo)? {
                 // A directory holding no config is not a workspace.
@@ -229,8 +218,15 @@ async fn check_workspace_pins(
                 };
                 checked += 1;
 
-                if commits::get_by_id(&walk_repo, &config.workspace_commit_id)?.is_some() {
-                    continue;
+                if let Ok(hash) = config.workspace_commit_id.parse::<MerkleHash>() {
+                    match commits::get_by_hash(&walk_repo, &hash) {
+                        Ok(Some(_)) => continue,
+                        Ok(None) => {}
+                        Err(err) => {
+                            unreadable.push((hash, err.to_string()));
+                            continue;
+                        }
+                    }
                 }
 
                 let workspace = config.workspace_id.unwrap_or_else(|| {
@@ -246,62 +242,107 @@ async fn check_workspace_pins(
                 });
             }
 
-            Ok((checked, dangling))
+            Ok((checked, dangling, unreadable))
         })
         .await??;
 
     report.workspaces_checked = checked;
     report.dangling_workspaces = dangling;
+    for (hash, error) in unreadable {
+        report.record_unreadable(hash, error);
+    }
     Ok(())
 }
 
-/// Every reachable commit hashes to the id it is filed under, and every parent it names resolves.
+/// Every branch head names a commit the repository holds, every commit reachable from one hashes
+/// to the id it is filed under, and every parent it names resolves.
+///
+/// A commit that is present but cannot be read is reported, and its ancestry is not walked.
 async fn check_commits(
     repo: &LocalRepository,
     report: &mut VerifyReport,
 ) -> Result<Vec<Commit>, OxenError> {
-    type CommitFindings = (
-        Vec<Commit>,
-        Findings<DanglingParent>,
-        Findings<MisaddressedCommit>,
-    );
+    #[derive(Default)]
+    struct CommitFindings {
+        commits: Vec<Commit>,
+        dangling_branches: Findings<DanglingBranch>,
+        dangling_parents: Findings<DanglingParent>,
+        misaddressed: Findings<MisaddressedCommit>,
+        unreadable: Vec<(MerkleHash, String)>,
+    }
 
+    let branches = repositories::branches::list(repo).await?;
+    report.branches_checked = branches.len();
+
+    // Sync core: every commit lookup is a node-store read, one blocking unit.
     let walk_repo = repo.clone();
-    let (commits, dangling, misaddressed) =
-        tokio::task::spawn_blocking(move || -> Result<CommitFindings, OxenError> {
-            let commits: Vec<Commit> = repositories::commits::list_all(&walk_repo)?
-                .into_iter()
-                .collect();
-            let mut dangling = Findings::default();
-            let mut misaddressed = Findings::default();
+    let found = tokio::task::spawn_blocking(move || -> Result<CommitFindings, OxenError> {
+        let mut found = CommitFindings::default();
+        // Commits already read or reported unreadable, so each is looked up once.
+        let mut seen = HashSet::new();
+        let mut pending = Vec::new();
 
-            for commit in &commits {
-                if let Some(finding) = misaddressed_commit(commit)? {
-                    misaddressed.record(finding);
+        for branch in branches {
+            let lookup = match branch.commit_id.parse::<MerkleHash>() {
+                Ok(hash) if seen.contains(&hash) => continue,
+                Ok(hash) => Some((hash, commits::get_by_hash(&walk_repo, &hash))),
+                Err(_) => None,
+            };
+            match lookup {
+                Some((hash, Ok(Some(commit)))) => {
+                    seen.insert(hash);
+                    pending.push(commit);
                 }
-                for parent_id in &commit.parent_ids {
-                    let resolves = match parent_id.parse::<MerkleHash>() {
-                        Ok(hash) => {
-                            repositories::commits::get_by_hash(&walk_repo, &hash)?.is_some()
-                        }
-                        Err(_) => false,
-                    };
-                    if !resolves {
-                        dangling.record(DanglingParent {
-                            commit_id: commit.id.clone(),
-                            parent_id: parent_id.clone(),
-                        });
+                Some((hash, Err(err))) => {
+                    seen.insert(hash);
+                    found.unreadable.push((hash, err.to_string()));
+                }
+                Some((_, Ok(None))) | None => found.dangling_branches.record(DanglingBranch {
+                    branch: branch.name,
+                    commit_id: branch.commit_id,
+                }),
+            }
+        }
+
+        while let Some(commit) = pending.pop() {
+            if let Some(finding) = misaddressed_commit(&commit)? {
+                found.misaddressed.record(finding);
+            }
+            for parent_id in &commit.parent_ids {
+                let lookup = match parent_id.parse::<MerkleHash>() {
+                    Ok(hash) if seen.contains(&hash) => continue,
+                    Ok(hash) => Some((hash, commits::get_by_hash(&walk_repo, &hash))),
+                    Err(_) => None,
+                };
+                match lookup {
+                    Some((hash, Ok(Some(parent)))) => {
+                        seen.insert(hash);
+                        pending.push(parent);
                     }
+                    Some((hash, Err(err))) => {
+                        seen.insert(hash);
+                        found.unreadable.push((hash, err.to_string()));
+                    }
+                    Some((_, Ok(None))) | None => found.dangling_parents.record(DanglingParent {
+                        commit_id: commit.id.clone(),
+                        parent_id: parent_id.clone(),
+                    }),
                 }
             }
-            Ok((commits, dangling, misaddressed))
-        })
-        .await??;
+            found.commits.push(commit);
+        }
+        Ok(found)
+    })
+    .await??;
 
-    report.commits_checked = commits.len();
-    report.dangling_parents = dangling;
-    report.misaddressed_commits = misaddressed;
-    Ok(commits)
+    report.commits_checked = found.commits.len();
+    report.dangling_branches = found.dangling_branches;
+    report.dangling_parents = found.dangling_parents;
+    report.misaddressed_commits = found.misaddressed;
+    for (hash, error) in found.unreadable {
+        report.record_unreadable(hash, error);
+    }
+    Ok(found.commits)
 }
 
 /// A commit's own fields, re-hashed, against the id it is filed under.
@@ -340,13 +381,13 @@ async fn check_tree_nodes(
     type TreeFindings = (
         HashMap<String, DeclaredSizes>,
         Findings<String>,
-        Findings<UnreadableNode>,
+        Vec<(MerkleHash, String)>,
     );
 
     // Sync core: the merkle walk and the node-existence probes are sync DB IO, one blocking unit.
     let walk_repo = repo.clone();
     let commits = commits.to_vec();
-    let (versions, missing_nodes, unreadable_nodes) =
+    let (versions, missing_nodes, unreadable) =
         tokio::task::spawn_blocking(move || -> Result<TreeFindings, OxenError> {
             let mut by_hash: HashMap<MerkleHash, &Commit> = HashMap::new();
             for commit in &commits {
@@ -356,9 +397,8 @@ async fn check_tree_nodes(
             let store = walk_repo.merkle_node_store();
             let mut versions: HashMap<String, DeclaredSizes> = HashMap::new();
             let mut seen_nodes: HashSet<MerkleHash> = HashSet::new();
-            let mut seen_unreadable: HashSet<MerkleHash> = HashSet::new();
             let mut missing_nodes = Findings::default();
-            let mut unreadable_nodes = Findings::default();
+            let mut unreadable = Vec::new();
 
             for commit in &commits {
                 // Parents resolve by the rule the dangling-parent check uses, so a parent that
@@ -377,27 +417,14 @@ async fn check_tree_nodes(
                         missing_nodes.record(commit.hash()?.to_string());
                         continue;
                     }
-                    // The commit's own node did not parse, so its tree cannot be entered at all.
+                    // The commit's children did not parse, so its tree cannot be entered at all.
                     Err(err) => {
-                        let hash = commit.hash()?;
-                        if seen_unreadable.insert(hash) {
-                            unreadable_nodes.record(UnreadableNode {
-                                hash: hash.to_string(),
-                                error: err.to_string(),
-                            });
-                        }
+                        unreadable.push((commit.hash()?, err.to_string()));
                         continue;
                     }
                 };
 
-                for (hash, error) in added.unreadable {
-                    if seen_unreadable.insert(hash) {
-                        unreadable_nodes.record(UnreadableNode {
-                            hash: hash.to_string(),
-                            error,
-                        });
-                    }
-                }
+                unreadable.extend(added.unreadable);
 
                 for hash in added.nodes {
                     if seen_nodes.insert(hash) && !store.exists(&hash)? {
@@ -408,13 +435,15 @@ async fn check_tree_nodes(
                     versions.entry(hash).or_default().extend(declared);
                 }
             }
-            Ok((versions, missing_nodes, unreadable_nodes))
+            Ok((versions, missing_nodes, unreadable))
         })
         .await??;
 
     report.versions_checked = versions.len();
     report.missing_nodes = missing_nodes;
-    report.unreadable_nodes = unreadable_nodes;
+    for (hash, error) in unreadable {
+        report.record_unreadable(hash, error);
+    }
     Ok(versions)
 }
 
@@ -482,6 +511,19 @@ mod tests {
     use crate::util;
     use bytes::Bytes;
     use std::path::Path;
+
+    /// Store bytes under `hash` that do not parse as a merkle node.
+    fn write_unparseable_node(repo: &LocalRepository, hash: MerkleHash) -> Result<(), OxenError> {
+        repo.merkle_node_store().write_nodes(
+            vec![(
+                hash,
+                Bytes::from_static(b"not a node"),
+                Bytes::from_static(b"not children"),
+            )],
+            true,
+        )?;
+        Ok(())
+    }
 
     /// The single stored version blob under `dir`, for tests that corrupt one deliberately.
     fn find_only_version_blob(dir: &std::path::Path) -> Result<PathBuf, OxenError> {
@@ -697,14 +739,7 @@ mod tests {
                 .expect("the nested directory has a node");
 
             // Present but unparseable, which is the case a missing-node check cannot see.
-            repo.merkle_node_store().write_nodes(
-                vec![(
-                    dir.hash,
-                    Bytes::from_static(b"not a node"),
-                    Bytes::from_static(b"not children"),
-                )],
-                true,
-            )?;
+            write_unparseable_node(&repo, dir.hash)?;
 
             let report = verify_repo(&repo).await?;
 
@@ -762,14 +797,7 @@ mod tests {
                 "the fixture needs entries outside the damaged vnode: {vnodes:?}"
             );
 
-            repo.merkle_node_store().write_nodes(
-                vec![(
-                    damaged,
-                    Bytes::from_static(b"not a node"),
-                    Bytes::from_static(b"not children"),
-                )],
-                true,
-            )?;
+            write_unparseable_node(&repo, damaged)?;
 
             let report = verify_repo(&repo).await?;
 
@@ -993,6 +1021,19 @@ mod tests {
             assert_eq!(report.dangling_branches.count, 1);
             assert_eq!(report.dangling_branches.sample[0].commit_id, commit.id);
 
+            write_unparseable_node(&repo, commit.hash()?)?;
+            let report = verify_repo(&repo).await?;
+
+            assert_eq!(
+                report.unreadable_nodes.count, 1,
+                "a head commit that will not parse is a finding: {report:?}"
+            );
+            assert_eq!(report.unreadable_nodes.sample[0].hash, commit.id);
+            assert!(
+                report.dangling_branches.is_empty(),
+                "a head commit that is present but unreadable is not missing"
+            );
+
             Ok(())
         })
         .await
@@ -1022,6 +1063,23 @@ mod tests {
             assert_eq!(
                 report.dangling_branches.count, 0,
                 "the branch head itself still resolves"
+            );
+
+            write_unparseable_node(&repo, first.hash()?)?;
+            let report = verify_repo(&repo).await?;
+
+            assert_eq!(
+                report.unreadable_nodes.count, 1,
+                "a parent commit that will not parse is a finding: {report:?}"
+            );
+            assert_eq!(report.unreadable_nodes.sample[0].hash, first.id);
+            assert!(
+                report.dangling_parents.is_empty(),
+                "a parent that is present but unreadable is not missing"
+            );
+            assert_eq!(
+                report.commits_checked, 1,
+                "the walk still checks the commit that names the unreadable parent"
             );
 
             Ok(())
@@ -1086,6 +1144,18 @@ mod tests {
                 report.total_findings(),
                 1,
                 "the commit walk reaches nothing that names the pinned commit: {report:?}"
+            );
+
+            write_unparseable_node(&repo, absent.parse()?)?;
+            let report = verify_repo(&repo).await?;
+
+            assert_eq!(
+                report.unreadable_nodes.count, 1,
+                "a pinned commit that will not parse is a finding: {report:?}"
+            );
+            assert!(
+                report.dangling_workspaces.is_empty(),
+                "a pin to a present but unreadable commit is not dangling"
             );
 
             Ok(())
