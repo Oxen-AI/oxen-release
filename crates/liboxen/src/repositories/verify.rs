@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::constants::MAX_CONCURRENT_VERSION_PROBES;
+use crate::core::db::dir_hashes::dir_hashes_db::dir_hash_db_path;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, MerkleHash, NewCommit};
 use crate::repositories;
@@ -123,6 +124,8 @@ pub struct VerifyReport {
     pub dangling_workspaces: Findings<DanglingWorkspace>,
     pub dangling_parents: Findings<DanglingParent>,
     pub misaddressed_commits: Findings<MisaddressedCommit>,
+    /// Commits whose directory index, which resolves the tree by path, is absent.
+    pub missing_dir_hash_indexes: Findings<String>,
     pub missing_nodes: Findings<String>,
     pub unreadable_nodes: Findings<UnreadableNode>,
     pub missing_versions: Findings<String>,
@@ -140,6 +143,7 @@ impl VerifyReport {
             && self.dangling_workspaces.is_empty()
             && self.dangling_parents.is_empty()
             && self.misaddressed_commits.is_empty()
+            && self.missing_dir_hash_indexes.is_empty()
             && self.missing_nodes.is_empty()
             && self.unreadable_nodes.is_empty()
             && self.missing_versions.is_empty()
@@ -153,6 +157,7 @@ impl VerifyReport {
             + self.dangling_workspaces.count
             + self.dangling_parents.count
             + self.misaddressed_commits.count
+            + self.missing_dir_hash_indexes.count
             + self.missing_nodes.count
             + self.unreadable_nodes.count
             + self.missing_versions.count
@@ -254,8 +259,8 @@ async fn check_workspace_pins(
     Ok(())
 }
 
-/// Every branch head names a commit the repository holds, every commit reachable from one hashes
-/// to the id it is filed under, and every parent it names resolves.
+/// Every branch head names a commit the repository holds, and every commit reachable from one
+/// hashes to the id it is filed under, has its directory index, and names parents that resolve.
 ///
 /// A commit that is present but cannot be read is reported, and its ancestry is not walked.
 async fn check_commits(
@@ -268,6 +273,7 @@ async fn check_commits(
         dangling_branches: Findings<DanglingBranch>,
         dangling_parents: Findings<DanglingParent>,
         misaddressed: Findings<MisaddressedCommit>,
+        missing_dir_hash_indexes: Findings<String>,
         unreadable: Vec<(MerkleHash, String)>,
     }
 
@@ -308,6 +314,9 @@ async fn check_commits(
             if let Some(finding) = misaddressed_commit(&commit)? {
                 found.misaddressed.record(finding);
             }
+            if !dir_hash_db_path(&walk_repo, &commit).exists() {
+                found.missing_dir_hash_indexes.record(commit.id.clone());
+            }
             for parent_id in &commit.parent_ids {
                 let lookup = match parent_id.parse::<MerkleHash>() {
                     Ok(hash) if seen.contains(&hash) => continue,
@@ -339,6 +348,7 @@ async fn check_commits(
     report.dangling_branches = found.dangling_branches;
     report.dangling_parents = found.dangling_parents;
     report.misaddressed_commits = found.misaddressed;
+    report.missing_dir_hash_indexes = found.missing_dir_hash_indexes;
     for (hash, error) in found.unreadable {
         report.record_unreadable(hash, error);
     }
@@ -505,6 +515,7 @@ async fn check_versions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::db::dir_hashes::dir_hashes_db::remove_from_cache_with_children;
     use crate::model::Workspace;
     use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
     use crate::test;
@@ -683,13 +694,25 @@ mod tests {
             let path = repo.path.join("a.txt");
             util::fs::write_to_path(&path, "alpha")?;
             repositories::add(&repo, &path).await?;
-            repositories::commit(&repo, "Add a")?;
+            let commit = repositories::commit(&repo, "Add a")?;
 
             let report = verify_repo(&repo).await?;
 
             assert!(report.is_healthy(), "a sound repository has no findings");
             assert_eq!(report.branches_checked, 1);
             assert_eq!(report.versions_checked, 1);
+
+            let index = dir_hash_db_path(&repo, &commit);
+            remove_from_cache_with_children(&index)?;
+            util::fs::remove_dir_all(&index)?;
+            let report = verify_repo(&repo).await?;
+
+            assert_eq!(
+                report.missing_dir_hash_indexes.sample,
+                vec![commit.id.clone()],
+                "a commit whose directory index is gone is a finding: {report:?}"
+            );
+            assert_eq!(report.total_findings(), 1, "{report:?}");
 
             Ok(())
         })
