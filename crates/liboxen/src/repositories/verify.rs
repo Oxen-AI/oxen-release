@@ -8,12 +8,10 @@
 //!
 //! Findings are reported as counts plus a bounded sample.
 
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::constants::MAX_CONCURRENT_VERSION_PROBES;
 use crate::core::db::dir_hashes::dir_hashes_db::dir_hash_db_path;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, MerkleHash, NewCommit};
@@ -466,23 +464,14 @@ async fn check_tree_nodes(
 /// pass that could not reach part of the store never reads as a clean one.
 async fn check_versions(
     repo: &LocalRepository,
-    versions: HashMap<String, DeclaredSizes>,
+    mut versions: HashMap<String, DeclaredSizes>,
     report: &mut VerifyReport,
 ) -> Result<(), OxenError> {
-    let version_store = repo.version_store();
+    let hashes = versions.keys().cloned().collect();
+    let sizes = repo.version_store().get_version_sizes(hashes).await?;
 
-    let max_concurrent = MAX_CONCURRENT_VERSION_PROBES.min(versions.len().max(1));
-    let mut probes = futures_util::stream::iter(versions)
-        .map(|(hash, declared)| {
-            let version_store = version_store.clone();
-            async move {
-                let stored = version_store.get_version_size(&hash).await;
-                (hash, declared, stored)
-            }
-        })
-        .buffer_unordered(max_concurrent);
-
-    while let Some((hash, declared, stored)) = probes.next().await {
+    for (hash, stored) in sizes {
+        let declared = versions.remove(&hash).unwrap_or_default();
         let stored_bytes = match stored {
             Ok(stored_bytes) => stored_bytes,
             Err(OxenError::VersionStoreBlobMissing { .. }) => {
