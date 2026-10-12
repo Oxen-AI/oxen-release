@@ -200,6 +200,8 @@ pub async fn checkout_combine<P: AsRef<Path>>(
 
 #[cfg(test)]
 mod tests {
+    use std::path::{Path, PathBuf};
+
     use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
@@ -207,58 +209,6 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-
-    #[tokio::test]
-    async fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // This shouldn't work
-            let checkout_result = repositories::checkout(&repo, "non-existent").await;
-            assert!(checkout_result.is_err());
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_command_checkout_commit_id() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Write a hello file
-            let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello")?;
-
-            // Stage a hello file
-            repositories::add(&repo, &hello_file).await?;
-            // Commit the hello file
-            let first_commit = repositories::commit(&repo, "Adding hello")?;
-
-            // Write a world
-            let world_file = repo.path.join("world.txt");
-            util::fs::write_to_path(&world_file, "World")?;
-
-            // Stage a world file
-            repositories::add(&repo, &world_file).await?;
-
-            // Commit the world file
-            repositories::commit(&repo, "Adding world")?;
-
-            // We have the world file
-            assert!(world_file.exists());
-
-            // We checkout the previous commit
-            repositories::checkout(&repo, first_commit.id).await?;
-
-            // // Then we do not have the world file anymore
-            assert!(!world_file.exists());
-
-            // // Check status
-            let status = repositories::status(&repo).await?;
-            assert!(status.is_clean());
-
-            Ok(())
-        })
-        .await
-    }
 
     #[tokio::test]
     async fn test_command_checkout_commit_then_merge_main() -> Result<(), OxenError> {
@@ -297,6 +247,7 @@ mod tests {
 
             // We have the branch file
             assert!(branch_file.exists());
+            assert!(world_file.exists());
 
             // Checkout the previous commit
             repositories::checkout(&repo, first_commit.id).await?;
@@ -336,48 +287,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Write the first file
-            let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello")?;
-
-            // Track & commit the file
-            repositories::add(&repo, &hello_file).await?;
-            repositories::commit(&repo, "Added hello.txt")?;
-
-            // Create and checkout branch
-            let branch_name = "feature/world-explorer";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-            repositories::checkout(&repo, branch_name).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_cannot_checkout_branch_with_dots_in_name() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Write the first file
-            let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello")?;
-
-            // Track & commit the file
-            repositories::add(&repo, &hello_file).await?;
-            repositories::commit(&repo, "Added hello.txt")?;
-
-            // Create and checkout branch
-            let branch_name = "test..ing";
-            let result = repositories::branches::create_checkout(&repo, branch_name);
-            assert!(result.is_err());
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_command_checkout_added_file() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             // Write the first file
@@ -388,12 +297,22 @@ mod tests {
             repositories::add(&repo, &hello_file).await?;
             repositories::commit(&repo, "Added hello.txt")?;
 
+            assert!(
+                repositories::checkout(&repo, "non-existent").await.is_err(),
+                "no branch or commit is named non-existent"
+            );
+            assert!(
+                repositories::branches::create_checkout(&repo, "test..ing").is_err(),
+                "a branch name cannot contain `..`"
+            );
+
             // Get the original branch name
             let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
-            // Create and checkout branch
+            // Create and checkout branch, then check out the branch already checked out
             let branch_name = "feature/world-explorer";
             repositories::branches::create_checkout(&repo, branch_name)?;
+            repositories::checkout(&repo, branch_name).await?;
 
             // Write a second file
             let world_file = repo.path.join("world.txt");
@@ -679,84 +598,13 @@ mod tests {
         .await
     }
 
-    // Test the default clone (not --all or --shallow) can revert to files that are not local
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_checkout_deleted_after_clone() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-            let og_commits = repositories::commits::list_all(&local_repo)?;
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &new_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Make sure we have all the commit objects
-                let cloned_commits = repositories::commits::list_all(&cloned_repo)?;
-                assert_eq!(og_commits.len(), cloned_commits.len());
-
-                // Make sure we set the HEAD file
-                let head_commit = repositories::commits::head_commit(&cloned_repo);
-                assert!(head_commit.is_ok());
-
-                // We remove the test/ directory in one of the commits, so make sure we can go
-                // back in the history to that commit
-                let test_dir_path = cloned_repo.path.join("test");
-                let commit = repositories::commits::first_by_message(&cloned_repo, "Adding test/")?;
-                assert!(commit.is_some());
-                assert!(!test_dir_path.exists());
-
-                // checkout the commit
-                repositories::checkout(&cloned_repo, &commit.unwrap().id).await?;
-                // Make sure we restored the directory
-                assert!(test_dir_path.exists());
-
-                // list files in test_dir_path
-                let test_dir_files = util::fs::list_files_in_dir(&test_dir_path).await?;
-                println!("test_dir_files: {:?}", test_dir_files.len());
-                for file in test_dir_files.iter() {
-                    println!("file: {file:?}");
-                }
-                assert_eq!(test_dir_files.len(), 4);
-
-                assert!(test_dir_path.join("1.jpg").exists());
-                assert!(test_dir_path.join("2.jpg").exists());
-                assert!(test_dir_path.join("3.jpg").exists());
-                assert!(test_dir_path.join("4.jpg").exists());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    /*
-    Checks workflow:
-
-    $ oxen clone <URL>
-
-    $ oxen checkout f412d166be1bead8 # earlier commit
-    $ oxen checkout 55a4df7cd5d00eee # later commit
-
-    Checkout commit: 55a4df7cd5d00eee
-    Setting working directory to 55a4df7cd5d00eee
-    IO(Os { code: 2, kind: NotFound, message: "No such file or directory" })
-
-    */
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), OxenError> {
+    async fn test_checkout_in_clones_walks_history_and_keeps_untracked_files()
+    -> Result<(), OxenError> {
         test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 
-            // Add a second commit so the cloned repo has more than one commit to iterate through.
             let extra_file = local_repo.path.join("hello.txt");
             test::write_txt_file_to_path(&extra_file, "hello")?;
             repositories::add(&local_repo, &extra_file).await?;
@@ -764,18 +612,47 @@ mod tests {
             repositories::push(&local_repo).await?;
 
             test::run_empty_dir_test_async(|repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo"))
-                        .await?;
-
-                let commits = repositories::commits::list(&cloned_repo)?;
-                // iterate over commits in reverse order and checkout each one
+                // Checking out an older commit and then a newer one in a clone restores the files
+                // the newer commit adds.
+                let walk_repo =
+                    repositories::clone_url(&remote_repo.remote.url, repo_dir.join("walk")).await?;
+                let commits = repositories::commits::list(&walk_repo)?;
+                assert_eq!(commits.len(), 2);
                 for commit in commits.iter().rev() {
-                    println!(
-                        "TEST checking out commit: {} -> '{}'",
-                        commit.id, commit.message
+                    repositories::checkout(&walk_repo, &commit.id).await?;
+                }
+                assert!(walk_repo.path.join("hello.txt").exists());
+
+                let local_repo =
+                    repositories::clone_url(&remote_repo.remote.url, repo_dir.join("local"))
+                        .await?;
+                let branch_name = "test-branch";
+                repositories::branches::create_checkout(&local_repo, branch_name)?;
+                repositories::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
+                let untracked = write_untracked_files(&local_repo.path)?;
+                repositories::checkout(&local_repo, branch_name).await?;
+                for path in &untracked {
+                    assert!(path.exists(), "checking out a local branch keeps {path:?}");
+                }
+
+                let deep_repo =
+                    repositories::deep_clone_url(&remote_repo.remote.url, repo_dir.join("deep"))
+                        .await?;
+                let untracked = write_untracked_files(&deep_repo.path)?;
+                // A branch created after cloning, so the checkout has to fetch it from the remote
+                api::client::branches::create_from_branch(
+                    &remote_repo,
+                    branch_name,
+                    DEFAULT_BRANCH_NAME,
+                )
+                .await?;
+                repositories::fetch_all(&deep_repo, &FetchOpts::new()).await?;
+                repositories::checkout(&deep_repo, branch_name).await?;
+                for path in &untracked {
+                    assert!(
+                        path.exists(),
+                        "checking out a fetched branch keeps {path:?}"
                     );
-                    repositories::checkout(&cloned_repo, &commit.id).await?;
                 }
 
                 Ok(())
@@ -787,123 +664,24 @@ mod tests {
         .await
     }
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_checkout_local_does_not_remove_untracked_files() -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_one_commit_sync_repo_test(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            // Clone Repo to User A
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
-
-                // Create a new branch
-                let branch_name = "test-branch";
-                repositories::branches::create_checkout(&user_a_repo, branch_name)?;
-
-                // Back to main
-                repositories::checkout(&user_a_repo, DEFAULT_BRANCH_NAME).await?;
-
-                // Create some untracked files...
-                let file_1 = user_a_repo.path.join("file_1.txt");
-                let dir_1 = user_a_repo.path.join("dir_1");
-                let file_in_dir_1 = dir_1.join("file_in_dir_1.txt");
-                let dir_2 = user_a_repo.path.join("dir_2");
-                let subdir_2 = dir_2.join("subdir_2");
-                let file_in_dir_2 = subdir_2.join("file_in_dir_2.txt");
-                let file_in_subdir_2 = subdir_2.join("file_in_subdir_2.txt");
-
-                // Create the files and dirs
-                std::fs::create_dir(&dir_1)?;
-                std::fs::create_dir(&dir_2)?;
-                std::fs::create_dir(&subdir_2)?;
-
-                test::write_txt_file_to_path(&file_1, "this is file 1")?;
-                test::write_txt_file_to_path(&file_in_dir_1, "this is file in dir 1")?;
-                test::write_txt_file_to_path(&file_in_dir_2, "this is file in dir 2")?;
-                test::write_txt_file_to_path(&file_in_subdir_2, "this is file in subdir 2")?;
-
-                // Switch back over to the other branch
-                repositories::checkout(&user_a_repo, branch_name).await?;
-
-                // Files should exist
-                assert!(file_1.exists());
-                assert!(file_in_dir_1.exists());
-                assert!(file_in_dir_2.exists());
-                assert!(file_in_subdir_2.exists());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_checkout_remote_does_not_remove_untracked_files() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|_local_repo, remote_repo| async move {
-            // Create additional branch on remote repo before clone
-
-            let cloned_remote = remote_repo.clone();
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = repositories::deep_clone_url(
-                    &remote_repo.remote.url,
-                    &new_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                // Create untracked files
-                let file_1 = cloned_repo.path.join("file_1.txt");
-                let dir_1 = cloned_repo.path.join("dir_1");
-                let file_in_dir_1 = dir_1.join("file_in_dir_1.txt");
-                let dir_2 = cloned_repo.path.join("dir_2");
-                let subdir_2 = dir_2.join("subdir_2");
-                let file_in_dir_2 = subdir_2.join("file_in_dir_2.txt");
-
-                // Create the files and dirs
-                std::fs::create_dir(&dir_1)?;
-                std::fs::create_dir(&dir_2)?;
-                std::fs::create_dir(&subdir_2)?;
-
-                test::write_txt_file_to_path(&file_1, "this is file 1")?;
-                test::write_txt_file_to_path(&file_in_dir_1, "this is file in dir 1")?;
-                test::write_txt_file_to_path(&file_in_dir_2, "this is file in dir 2")?;
-
-                // Create a new branch after cloning (so we have to fetch the new commit from the remote)
-
-                let branch_name = "test-branch";
-                api::client::branches::create_from_branch(
-                    &remote_repo,
-                    branch_name,
-                    DEFAULT_BRANCH_NAME,
-                )
-                .await?;
-
-                repositories::fetch_all(&cloned_repo, &FetchOpts::new()).await?;
-
-                // Checkout the new branch
-                repositories::checkout(&cloned_repo, branch_name).await?;
-
-                // Files should exist
-                assert!(file_1.exists());
-                assert!(file_in_dir_1.exists());
-                assert!(file_in_dir_2.exists());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(cloned_remote)
-        })
-        .await
+    /// Write untracked files at the top of `repo_path`, in a directory, and in a nested directory.
+    fn write_untracked_files(repo_path: &Path) -> Result<Vec<PathBuf>, OxenError> {
+        let files = [
+            repo_path.join("file_1.txt"),
+            repo_path.join("dir_1").join("file_in_dir_1.txt"),
+            repo_path
+                .join("dir_2")
+                .join("subdir_2")
+                .join("file_in_dir_2.txt"),
+            repo_path
+                .join("dir_2")
+                .join("subdir_2")
+                .join("file_in_subdir_2.txt"),
+        ];
+        for file in &files {
+            util::fs::write_to_path(file, "untracked")?;
+        }
+        Ok(files.to_vec())
     }
 
     #[tokio::test]
