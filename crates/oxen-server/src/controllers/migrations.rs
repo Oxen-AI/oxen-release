@@ -1,7 +1,6 @@
 use actix_web::{HttpRequest, HttpResponse, web};
 use liboxen::{
     command::migrate::{self, Direction, try_apply_migration},
-    core::repo_locks,
     error::OxenError,
     migrations, repositories,
     view::{ListRepositoryResponse, StatusMessage},
@@ -11,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     errors::OxenHttpError,
     helpers::get_repo,
+    middleware::with_repo_exclusive_for_client,
     params::{app_data, path_param, reject_invalid_namespace_name, reject_invalid_repo_name},
     tasks,
 };
@@ -114,7 +114,7 @@ pub async fn run(req: HttpRequest, body: web::Bytes) -> Result<HttpResponse, Oxe
     // same repo. Returns HTTP 429 if in-flight writes don't drain in time. The synchronous transcode
     // runs on the blocking pool so it doesn't starve other requests on the actix worker.
     let migration_repo = repo.clone();
-    repo_locks::with_repo_exclusive(&repo, async move {
+    with_repo_exclusive_for_client(&req, &repo, async move {
         tasks::spawn_blocking(move || {
             try_apply_migration(migration, direction, run_optional, migration_repo)
         })
@@ -158,6 +158,7 @@ mod tests {
     use crate::test;
     use actix_web::{App, ResponseError, http, web};
     use liboxen::config::RepositoryConfig;
+    use liboxen::core::repo_locks;
     use liboxen::core::workspaces::workspace_name_index;
     use liboxen::error::OxenError;
     use liboxen::model::RepoIdentity;
@@ -207,8 +208,8 @@ mod tests {
 
     /// The migration runs under the repo's exclusive lock: while a write is in flight it waits
     /// for that write to drain before running, rather than racing it. Guards
-    /// the `with_repo_exclusive` wiring — the happy-path test above passes with or without the
-    /// wrap, so this is what would fail if the lock were dropped.
+    /// the `with_repo_exclusive_for_client` wiring — the happy-path test above passes with or
+    /// without the wrap, so this is what would fail if the lock were dropped.
     #[actix_web::test]
     async fn test_run_waits_for_in_flight_writes_to_drain() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;

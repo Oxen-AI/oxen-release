@@ -1,5 +1,4 @@
 use actix_web::{HttpRequest, HttpResponse, web};
-use liboxen::error::OxenError;
 use liboxen::repositories;
 use liboxen::storage::StorageKind;
 use liboxen::view::StatusMessage;
@@ -8,7 +7,6 @@ use serde::Deserialize;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo_async;
 use crate::params::{app_data, path_param};
-use crate::tasks;
 
 #[derive(Deserialize, Debug)]
 pub struct UpdateStorageRequest {
@@ -28,13 +26,9 @@ pub async fn update(
     let repo = get_repo_async(app_data, namespace, repo_name).await?;
     let kind = app_data.config.storage.resolve(Some(body.kind))?;
 
-    // Runs to the end even if the client disconnects, so a move never stops between switching the
-    // repository and deleting the copies it left.
-    tokio::spawn(tasks::inherit_hub(async move {
-        repositories::storage::move_to(&repo, kind).await
-    }))
-    .await
-    .map_err(OxenError::from)??;
+    // `run_request_as_task` keeps this running if the client resets its connection, so a move never
+    // stops between switching the repository and deleting the copies it left.
+    repositories::storage::move_to(&repo, kind).await?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
