@@ -9,7 +9,7 @@ Find the rows whose versions include the release you are upgrading to. `TBD` mea
 | 0.51.4 to 0.61.1 | CLI, server | [Move a repository's Merkle nodes to LMDB](#move-a-repositorys-merkle-nodes-to-lmdb) |
 | 0.58.0 to TBD | Server | [Record identity for repositories that predate it](#record-identity-for-repositories-that-predate-it) |
 | 0.58.0 to TBD | Server | [Re-seed the name table after changing the sync directory by hand](#re-seed-the-name-table-after-changing-the-sync-directory-by-hand) |
-| 0.59.0 to TBD | Server | [Stop starting the server with `-a`](#stop-starting-the-server-with--a) |
+| 0.59.0 to 0.63.0 | Server | [Stop starting the server with `-a`](#stop-starting-the-server-with--a) |
 | 0.60.0 to TBD | Server, S3 backend | [Copy an S3-backed repository's objects to its UUID prefix](#copy-an-s3-backed-repositorys-objects-to-its-uuid-prefix) |
 | 0.60.0 to TBD | Server | [Move a namespace called `repo`](#move-a-namespace-called-repo) |
 | 0.61.0 to TBD | Server | [Move repositories to the directory their UUID places them in](#move-repositories-to-the-directory-their-uuid-places-them-in) |
@@ -67,7 +67,7 @@ It indexes the name every repository records and prints how many it covered. It 
 
 ## Stop starting the server with `-a`
 
-**Versions:** 0.59.0 to TBD. **Applies to:** server.
+**Versions:** 0.59.0 to 0.63.0. **Applies to:** server.
 
 `oxen-server` no longer authenticates requests itself, so it refuses to start with `-a` and no longer has an `add-user` command. Before upgrading a server started with `-a`, put a reverse proxy or gateway in front of it that authenticates requests (see [Self Hosting](../SelfHosting.md)), and drop `-a` from the command that starts it.
 
@@ -77,7 +77,7 @@ The tokens `add-user` issued and the secret they were signed with stay in `$SYNC
 rm -rf "$SYNC_DIR/.oxen"
 ```
 
-Until it is gone, the `oxen` CLI run from a directory inside the sync directory that no repository contains takes the whole sync directory for a repository, and servers released after 0.63.0 list it as a namespace called `.oxen`.
+Until it is gone, the `oxen` CLI run from a directory inside the sync directory that no repository contains takes the whole sync directory for a repository.
 
 ## Copy an S3-backed repository's objects to its UUID prefix
 
