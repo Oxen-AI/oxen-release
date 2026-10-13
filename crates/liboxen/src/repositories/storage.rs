@@ -30,7 +30,7 @@ use crate::util;
 /// this move copied, and [`OxenError::StorageMoveInProgress`] when another move of `repo` is still
 /// running in this process.
 #[tracing::instrument(
-    skip(repo, kind),
+    skip_all,
     fields(oxen.repository_path = %repo.path.display(), oxen.target_storage_kind = %kind)
 )]
 pub async fn move_to(repo: &LocalRepository, kind: StorageKind) -> Result<(), OxenError> {
