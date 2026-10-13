@@ -466,7 +466,13 @@ async fn create_repo_response(
         Ok(repo) => {
             // The repository exists by this point, so a failed lookup only degrades the
             // response's latest_commit to None rather than failing the creation.
-            let latest_commit = match repositories::commits::latest_commit(&repo) {
+            let lookup_repo = repo.clone();
+            let lookup =
+                tasks::spawn_blocking(move || repositories::commits::latest_commit(&lookup_repo))
+                    .await
+                    .map_err(OxenError::from)
+                    .and_then(|lookup| lookup);
+            let latest_commit = match lookup {
                 Ok(commit) => Some(commit),
                 Err(OxenError::NoCommitsFound) => None,
                 Err(err) => {

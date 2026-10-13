@@ -23,7 +23,6 @@ use crate::sync_dir::{create_placed_repo_dir, is_server_owned, placed_repo_dir, 
 use crate::util;
 use crate::util::fs::AtomicFile;
 use crate::view::repository::RepositoryListView;
-use bytes::Bytes;
 use regex::Regex;
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -645,14 +644,20 @@ async fn create_unclaimed(
     identity: RepoIdentity,
     server_s3_opts: Option<&S3Opts>,
 ) -> Result<LocalRepository, OxenError> {
-    let repo_dir = &create_placed_repo_dir(sync_dir, identity.repo_uuid)?;
-    log::debug!("repositories::create repo dir: {repo_dir:?}");
-
     let files = new_repo.files.take().unwrap_or_default();
-    let local_repo = match save_new_repo(repo_dir, &new_repo, identity, server_s3_opts) {
+    let sync_dir = sync_dir.to_path_buf();
+    let server_s3_opts = server_s3_opts.cloned();
+    let (repo_dir, saved) = spawn_blocking(move || {
+        let repo_dir = create_placed_repo_dir(&sync_dir, identity.repo_uuid)?;
+        log::debug!("repositories::create repo dir: {repo_dir:?}");
+        let saved = save_new_repo(&repo_dir, &new_repo, identity, server_s3_opts.as_ref());
+        Ok::<_, OxenError>((repo_dir, saved))
+    })
+    .await??;
+    let local_repo = match saved {
         Ok(local_repo) => local_repo,
         Err(err) => {
-            remove_failed_create_dir(repo_dir).await;
+            remove_failed_create_dir(&repo_dir).await;
             return Err(err);
         }
     };
@@ -666,7 +671,7 @@ async fn create_unclaimed(
             );
         }
         drop(local_repo);
-        remove_failed_create_dir(repo_dir).await;
+        remove_failed_create_dir(&repo_dir).await;
         return Err(err);
     }
     Ok(local_repo)
@@ -719,47 +724,50 @@ async fn set_up_new_repo(
     local_repo: &LocalRepository,
     files: Vec<FileNew>,
 ) -> Result<(), OxenError> {
-    let repo_dir = &local_repo.path;
-
     // Initialize version store
     let version_store = local_repo.version_store();
     version_store.init().await?;
 
-    // Create history dir
-    let history_dir = util::fs::oxen_hidden_dir(repo_dir).join(constants::HISTORY_DIR);
-    util::fs::create_dir_all(history_dir)?;
+    let user = files.first().map(|file| file.user.clone());
+    log::debug!("repositories::create files: {:?}", files.len());
+    let repo = local_repo.clone();
+    let paths = spawn_blocking(move || {
+        // Create history dir
+        let history_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::HISTORY_DIR);
+        util::fs::create_dir_all(history_dir)?;
 
-    // Create HEAD file and point it to DEFAULT_BRANCH_NAME
-    with_ref_manager(local_repo, |manager| {
-        manager.set_head(constants::DEFAULT_BRANCH_NAME)?;
-        Ok(())
-    })?;
+        // Create HEAD file and point it to DEFAULT_BRANCH_NAME
+        with_ref_manager(&repo, |manager| {
+            manager.set_head(constants::DEFAULT_BRANCH_NAME)?;
+            Ok(())
+        })?;
 
-    if let Some(user) = files.first().map(|file| file.user.clone()) {
-        log::debug!("repositories::create files: {:?}", files.len());
-        let payloads: Vec<(PathBuf, Bytes)> = files
+        // Every publish fsyncs, so the whole materialization runs in this one offload.
+        files
             .into_iter()
-            .map(|file| (repo_dir.join(file.path), file.contents.into_bytes()))
-            .collect();
-        let paths: Vec<PathBuf> = payloads.iter().map(|(path, _)| path.clone()).collect();
+            .map(|file| {
+                let path = repo.path.join(file.path);
+                AtomicFile::new(&path).write(&file.contents.into_bytes())?;
+                Ok(path)
+            })
+            .collect::<Result<Vec<PathBuf>, OxenError>>()
+    })
+    .await??;
 
-        // Every publish fsyncs, so the whole materialization runs in one offload.
-        spawn_blocking(move || {
-            for (path, bytes) in &payloads {
-                AtomicFile::new(path).write(bytes)?;
-            }
-            Ok::<(), OxenError>(())
-        })
-        .await??;
-
-        for path in &paths {
-            add(local_repo, path).await?;
-        }
-
-        let commit =
-            core::v_latest::commits::commit_with_user(local_repo, "Initial commit", &user)?;
-        branches::create(local_repo, constants::DEFAULT_BRANCH_NAME, &commit.id)?;
+    let Some(user) = user else {
+        return Ok(());
+    };
+    for path in &paths {
+        add(local_repo, path).await?;
     }
+
+    let repo = local_repo.clone();
+    spawn_blocking(move || {
+        let commit = core::v_latest::commits::commit_with_user(&repo, "Initial commit", &user)?;
+        branches::create(&repo, constants::DEFAULT_BRANCH_NAME, &commit.id)?;
+        Ok::<(), OxenError>(())
+    })
+    .await??;
     Ok(())
 }
 
