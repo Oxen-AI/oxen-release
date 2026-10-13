@@ -15,7 +15,7 @@ use liboxen::{api, repositories};
 use tokio_stream::StreamExt;
 
 use std::borrow::Cow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use crate::error::PyOxenError;
@@ -205,9 +205,13 @@ impl PyRemoteRepo {
                         contents: FileContents::Text(format!("# {}\n", self.name)),
                         user: user.clone(),
                     }];
-                    let mut repo =
-                        RepoNew::from_files(&self.namespace, &self.name, files, storage_kind);
-                    repo.host = Some(self.host.clone());
+                    let mut repo = RepoNew::from_files(
+                        &self.namespace,
+                        &self.name,
+                        &self.host,
+                        files,
+                        storage_kind,
+                    );
                     repo.is_public = Some(is_public);
                     repo.scheme = Some(self.scheme.clone());
                     let repo = api::client::repositories::create(repo).await?;
@@ -404,27 +408,31 @@ impl PyRemoteRepo {
         };
 
         let paginated_commits = if let Some(path) = path {
-            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-                api::client::commits::list_commits_for_path(
-                    self.repo()?,
-                    revision,
-                    path,
-                    &page_opts,
-                )
-                .await
-            })?
+            pyo3_async_runtimes::tokio::get_runtime()
+                .block_on(async {
+                    api::client::commits::list_commits_for_path(
+                        self.repo()?,
+                        revision,
+                        Path::new(path),
+                        &page_opts,
+                    )
+                    .await
+                })?
+                .into()
         } else {
-            pyo3_async_runtimes::tokio::get_runtime().block_on(async {
-                api::client::commits::list_commit_history_paginated(
-                    self.repo()?,
-                    revision,
-                    &page_opts,
-                )
-                .await
-            })?
+            pyo3_async_runtimes::tokio::get_runtime()
+                .block_on(async {
+                    api::client::commits::list_commit_history_paginated(
+                        self.repo()?,
+                        revision,
+                        &page_opts,
+                    )
+                    .await
+                })?
+                .into()
         };
 
-        Ok(paginated_commits.into())
+        Ok(paginated_commits)
     }
 
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {

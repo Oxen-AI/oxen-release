@@ -1,5 +1,7 @@
 use crate::error::OxenError;
 use async_trait::async_trait;
+use aws_config::BehaviorVersion;
+use aws_config::timeout::TimeoutConfig;
 use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::head_object::HeadObjectError;
@@ -8,19 +10,22 @@ use aws_sdk_s3::{Client, config::Region, primitives::ByteStream};
 use aws_smithy_runtime_api::client::orchestrator::HttpResponse;
 use bytes::Bytes;
 use futures::stream;
-use futures::{StreamExt, TryStreamExt};
+use futures::{FutureExt, StreamExt, TryStreamExt};
 use log;
+use std::iter;
 use std::path::Path;
 use std::pin::pin;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tokio::io::AsyncReadExt;
 use tokio::sync::OnceCell;
+use tokio::time::timeout;
 use tokio_stream::Stream;
 use tokio_util::io::StreamReader;
+use tokio_util::task::AbortOnDropHandle;
 
 use super::version_store::{BoxedByteStream, VersionLocation, VersionStore};
-use crate::constants::VERSION_FILE_NAME;
+use crate::constants::{VERSION_FILE_NAME, stream_segment_size};
 use crate::util::fs::AtomicFile;
 use crate::util::hasher;
 use crate::view::versions::CleanCorruptedVersionsResult;
@@ -31,6 +36,76 @@ const DEFAULT_ONESHOT_SIZE: u64 = 100 * 1024 * 1024;
 
 /// The most keys S3 accepts in one DeleteObjects request.
 const DELETE_OBJECTS_MAX_KEYS: usize = 1000;
+
+/// How many ranged GETs one read of a version file keeps in flight, which also caps how many parts
+/// it holds in memory.
+const RANGE_READS_IN_FLIGHT: usize = 8;
+
+/// The longest one ranged GET may take, from sending the request to receiving its last byte.
+const RANGE_READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The S3 client every store in the process shares, so connections and resolved credentials carry
+/// over from one request to the next. The server reads one bucket in one region.
+static CLIENT: OnceCell<Arc<Client>> = OnceCell::const_new();
+
+/// The process's S3 client, built for `region` on first use. Its timeouts bound the wait for a
+/// response's first byte and for a whole operation with its retries, but not the reading of a
+/// streamed response body.
+async fn shared_client(region: &str) -> Arc<Client> {
+    let client = CLIENT
+        .get_or_init(|| async {
+            let timeouts = TimeoutConfig::builder()
+                .read_timeout(Duration::from_secs(60))
+                .operation_timeout(Duration::from_secs(5 * 60))
+                .build();
+            let config = aws_config::defaults(BehaviorVersion::latest())
+                .region(Region::new(region.to_string()))
+                .timeout_config(timeouts)
+                .load()
+                .await;
+            Arc::new(Client::new(&config))
+        })
+        .await;
+    Arc::clone(client)
+}
+
+/// Reads bytes `start..=end` of `key`, failing once `RANGE_READ_TIMEOUT` has passed.
+async fn read_range(
+    client: Arc<Client>,
+    bucket: String,
+    key: String,
+    start: u64,
+    end: u64,
+) -> io::Result<Bytes> {
+    let read = async {
+        let resp = client
+            .get_object()
+            .bucket(&bucket)
+            .key(&key)
+            .range(format!("bytes={start}-{end}"))
+            .send()
+            .await
+            .map_err(|e| io::Error::other(format!("S3 get_object failed for key {key}: {e}")))?;
+        let body = resp.body.collect().await.map_err(io::Error::other)?;
+        Ok(body.into_bytes())
+    };
+    within_range_deadline(read, &key, start, end).await
+}
+
+/// Runs `read` of bytes `start..=end` of `key`, failing once `RANGE_READ_TIMEOUT` has passed.
+async fn within_range_deadline(
+    read: impl Future<Output = io::Result<Bytes>>,
+    key: &str,
+    start: u64,
+    end: u64,
+) -> io::Result<Bytes> {
+    timeout(RANGE_READ_TIMEOUT, read).await.map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("S3 read of bytes {start}-{end} of {key} timed out"),
+        )
+    })?
+}
 
 /// Server-supplied S3 configuration carried separately from per-repo `StorageConfig`. The bucket
 /// and region are server-wide settings (the server can rotate them without rewriting every repo's
@@ -81,7 +156,7 @@ fn object_head_error(
 /// S3 implementation of version storage
 #[derive(Debug)]
 pub struct S3VersionStore {
-    client: OnceCell<Result<Arc<Client>, OxenError>>,
+    client: OnceCell<Arc<Client>>,
     bucket: String,
     /// AWS region the bucket lives in (from the server's S3 config). Used to build the client
     /// directly, avoiding a `GetBucketLocation` round-trip per store.
@@ -89,6 +164,8 @@ pub struct S3VersionStore {
     prefix: String,
     /// Threshold (bytes) below which we upload with a single PUT rather than a multipart upload.
     oneshot_size: u64,
+    /// Size (bytes) of the ranged GETs that read a version file larger than this.
+    range_part_size: u64,
     /// Optional endpoint override (S3-compatible stores, the in-process s3s test fixture, MinIO,
     /// etc.). `None` selects the default AWS endpoint. Surfaced through `VersionLocation::S3` so
     /// cloud-aware readers (Polars `CloudOptions`, DuckDB `SET s3_endpoint=...`) hit the same
@@ -110,32 +187,23 @@ impl S3VersionStore {
             region,
             prefix,
             oneshot_size: DEFAULT_ONESHOT_SIZE,
+            range_part_size: stream_segment_size(),
             endpoint_url: None,
         }
     }
 
-    pub async fn client(&self) -> Result<Arc<Client>, OxenError> {
-        let result_ref = self
-            .client
-            .get_or_init(|| async {
-                let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-                    .region(Region::new(self.region.clone()))
-                    .load()
-                    .await;
-                Ok::<Arc<Client>, OxenError>(Arc::new(Client::new(&config)))
-            })
-            .await;
-
-        match result_ref {
-            Ok(client) => Ok(client.clone()),
-            Err(e) => Err(OxenError::basic_str(format!("{e:?}"))),
-        }
+    async fn client(&self) -> Arc<Client> {
+        Arc::clone(
+            self.client
+                .get_or_init(|| shared_client(&self.region))
+                .await,
+        )
     }
 
     /// Verify the configured bucket exists and is reachable with the current credentials and
     /// region (HeadBucket). Object read/write permission is not probed.
     async fn check_bucket_accessible(&self) -> Result<(), OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         client
             .head_bucket()
             .bucket(&self.bucket)
@@ -158,14 +226,13 @@ impl S3VersionStore {
         prefix: String,
         endpoint_url: Option<String>,
     ) -> Self {
-        let cell = OnceCell::new();
-        cell.set(Ok(client)).expect("cell was just created");
         Self {
-            client: cell,
+            client: OnceCell::new_with(Some(client)),
             bucket,
             region,
             prefix,
             oneshot_size: DEFAULT_ONESHOT_SIZE,
+            range_part_size: stream_segment_size(),
             endpoint_url,
         }
     }
@@ -197,7 +264,7 @@ impl S3VersionStore {
         &self,
         prefix: &str,
     ) -> Result<impl Stream<Item = Result<String, OxenError>> + Send, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let bucket = self.bucket.clone();
         let prefix = prefix.to_string();
 
@@ -283,7 +350,7 @@ impl S3VersionStore {
 
         let resp = self
             .client()
-            .await?
+            .await
             .delete_objects()
             .bucket(&self.bucket)
             .delete(delete)
@@ -329,7 +396,7 @@ impl VersionStore for S3VersionStore {
         self.check_bucket_accessible().await?;
 
         // Write access: round-trip a small sentinel object under this store's prefix.
-        let client = self.client().await?;
+        let client = self.client().await;
         let test_key = format!("{}/_permission_check", self.prefix);
         let body = ByteStream::from("permission-check".as_bytes().to_vec());
         client
@@ -370,7 +437,7 @@ impl VersionStore for S3VersionStore {
         reader: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
         size: u64,
     ) -> Result<(), OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         const MIN_PART_SIZE: usize = 5 * 1024 * 1024; // 5 MB, S3 minimum
@@ -524,7 +591,7 @@ impl VersionStore for S3VersionStore {
     }
 
     async fn store_version(&self, hash: &str, data: Bytes) -> Result<(), OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         log::debug!("Storing version to S3");
         let key = self.generate_key(hash);
 
@@ -555,7 +622,7 @@ impl VersionStore for S3VersionStore {
         derived_filename: &str,
         derived_data: Bytes,
     ) -> Result<(), OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = format!("{}/{}", self.version_dir(orig_hash), derived_filename);
 
         client
@@ -574,7 +641,7 @@ impl VersionStore for S3VersionStore {
     }
 
     async fn get_version_size(&self, hash: &str) -> Result<u64, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         let resp = client
@@ -593,7 +660,7 @@ impl VersionStore for S3VersionStore {
     }
 
     async fn get_version(&self, hash: &str) -> Result<Vec<u8>, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         let resp = client
@@ -620,7 +687,7 @@ impl VersionStore for S3VersionStore {
         orig_hash: &str,
         derived_filename: &str,
     ) -> Result<u64, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = format!("{}/{}", self.version_dir(orig_hash), derived_filename);
 
         let resp = client
@@ -638,21 +705,73 @@ impl VersionStore for S3VersionStore {
         Ok(size)
     }
 
+    /// A version file larger than one ranged part streams from several ranged GETs at once,
+    /// holding at most `RANGE_READS_IN_FLIGHT` parts in memory.
     async fn get_version_stream(&self, hash: &str) -> Result<BoxedByteStream, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
-        let resp = client
+        let part_size = self.range_part_size;
+        let first = client
             .get_object()
             .bucket(&self.bucket)
             .key(&key)
+            .range(format!("bytes=0-{}", part_size - 1))
             .send()
-            .await
-            .map_err(|e| object_read_error(hash, &key, e))?;
+            .await;
+        let resp = match first {
+            Ok(resp) => resp,
+            // S3 refuses a range of an empty object, which has no byte 0.
+            Err(err)
+                if err
+                    .raw_response()
+                    .is_some_and(|r| r.status().as_u16() == 416) =>
+            {
+                return Ok(Box::new(stream::empty()));
+            }
+            Err(err) => return Err(object_read_error(hash, &key, err)),
+        };
 
-        let adapter = ByteStreamAdapter { inner: resp.body };
+        // `Content-Range` ends in the object's total size, as in `bytes 0-9/1234`.
+        let size = resp
+            .content_range()
+            .and_then(|range| range.rsplit_once('/'))
+            .and_then(|(_, total)| total.parse::<u64>().ok());
+        let Some(size) = size.filter(|&size| size > part_size) else {
+            // The entire file will be returned in the first call (either it's smaller than the part
+            // size or S3 ignored our range request and is returning the whole file)
+            return Ok(Box::new(ByteStreamAdapter { inner: resp.body }));
+        };
 
-        Ok(Box::new(adapter) as Box<_>)
+        // The first part is the response already open and the rest come from ranged GETs, all
+        // yielded in order.
+        let first_key = key.clone();
+        let first_part = async move {
+            let read = async {
+                Ok(resp
+                    .body
+                    .collect()
+                    .await
+                    .map_err(io::Error::other)?
+                    .into_bytes())
+            };
+            within_range_deadline(read, &first_key, 0, part_size - 1).await
+        }
+        .boxed();
+        let bucket = self.bucket.clone();
+        let other_parts = (1..size.div_ceil(part_size)).map(move |i| {
+            let start = i * part_size;
+            let end = size.min(start + part_size) - 1;
+            read_range(Arc::clone(&client), bucket.clone(), key.clone(), start, end).boxed()
+        });
+        // Each part downloads in a task of its own at S3's pace, and dropping the stream aborts
+        // the parts still running.
+        let spawned = iter::once(first_part).chain(other_parts).map(|part| {
+            let task = AbortOnDropHandle::new(tokio::spawn(part));
+            async move { task.await.map_err(io::Error::other)? }
+        });
+        let parts = stream::iter(spawned).buffered(RANGE_READS_IN_FLIGHT);
+        Ok(Box::new(parts))
     }
 
     async fn get_version_derived_stream(
@@ -660,7 +779,7 @@ impl VersionStore for S3VersionStore {
         orig_hash: &str,
         derived_filename: &str,
     ) -> Result<BoxedByteStream, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = format!("{}/{}", self.version_dir(orig_hash), derived_filename);
 
         let resp = client
@@ -680,7 +799,7 @@ impl VersionStore for S3VersionStore {
         orig_hash: &str,
         derived_filename: &str,
     ) -> Result<bool, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = format!("{}/{}", self.version_dir(orig_hash), derived_filename);
 
         match client
@@ -737,7 +856,7 @@ impl VersionStore for S3VersionStore {
         offset: u64,
         data: Bytes,
     ) -> Result<(), OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.chunk_key(hash, offset);
 
         client
@@ -761,7 +880,7 @@ impl VersionStore for S3VersionStore {
             return Ok(Vec::new());
         }
 
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         // HTTP Range is inclusive on both ends: bytes=start-end means bytes [start..=end]
@@ -809,7 +928,7 @@ impl VersionStore for S3VersionStore {
     }
 
     async fn version_exists(&self, hash: &str) -> Result<bool, OxenError> {
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         match client
@@ -860,7 +979,7 @@ impl VersionStore for S3VersionStore {
         // given `{hash}/` into one entry. Keys that sit directly under the prefix with no
         // further slash (e.g. the init-time `_permission_check`) come back as Contents
         // rather than CommonPrefixes, so they don't appear in the result.
-        let client = self.client().await?;
+        let client = self.client().await;
         let base = format!("{}/", self.prefix);
         let mut hashes = Vec::new();
         let mut continuation_token: Option<String> = None;
@@ -909,7 +1028,7 @@ impl VersionStore for S3VersionStore {
         }
         log::debug!("combine_version_chunks found {} chunks", offsets.len());
 
-        let client = self.client().await?;
+        let client = self.client().await;
         let key = self.generate_key(hash);
 
         // 2. Create multipart upload
@@ -1417,11 +1536,25 @@ pub(crate) mod tests {
 
         let retrieved = store.get_version(&hash).await.unwrap();
         assert!(retrieved.is_empty());
+
+        let streamed: Vec<Bytes> = store
+            .get_version_stream(&hash)
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        assert!(
+            streamed.concat().is_empty(),
+            "an empty version file streams back empty, though S3 refuses any range of it"
+        );
     }
 
     #[tokio::test]
     async fn test_copy_version_to_path_streams_to_dest() {
-        let (store, _tmp, _server) = setup().await;
+        let (mut store, _tmp, _server) = setup().await;
+        // 4-byte parts, so the reads below take several ranged GETs, or one for the shortest file.
+        store.range_part_size = 4;
         let data = b"streamed to destination";
         let hash = hasher::hash_buffer(data);
 
@@ -1443,6 +1576,44 @@ pub(crate) mod tests {
         assert_eq!(contents, data);
         let actual_mtime = std::fs::metadata(&dest_path).unwrap().modified().unwrap();
         assert_eq!(actual_mtime, mtime);
+
+        let whole_parts = b"twelve bytes";
+        let whole_parts_hash = hasher::hash_buffer(whole_parts);
+        store
+            .store_version(&whole_parts_hash, Bytes::from_static(whole_parts))
+            .await
+            .unwrap();
+        let streamed: Vec<Bytes> = store
+            .get_version_stream(&whole_parts_hash)
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(
+            streamed.concat(),
+            whole_parts,
+            "a file of exactly three parts streams back whole and in order"
+        );
+
+        let under_a_part = b"abc";
+        let under_a_part_hash = hasher::hash_buffer(under_a_part);
+        store
+            .store_version(&under_a_part_hash, Bytes::from_static(under_a_part))
+            .await
+            .unwrap();
+        let streamed: Vec<Bytes> = store
+            .get_version_stream(&under_a_part_hash)
+            .await
+            .unwrap()
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(
+            streamed.concat(),
+            under_a_part,
+            "a file smaller than one part streams back from the first ranged GET alone"
+        );
     }
 
     #[tokio::test]
@@ -1457,7 +1628,7 @@ pub(crate) mod tests {
             .expect("store_version_chunk should succeed");
 
         // Verify by reading the object back directly from S3
-        let client = store.client().await.expect("client should succeed");
+        let client = store.client().await;
         let resp = client
             .get_object()
             .bucket(&store.bucket)
@@ -1489,7 +1660,7 @@ pub(crate) mod tests {
             .expect("store chunk at offset 1024 should succeed");
 
         // Verify each chunk stored independently
-        let client = store.client().await.expect("client should succeed");
+        let client = store.client().await;
 
         let body0 = client
             .get_object()
@@ -1563,7 +1734,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn test_stream_and_delete_objects_with_prefix_paginate() {
         let (store, _tmp, _server) = setup().await;
-        let client = store.client().await.unwrap();
+        let client = store.client().await;
 
         // Seed more than one page of keys (list_objects_v2 returns <= 1000 per response) and more
         // than one delete batch, so both the lister's paging and the batched delete cross their
@@ -1794,7 +1965,7 @@ pub(crate) mod tests {
             .expect("combine_version_chunks should succeed");
 
         // Verify VERSION object has the correct content
-        let client = store.client().await.expect("client");
+        let client = store.client().await;
         let resp = client
             .get_object()
             .bucket(&store.bucket)

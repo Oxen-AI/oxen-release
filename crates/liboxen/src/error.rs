@@ -401,6 +401,10 @@ pub enum OxenError {
     #[error("The storage of repository {0} changed while its version files were moving")]
     StorageChangedDuringMove(PathBufError),
 
+    /// A storage move was refused because another move of the same repository is still running.
+    #[error("Repository {0} is already moving to other storage")]
+    StorageMoveInProgress(PathBufError),
+
     /// `oxen restore` finished with one or more file-restore failures. Aggregated rather than
     /// fail-fast so the rest of the files can still be restored. The vector should be non-empty.
     #[error("{}", format_restore_failures(failures))]
@@ -536,7 +540,8 @@ pub enum OxenError {
 
     /// `compare_and_swap_branch_commit_id` saw a branch head that did not match the expected
     /// previous value. `expected = None` means the caller expected the branch to be absent;
-    /// `actual = None` means the branch was absent at the time of the swap attempt.
+    /// `actual = None` means the branch was absent at the time of the swap attempt. oxen-server
+    /// maps this to HTTP 429 with `Retry-After`.
     #[error("Branch '{branch}' head mismatch: expected {expected:?}, found {actual:?}")]
     BranchHeadMismatch {
         branch: String,
@@ -853,6 +858,9 @@ impl OxenError {
             CommitIdTaken(_) => {
                 "Another commit with the same parent, message, author, and email was made in the same second. Retry the commit."
             }
+            BranchHeadMismatch { .. } => {
+                "Another write moved the branch while this commit was being written. Retry the commit."
+            }
             RevisionNotFound(_) => {
                 "Check available branches with `oxen branch --all` or commits with `oxen log`."
             }
@@ -932,13 +940,16 @@ impl OxenError {
                 "Use an older Oxen release to migrate this repository up to the current format, then retry with this CLI."
             }
             MerkleNodesOnFilesystem(_) => {
-                "Run `oxen migrate up merkle_nodes_to_lmdb <path>` with Oxen 0.61.0 to move the repository onto LMDB, then retry with this version."
+                "Run `oxen migrate up merkle_nodes_to_lmdb <path>` with Oxen 0.61.1 to move the repository onto LMDB, then retry with this version."
             }
             S3BackendMissingServerOpts => {
                 "Set `[storage] s3_bucket = \"<your-bucket>\"` in the server's config TOML and restart oxen-server."
             }
             StorageChangedDuringMove(_) => {
                 "Run the move again. It finishes the move, or does nothing if the repository is already on the requested storage."
+            }
+            StorageMoveInProgress(_) => {
+                "Wait for the move already running to finish, then run this one again if it is still needed."
             }
             TabularExportMissingMetadata(_) => {
                 "The data frame has no rows to commit. Add at least one row, or discard the workspace edits, then retry."
