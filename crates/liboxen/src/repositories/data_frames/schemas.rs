@@ -567,6 +567,8 @@ mod tests {
             repositories::data_frames::schemas::add_column_metadata(
                 &repo, &bbox_file, "file", &metadata,
             )?;
+            // Adding the unchanged file again keeps its staged schema change
+            repositories::add(&repo, &bbox_path).await?;
 
             let schema =
                 repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();

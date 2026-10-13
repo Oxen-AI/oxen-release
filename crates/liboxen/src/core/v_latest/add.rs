@@ -2,8 +2,10 @@ use filetime::FileTime;
 use futures::stream::{self, Stream, StreamExt};
 use par_stream::prelude::*;
 use parking_lot::Mutex;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::{HashMap, HashSet};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, WriteBatch};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::mem;
+use std::ops::Bound::{Excluded, Unbounded};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -50,6 +52,17 @@ pub struct FileStatus {
     pub mtime: FileTime,
     pub previous_metadata: Option<GenericMetadata>,
     pub previous_file_node: Option<FileNode>,
+}
+
+/// What `process_add_file` did with a file's staged entry.
+enum AddOutcome {
+    /// The file was staged with this entry.
+    Staged(Box<StagedMerkleTreeNode>),
+    /// The file matches HEAD, and its staged entry, if any, was left as it was.
+    Unchanged,
+    /// The file, at this path relative to the repository, matches HEAD and its staged entry was
+    /// deleted.
+    Unstaged(PathBuf),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -327,6 +340,7 @@ pub async fn process_add_dir(
     let byte_counter = Arc::new(AtomicU64::new(0));
     let added_file_counter = Arc::new(AtomicU64::new(0));
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
+    let unstaged_paths = Arc::new(Mutex::new(Vec::new()));
 
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,
@@ -362,6 +376,8 @@ pub async fn process_add_dir(
     let progress_1_clone = Arc::clone(&progress_1);
     let byte_counter_final = Arc::clone(&byte_counter);
     let added_file_counter_final = Arc::clone(&added_file_counter);
+    let unstaged_paths_final = Arc::clone(&unstaged_paths);
+    let staged_db_final = Arc::clone(&staged_db);
 
     // parallel processing
     entries_stream
@@ -378,6 +394,7 @@ pub async fn process_add_dir(
             let byte_counter_clone = Arc::clone(&byte_counter);
             let added_file_counter_clone = Arc::clone(&added_file_counter);
             let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
+            let unstaged_paths = Arc::clone(&unstaged_paths);
 
             let conflicts = Arc::clone(&conflicts);
             let version_store = Arc::clone(&version_store);
@@ -430,6 +447,7 @@ pub async fn process_add_dir(
                             let added_file_counter_clone = Arc::clone(&added_file_counter_clone);
                             let unchanged_file_counter_clone =
                                 Arc::clone(&unchanged_file_counter_clone);
+                            let unstaged_paths = Arc::clone(&unstaged_paths);
 
                             let conflicts = Arc::clone(&conflicts);
                             let version_store = Arc::clone(&version_store);
@@ -450,6 +468,7 @@ pub async fn process_add_dir(
                                         Arc::clone(&added_file_counter_clone);
                                     let unchanged_file_counter_clone =
                                         Arc::clone(&unchanged_file_counter_clone);
+                                    let unstaged_paths = Arc::clone(&unstaged_paths);
 
                                     let conflicts = Arc::clone(&conflicts);
                                     let version_store = Arc::clone(&version_store);
@@ -511,7 +530,7 @@ pub async fn process_add_dir(
                                             .await?
                                         };
                                         match added {
-                                            Ok(Some(node)) => {
+                                            Ok(AddOutcome::Staged(node)) => {
                                                 let file = tokio::fs::File::open(&path).await?;
                                                 let size = file.metadata().await?.len();
                                                 let reader = tokio::io::BufReader::new(file);
@@ -534,9 +553,14 @@ pub async fn process_add_dir(
                                                         .fetch_add(1, Ordering::Relaxed);
                                                 }
                                             }
-                                            Ok(None) => {
+                                            Ok(AddOutcome::Unchanged) => {
                                                 unchanged_file_counter_clone
                                                     .fetch_add(1, Ordering::Relaxed);
+                                            }
+                                            Ok(AddOutcome::Unstaged(relative_path)) => {
+                                                unchanged_file_counter_clone
+                                                    .fetch_add(1, Ordering::Relaxed);
+                                                unstaged_paths.lock().push(relative_path);
                                             }
                                             Err(e) => {
                                                 log::error!("Error adding file: {e:?}");
@@ -565,6 +589,15 @@ pub async fn process_add_dir(
             }
         })
         .await;
+
+    // Every staging write has finished, so no file is left staged without its directory's entry
+    let unstaged_paths = mem::take(&mut *unstaged_paths_final.lock());
+    if !unstaged_paths.is_empty() {
+        tokio::task::spawn_blocking(move || {
+            delete_empty_staged_ancestors(&staged_db_final, &unstaged_paths)
+        })
+        .await??;
+    }
 
     progress_1_clone.finish_and_clear();
     cumulative_stats.total_files = added_file_counter_final.load(Ordering::Relaxed) as usize;
@@ -699,7 +732,7 @@ async fn add_file_inner(
         path.to_path_buf(),
     );
     tokio::task::spawn_blocking(move || {
-        process_add_file(
+        let outcome = process_add_file(
             &repo,
             &repo_path,
             &file_status,
@@ -707,7 +740,15 @@ async fn add_file_inner(
             &path,
             &seen_dirs,
             &conflicts,
-        )
+        )?;
+        match outcome {
+            AddOutcome::Staged(node) => Ok(Some(*node)),
+            AddOutcome::Unchanged => Ok(None),
+            AddOutcome::Unstaged(relative_path) => {
+                delete_empty_staged_ancestors(&staged_db, &[relative_path])?;
+                Ok(None)
+            }
+        }
     })
     .await?
 }
@@ -777,7 +818,7 @@ pub async fn determine_file_status(
     })
 }
 
-pub fn process_add_file(
+fn process_add_file(
     repo: &LocalRepository,
     repo_path: &Path,         // Path to the repository
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
@@ -785,7 +826,7 @@ pub fn process_add_file(
     path: &Path, // Path to the file in the repository, or path defined by the user
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
     merge_conflicts: &HashSet<PathBuf>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+) -> Result<AddOutcome, OxenError> {
     log::debug!("process_add_file {path:?}");
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
@@ -793,10 +834,10 @@ pub fn process_add_file(
     if !full_path.is_file() {
         // If path is not canonical, we cannot recover the absolute repo path
         log::debug!("file is not a file - skipping add on {full_path:?}");
-        return Ok(Some(StagedMerkleTreeNode {
+        return Ok(AddOutcome::Staged(Box::new(StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir(),
-        }));
+        })));
     }
 
     let mut status = file_status.status.clone();
@@ -816,10 +857,22 @@ pub fn process_add_file(
         repositories::merge::mark_conflict_as_resolved(repo, &relative_path)?;
     }
 
-    // Don't have to add the file to the staged db if it hasn't changed
+    // A file that matches HEAD drops a staged removal or a staged edit it has since reverted, and
+    // keeps an entry staging its current content, such as one carrying a schema change
     if status == StagedEntryStatus::Unmodified {
-        log::debug!("file has not changed - skipping add");
-        return Ok(None);
+        let key = relative_path.to_string_lossy();
+        let Some(value) = staged_db.get_pinned(key.as_bytes())? else {
+            log::debug!("file has not changed - skipping add");
+            return Ok(AddOutcome::Unchanged);
+        };
+        let staged: StagedMerkleTreeNode = rmp_serde::from_slice(&value)?;
+        if staged.status != StagedEntryStatus::Removed && *staged.node.file()?.hash() == hash {
+            log::debug!("file matches HEAD - keeping its staged entry");
+            return Ok(AddOutcome::Unchanged);
+        }
+        log::debug!("file matches HEAD - unstaging {relative_path:?}");
+        staged_db.delete(key.as_bytes())?;
+        return Ok(AddOutcome::Unstaged(relative_path));
     }
 
     // Get the data type of the file
@@ -871,7 +924,9 @@ pub fn process_add_file(
         extension: file_extension.to_string(),
     })?;
 
-    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+    let staged =
+        p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)?;
+    Ok(AddOutcome::Staged(Box::new(staged)))
 }
 
 /// Add this function in replace of process_add_file for workspaces staged db to handle concurrent add_file calls
@@ -1197,13 +1252,13 @@ pub fn maybe_construct_generic_metadata_for_tabular(
     df_metadata
 }
 
-pub fn p_add_file_node_to_staged_db(
+fn p_add_file_node_to_staged_db(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     relative_path: impl AsRef<Path>,
     status: StagedEntryStatus,
     file_node: &FileNode,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+) -> Result<StagedMerkleTreeNode, OxenError> {
     let relative_path = relative_path.as_ref();
 
     log::debug!(
@@ -1240,7 +1295,7 @@ pub fn p_add_file_node_to_staged_db(
         }
     }
 
-    Ok(Some(staged_file_node))
+    Ok(staged_file_node)
 }
 
 pub fn add_dir_to_staged_db(
@@ -1263,6 +1318,38 @@ pub fn add_dir_to_staged_db(
     let mut buf = Vec::new();
     dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
+    Ok(())
+}
+
+/// Deletes the staged entry of each ancestor directory of `paths`, which are relative to the
+/// repository, that has nothing staged under it.
+fn delete_empty_staged_ancestors(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    paths: &[PathBuf],
+) -> Result<(), OxenError> {
+    let mut staged_paths = BTreeSet::new();
+    for entry in staged_db.iterator(IteratorMode::Start) {
+        let (key, _) = entry?;
+        staged_paths.insert(PathBuf::from(str::from_utf8(&key)?));
+    }
+
+    let dirs: BTreeSet<&Path> = paths
+        .iter()
+        .flat_map(|path| path.ancestors().skip(1))
+        .collect();
+    let mut batch = WriteBatch::default();
+    // Paths under a directory sort right after it, and visiting in reverse empties children first
+    for dir in dirs.into_iter().rev() {
+        let has_staged_child = staged_paths
+            .range::<Path, _>((Excluded(dir), Unbounded))
+            .next()
+            .is_some_and(|path| path.starts_with(dir));
+        if !has_staged_child && staged_paths.remove(dir) {
+            log::debug!("unstaging empty dir {dir:?}");
+            batch.delete(dir.to_string_lossy().as_bytes());
+        }
+    }
+    staged_db.write(batch)?;
     Ok(())
 }
 

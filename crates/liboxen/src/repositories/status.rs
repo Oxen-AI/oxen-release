@@ -560,6 +560,14 @@ mod tests {
                 "the recreated file is untracked"
             );
 
+            // Adding the file, which matches HEAD, undoes the staged removal.
+            repositories::add(&repo, &og_file).await?;
+            let status = repositories::status(&repo).await?;
+            assert!(
+                status.is_clean(),
+                "adding a file that matches HEAD leaves nothing staged"
+            );
+
             Ok(())
         })
         .await
@@ -758,6 +766,14 @@ mod tests {
             assert!(
                 status.untracked_dirs.is_empty(),
                 "its directory stays tracked rather than being promoted to untracked"
+            );
+
+            // Adding the directory, whose files all match HEAD, undoes the staged removal.
+            repositories::add(&repo, &train_dir).await?;
+            let status = repositories::status(&repo).await?;
+            assert!(
+                status.is_clean(),
+                "adding files that match HEAD leaves nothing staged"
             );
 
             Ok(())
