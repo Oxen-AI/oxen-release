@@ -6,7 +6,7 @@ use std::str;
 use std::sync::{Arc, LazyLock};
 
 use glob::Pattern;
-use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use rocksdb::DB;
 use time::OffsetDateTime;
 
 use crate::config::UserConfig;
@@ -42,7 +42,7 @@ struct CommitTraversalConfig<'a> {
     /// Maximum number of commits to collect (for pagination)
     limit: usize,
     /// Optional cache database for count lookups
-    cache_db: Option<&'a DBWithThreadMode<MultiThreaded>>,
+    cache_db: Option<&'a DB>,
     /// Known total count for early exit optimization
     known_total_count: Option<usize>,
 }
@@ -376,8 +376,7 @@ pub fn create_initial_commit(
     let commit_id_string = commit_id.to_string();
     let dir_hash_db_path =
         CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, &commit_id_string);
-    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts::default(), dunce::simplified(&dir_hash_db_path))?;
+    let dir_hash_db: DB = DB::open(&opts::default(), dunce::simplified(&dir_hash_db_path))?;
     str_val_db::put(&dir_hash_db, "", &dir_node.hash().to_string())?;
 
     // Create the branch pointing to this commit
@@ -762,7 +761,7 @@ const WARM_COMMIT_COUNT_DBS: NonZeroUsize = NonZeroUsize::new(64).unwrap();
 
 // Registry of open commit count DB handles, keyed by DB path. Concurrent callers share one handle,
 // which RocksDB requires, since it takes an exclusive lock per path.
-static COMMIT_COUNT_DBS: LazyLock<WeakDbCache<DBWithThreadMode<MultiThreaded>>> =
+static COMMIT_COUNT_DBS: LazyLock<WeakDbCache<DB>> =
     LazyLock::new(|| WeakDbCache::new(WARM_COMMIT_COUNT_DBS));
 
 /// Drops the commit count cache handles under `repository_path`, warm ones included. A handle a
@@ -776,31 +775,20 @@ pub fn remove_commit_count_db_from_cache_with_children(repository_path: &Path) {
 
 /// Return the shared commit-count cache DB for `repo`, opening it when no live handle exists. A
 /// cache hit does no filesystem work.
-fn open_commit_count_db(
-    repo: &LocalRepository,
-) -> Result<Arc<DBWithThreadMode<MultiThreaded>>, OxenError> {
+fn open_commit_count_db(repo: &LocalRepository) -> Result<Arc<DB>, OxenError> {
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(COMMIT_COUNT_DIR);
     COMMIT_COUNT_DBS.get_or_open(&db_path, || {
         util::fs::create_dir_all(&db_path)?;
-        db::open_with_lock_retry(|| {
-            DBWithThreadMode::open(&opts::default(), dunce::simplified(&db_path))
-        })
-        .map_err(OxenError::from)
+        db::open_with_lock_retry(|| DB::open(&opts::default(), dunce::simplified(&db_path)))
+            .map_err(OxenError::from)
     })
 }
 
-fn get_cached_count(
-    db: &DBWithThreadMode<MultiThreaded>,
-    commit_id: &str,
-) -> Result<Option<usize>, OxenError> {
+fn get_cached_count(db: &DB, commit_id: &str) -> Result<Option<usize>, OxenError> {
     str_val_db::get(db, commit_id)
 }
 
-fn cache_count(
-    db: &DBWithThreadMode<MultiThreaded>,
-    commit_id: &str,
-    count: usize,
-) -> Result<(), OxenError> {
+fn cache_count(db: &DB, commit_id: &str, count: usize) -> Result<(), OxenError> {
     str_val_db::put(db, commit_id, &count)
 }
 
@@ -1319,13 +1307,9 @@ mod tests {
 
             // Held outside COMMIT_COUNT_DBS so the cache cannot hand this handle back and every
             // open below has to survive a real LOCK collision.
-            let blocker: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts::default(), dunce::simplified(&db_path))?;
-            let collision = DBWithThreadMode::<MultiThreaded>::open(
-                &opts::default(),
-                dunce::simplified(&db_path),
-            )
-            .expect_err("a second open of a locked path must fail");
+            let blocker: DB = DB::open(&opts::default(), dunce::simplified(&db_path))?;
+            let collision = DB::open(&opts::default(), dunce::simplified(&db_path))
+                .expect_err("a second open of a locked path must fail");
             assert!(
                 db::is_lock_collision(&collision),
                 "expected a LOCK collision, got: {collision}"

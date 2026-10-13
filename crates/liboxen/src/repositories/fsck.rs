@@ -18,7 +18,7 @@
 //!    for removed nested directories), those endpoints return "Resource not found" for
 //!    directories that are still present in the tree. See [`rebuild_dir_hash_db`].
 
-use rocksdb::{DBWithThreadMode, SingleThreaded};
+use rocksdb::DB;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -165,8 +165,7 @@ pub fn rebuild_dir_hash_db(
     let mut successful_writes: usize = 0;
     {
         let opts = db::key_val::opts::default();
-        let new_db: DBWithThreadMode<SingleThreaded> =
-            DBWithThreadMode::open(&opts, dunce::simplified(&new_path))?;
+        let new_db: DB = DB::open(&opts, dunce::simplified(&new_path))?;
         for (path, hash) in &pairs {
             let Some(path_str) = path.to_str() else {
                 log::error!("Skipping non-UTF-8 path during rebuild: {path:?}");

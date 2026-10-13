@@ -1,10 +1,10 @@
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode, WriteBatch};
+use rocksdb::{DB, IteratorMode, WriteBatch};
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the value
-pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
+pub fn has_key<S: AsRef<str>>(db: &DB, key: S) -> bool {
     let key = key.as_ref();
     let bytes = key.as_bytes();
     match db.get_pinned(bytes) {
@@ -18,16 +18,13 @@ pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -
 }
 
 /// Count the number of entries in the db
-pub fn count<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<usize, OxenError> {
+pub fn count(db: &DB) -> Result<usize, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     Ok(iter.count())
 }
 
 /// Remove key from database
-pub fn delete<T: ThreadMode, S: AsRef<str>>(
-    db: &DBWithThreadMode<T>,
-    key: S,
-) -> Result<(), OxenError> {
+pub fn delete<S: AsRef<str>>(db: &DB, key: S) -> Result<(), OxenError> {
     let key = key.as_ref();
     log::debug!("kv_db::delete {:?} from db: {:?}", key, db.path());
 
@@ -36,7 +33,7 @@ pub fn delete<T: ThreadMode, S: AsRef<str>>(
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<Vec<String>, OxenError> {
+pub fn list_keys(db: &DB) -> Result<Vec<String>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut keys: Vec<String> = vec![];
     for item in iter {
@@ -63,7 +60,7 @@ pub fn list_keys<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<Vec<String>,
 }
 
 /// Remove all values from the db in one atomic write, so a reader sees either every value or none
-pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
+pub fn clear(db: &DB) -> Result<(), OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut batch = WriteBatch::default();
     for item in iter {

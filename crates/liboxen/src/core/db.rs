@@ -51,7 +51,7 @@ pub(crate) fn open_with_lock_retry<T>(
 
 #[cfg(test)]
 mod tests {
-    use rocksdb::{DBWithThreadMode, MultiThreaded};
+    use rocksdb::DB;
 
     use super::*;
     use crate::error::OxenError;
@@ -63,10 +63,9 @@ mod tests {
     fn test_is_lock_collision_on_a_held_lock() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             let db_path = dir.join("db");
-            let _held: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&key_val::opts::default(), &db_path)?;
+            let _held: DB = DB::open(&key_val::opts::default(), &db_path)?;
 
-            let err = DBWithThreadMode::<MultiThreaded>::open(&key_val::opts::default(), &db_path)
+            let err = DB::open(&key_val::opts::default(), &db_path)
                 .expect_err("a second open of a locked path must fail");
             assert!(
                 is_lock_collision(&err),
@@ -85,15 +84,14 @@ mod tests {
             let mut opts = key_val::opts::default();
             opts.create_if_missing(false);
 
-            let err = DBWithThreadMode::<MultiThreaded>::open(&opts, &db_path)
+            let err = DB::open(&opts, &db_path)
                 .expect_err("opening a missing db without create_if_missing must fail");
             let msg = err.to_string();
             assert!(msg.contains("LOCK"), "path missing from the error: {msg}");
             assert!(!is_lock_collision(&err), "misread as a collision: {msg}");
 
-            let retried =
-                open_with_lock_retry(|| DBWithThreadMode::<MultiThreaded>::open(&opts, &db_path))
-                    .expect_err("a non-collision failure must not be retried into success");
+            let retried = open_with_lock_retry(|| DB::open(&opts, &db_path))
+                .expect_err("a non-collision failure must not be retried into success");
             assert!(
                 !is_lock_collision(&retried),
                 "the retry changed which error surfaced: {retried}"
@@ -113,7 +111,7 @@ mod tests {
             let db_path = dir.join("db");
             util::fs::create_dir_all(db_path.join("LOCK"))?;
 
-            let err = DBWithThreadMode::<MultiThreaded>::open(&key_val::opts::default(), &db_path)
+            let err = DB::open(&key_val::opts::default(), &db_path)
                 .expect_err("a db whose LOCK path is a directory must fail to open");
             let msg = err.to_string();
             assert!(

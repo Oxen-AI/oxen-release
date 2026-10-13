@@ -7,9 +7,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use rmp_serde::Serializer;
-use rocksdb::DBWithThreadMode;
+use rocksdb::DB;
 use rocksdb::IteratorMode;
-use rocksdb::MultiThreaded;
 use serde::Serialize;
 use std::str;
 
@@ -413,24 +412,21 @@ pub fn add_column_metadata(
     Ok(results)
 }
 
-pub fn get_staged_db(repo: &LocalRepository) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+pub fn get_staged_db(repo: &LocalRepository) -> Result<DB, OxenError> {
     let path = staged_db_path(&repo.path)?;
     let opts = db::key_val::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
+    let db: DB = DB::open(&opts, dunce::simplified(&path))?;
     Ok(db)
 }
 
-pub fn get_staged_db_read_only(
-    repo: &LocalRepository,
-) -> Result<Option<DBWithThreadMode<MultiThreaded>>, OxenError> {
+pub fn get_staged_db_read_only(repo: &LocalRepository) -> Result<Option<DB>, OxenError> {
     let path = staged_db_path_no_side_effects(&repo.path)?;
     let opts = db::key_val::opts::default();
 
     if !path.exists() {
         Ok(None)
     } else {
-        match DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&path), false) {
+        match DB::open_for_read_only(&opts, dunce::simplified(&path), false) {
             Ok(db) => Ok(Some(db)),
             Err(err) => {
                 log::debug!("Failed to open database in read-only mode: {err:?}");

@@ -35,7 +35,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use rocksdb::{DBWithThreadMode, MultiThreaded};
+use rocksdb::DB;
 
 use std::sync::Arc;
 
@@ -46,8 +46,7 @@ pub async fn rm(
 ) -> Result<(), OxenError> {
     let db_opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&db_opts, dunce::simplified(&db_path))?;
+    let staged_db: DB = DB::open(&db_opts, dunce::simplified(&db_path))?;
 
     rm_with_staged_db(paths, repo, opts, &staged_db).await
 }
@@ -56,7 +55,7 @@ pub async fn rm_with_staged_db(
     paths: &HashSet<PathBuf>,
     repo: &LocalRepository,
     opts: &RmOpts,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<(), OxenError> {
     if !list_modified_files(repo, paths).await?.is_empty() {
         let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
@@ -77,7 +76,7 @@ pub async fn rm_with_staged_db(
 fn remove_staged_recursively_inner(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<(), OxenError> {
     // Iterate over staged_db and check if the path starts with the given path
     let iter = staged_db.iterator(IteratorMode::Start);
@@ -137,10 +136,7 @@ async fn list_modified_files(
 }
 
 // Removes an empty directory from the staged db
-fn cleanup_empty_dirs(
-    path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<(), OxenError> {
+fn cleanup_empty_dirs(path: &Path, staged_db: &DB) -> Result<(), OxenError> {
     let iter = staged_db.iterator(IteratorMode::Start);
     let mut total = 0;
     for item in iter {
@@ -178,7 +174,7 @@ fn remove_staged_inner(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
     rm_opts: &RmOpts,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<(), OxenError> {
     log::debug!("remove_staged paths {paths:?}");
     for path in paths {
@@ -203,14 +199,13 @@ pub fn remove_staged(
 ) -> Result<(), OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let staged_db: DB = DB::open(&opts, dunce::simplified(&db_path))?;
     remove_staged_inner(repo, paths, rm_opts, &staged_db)
 }
 
 fn get_staged_entry(
     path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let path_str = path.to_str().unwrap();
     let Some(value) = staged_db.get(path_str)? else {
@@ -219,10 +214,7 @@ fn get_staged_entry(
     Ok(Some(rmp_serde::from_slice(&value)?))
 }
 
-fn remove_staged_entry(
-    path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<(), OxenError> {
+fn remove_staged_entry(path: &Path, staged_db: &DB) -> Result<(), OxenError> {
     log::debug!("remove_staged path: {path:?} from staged db {staged_db:?}");
     staged_db.delete(path.to_str().unwrap())?;
     Ok(())
@@ -232,7 +224,7 @@ fn remove_file_inner(
     repo: &LocalRepository,
     path: &Path,
     file_node: &FileNode,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<CumulativeStats, OxenError> {
     let path = util::fs::path_relative_to_dir(path, &repo.path)?;
     log::debug!("remove_file path is {path:?}");
@@ -273,8 +265,7 @@ pub fn remove_file(
 ) -> Result<CumulativeStats, OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let staged_db: DB = DB::open(&opts, dunce::simplified(&db_path))?;
 
     remove_file_inner(repo, path, file_node, &staged_db)
 }
@@ -394,7 +385,7 @@ pub fn remove_dir_with_db_manager(
 fn process_remove_file_and_parents(
     repo: &LocalRepository,
     path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
     file_node: &FileNode,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let repo_path = repo.path.clone();
@@ -450,7 +441,7 @@ fn remove_inner(
     paths: &HashSet<PathBuf>,
     repo: &LocalRepository,
     opts: &RmOpts,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
 
@@ -540,7 +531,7 @@ fn remove_inner(
 pub fn process_remove_file(
     path: &Path,
     file_node: &FileNode,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let mut update_node = file_node.clone();
     update_node.set_name(&path.to_string_lossy());
@@ -569,7 +560,7 @@ fn remove_dir_inner(
     repo: &LocalRepository,
     commit: &Commit,
     path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<CumulativeStats, OxenError> {
     let dir_node = match CommitMerkleTree::dir_with_children_recursive(repo, commit, path, None)? {
         Some(node) => node,
@@ -589,8 +580,7 @@ pub fn remove_dir(
 ) -> Result<CumulativeStats, OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let staged_db: DB = DB::open(&opts, dunce::simplified(&db_path))?;
 
     remove_dir_inner(repo, commit, path, &staged_db)
 }
@@ -600,7 +590,7 @@ fn process_remove_dir(
     repo: &LocalRepository,
     path: &Path,
     dir_node: &MerkleTreeNode,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("Process Remove Dir");
 
@@ -661,7 +651,7 @@ fn r_process_remove_dir(
     _repo: &LocalRepository,
     path: &Path,
     node: &MerkleTreeNode,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
 ) -> Result<CumulativeStats, OxenError> {
     let mut total = CumulativeStats::default();
 
