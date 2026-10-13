@@ -2,10 +2,9 @@ use filetime::FileTime;
 use futures::stream::{self, Stream, StreamExt};
 use par_stream::prelude::*;
 use parking_lot::Mutex;
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, WriteBatch};
+use rocksdb::{DBWithThreadMode, Direction, IteratorMode, MultiThreaded, WriteBatch};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::mem;
-use std::ops::Bound::{Excluded, Unbounded};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -1332,26 +1331,35 @@ fn delete_empty_staged_ancestors(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     paths: &[PathBuf],
 ) -> Result<(), OxenError> {
-    let mut staged_paths = BTreeSet::new();
-    for entry in staged_db.iterator(IteratorMode::Start) {
-        let (key, _) = entry?;
-        staged_paths.insert(PathBuf::from(str::from_utf8(&key)?));
-    }
-
     let dirs: BTreeSet<&Path> = paths
         .iter()
         .flat_map(|path| path.ancestors().skip(1))
         .collect();
+    let mut unstaged_dirs = HashSet::new();
     let mut batch = WriteBatch::default();
     // Paths under a directory sort right after it, and visiting in reverse empties children first
     for dir in dirs.into_iter().rev() {
-        let has_staged_child = staged_paths
-            .range::<Path, _>((Excluded(dir), Unbounded))
-            .next()
-            .is_some_and(|path| path.starts_with(dir));
-        if !has_staged_child && staged_paths.remove(dir) {
+        let key = dir.to_string_lossy();
+        let mut is_staged = false;
+        let mut has_staged_child = false;
+        // Every key under `dir` begins with its key, as do siblings such as `dir.csv`
+        for entry in staged_db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
+            let (entry_key, _) = entry?;
+            if !entry_key.starts_with(key.as_bytes()) {
+                break;
+            }
+            let path = Path::new(str::from_utf8(&entry_key)?);
+            if path == dir {
+                is_staged = true;
+            } else if path.starts_with(dir) && !unstaged_dirs.contains(path) {
+                has_staged_child = true;
+                break;
+            }
+        }
+        if is_staged && !has_staged_child {
             log::debug!("unstaging empty dir {dir:?}");
-            batch.delete(dir.to_string_lossy().as_bytes());
+            batch.delete(key.as_bytes());
+            unstaged_dirs.insert(dir);
         }
     }
     staged_db.write(batch)?;
