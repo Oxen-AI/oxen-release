@@ -77,7 +77,7 @@ The tokens `add-user` issued and the secret they were signed with stay in `$SYNC
 rm -rf "$SYNC_DIR/.oxen"
 ```
 
-Until it is gone, the `oxen` CLI run from a directory inside the sync directory that no repository contains takes the whole sync directory for a repository.
+Until it is gone, the `oxen` CLI run from a directory inside the sync directory that no repository contains takes the whole sync directory for a repository, and servers released after 0.63.0 list it as a namespace called `.oxen`.
 
 ## Copy an S3-backed repository's objects to its UUID prefix
 

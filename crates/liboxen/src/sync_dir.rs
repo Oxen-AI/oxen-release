@@ -20,10 +20,9 @@ const REPOS_DIR: &str = "repo";
 const REPOS_DIR_MARKER: &str = "placement-v2";
 
 /// Entries at the top of the sync dir holding the server's own state rather than a namespace's
-/// repositories, `.oxen` among them for the access-key store a server before 0.59.0 kept there. A
-/// directory named for one of these is not reported as a namespace, so a namespace could not be
-/// seen under that name either.
-const SERVER_OWNED_DIRS: &[&str] = &[NAME_TABLE_DIR, OXEN_HIDDEN_DIR, REPOS_DIR];
+/// repositories. A directory named for one of these is not reported as a namespace, so a namespace
+/// could not be seen under that name either.
+const SERVER_OWNED_DIRS: &[&str] = &[NAME_TABLE_DIR, REPOS_DIR];
 
 /// Whether the entry named `name` at the top of the sync dir is a namespace rather than the
 /// server's own state.

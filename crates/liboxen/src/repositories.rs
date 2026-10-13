@@ -1564,9 +1564,8 @@ mod tests {
             repositories::init(&repo_dir)?;
 
             // The server's own state sits beside the namespaces, so neither listing may report it
-            // as one: the name table, and the `.oxen` an access-key store from before 0.59.0 left.
+            // as one.
             util::fs::create_dir_all(sync_dir.join(NAME_TABLE_DIR))?;
-            util::fs::create_dir_all(sync_dir.join(OXEN_HIDDEN_DIR).join("keys"))?;
 
             let namespaces = repositories::list_namespaces(sync_dir)?;
             assert_eq!(namespaces.len(), 1);
