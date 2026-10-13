@@ -17,7 +17,7 @@ use crate::{repositories, util};
 use ignore::gitignore::Gitignore;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
+use rocksdb::{DB, IteratorMode};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
@@ -336,7 +336,7 @@ fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<()
 
 pub fn read_staged_entries(
     repo: &LocalRepository,
-    db: &DBWithThreadMode<SingleThreaded>,
+    db: &DB,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
     read_staged_entries_below_path(repo, db, Path::new(""), read_progress)
@@ -362,7 +362,7 @@ pub fn read_staged_entries_below_path_with_staged_db_manager(
 
 pub fn read_staged_entries_below_path(
     repo: &LocalRepository,
-    db: &DBWithThreadMode<SingleThreaded>,
+    db: &DB,
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, usize), OxenError> {
@@ -436,7 +436,7 @@ pub fn read_staged_entries_below_path(
 /// `status_from_opts_and_staged_data` already has a fully-materialized `StagedData`.
 #[derive(Clone, Copy)]
 enum StagedSource<'a> {
-    Db(&'a Option<DBWithThreadMode<SingleThreaded>>),
+    Db(&'a Option<DB>),
     Data(&'a StagedData),
 }
 
@@ -1027,15 +1027,12 @@ fn count_removed_entries(
 }
 
 // Helper functions (implement these based on your existing code)
-fn open_staged_db(
-    repo: &LocalRepository,
-) -> Result<Option<DBWithThreadMode<SingleThreaded>>, OxenError> {
+fn open_staged_db(repo: &LocalRepository) -> Result<Option<DB>, OxenError> {
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     if db_path.join("CURRENT").exists() {
         // Read the staged files from the staged db
         let opts = db::key_val::opts::default();
-        let db: DBWithThreadMode<SingleThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
+        let db: DB = DB::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
         Ok(Some(db))
     } else {
         Ok(None)

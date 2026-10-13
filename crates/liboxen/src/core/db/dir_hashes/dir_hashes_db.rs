@@ -5,7 +5,7 @@ use crate::model::{Commit, LocalRepository};
 use crate::util;
 
 use parking_lot::{Mutex, RwLock};
-use rocksdb::{DBWithThreadMode, MultiThreaded};
+use rocksdb::DB;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Weak};
@@ -19,7 +19,7 @@ struct DirHashDbCache {
     /// drops, RocksDB closes and the entry becomes a tombstone that the next opener prunes.
     /// There is no capacity cap, so an in-use entry can never be evicted — every concurrent
     /// reader of the same commit shares one handle instead of accumulating parallel RO opens.
-    handles: Mutex<HashMap<PathBuf, Weak<DBWithThreadMode<MultiThreaded>>>>,
+    handles: Mutex<HashMap<PathBuf, Weak<DB>>>,
 
     /// Per-repo rebuild barriers. Readers of a repo's dir_hash_db hold `.read()` across their
     /// whole operation; rebuilders take `.write()`. When the rebuilder gets the write guard,
@@ -61,7 +61,7 @@ impl DirHashDbCache {
         operation: F,
     ) -> Result<T, OxenError>
     where
-        F: FnOnce(&DBWithThreadMode<MultiThreaded>) -> Result<T, OxenError>,
+        F: FnOnce(&DB) -> Result<T, OxenError>,
     {
         let barrier = self.barrier_for(&repository.path);
         let _barrier_guard = barrier.read();
@@ -74,10 +74,7 @@ impl DirHashDbCache {
     /// Return the shared read-only handle for `dir_hashes_db_dir`, opening it on first access.
     /// The dir must already exist — dir_hashes are written when a commit is created, and readers
     /// error out (rather than materialize an empty dir) if the target commit has none on disk.
-    fn open_reader(
-        &self,
-        dir_hashes_db_dir: &Path,
-    ) -> Result<Arc<DBWithThreadMode<MultiThreaded>>, OxenError> {
+    fn open_reader(&self, dir_hashes_db_dir: &Path) -> Result<Arc<DB>, OxenError> {
         let mut handles = self.handles.lock();
         if let Some(strong) = lookup_live(&handles, dir_hashes_db_dir) {
             return Ok(strong);
@@ -86,11 +83,7 @@ impl DirHashDbCache {
             return Err(OxenError::path_does_not_exist(dir_hashes_db_dir));
         }
         let opts = db::key_val::opts::default();
-        let db = Arc::new(DBWithThreadMode::<MultiThreaded>::open_for_read_only(
-            &opts,
-            dir_hashes_db_dir,
-            false,
-        )?);
+        let db = Arc::new(DB::open_for_read_only(&opts, dir_hashes_db_dir, false)?);
         handles.insert(dir_hashes_db_dir.to_path_buf(), Arc::downgrade(&db));
         handles.retain(|_, weak| weak.strong_count() > 0);
         Ok(db)
@@ -123,10 +116,7 @@ impl DirHashDbCache {
     }
 }
 
-fn lookup_live(
-    handles: &HashMap<PathBuf, Weak<DBWithThreadMode<MultiThreaded>>>,
-    dir_hashes_db_dir: &Path,
-) -> Option<Arc<DBWithThreadMode<MultiThreaded>>> {
+fn lookup_live(handles: &HashMap<PathBuf, Weak<DB>>, dir_hashes_db_dir: &Path) -> Option<Arc<DB>> {
     handles.get(dir_hashes_db_dir)?.upgrade()
 }
 
@@ -162,7 +152,7 @@ pub fn with_dir_hash_db_manager<F, T>(
     operation: F,
 ) -> Result<T, OxenError>
 where
-    F: FnOnce(&DBWithThreadMode<MultiThreaded>) -> Result<T, OxenError>,
+    F: FnOnce(&DB) -> Result<T, OxenError>,
 {
     CACHE.with_reader(repository, commit_id, operation)
 }

@@ -1257,6 +1257,7 @@ impl CommitMerkleTree {
 mod tests {
     use crate::test;
 
+    use rocksdb::DB;
     use std::path::PathBuf;
 
     use crate::core::v_latest::index::CommitMerkleTree;
@@ -1297,8 +1298,7 @@ mod tests {
             crate::core::db::dir_hashes::dir_hashes_db::remove_from_cache_with_children(&db_path)?;
             {
                 let opts = crate::core::db::key_val::opts::default();
-                let db: rocksdb::DBWithThreadMode<rocksdb::SingleThreaded> =
-                    rocksdb::DBWithThreadMode::open(&opts, &db_path)?;
+                let db: DB = DB::open(&opts, &db_path)?;
                 crate::core::db::key_val::str_val_db::delete(&db, "assets/characters")?;
                 crate::core::db::key_val::str_val_db::put(
                     &db,

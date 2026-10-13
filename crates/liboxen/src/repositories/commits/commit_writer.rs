@@ -4,7 +4,7 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use parking_lot::Mutex;
-use rocksdb::{DBWithThreadMode, SingleThreaded};
+use rocksdb::DB;
 use std::path::PathBuf;
 use std::str;
 use std::sync::LazyLock;
@@ -48,11 +48,7 @@ use crate::model::merkle_tree::node::{CommitNode, DirNode};
 /// Keys are canonicalized to forward slashes so a directory is looked up by the same path on
 /// every platform, keeping a Windows client (which writes `\` separators into `PathBuf`) and
 /// a Linux server agreeing on directory keys.
-fn put_dir_hash(
-    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
-    path: &Path,
-    hash: &MerkleHash,
-) -> Result<(), OxenError> {
+fn put_dir_hash(dir_hash_db: &DB, path: &Path, hash: &MerkleHash) -> Result<(), OxenError> {
     match path.to_str() {
         Some(path_str) => str_val_db::put(
             dir_hash_db,
@@ -65,7 +61,7 @@ fn put_dir_hash(
 }
 
 fn put_dir_hashes(
-    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_hash_db: &DB,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
 ) -> Result<(), OxenError> {
     for (path, hash) in dir_hashes {
@@ -176,8 +172,7 @@ pub(crate) fn commit_with_cfg(
     let opts = db::key_val::opts::default();
     let staged_db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     log::debug!("commit_with_cfg staged db path: {staged_db_path:?}");
-    let staged_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
+    let staged_db: DB = DB::open(&opts, dunce::simplified(&staged_db_path))?;
 
     // Read all the staged entries
     let (dir_entries, total_changes) =
@@ -323,8 +318,7 @@ pub(crate) fn commit_dir_entries_with_parents(
     let commit_id_string = format!("{commit_id}").to_string();
     let dir_hash_db_path =
         CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, &commit_id_string);
-    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+    let dir_hash_db: DB = DB::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
     let (dir_hashes, parent_id) = match &maybe_head_commit {
         Some(commit) => (
@@ -410,8 +404,7 @@ pub fn commit_dir_entries_new(
     let commit_id_string = format!("{commit_id}").to_string();
     let dir_hash_db_path =
         CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, &commit_id_string);
-    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+    let dir_hash_db: DB = DB::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
     let (dir_hashes, parent_id) = match &maybe_head_commit {
         Some(commit) => (
@@ -546,8 +539,7 @@ pub fn commit_dir_entries(
     let commit_id_string = format!("{commit_id}").to_string();
     let dir_hash_db_path =
         CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, &commit_id_string);
-    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+    let dir_hash_db: DB = DB::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
     let dir_hashes = match &maybe_head_commit {
         Some(commit) => CommitMerkleTree::dir_hashes(repo, commit)?,
@@ -846,7 +838,7 @@ fn write_commit_entries(
     repo: &LocalRepository,
     commit_id: MerkleHash,
     commit_db: &mut MerkleNodeDB,
-    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_hash_db: &DB,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
     entries: &HashMap<PathBuf, (Vec<EntryVNode>, Vec<StagedMerkleTreeNode>)>,
 ) -> Result<(), OxenError> {
@@ -885,7 +877,7 @@ fn write_commit_entries(
 /// The `entries` are staged files. This removes every directory that is staged for removal
 /// from the supplied `dir_hash_db`.
 fn cache_invalidate_dir_hash_db<'a>(
-    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_hash_db: &DB,
     entries: impl Iterator<Item = &'a Vec<StagedMerkleTreeNode>>,
 ) -> Result<(), OxenError> {
     for removed_children in entries {
@@ -910,7 +902,7 @@ fn r_create_dir_node(
     repo: &LocalRepository,
     commit_id: MerkleHash,
     maybe_dir_db: &mut Option<MerkleNodeDB>,
-    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_hash_db: &DB,
     dir_hashes: &HashMap<PathBuf, MerkleHash>,
     entries: &HashMap<PathBuf, (Vec<EntryVNode>, Vec<StagedMerkleTreeNode>)>,
     path: impl AsRef<Path>,

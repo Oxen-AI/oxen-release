@@ -2,7 +2,7 @@ use filetime::FileTime;
 use futures::stream::{self, Stream, StreamExt};
 use par_stream::prelude::*;
 use parking_lot::Mutex;
-use rocksdb::{DBWithThreadMode, Direction, IteratorMode, MultiThreaded, WriteBatch};
+use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -132,8 +132,7 @@ pub async fn add<T: AsRef<Path>>(
     let opts = db::key_val::opts::default();
     let db_path = repo_path.join(OXEN_HIDDEN_DIR).join(STAGED_DIR);
 
-    let staged_db: Arc<DBWithThreadMode<MultiThreaded>> =
-        Arc::new(DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?);
+    let staged_db: Arc<DB> = Arc::new(DB::open(&opts, dunce::simplified(&db_path))?);
 
     let _stats = add_files(repo, &repo_path, &expanded_paths, staged_db, &version_store).await?;
 
@@ -144,7 +143,7 @@ pub async fn add_files(
     repo: &LocalRepository,
     repo_path: &PathBuf,
     paths: &HashSet<PathBuf>, // We assume all paths provided are relative to the repo root
-    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
+    staged_db: Arc<DB>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("add files got paths: {:?}", paths.len());
@@ -282,7 +281,7 @@ async fn add_dir_inner(
     repo_path: &Path,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
-    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
+    staged_db: Arc<DB>,
     version_store: &Arc<dyn VersionStore>,
     excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
@@ -309,8 +308,7 @@ pub async fn add_dir_except(
 ) -> Result<CumulativeStats, OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let staged_db: DB = DB::open(&opts, dunce::simplified(&db_path))?;
 
     // Get the version store from the repository
     let version_store = repo.version_store();
@@ -337,7 +335,7 @@ pub async fn process_add_dir(
     repo_path: &Path,
     maybe_head_commit: &Option<Commit>,
     version_store: &Arc<dyn VersionStore>,
-    staged_db: Arc<DBWithThreadMode<MultiThreaded>>,
+    staged_db: Arc<DB>,
     path: PathBuf,
     excluded_hashes: HashSet<MerkleHash>,
     gitignore: &Option<Gitignore>,
@@ -711,7 +709,7 @@ async fn add_file_inner(
     repo_path: &PathBuf,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
-    staged_db: &Arc<DBWithThreadMode<MultiThreaded>>,
+    staged_db: &Arc<DB>,
     version_store: &Arc<dyn VersionStore>,
 ) -> Result<AddOutcome, OxenError> {
     let maybe_dir_node = if let Some(head_commit) = maybe_head_commit {
@@ -826,7 +824,7 @@ fn process_add_file(
     repo: &LocalRepository,
     repo_path: &Path,         // Path to the repository
     file_status: &FileStatus, // All the metadata including if the file is added, modified, or deleted
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
     path: &Path, // Path to the file in the repository, or path defined by the user
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
     merge_conflicts: &HashSet<PathBuf>,
@@ -1257,7 +1255,7 @@ pub fn maybe_construct_generic_metadata_for_tabular(
 }
 
 fn p_add_file_node_to_staged_db(
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
     relative_path: impl AsRef<Path>,
     status: StagedEntryStatus,
     file_node: &FileNode,
@@ -1303,7 +1301,7 @@ fn p_add_file_node_to_staged_db(
 }
 
 pub fn add_dir_to_staged_db(
-    staged_db: &DBWithThreadMode<MultiThreaded>,
+    staged_db: &DB,
     relative_path: impl AsRef<Path>,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<(), OxenError> {
@@ -1327,10 +1325,7 @@ pub fn add_dir_to_staged_db(
 
 /// Deletes the staged entry of each ancestor directory of `paths`, which are relative to the
 /// repository, that has nothing staged under it.
-fn delete_empty_staged_ancestors(
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-    paths: &[PathBuf],
-) -> Result<(), OxenError> {
+fn delete_empty_staged_ancestors(staged_db: &DB, paths: &[PathBuf]) -> Result<(), OxenError> {
     let dirs: BTreeSet<&Path> = paths
         .iter()
         .flat_map(|path| path.ancestors().skip(1))

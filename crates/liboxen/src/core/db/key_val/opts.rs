@@ -42,7 +42,7 @@ fn set_table_format(opts: &mut Options) {
 
 #[cfg(test)]
 mod tests {
-    use rocksdb::{DBWithThreadMode, MultiThreaded};
+    use rocksdb::DB;
 
     use super::*;
     use crate::error::OxenError;
@@ -56,8 +56,7 @@ mod tests {
         test::run_empty_dir_test(|dir| {
             let db_path = dir.join("db");
             {
-                let db: DBWithThreadMode<MultiThreaded> =
-                    DBWithThreadMode::open(&default(), &db_path)?;
+                let db: DB = DB::open(&default(), &db_path)?;
                 for i in 0..1000 {
                     db.put(format!("key{i:05}"), format!("value{i}"))?;
                 }

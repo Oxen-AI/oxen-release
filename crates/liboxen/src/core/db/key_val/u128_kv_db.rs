@@ -1,9 +1,9 @@
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, ThreadMode};
+use rocksdb::DB;
 
 /// More efficient than get since it does not actual deserialize the value
-pub fn has_key<T: ThreadMode>(db: &DBWithThreadMode<T>, key: u128) -> bool {
+pub fn has_key(db: &DB, key: u128) -> bool {
     let key = key.to_be_bytes().to_vec();
     match db.get_pinned(key) {
         Ok(Some(_value)) => true,
@@ -16,7 +16,7 @@ pub fn has_key<T: ThreadMode>(db: &DBWithThreadMode<T>, key: u128) -> bool {
 }
 
 /// # Get the value from the key
-pub fn get<T: ThreadMode, D>(db: &DBWithThreadMode<T>, key: u128) -> Result<Option<D>, OxenError>
+pub fn get<D>(db: &DB, key: u128) -> Result<Option<D>, OxenError>
 where
     D: bytevec::ByteDecodable,
 {
@@ -49,11 +49,7 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>,
-    key: u128,
-    entry: &D,
-) -> Result<(), OxenError>
+pub fn put<D>(db: &DB, key: u128, entry: &D) -> Result<(), OxenError>
 where
     D: bytevec::ByteEncodable + std::fmt::Debug,
 {
@@ -71,11 +67,7 @@ where
     }
 }
 
-pub fn put_buf<T: ThreadMode>(
-    db: &DBWithThreadMode<T>,
-    key: u128,
-    entry: &[u8],
-) -> Result<(), OxenError> {
+pub fn put_buf(db: &DB, key: u128, entry: &[u8]) -> Result<(), OxenError> {
     let key = key.to_be_bytes().to_vec();
     db.put(key, entry)?;
     Ok(())

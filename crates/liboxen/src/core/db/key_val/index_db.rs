@@ -1,15 +1,11 @@
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DB, IteratorMode};
 use std::collections::HashMap;
 use std::mem;
 use std::str;
 
-pub fn insert_indices<S: AsRef<str>>(
-    db: &DBWithThreadMode<MultiThreaded>,
-    key: S,
-    indices: Vec<u32>,
-) -> Result<(), OxenError> {
+pub fn insert_indices<S: AsRef<str>>(db: &DB, key: S, indices: Vec<u32>) -> Result<(), OxenError> {
     let key = key.as_ref();
 
     // Could not use the bytevec library here when inserting a larger set of indices
@@ -19,10 +15,7 @@ pub fn insert_indices<S: AsRef<str>>(
     Ok(())
 }
 
-pub fn get_indices<S: AsRef<str>>(
-    db: &DBWithThreadMode<MultiThreaded>,
-    key: S,
-) -> Result<Option<Vec<u32>>, OxenError> {
+pub fn get_indices<S: AsRef<str>>(db: &DB, key: S) -> Result<Option<Vec<u32>>, OxenError> {
     let key = key.as_ref();
     let bytes = key.as_bytes();
     match db.get(bytes) {
@@ -44,9 +37,7 @@ pub fn get_indices<S: AsRef<str>>(
     }
 }
 
-pub fn list_indices(
-    db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<Vec<(String, Vec<u32>)>, OxenError> {
+pub fn list_indices(db: &DB) -> Result<Vec<(String, Vec<u32>)>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, Vec<u32>)> = vec![];
     for item in iter {
@@ -75,9 +66,7 @@ pub fn list_indices(
     Ok(results)
 }
 
-pub fn hash_map_indices(
-    db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<HashMap<String, Vec<u32>>, OxenError> {
+pub fn hash_map_indices(db: &DB) -> Result<HashMap<String, Vec<u32>>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: HashMap<String, Vec<u32>> = HashMap::new();
     for item in iter {

@@ -3,7 +3,7 @@ use indicatif::ProgressBar;
 use serde::{Serialize, de};
 
 use os_path::OsPath;
-use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
+use rocksdb::{DB, IteratorMode};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,7 @@ use crate::core::db::key_val::str_json_db;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
-pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(db: &DBWithThreadMode<T>, path: P) -> bool {
+pub fn has_entry<P: AsRef<Path>>(db: &DB, path: P) -> bool {
     let path = path.as_ref();
 
     // strip trailing / if exists for looking up directories
@@ -28,10 +28,7 @@ pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(db: &DBWithThreadMode<T>, path: 
 }
 
 /// # Get the staged entry object from the file path
-pub fn get_entry<T: ThreadMode, P: AsRef<Path>, D>(
-    db: &DBWithThreadMode<T>,
-    path: P,
-) -> Result<Option<D>, OxenError>
+pub fn get_entry<P: AsRef<Path>, D>(db: &DB, path: P) -> Result<Option<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -45,11 +42,7 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<T: ThreadMode, P: AsRef<Path>, S>(
-    db: &DBWithThreadMode<T>,
-    path: P,
-    entry: &S,
-) -> Result<(), OxenError>
+pub fn put<P: AsRef<Path>, S>(db: &DB, path: P, entry: &S) -> Result<(), OxenError>
 where
     S: Serialize,
 {
@@ -64,10 +57,7 @@ where
 }
 
 /// # Removes path entry from database
-pub fn delete<T: ThreadMode, P: AsRef<Path>>(
-    db: &DBWithThreadMode<T>,
-    path: P,
-) -> Result<(), OxenError> {
+pub fn delete<P: AsRef<Path>>(db: &DB, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
         // de-windows-ify the path
@@ -79,10 +69,7 @@ pub fn delete<T: ThreadMode, P: AsRef<Path>>(
 }
 
 /// # Count the number of entries in the db
-pub fn count<T: ThreadMode>(
-    db: &DBWithThreadMode<T>,
-    progress: Option<ProgressBar>,
-) -> Result<usize, OxenError> {
+pub fn count(db: &DB, progress: Option<ProgressBar>) -> Result<usize, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut count = 0;
     for item in iter {
@@ -105,10 +92,7 @@ pub fn count<T: ThreadMode>(
 
 /// # List the file paths in the staged dir
 /// More efficient than list_added_path_entries since it does not deserialize the entries
-pub fn list_paths<T: ThreadMode>(
-    db: &DBWithThreadMode<T>,
-    base_dir: &Path,
-) -> Result<Vec<PathBuf>, OxenError> {
+pub fn list_paths(db: &DB, base_dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
     // log::debug!("path_db::list_paths({:?})", base_dir);
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<PathBuf> = vec![];
@@ -138,10 +122,7 @@ pub fn list_paths<T: ThreadMode>(
 }
 
 /// # List file names and attached entries
-pub fn list_path_entries<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>,
-    base_dir: &Path,
-) -> Result<Vec<(PathBuf, D)>, OxenError>
+pub fn list_path_entries<D>(db: &DB, base_dir: &Path) -> Result<Vec<(PathBuf, D)>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -185,14 +166,14 @@ where
 }
 
 /// # List entries without file names
-pub fn list_entries<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
+pub fn list_entries<D>(db: &DB) -> Result<Vec<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
     str_json_db::list_vals(db)
 }
 
-pub fn list_entries_set<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<HashSet<D>, OxenError>
+pub fn list_entries_set<D>(db: &DB) -> Result<HashSet<D>, OxenError>
 where
     D: de::DeserializeOwned,
     D: Hash,
@@ -227,15 +208,11 @@ where
     Ok(paths)
 }
 
-pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
+pub fn clear(db: &DB) -> Result<(), OxenError> {
     str_json_db::clear(db)
 }
 
-pub fn list_entry_page<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>,
-    page: usize,
-    page_size: usize,
-) -> Result<Vec<D>, OxenError>
+pub fn list_entry_page<D>(db: &DB, page: usize, page_size: usize) -> Result<Vec<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -271,8 +248,8 @@ where
 }
 
 /// List the entries given an offset, page, and page_size
-pub fn list_entry_page_with_offset<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>,
+pub fn list_entry_page_with_offset<D>(
+    db: &DB,
     page: usize,
     page_size: usize,
     offset: usize,

@@ -1,4 +1,4 @@
-use rocksdb::{DBWithThreadMode, SingleThreaded, WriteBatch};
+use rocksdb::{DB, WriteBatch};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -155,10 +155,10 @@ fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenE
     Ok(())
 }
 
-fn open_staged_db(db_path: &Path) -> Result<Option<DBWithThreadMode<SingleThreaded>>, OxenError> {
+fn open_staged_db(db_path: &Path) -> Result<Option<DB>, OxenError> {
     if db_path.join("CURRENT").exists() {
         let opts = db::key_val::opts::default();
-        let db = DBWithThreadMode::open(&opts, dunce::simplified(db_path))?;
+        let db = DB::open(&opts, dunce::simplified(db_path))?;
         Ok(Some(db))
     } else {
         Ok(None)

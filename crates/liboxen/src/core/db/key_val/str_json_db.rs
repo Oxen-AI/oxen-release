@@ -2,37 +2,31 @@ use crate::core::db::key_val::kv_db;
 use crate::error::OxenError;
 use serde::{Serialize, de};
 
-use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
+use rocksdb::{DB, IteratorMode};
 use std::{collections::HashMap, str};
 
 /// More efficient than get since it does not actual deserialize the entry
-pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
+pub fn has_key<S: AsRef<str>>(db: &DB, key: S) -> bool {
     kv_db::has_key(db, key)
 }
 
 /// Remove all values from the db
-pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
+pub fn clear(db: &DB) -> Result<(), OxenError> {
     kv_db::clear(db)
 }
 
 /// # Removes key from database
-pub fn delete<T: ThreadMode, S: AsRef<str>>(
-    db: &DBWithThreadMode<T>,
-    key: S,
-) -> Result<(), OxenError> {
+pub fn delete<S: AsRef<str>>(db: &DB, key: S) -> Result<(), OxenError> {
     kv_db::delete(db, key)
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<Vec<String>, OxenError> {
+pub fn list_keys(db: &DB) -> Result<Vec<String>, OxenError> {
     kv_db::list_keys(db)
 }
 
 /// # Get the value from the key
-pub fn get<T: ThreadMode, S: AsRef<str>, D>(
-    db: &DBWithThreadMode<T>,
-    key: S,
-) -> Result<Option<D>, OxenError>
+pub fn get<S: AsRef<str>, D>(db: &DB, key: S) -> Result<Option<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -68,11 +62,7 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<T: ThreadMode, S: AsRef<str>, D>(
-    db: &DBWithThreadMode<T>,
-    key: S,
-    entry: &D,
-) -> Result<(), OxenError>
+pub fn put<S: AsRef<str>, D>(db: &DB, key: S, entry: &D) -> Result<(), OxenError>
 where
     D: Serialize,
 {
@@ -91,7 +81,7 @@ where
 }
 
 /// List Values
-pub fn list_vals<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
+pub fn list_vals<D>(db: &DB) -> Result<Vec<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -124,7 +114,7 @@ where
 }
 
 /// # List keys and attached values
-pub fn list<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<(String, D)>, OxenError>
+pub fn list<D>(db: &DB) -> Result<Vec<(String, D)>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -168,7 +158,7 @@ where
 }
 
 /// List keys and values in a hash map
-pub fn hash_map<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<HashMap<String, D>, OxenError>
+pub fn hash_map<D>(db: &DB) -> Result<HashMap<String, D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
