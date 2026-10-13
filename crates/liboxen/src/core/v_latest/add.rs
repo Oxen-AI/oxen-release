@@ -166,6 +166,7 @@ pub async fn add_files(
     let gitignore = oxenignore::create(repo);
 
     let mut paths_to_remove = HashSet::new();
+    let mut unstaged_paths = Vec::new();
     let rm_opts = RmOpts {
         recursive: true,
         ..Default::default()
@@ -212,7 +213,7 @@ pub async fn add_files(
             if oxenignore::is_ignored(&corrected_path, &gitignore, corrected_path.is_dir()) {
                 continue;
             }
-            let entry = add_file_inner(
+            let outcome = add_file_inner(
                 repo,
                 repo_path,
                 &maybe_head_commit,
@@ -222,17 +223,21 @@ pub async fn add_files(
             )
             .await?;
 
-            if let Some(entry) = entry
-                && let EMerkleTreeNode::File(file_node) = &entry.node.node
-            {
-                let data_type = file_node.data_type();
-                total.total_files += 1;
-                total.total_bytes += file_node.num_bytes();
-                total
-                    .data_type_counts
-                    .entry(data_type.clone())
-                    .and_modify(|count| *count += 1)
-                    .or_insert(1);
+            match outcome {
+                AddOutcome::Staged(entry) => {
+                    if let EMerkleTreeNode::File(file_node) = &entry.node.node {
+                        let data_type = file_node.data_type();
+                        total.total_files += 1;
+                        total.total_bytes += file_node.num_bytes();
+                        total
+                            .data_type_counts
+                            .entry(data_type.clone())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                    }
+                }
+                AddOutcome::Unchanged => {}
+                AddOutcome::Unstaged(relative_path) => unstaged_paths.push(relative_path),
             }
         } else if corrected_path.is_symlink() {
             log::debug!("Skipping symlink: {corrected_path:?}");
@@ -241,6 +246,14 @@ pub async fn add_files(
             log::debug!("Found nonexistent path {path:?}. Staging for removal. Recursive flag set");
             paths_to_remove.insert(path.to_owned());
         }
+    }
+
+    if !unstaged_paths.is_empty() {
+        let staged_db = Arc::clone(&staged_db);
+        tokio::task::spawn_blocking(move || {
+            delete_empty_staged_ancestors(&staged_db, &unstaged_paths)
+        })
+        .await??;
     }
 
     // Stage the non-existent paths as removed
@@ -701,7 +714,7 @@ async fn add_file_inner(
     path: &Path,
     staged_db: &Arc<DBWithThreadMode<MultiThreaded>>,
     version_store: &Arc<dyn VersionStore>,
-) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+) -> Result<AddOutcome, OxenError> {
     let maybe_dir_node = if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
@@ -732,7 +745,7 @@ async fn add_file_inner(
         path.to_path_buf(),
     );
     tokio::task::spawn_blocking(move || {
-        let outcome = process_add_file(
+        process_add_file(
             &repo,
             &repo_path,
             &file_status,
@@ -740,15 +753,7 @@ async fn add_file_inner(
             &path,
             &seen_dirs,
             &conflicts,
-        )?;
-        match outcome {
-            AddOutcome::Staged(node) => Ok(Some(*node)),
-            AddOutcome::Unchanged => Ok(None),
-            AddOutcome::Unstaged(relative_path) => {
-                delete_empty_staged_ancestors(&staged_db, &[relative_path])?;
-                Ok(None)
-            }
-        }
+        )
     })
     .await?
 }
