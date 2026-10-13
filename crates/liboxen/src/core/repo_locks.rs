@@ -83,7 +83,7 @@ use tokio::time::timeout;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 
-/// Longest `with_repo_exclusive` waits for in-flight writes to drain before returning
+/// Longest [`begin_exclusive`] waits for in-flight writes to drain before returning
 /// `LockTimeout`. Bounds only the wait to acquire the lock (writes are short); the exclusive
 /// operation itself then runs unbounded. Tune once op-latency logging exists.
 const DEFAULT_DRAIN_TIMEOUT: Duration = Duration::from_secs(30);

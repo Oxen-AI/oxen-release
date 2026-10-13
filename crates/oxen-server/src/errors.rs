@@ -129,7 +129,6 @@ impl error::ResponseError for OxenHttpError {
                 StatusMessageDescription::bad_request("Failed to read request payload"),
             ),
             OxenHttpError::ClientDisconnected => {
-                // Neither side is at fault, so this reports below `warn!`.
                 log::info!("Client reset its connection before its request finished");
                 // 499 Client Closed Request. http accepts any code from 100 to 999.
                 let client_closed_request =

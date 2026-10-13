@@ -208,8 +208,8 @@ mod tests {
 
     /// The migration runs under the repo's exclusive lock: while a write is in flight it waits
     /// for that write to drain before running, rather than racing it. Guards
-    /// the `with_repo_exclusive` wiring — the happy-path test above passes with or without the
-    /// wrap, so this is what would fail if the lock were dropped.
+    /// the `with_repo_exclusive_for_client` wiring — the happy-path test above passes with or
+    /// without the wrap, so this is what would fail if the lock were dropped.
     #[actix_web::test]
     async fn test_run_waits_for_in_flight_writes_to_drain() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
