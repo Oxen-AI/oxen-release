@@ -12,7 +12,6 @@ use liboxen::model::LocalRepository;
 use liboxen::request_context::REQUEST_ID;
 use std::future::{Future, Ready, ready};
 use std::panic;
-use std::sync::atomic::{AtomicBool, Ordering};
 use tokio_util::sync::CancellationToken;
 
 use crate::errors::OxenHttpError;
@@ -114,24 +113,11 @@ pub(crate) async fn with_repo_exclusive_for_client<T>(
         .get::<ClientDeparture>()
         .map(|departure| departure.0.clone())
         .unwrap_or_default();
-    let started = AtomicBool::new(false);
-    let exclusive = repo_locks::with_repo_exclusive(repo, async {
-        if departure.is_cancelled() {
-            return Ok(None);
-        }
-        started.store(true, Ordering::Relaxed);
-        work.await.map(Some)
-    });
-    tokio::pin!(exclusive);
-    tokio::select! {
-        biased;
-        result = &mut exclusive => return result?.ok_or(OxenHttpError::ClientDisconnected),
-        () = departure.cancelled() => {}
-    }
-    if !started.load(Ordering::Relaxed) {
-        return Err(OxenHttpError::ClientDisconnected);
-    }
-    exclusive.await?.ok_or(OxenHttpError::ClientDisconnected)
+    let _exclusive = departure
+        .run_until_cancelled(repo_locks::begin_exclusive(repo))
+        .await
+        .ok_or(OxenHttpError::ClientDisconnected)??;
+    Ok(work.await?)
 }
 
 /// Assigns every request an id (the inbound `x-oxen-request-id` header when the caller sent a

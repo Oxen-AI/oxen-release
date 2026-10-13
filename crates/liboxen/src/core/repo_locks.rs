@@ -8,8 +8,9 @@
 //! - **Writers** register with [`begin_write`], which excludes no other writer. Any number of
 //!   [`WriteInFlight`] guards can be held at once, and they exist only so an exclusive operation
 //!   has something to wait for.
-//! - **One exclusive operation at a time** runs inside [`with_repo_exclusive`]. It blocks new
-//!   writers, waits for the in-flight ones to finish, then runs with the repo to itself.
+//! - **One exclusive operation at a time** runs inside [`with_repo_exclusive`], or while it holds
+//!   the [`ExclusiveAccess`] from [`begin_exclusive`]. It blocks new writers, waits for the
+//!   in-flight ones to finish, then runs with the repo to itself.
 //!
 //! While an exclusive operation holds a repo, [`begin_write`] returns [`OxenError::LockTimeout`]
 //! (oxen-server maps it to HTTP 429 + `Retry-After`, so clients back off and retry). If in-flight
@@ -60,10 +61,11 @@
 //!
 //! # Invariant (deadlock avoidance)
 //!
-//! Never call [`with_repo_exclusive`] while holding a [`WriteInFlight`], and never take a guard
-//! from inside the exclusive future: the exclusive side waits for guards to drop, so a guard held
-//! across it can never drain (and a guard taken inside it self-rejects with `LockTimeout`). Today
-//! the exclusive consumers call no write ops, so the invariant holds; keep it that way.
+//! Never call [`with_repo_exclusive`] or [`begin_exclusive`] while holding a [`WriteInFlight`], and
+//! never take a guard from inside the exclusive section: the exclusive side waits for guards to
+//! drop, so a guard held across it can never drain (and a guard taken inside it self-rejects with
+//! `LockTimeout`). Today the exclusive consumers call no write ops, so the invariant holds; keep it
+//! that way.
 //!
 //! Gates are keyed by repo path and the registry never evicts (one small gate per repo the process
 //! has touched).
@@ -75,7 +77,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use parking_lot::Mutex;
-use tokio::sync::{Mutex as AsyncMutex, Notify};
+use tokio::sync::{Mutex as AsyncMutex, Notify, OwnedMutexGuard};
 use tokio::time::timeout;
 
 use crate::error::OxenError;
@@ -94,7 +96,7 @@ struct GateState {
 struct RepoGate {
     state: Mutex<GateState>,
     drained: Notify,
-    exclusive_slot: AsyncMutex<()>,
+    exclusive_slot: Arc<AsyncMutex<()>>,
 }
 
 static REGISTRY: LazyLock<Mutex<HashMap<PathBuf, Arc<RepoGate>>>> =
@@ -111,7 +113,7 @@ fn gate_for(repo_dir: &Path) -> Arc<RepoGate> {
                     active_writes: 0,
                 }),
                 drained: Notify::new(),
-                exclusive_slot: AsyncMutex::new(()),
+                exclusive_slot: Arc::new(AsyncMutex::new(())),
             })
         })
         .clone()
@@ -184,29 +186,48 @@ impl Drop for ExclusiveMarker {
     }
 }
 
-/// Run `work` with exclusive access to `repo`: block new writers, drain in-flight ones (up to
-/// `DEFAULT_DRAIN_TIMEOUT`), then run it. Returns `LockTimeout` if the drain deadline passes.
+/// Exclusive access to a repo, from [`begin_exclusive`]: until this drops, no write can begin on
+/// it and none is in flight.
+#[must_use = "exclusive access ends the moment this drops; bind it \
+              (e.g. `let _exclusive = begin_exclusive(repo).await?;`) for the whole operation"]
+pub struct ExclusiveAccess {
+    // Declared first, so it clears before the slot frees and never clears the next holder's marker.
+    _marker: ExclusiveMarker,
+    _slot: OwnedMutexGuard<()>,
+}
+
+/// Take exclusive access to `repo`: wait for any other exclusive holder, block new writers, and
+/// drain in-flight ones (up to `DEFAULT_DRAIN_TIMEOUT`). Returns `LockTimeout` if the drain
+/// deadline passes. Dropping the future before it resolves gives the repo back to writers.
+pub async fn begin_exclusive(repo: &LocalRepository) -> Result<ExclusiveAccess, OxenError> {
+    begin_exclusive_with_timeout(repo, DEFAULT_DRAIN_TIMEOUT).await
+}
+
+/// `begin_exclusive` with an explicit drain deadline.
+async fn begin_exclusive_with_timeout(
+    repo: &LocalRepository,
+    drain_timeout: Duration,
+) -> Result<ExclusiveAccess, OxenError> {
+    let gate = gate_for(&repo.path);
+    // At most one exclusive holder per repo at a time.
+    let slot = gate.exclusive_slot.clone().lock_owned().await;
+    // Block new writers, then wait for in-flight ones to finish.
+    let marker = ExclusiveMarker::set(gate.clone());
+    timeout(drain_timeout, drain(&gate))
+        .await
+        .map_err(|_| lock_timeout())?;
+    Ok(ExclusiveAccess {
+        _marker: marker,
+        _slot: slot,
+    })
+}
+
+/// Run `work` with exclusive access to `repo`, as from [`begin_exclusive`].
 pub async fn with_repo_exclusive<T>(
     repo: &LocalRepository,
     work: impl Future<Output = Result<T, OxenError>>,
 ) -> Result<T, OxenError> {
-    with_repo_exclusive_with_timeout(repo, DEFAULT_DRAIN_TIMEOUT, work).await
-}
-
-/// `with_repo_exclusive` with an explicit drain deadline.
-pub(crate) async fn with_repo_exclusive_with_timeout<T>(
-    repo: &LocalRepository,
-    drain_timeout: Duration,
-    work: impl Future<Output = Result<T, OxenError>>,
-) -> Result<T, OxenError> {
-    let gate = gate_for(&repo.path);
-    // At most one exclusive holder per repo at a time.
-    let _slot = gate.exclusive_slot.lock().await;
-    // Block new writers, then wait for in-flight ones to finish.
-    let _marker = ExclusiveMarker::set(gate.clone());
-    timeout(drain_timeout, drain(&gate))
-        .await
-        .map_err(|_| lock_timeout())?;
+    let _exclusive = begin_exclusive(repo).await?;
     work.await
 }
 
@@ -311,18 +332,11 @@ mod tests {
     async fn test_exclusive_times_out_when_writes_never_drain() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             let guard = begin_write(&repo)?;
-            let mut ran = false;
-            let result =
-                with_repo_exclusive_with_timeout(&repo, Duration::from_millis(100), async {
-                    ran = true;
-                    Ok::<(), OxenError>(())
-                })
-                .await;
+            let result = begin_exclusive_with_timeout(&repo, Duration::from_millis(100)).await;
             assert!(
                 matches!(result, Err(OxenError::LockTimeout(_))),
                 "an undrained write must time out the exclusive acquire"
             );
-            assert!(!ran, "an exclusive operation that timed out must not run");
             drop(guard);
 
             // The timed-out acquire must clear the exclusive marker on its way out (via
