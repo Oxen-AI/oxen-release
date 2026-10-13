@@ -368,9 +368,9 @@ impl error::ResponseError for OxenHttpError {
                         actual,
                     } => {
                         tracing::warn!(
-                            %branch,
-                            ?expected,
-                            ?actual,
+                            oxen.branch_name = %branch,
+                            oxen.expected_commit_id = ?expected,
+                            oxen.actual_commit_id = ?actual,
                             "Refused to move a branch another write moved first"
                         );
                         let error_json = json!({
@@ -578,7 +578,7 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::Conflict().json(error_json)
                     }
                     OxenError::StorageMoveInProgress(repo) => {
-                        tracing::warn!(repo = %repo, "Storage move refused, another move of the repository is running");
+                        tracing::warn!(oxen.repository_path = %repo, "Storage move refused, another move of the repository is running");
                         let error_json = json!({
                             "error": {
                                 "type": "storage_move_in_progress",
