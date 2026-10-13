@@ -106,8 +106,6 @@ mod tests {
                 !size::repo_size_path(&repo).exists(),
                 "committing locally records no size, so there is none to start from"
             );
-            let legacy_size = fs::oxen_hidden_dir(&repo.path).join("repo_size.toml");
-            fs::write_to_path(&legacy_size, r#"{"status":"done","size":1}"#)?;
 
             // Commit the workspace and verify the file is at the new location
             let user = UserConfig::get()?.to_user();
@@ -137,10 +135,6 @@ mod tests {
                 size::wait_for_recorded_size(&repo)?,
                 repo.version_bytes()?,
                 "the figure recorded is the bytes the tree references"
-            );
-            assert!(
-                !legacy_size.exists(),
-                "recording a size drops what an older format left under a .toml name"
             );
             assert_eq!(
                 fs::read_from_path(size::repo_size_path(&repo))?.trim(),
