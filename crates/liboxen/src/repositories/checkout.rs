@@ -618,10 +618,11 @@ mod tests {
                     repositories::clone_url(&remote_repo.remote.url, repo_dir.join("walk")).await?;
                 let commits = repositories::commits::list(&walk_repo)?;
                 assert_eq!(commits.len(), 2);
-                for commit in commits.iter().rev() {
-                    repositories::checkout(&walk_repo, &commit.id).await?;
-                }
-                assert!(walk_repo.path.join("hello.txt").exists());
+                let walk_hello = walk_repo.path.join("hello.txt");
+                repositories::checkout(&walk_repo, &commits[1].id).await?;
+                assert!(!walk_hello.exists(), "the older commit predates hello.txt");
+                repositories::checkout(&walk_repo, &commits[0].id).await?;
+                assert!(walk_hello.exists(), "the newer commit adds hello.txt");
 
                 let local_repo =
                     repositories::clone_url(&remote_repo.remote.url, repo_dir.join("local"))
