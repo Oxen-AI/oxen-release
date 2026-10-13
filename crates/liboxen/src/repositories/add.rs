@@ -614,7 +614,8 @@ A: Oxen.ai
         test::run_empty_local_repo_test_async(|repo| async move {
             // Track & commit all the data
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
-            util::fs::write_to_path(&one_shot_path, "file,label\ntrain/dog_1.jpg,1\n")?;
+            let committed_contents = "file,label\ntrain/dog_1.jpg,1\n";
+            util::fs::write_to_path(&one_shot_path, committed_contents)?;
             repositories::add(&repo, &repo.path).await?;
             repositories::commit(&repo, "Adding one shot")?;
 
@@ -641,6 +642,15 @@ A: Oxen.ai
                 status
                     .staged_files
                     .contains_key(&PathBuf::from("annotations/train/one_shot.csv"))
+            );
+
+            // Reverting the edit and adding the file again undoes the staged modification.
+            let one_shot_path = test::modify_txt_file(one_shot_path, committed_contents)?;
+            repositories::add(&repo, &one_shot_path).await?;
+            let status = repositories::status(&repo).await?;
+            assert!(
+                status.is_clean(),
+                "adding a reverted file leaves nothing staged"
             );
 
             Ok(())
