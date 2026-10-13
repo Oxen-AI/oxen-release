@@ -441,33 +441,48 @@ enum StagedSource<'a> {
 }
 
 impl StagedSource<'_> {
-    fn is_path_staged(&self, path: &Path) -> Result<bool, OxenError> {
+    /// True when a removal is staged for the file `path`. A file staged with any other
+    /// status does not count.
+    fn is_removal_staged(&self, path: &Path) -> Result<bool, OxenError> {
+        Ok(self.change_at(path)? == Some(StagedChange::Removal))
+    }
+
+    /// What is staged at the file or directory `path`, or `None` when nothing is.
+    fn change_at(&self, path: &Path) -> Result<Option<StagedChange>, OxenError> {
         match self {
-            Self::Db(db) => is_staged(path, db),
-            Self::Data(data) => in_staged_data(path, data),
+            Self::Db(None) => Ok(None),
+            Self::Db(Some(db)) => {
+                // Keyed by the platform path string, which is the key `rm` writes a removal under.
+                let Some(value) = db.get_pinned(path.to_string_lossy().as_bytes())? else {
+                    return Ok(None);
+                };
+                match rmp_serde::from_slice::<StagedMerkleTreeNode>(&value) {
+                    Ok(entry) if entry.status == StagedEntryStatus::Removed => {
+                        Ok(Some(StagedChange::Removal))
+                    }
+                    Ok(_) => Ok(Some(StagedChange::Other)),
+                    Err(err) => {
+                        log::error!("change_at error decoding {path:?}: {err}");
+                        Ok(Some(StagedChange::Other))
+                    }
+                }
+            }
+            Self::Data(data) => Ok(match data.staged_files.get(path) {
+                Some(entry) if entry.status == StagedEntryStatus::Removed => {
+                    Some(StagedChange::Removal)
+                }
+                Some(_) => Some(StagedChange::Other),
+                None if data.staged_dirs.paths.contains_key(path) => Some(StagedChange::Other),
+                None => None,
+            }),
         }
     }
 
-    /// True if `path` is staged for deletion in the in-memory staged-files map. Used at
-    /// the tree-side check to gate "missing on disk" → unsynced classification: a file
-    /// the user has already staged for delete shouldn't be re-surfaced as unsynced.
-    /// A file staged with any other status (e.g. Added/Modified) is not relevant here,
-    /// so we check the entry's status rather than mere presence in the map. Always false
-    /// in `Db` mode (`status_from_opts` doesn't classify into unsynced).
-    fn is_file_deleted(&self, path: &Path) -> bool {
-        match self {
-            Self::Db(_) => false,
-            Self::Data(data) => data
-                .staged_files
-                .get(path)
-                .is_some_and(|entry| entry.status == StagedEntryStatus::Removed),
-        }
-    }
-
-    /// Like [`Self::is_file_deleted`] but for directories. Returns true when the path's
-    /// staged-dir stats include a `Removed` entry (a single dir can have both an
-    /// `Added` and a `Removed` rollup if it contains a mix of staged adds and removes).
-    fn is_dir_deleted(&self, path: &Path) -> bool {
+    /// True when removals are staged for files under the directory `path`. The directory
+    /// itself is never what is staged: its rollups count the files staged beneath it, and
+    /// one directory carries both an `Added` and a `Removed` rollup when it holds a mix of
+    /// staged adds and removes. Always false in `Db` mode, which has no unsynced set to gate.
+    fn dir_has_removals(&self, path: &Path) -> bool {
         match self {
             Self::Db(_) => false,
             Self::Data(data) => {
@@ -477,6 +492,15 @@ impl StagedSource<'_> {
             }
         }
     }
+}
+
+/// What is staged at a path.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StagedChange {
+    /// A removal.
+    Removal,
+    /// Any other staged entry, or one that does not decode.
+    Other,
 }
 
 /// Where to record paths that are in the merkle tree but missing on disk.
@@ -692,10 +716,21 @@ async fn walk_status(
                         .last_mut()
                         .expect("path stack non-empty: just pushed this dir's state");
 
+                    let staged_change = if is_entry_dir {
+                        None
+                    } else {
+                        staged.change_at(&relative_path)?
+                    };
                     if is_entry_dir {
                         log::debug!("walk_status entry is a directory {path:?}");
                         subdirs_to_recurse.push(relative_path);
-                    } else if staged.is_path_staged(&relative_path)? {
+                    } else if staged_change == Some(StagedChange::Removal) {
+                        log::debug!("walk_status entry has a staged removal {path:?}");
+                        // The staged removal already accounts for the committed entry, so
+                        // what sits on disk is a new file that nothing tracks.
+                        current.untracked.add_file(relative_path.clone());
+                        current.untracked_count += 1;
+                    } else if staged_change.is_some() {
                         log::debug!("walk_status entry is staged {path:?}");
                         // Check this after handling directories, because we still need
                         // to recurse into staged directories.
@@ -767,7 +802,7 @@ async fn walk_status(
                 // directory (single-file walk).
                 if dir_state.untracked.all_untracked
                     && dir_state.search_node_path != Path::new("")
-                    && !staged.is_path_staged(&dir_state.search_node_path)?
+                    && staged.change_at(&dir_state.search_node_path)?.is_none()
                     && dir_state.is_dir
                     && dir_state.search_node.is_none()
                 {
@@ -795,7 +830,7 @@ async fn walk_status(
                             dir_state.removed.insert(relative_file_path);
                         }
                         MissingClassification::AsUnsynced => {
-                            if !staged.is_file_deleted(&relative_file_path) {
+                            if !staged.is_removal_staged(&relative_file_path)? {
                                 dir_state.unsynced.add_file(relative_file_path);
                             }
                         }
@@ -850,7 +885,7 @@ async fn walk_status(
                                             dir_state.removed.insert(relative_file_path);
                                         }
                                         MissingClassification::AsUnsynced => {
-                                            if !staged.is_file_deleted(&relative_file_path) {
+                                            if !staged.is_removal_staged(&relative_file_path)? {
                                                 dir_state.unsynced.add_file(relative_file_path);
                                             }
                                         }
@@ -862,10 +897,11 @@ async fn walk_status(
                                 if !dir_path.exists() {
                                     // Only do this for non-existent dirs — existing dirs
                                     // already trigger a queued EnterDir.
-                                    let dir_deleted = staged.is_dir_deleted(&relative_dir_path);
+                                    let removals_staged =
+                                        staged.dir_has_removals(&relative_dir_path);
                                     let should_record = match missing {
                                         MissingClassification::AsRemoved => true,
-                                        MissingClassification::AsUnsynced => !dir_deleted,
+                                        MissingClassification::AsUnsynced => !removals_staged,
                                     };
                                     if should_record {
                                         let mut count: usize = 0;
@@ -1028,28 +1064,6 @@ fn maybe_get_node(
     } else {
         CommitMerkleTree::read_file(repo, dir_hashes, path)
     }
-}
-
-fn is_staged(
-    path: &Path,
-    staged_db: &Option<DBWithThreadMode<SingleThreaded>>,
-) -> Result<bool, OxenError> {
-    if let Some(staged_db) = staged_db {
-        let key = path.to_str().unwrap();
-        if staged_db.get(key.as_bytes())?.is_some() {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-fn in_staged_data(path: &Path, staged_data: &StagedData) -> Result<bool, OxenError> {
-    if staged_data.staged_files.contains_key(path)
-        || staged_data.staged_dirs.paths.contains_key(path)
-    {
-        return Ok(true);
-    }
-    Ok(false)
 }
 
 #[derive(Debug)]
