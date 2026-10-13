@@ -103,15 +103,12 @@ mod tests {
 
     use super::*;
 
-    /// A clone is the main path that first attaches a repository to a server, so the UUID the
-    /// server reports has to survive into the cloned repo's own config rather than only living on
-    /// the in-memory remote.
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_clone_records_the_remotes_repo_uuid() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-            let expected = remote_repo
+    async fn test_clone_empty_remote_then_push_and_move() -> Result<(), OxenError> {
+        test::run_no_commit_remote_repo_test(|remote_repo| async move {
+            let ret_repo = remote_repo.clone();
+            let expected_uuid = remote_repo
                 .remote
                 .repo_uuid
                 .expect("the server reports a UUID for a repo it created");
@@ -119,359 +116,233 @@ mod tests {
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
                 let cloned = clone_remote(&opts).await?;
+                assert!(cloned.path.join(".oxen").join("config.toml").exists());
 
-                // Read it back off disk rather than from the returned struct, since persisting it
-                // is the whole point.
+                // Read the remote back off disk rather than from the returned struct, since a clone
+                // is the main path that first attaches a repository to a server.
                 let reopened = LocalRepository::from_dir(&cloned.path)?;
                 let remote = reopened
                     .get_remote(DEFAULT_REMOTE_NAME)
                     .expect("a clone records a remote under the default name");
-                assert_eq!(remote.repo_uuid, Some(expected));
+                assert_eq!(
+                    remote.repo_uuid,
+                    Some(expected_uuid),
+                    "the clone persists the UUID the server reports"
+                );
+                assert!(repositories::status(&reopened).await?.is_clean());
 
-                api::client::repositories::delete(&remote_repo).await?;
-                Ok(())
-            })
-            .await
-        })
-        .await
-    }
+                let new_file_path =
+                    test::write_txt_file_to_path(cloned.path.join("new_file.txt"), "new file")?;
+                repositories::add(&cloned, &new_file_path).await?;
+                repositories::commit(&cloned, "Adding new file path.")?;
+                repositories::push(&cloned).await?;
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_remote() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            log::debug!("created the remote repo");
-
-            test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-
-                log::debug!("about to clone the remote");
-                let local_repo = clone_remote(&opts).await?;
-                log::debug!("succeeded");
-                let cfg_fname = ".oxen/config.toml".to_string();
-                let config_path = local_repo.path.join(&cfg_fname);
-                assert!(config_path.exists());
-
-                let repository = LocalRepository::from_dir(&local_repo.path);
-                assert!(repository.is_ok());
-
-                let repository = repository.unwrap();
-                let status = repositories::status(&repository).await?;
-                assert!(status.is_clean());
-
-                // Cleanup
-                api::client::repositories::delete(&remote_repo).await?;
-
-                Ok(())
-            })
-            .await
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_move_local_repo_path_valid() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            // Create remote repo
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                let local_repo = clone_remote(&opts).await?;
-
-                api::client::repositories::delete(&remote_repo).await?;
-
-                repositories::status(&local_repo).await?;
-
+                let old_path = cloned.path.clone();
                 let new_path = dir.join("new_path");
-                let old_path = local_repo.path.clone();
-
                 core::staged::remove_from_cache_with_children(&old_path)?;
                 core::refs::remove_from_cache(&old_path)?;
                 // Drop the repo to release its LMDB env before the rename: on Windows
                 // `util::fs::rename` copies then removes the source, and a mapped env file can't be
                 // removed while the repo holds it open.
-                drop(local_repo);
+                drop(cloned);
+                drop(reopened);
                 util::fs::rename(&old_path, &new_path)?;
 
-                let new_repo = LocalRepository::from_dir(&new_path)?;
-                repositories::status(&new_repo).await?;
-                assert_eq!(new_repo.path, new_path);
+                let moved = LocalRepository::from_dir(&new_path)?;
+                assert_eq!(moved.path, new_path);
+                assert!(
+                    repositories::status(&moved).await?.is_clean(),
+                    "a repo moved to a new path still reads its own history"
+                );
 
                 Ok(())
             })
-            .await
+            .await?;
+
+            Ok(ret_repo)
         })
         .await
     }
 
+    /// Check that `cloned_repo` holds every commit, then check out the training data's "Adding
+    /// test/" commit and check that it restores the four images a later commit removes.
+    async fn assert_checkout_restores_removed_test_dir(
+        cloned_repo: &LocalRepository,
+        expected_commit_count: usize,
+    ) -> Result<(), OxenError> {
+        assert_eq!(
+            repositories::commits::list_all(cloned_repo)?.len(),
+            expected_commit_count,
+            "the clone holds every commit object"
+        );
+        assert!(repositories::commits::head_commit(cloned_repo).is_ok());
+
+        let test_dir_path = cloned_repo.path.join("test");
+        let commit = repositories::commits::first_by_message(cloned_repo, "Adding test/")?
+            .expect("the training data adds test/ in its own commit");
+        assert!(!test_dir_path.exists());
+
+        repositories::checkout(cloned_repo, &commit.id).await?;
+        assert_eq!(util::fs::list_files_in_dir(&test_dir_path).await?.len(), 4);
+        for name in ["1.jpg", "2.jpg", "3.jpg", "4.jpg"] {
+            assert!(
+                test_dir_path.join(name).exists(),
+                "checkout restores test/{name}"
+            );
+        }
+        Ok(())
+    }
+
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_clone_root_subtree_depth_1() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+    async fn test_clone_subtrees_and_history() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let cloned_remote = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
-                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("root_depth_1"));
                 opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from(".")]);
                 opts.fetch_opts.depth = Some(1);
-                let local_repo = clone_remote(&opts).await?;
+                let root_repo = clone_remote(&opts).await?;
+                assert_eq!(root_repo.depth(), Some(1));
+                assert_eq!(root_repo.subtree_paths(), Some(vec![PathBuf::from("")]));
+                for name in ["README.md", "labels.txt", "prompts.jsonl", "LICENSE"] {
+                    assert!(
+                        root_repo.path.join(name).exists(),
+                        "a root clone carries {name}"
+                    );
+                }
+                for name in ["nlp", "annotations", "train"] {
+                    assert!(
+                        !root_repo.path.join(name).exists(),
+                        "a depth-1 root clone leaves out the {name} subdirectory"
+                    );
+                }
 
-                // Make sure we set the depth and subtree paths
-                assert_eq!(local_repo.depth(), Some(1));
-                assert_eq!(local_repo.subtree_paths(), Some(vec![PathBuf::from("")]));
-
-                // All the files should be here
-                assert!(local_repo.path.join("README.md").exists());
-                assert!(local_repo.path.join("labels.txt").exists());
-                assert!(local_repo.path.join("prompts.jsonl").exists());
-                assert!(local_repo.path.join("LICENSE").exists());
-
-                // But none of the subdirectories should be here
-                assert!(!local_repo.path.join("nlp").exists());
-                assert!(!local_repo.path.join("annotations").exists());
-                assert!(!local_repo.path.join("train").exists());
-
-                Ok(())
-            })
-            .await?;
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_annotations_subtree() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-            test::run_empty_dir_test_async(|dir| async move {
-                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("annotations"));
                 opts.fetch_opts.subtree_paths = Some(vec![PathBuf::from("annotations")]);
-                let local_repo = clone_remote(&opts).await?;
-
-                // Make sure we set the depth and subtree paths
+                let annotations_repo = clone_remote(&opts).await?;
                 assert_eq!(
-                    local_repo.subtree_paths(),
+                    annotations_repo.subtree_paths(),
                     Some(vec![PathBuf::from("annotations")])
                 );
+                let annotations = annotations_repo.path.join("annotations");
+                assert!(annotations.join("train").join("one_shot.csv").exists());
+                assert!(annotations.join("train").join("two_shot.csv").exists());
+                assert!(annotations.join("test").join("annotations.csv").exists());
+                assert!(!annotations_repo.path.join("train").exists());
 
-                assert!(local_repo.path.join("annotations").exists());
-                assert!(local_repo.path.join("annotations").join("train").exists());
-                assert!(
-                    local_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("one_shot.csv")
-                        .exists()
-                );
-                assert!(
-                    local_repo
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .join("two_shot.csv")
-                        .exists()
-                );
-                assert!(local_repo.path.join("annotations").join("test").exists());
-                assert!(
-                    local_repo
-                        .path
-                        .join("annotations")
-                        .join("test")
-                        .join("annotations.csv")
-                        .exists()
-                );
-                assert!(!local_repo.path.join("train").exists());
-
-                Ok(())
-            })
-            .await?;
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_annotations_test_subtree() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-            test::run_empty_dir_test_async(|dir| async move {
-                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
-                opts.fetch_opts.subtree_paths =
-                    Some(vec![PathBuf::from("annotations").join("test")]);
-                let local_repo = clone_remote(&opts).await?;
-
-                assert!(local_repo.path.join("annotations").join("test").exists());
-                assert!(
-                    local_repo
-                        .path
-                        .join("annotations")
-                        .join("test")
-                        .join("annotations.csv")
-                        .exists()
-                );
-                assert!(!local_repo.path.join("annotations").join("train").exists());
-                assert!(!local_repo.path.join("train").exists());
-
-                Ok(())
-            })
-            .await?;
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_multiple_subtrees() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-            test::run_empty_dir_test_async(|dir| async move {
-                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("new_repo"));
+                let mut opts = CloneOpts::new(&remote_repo.remote.url, dir.join("multiple"));
                 opts.fetch_opts.subtree_paths = Some(vec![
                     PathBuf::from("annotations").join("test"),
                     PathBuf::from("nlp"),
                 ]);
-                let local_repo = clone_remote(&opts).await?;
-
-                assert!(local_repo.path.join("annotations").join("test").exists());
-                assert!(local_repo.path.join("nlp").exists());
+                let multiple_repo = clone_remote(&opts).await?;
+                assert!(multiple_repo.path.join("nlp").exists());
                 assert!(
-                    local_repo
+                    multiple_repo
                         .path
                         .join("annotations")
                         .join("test")
                         .join("annotations.csv")
                         .exists()
                 );
-                assert!(!local_repo.path.join("annotations").join("train").exists());
-                assert!(!local_repo.path.join("train").exists());
+                assert!(
+                    !multiple_repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .exists()
+                );
+                assert!(!multiple_repo.path.join("train").exists());
 
-                Ok(())
-            })
-            .await?;
-            Ok(cloned_remote)
-        })
-        .await
-    }
+                // A default clone fetches the files a checkout needs that it did not download, and
+                // a clone with --all holds them from the start.
+                let og_commit_count = repositories::commits::list_all(&local_repo)?.len();
+                let default_repo =
+                    repositories::clone_url(&remote_repo.remote.url, dir.join("default")).await?;
+                assert_checkout_restores_removed_test_dir(&default_repo, og_commit_count).await?;
 
-    // Test for clone --all that checks to make sure we have all commits, all deleted files, etc
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_dash_all() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            // Create additional branch on remote repo before clone
-            let branch_name = "test-branch";
-            api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-
-            let cloned_remote = remote_repo.clone();
-            let og_commits = repositories::commits::list_all(&local_repo)?;
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = repositories::deep_clone_url(
-                    &remote_repo.remote.url,
-                    &new_repo_dir.join("new_repo"),
+                api::client::branches::create_from_branch(
+                    &remote_repo,
+                    "test-branch",
+                    DEFAULT_BRANCH_NAME,
                 )
                 .await?;
+                let deep_repo =
+                    repositories::deep_clone_url(&remote_repo.remote.url, dir.join("deep")).await?;
+                assert_checkout_restores_removed_test_dir(&deep_repo, og_commit_count).await?;
 
-                // Make sure we have all the commit objects
-                let cloned_commits = repositories::commits::list_all(&cloned_repo)?;
-                assert_eq!(og_commits.len(), cloned_commits.len());
-
-                // Make sure we set the HEAD file
-                let head_commit = repositories::commits::head_commit(&cloned_repo);
-                assert!(head_commit.is_ok());
-
-                // We remove the test/ directory in one of the commits, so make sure we can go
-                // back in the history to that commit
-                let test_dir_path = cloned_repo.path.join("test");
-                println!("test_clone_dash_all test_dir_path: {test_dir_path:?}");
-                let commit = repositories::commits::first_by_message(&cloned_repo, "Adding test/")?;
-                assert!(commit.is_some());
-                assert!(!test_dir_path.exists());
-
-                // checkout the commit
-                repositories::checkout(&cloned_repo, &commit.unwrap().id).await?;
-                // Make sure we restored the directory
-                assert!(test_dir_path.exists());
-
-                // list files in test_dir_path
-                let test_dir_files = util::fs::list_files_in_dir(&test_dir_path).await?;
-                println!("test_dir_files: {:?}", test_dir_files.len());
-                for file in test_dir_files.iter() {
-                    println!("file: {file:?}");
-                }
-                assert_eq!(test_dir_files.len(), 4);
-
-                assert!(test_dir_path.join("1.jpg").exists());
-                assert!(test_dir_path.join("2.jpg").exists());
-                assert!(test_dir_path.join("3.jpg").exists());
-                assert!(test_dir_path.join("4.jpg").exists());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(cloned_remote)
-        })
-        .await
-    }
-
-    // Test for clone --all that checks to make sure we have all commits, all deleted files, etc
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_all_push_all_full_commit_history() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|_local_repo, remote_repo| async move {
-            let cloned_remote = remote_repo.clone();
-
-            // Clone with the --all flag
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let new_repo_dir = new_repo_dir.join("repoo");
-                let mut cloned_repo =
-                    repositories::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-
-                let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
-                let _remote_url = test::repo_remote_url_from(&repo_name);
-                let remote_name = "different";
-
-                // Create a different repo
-                let repo_new = RepoNew::from_namespace_name_host(
-                    constants::DEFAULT_NAMESPACE,
-                    repo_name,
-                    test::test_host(),
-                    None,
-                );
-                let different_repo =
-                    api::client::repositories::create_from_local(&cloned_repo, repo_new).await?;
-
-                cloned_repo.set_remote_repo(remote_name, &different_repo);
-                cloned_repo.save()?;
-
-                let opts = PushOpts {
-                    remote: remote_name.to_string(),
-                    branch: "main".to_string(),
+                // A subtree clone of a branch, then a checkout of main, keeps to the subtree.
+                let feature_branch_name = "feature/subtree-checkout-test";
+                repositories::branches::create_checkout(&local_repo, feature_branch_name)?;
+                let new_file_relative_path = PathBuf::from("annotations")
+                    .join("test")
+                    .join("new_on_feature.txt");
+                let new_file_full_path = local_repo.path.join(&new_file_relative_path);
+                util::fs::write_to_path(
+                    &new_file_full_path,
+                    "This file is new on the feature branch.",
+                )?;
+                repositories::add(&local_repo, &new_file_full_path).await?;
+                repositories::commit(&local_repo, "Added new_on_feature.txt to annotations/test")?;
+                let push_opts = PushOpts {
+                    remote: DEFAULT_REMOTE_NAME.to_string(),
+                    branch: feature_branch_name.to_string(),
                     ..Default::default()
                 };
+                repositories::push::push_remote_branch(&local_repo, &push_opts).await?;
 
-                // Should be able to push all data successfully
-                repositories::push::push_remote_branch(&cloned_repo, &opts).await?;
+                let mut clone_opts = CloneOpts::new(remote_repo.url(), dir.join("feature_subtree"));
+                clone_opts.fetch_opts.branch = feature_branch_name.to_string();
+                clone_opts.fetch_opts.subtree_paths =
+                    Some(vec![PathBuf::from("annotations").join("test")]);
+                let feature_repo = repositories::clone(&clone_opts).await?;
+
+                let new_file_in_clone = feature_repo.path.join(&new_file_relative_path);
+                let orig_file_in_clone = feature_repo
+                    .path
+                    .join("annotations")
+                    .join("test")
+                    .join("annotations.csv");
+                assert!(
+                    new_file_in_clone.exists(),
+                    "new_on_feature.txt should exist in feature branch clone"
+                );
+                assert!(
+                    orig_file_in_clone.exists(),
+                    "annotations.csv should exist in feature branch clone"
+                );
+                assert!(!feature_repo.path.join("README.md").exists());
+                assert!(!feature_repo.path.join("train").exists());
+                assert!(!feature_repo.path.join("annotations").join("train").exists());
+
+                let fetch_opts = FetchOpts {
+                    branch: DEFAULT_BRANCH_NAME.to_string(),
+                    ..FetchOpts::new()
+                };
+                core::v_latest::fetch::fetch_remote_branch(
+                    &feature_repo,
+                    &remote_repo,
+                    &fetch_opts,
+                )
+                .await?;
+                repositories::checkout(&feature_repo, DEFAULT_BRANCH_NAME).await?;
+
+                assert!(
+                    !new_file_in_clone.exists(),
+                    "new_on_feature.txt should NOT exist on main branch after checkout"
+                );
+                assert!(
+                    orig_file_in_clone.exists(),
+                    "annotations.csv should still exist on main branch after checkout"
+                );
+                assert!(!feature_repo.path.join("README.md").exists());
+                assert!(!feature_repo.path.join("train").exists());
+                assert!(!feature_repo.path.join("annotations").join("train").exists());
 
                 Ok(())
             })
             .await?;
-
             Ok(cloned_remote)
         })
         .await
@@ -605,206 +476,16 @@ mod tests {
                 .await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(expected_files, cloned_num_files);
+                assert!(
+                    !cloned_repo.is_remote_mode(),
+                    "a clone is not in remote mode unless asked"
+                );
 
                 api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(())
             })
             .await
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
-        test::run_no_commit_remote_repo_test(|remote_repo| async move {
-            let ret_repo = remote_repo.clone();
-
-            // Create a new repo to clone to, then clean it up
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &new_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                let status = repositories::status(&cloned_repo).await;
-                assert!(status.is_ok());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(ret_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
-        test::run_no_commit_remote_repo_test(|remote_repo| async move {
-            let ret_repo = remote_repo.clone();
-
-            // Create a new repo to clone to, then clean it up
-            test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = repositories::clone_url(
-                    &remote_repo.remote.url,
-                    &new_repo_dir.join("new_repo"),
-                )
-                .await?;
-
-                let status = repositories::status(&cloned_repo).await;
-                assert!(status.is_ok());
-
-                // Add a file to the cloned repo
-                let new_file = "new_file.txt";
-                let new_file_path = cloned_repo.path.join(new_file);
-                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                repositories::add(&cloned_repo, &new_file_path).await?;
-                repositories::commit(&cloned_repo, "Adding new file path.")?;
-
-                repositories::push(&cloned_repo).await?;
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(ret_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clone_subtree_and_checkout_branch() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            let feature_branch_name = "feature/subtree-checkout-test";
-            repositories::branches::create_checkout(&local_repo, feature_branch_name)?;
-
-            let new_file_relative_path = PathBuf::from("annotations")
-                .join("test")
-                .join("new_on_feature.txt");
-            let new_file_full_path = local_repo.path.join(&new_file_relative_path);
-            util::fs::create_dir_all(new_file_full_path.parent().unwrap())?;
-            util::fs::write_to_path(
-                &new_file_full_path,
-                "This file is new on the feature branch.",
-            )?;
-            repositories::add(&local_repo, &new_file_full_path).await?;
-            repositories::commit(&local_repo, "Added new_on_feature.txt to annotations/test")?;
-
-            let opts = PushOpts {
-                remote: DEFAULT_REMOTE_NAME.to_string(),
-                branch: feature_branch_name.to_string(),
-                ..Default::default()
-            };
-            repositories::push::push_remote_branch(&local_repo, &opts).await?;
-
-            // Switch original_local_repo back to main for good measure, though not strictly necessary for this test's focus
-            repositories::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
-
-            // 2. Clone ONLY the subtree "annotations/test" from the new feature branch.
-            let remote_for_inner_closure = remote_repo_copy.clone();
-            test::run_empty_dir_test_async(|dir_a| async move {
-                let path_a = dir_a.join("repo_A_subtree");
-                let subtree_to_clone = PathBuf::from("annotations").join("test");
-
-                let mut clone_opts_subtree =
-                    CloneOpts::new(remote_for_inner_closure.url(), &path_a);
-                clone_opts_subtree.fetch_opts.branch = feature_branch_name.to_string();
-                clone_opts_subtree.fetch_opts.subtree_paths = Some(vec![subtree_to_clone.clone()]);
-
-                let cloned_repo_a = repositories::clone(&clone_opts_subtree).await?;
-
-                // Verify initial clone state (feature branch, subtree only)
-                let expected_new_file_in_a = cloned_repo_a.path.join(&new_file_relative_path);
-                let expected_orig_file_in_a = cloned_repo_a
-                    .path
-                    .join("annotations")
-                    .join("test")
-                    .join("annotations.csv");
-
-                assert!(
-                    expected_new_file_in_a.exists(),
-                    "new_on_feature.txt should exist in feature branch clone"
-                );
-                assert!(
-                    expected_orig_file_in_a.exists(),
-                    "annotations.csv should exist in feature branch clone"
-                );
-
-                // Verify other files/dirs are NOT present
-                assert!(!cloned_repo_a.path.join("README.md").exists());
-                assert!(!cloned_repo_a.path.join("train").exists());
-                assert!(
-                    !cloned_repo_a
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .exists()
-                ); // only annotations/test
-
-                let fetch_opts = FetchOpts {
-                    branch: DEFAULT_BRANCH_NAME.to_string(),
-                    ..FetchOpts::new()
-                };
-                core::v_latest::fetch::fetch_remote_branch(
-                    &cloned_repo_a,
-                    &remote_repo,
-                    &fetch_opts,
-                )
-                .await?;
-                repositories::checkout(&cloned_repo_a, DEFAULT_BRANCH_NAME).await?;
-
-                assert!(
-                    !expected_new_file_in_a.exists(),
-                    "new_on_feature.txt should NOT exist on main branch after checkout"
-                );
-
-                assert!(
-                    expected_orig_file_in_a.exists(),
-                    "annotations.csv should still exist on main branch after checkout"
-                );
-
-                assert!(!cloned_repo_a.path.join("README.md").exists());
-                assert!(!cloned_repo_a.path.join("train").exists());
-                assert!(
-                    !cloned_repo_a
-                        .path
-                        .join("annotations")
-                        .join("train")
-                        .exists()
-                );
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_cloned_repos_not_set_as_remote_mode_by_default() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|mut _local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let new_repo_dir = repo_dir.join(PathBuf::from("new"));
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                assert!(!cloned_repo.is_remote_mode());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
         })
         .await
     }
