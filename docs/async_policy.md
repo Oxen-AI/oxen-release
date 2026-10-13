@@ -228,7 +228,7 @@ The server uses actix-web 4 with `#[actix_web::main]`, which expands to a curren
 
   `tasks::spawn_blocking` also opens a span for the work, named `blocking task` and tagged with its call site, which is the right granularity for one coherent operation per request. Inside a loop, use `tasks::spawn_blocking_per_item`: it carries the same context but opens no span, because a bulk endpoint handling thousands of files in one request would otherwise emit a span per file.
 
-  This applies to `oxen-server` only. liboxen keeps calling tokio directly — it also backs the CLI and the Python bindings, so it must not depend on `sentry`. A panic in a liboxen `spawn_blocking` still reaches Sentry with a route, via the `JoinError` surfacing through the request's error path.
+  This applies to `oxen-server` only. liboxen keeps calling tokio directly — it also backs the CLI and the Python bindings, so it must not depend on `sentry`. Its blocking work therefore reports to Sentry without the request. An error it logs arrives with no route, and a panic arrives as two events: the panic itself, with its stack trace and no route, and the `JoinError` the handler returns, logged with the route and the panic message but without the panic's stack trace.
 
 ### Recognizing when a spawn needs the request's context
 
