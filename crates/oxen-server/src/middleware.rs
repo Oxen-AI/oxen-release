@@ -73,13 +73,14 @@ pub fn request_id(req: &HttpRequest) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
-/// Canceled when the client goes away before the handler has returned its response. Stored in the
-/// request's extensions by [`run_request_as_task`].
+/// Canceled when actix drops the request before the handler has returned its response, which it
+/// does when the client resets the connection but not when the client closes it cleanly. Stored in
+/// the request's extensions by [`run_request_as_task`].
 struct ClientDeparture(CancellationToken);
 
-/// Runs each request as a task of its own, so a client that drops its connection leaves the request
-/// to run to completion, holding its write guards until it finishes, rather than canceling it
-/// partway. Wrap it outermost, so every other middleware runs inside the task. Use with
+/// Runs each request as a task of its own, so a client that resets its connection leaves the
+/// request to run to completion, holding its write guards until it finishes, rather than canceling
+/// it partway. Wrap it outermost, so every other middleware runs inside the task. Use with
 /// [`actix_web::middleware::from_fn`].
 pub async fn run_request_as_task<B: MessageBody + 'static>(
     req: ServiceRequest,
@@ -89,7 +90,7 @@ pub async fn run_request_as_task<B: MessageBody + 'static>(
     req.extensions_mut()
         .insert(ClientDeparture(departure.clone()));
     let request = actix_web::rt::spawn(next.call(req));
-    // Fires if the client goes away first, which drops this future before the request finishes.
+    // Fires if actix drops this future before the request finishes, as on a connection reset.
     let client_waiting = departure.drop_guard();
     // Re-raise a panic inside the request here, on the connection that made it.
     let response = request
@@ -99,9 +100,10 @@ pub async fn run_request_as_task<B: MessageBody + 'static>(
     response
 }
 
-/// [`repo_locks::with_repo_exclusive`] for the request `req`. If the client goes away before `work`
-/// starts, this gives the repository back to writers at once and returns
-/// [`OxenHttpError::ClientDisconnected`], and `work` never runs. Once started, `work` runs to
+/// [`repo_locks::with_repo_exclusive`] for the request `req`. If the client resets its connection
+/// before `work` starts, this gives the repository back to writers at once and returns
+/// [`OxenHttpError::ClientDisconnected`], and `work` never runs. A client that closes its
+/// connection cleanly leaves `work` to run as though it had stayed. Once started, `work` runs to
 /// completion whether or not the client stays.
 pub(crate) async fn with_repo_exclusive_for_client<T>(
     req: &HttpRequest,
@@ -577,8 +579,9 @@ mod tests {
                 _ = &mut call => panic!("the exclusive section finished while a write was in flight"),
                 _ = started_rx.recv() => {}
             }
-            // The client goes away mid-drain: nothing polls the call again, and the app is gone
-            // too, so the only sender left to report the finish is the one the handler holds.
+            // The client resets its connection mid-drain: nothing polls the call again, and the
+            // app is gone too, so the only sender left to report the finish is the one the handler
+            // holds.
             drop(call);
             drop(app);
 

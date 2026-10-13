@@ -51,8 +51,8 @@ pub enum OxenHttpError {
     WorkspaceBehind(Box<WorkspaceBranch>),
     BasicError(StringError),
     FailedToReadRequestPayload,
-    /// The client went away before its request finished, so the server stopped short of answering
-    /// it. Answered with HTTP 499, which the departed client never receives.
+    /// The client reset its connection before its request finished, so the server stopped short of
+    /// answering it. Answered with HTTP 499, which the client never receives.
     ClientDisconnected,
 
     // Translate OxenError to OxenHttpError
@@ -130,7 +130,7 @@ impl error::ResponseError for OxenHttpError {
             ),
             OxenHttpError::ClientDisconnected => {
                 // Neither side is at fault, so this reports below `warn!`.
-                log::info!("Client went away before its request finished");
+                log::info!("Client reset its connection before its request finished");
                 // 499 Client Closed Request. http accepts any code from 100 to 999.
                 let client_closed_request =
                     StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST);

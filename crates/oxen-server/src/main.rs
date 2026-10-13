@@ -938,7 +938,7 @@ async fn start(
                     .finish(),
             )
             // Outermost, so the whole request, its Sentry hub and root span included, runs to
-            // completion when the client goes away mid-request.
+            // completion when the client resets its connection mid-request.
             .wrap(from_fn(run_request_as_task))
     })
     .keep_alive(Duration::from_secs(ACTIX_KEEP_ALIVE_SECS))
