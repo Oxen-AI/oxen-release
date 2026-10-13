@@ -119,10 +119,7 @@ fn walk_and_record(repo: &LocalRepository) -> bool {
             tests::after_walk(&repo.path);
 
             match AtomicFile::new(repo_size_path(repo)).write(total.to_string().as_bytes()) {
-                Ok(()) => {
-                    remove_legacy_size_file(repo);
-                    false
-                }
+                Ok(()) => false,
                 Err(e) => {
                     tracing::error!(
                         repo = ?repo.path,
@@ -190,16 +187,6 @@ pub fn get_size(repo: &LocalRepository) -> RepoSizeFile {
 /// Where `repo`'s recorded size is kept, as a JSON number.
 pub fn repo_size_path(repo: &LocalRepository) -> PathBuf {
     util::fs::oxen_hidden_dir(&repo.path).join("repo_size.json")
-}
-
-/// Drop the size an older format kept under a `.toml` name, which nothing reads.
-fn remove_legacy_size_file(repo: &LocalRepository) {
-    let legacy = util::fs::oxen_hidden_dir(&repo.path).join("repo_size.toml");
-    if legacy.exists()
-        && let Err(err) = util::fs::remove_file(&legacy)
-    {
-        log::warn!("Failed to remove {legacy:?}: {err}");
-    }
 }
 
 /// Poll the figure recorded for `repo` until a recalculation lands, erroring on a reported failure
