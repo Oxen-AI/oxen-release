@@ -476,6 +476,11 @@ mod tests {
                 local_repo.path.join(prompts_path),
                 "{\"prompt\": \"What is the meaning of life?\", \"label\": \"42\"}\n",
             )?;
+            // A data frame stored as a JSON array rather than JSON lines
+            fs::write_to_path(
+                local_repo.path.join("labels.json"),
+                r#"[{"id": 1, "label": "cat"}, {"id": 2, "label": "dog"}]"#,
+            )?;
             repositories::add(&local_repo, &local_repo.path).await?;
             repositories::commit(&local_repo, "Add a binary column parquet file and prompts")?;
             repositories::push(&local_repo).await?;
