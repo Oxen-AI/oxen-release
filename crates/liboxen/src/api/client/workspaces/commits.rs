@@ -133,7 +133,13 @@ mod tests {
             )
             .await?;
             let remote_commit = get_by_id(&remote_repo, &commit.id).await?;
-            assert_eq!(remote_commit.map(|c| c.id), Some(commit.id));
+            assert_eq!(remote_commit.map(|c| c.id), Some(commit.id.clone()));
+            let existing =
+                create_from_branch(&remote_repo, "add-data", DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(
+                existing.commit_id, commit.id,
+                "creating a branch that exists returns it unchanged"
+            );
 
             // A workspace even with its branch merges with no conflicts
             branch_with_workspaces(&remote_repo, "even", &["even"]).await?;
