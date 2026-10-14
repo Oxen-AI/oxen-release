@@ -296,7 +296,6 @@ pub use crate::core::v_latest::entries::list_tabular_files_in_repo;
 #[cfg(test)]
 mod tests {
     use std::path::Path;
-    use std::path::PathBuf;
 
     use uuid::Uuid;
 
@@ -304,169 +303,135 @@ mod tests {
     use crate::model::MerkleHash;
     use crate::opts::{PaginateOpts, SortBy, SortOpts};
     use crate::repositories;
+    use crate::repositories::workspaces::{self, data_frames};
+    use crate::repositories::{commits, tree};
     use crate::test;
     use crate::util;
-    use tokio::time::sleep;
+    use crate::util::fs;
+    use crate::util::fs::rcount_files_in_dir;
+
+    use super::{
+        count_for_commit, get_directory, get_directory_async, get_meta_entry, get_meta_entry_async,
+        list_directory, list_directory_w_workspace_depth, list_directory_w_workspace_depth_async,
+        list_for_commit,
+    };
 
     #[tokio::test]
-    async fn test_an_entry_naming_an_absent_commit_still_lists() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            let first = repo.path.join("first.txt");
-            util::fs::write_to_path(&first, "first")?;
-            repositories::add(&repo, &first).await?;
-            let first_commit = repositories::commit(&repo, "Add first")?;
+    async fn test_list_get_and_count_training_data_entries() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            let commit = commits::head_commit(&repo)?;
 
-            let second = repo.path.join("second.txt");
-            util::fs::write_to_path(&second, "second")?;
-            repositories::add(&repo, &second).await?;
-            repositories::commit(&repo, "Add second")?;
+            let count = count_for_commit(&repo, &commit)?;
+            assert_eq!(
+                count,
+                rcount_files_in_dir(&repo.path),
+                "a commit of the whole tree counts every file in it"
+            );
+            assert_eq!(
+                list_for_commit(&repo, &commit)?.len(),
+                count,
+                "the commit lists every entry it counts"
+            );
 
-            // first.txt still names the earlier commit, so removing that commit's node leaves the
-            // tree pointing at a commit the repository no longer has.
-            let absent: MerkleHash = first_commit.id.parse()?;
-            repo.merkle_node_store().delete(&absent)?;
-            assert!(repositories::commits::get_by_hash(&repo, &absent)?.is_none());
-
-            let listed = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                "main",
-                &PaginateOpts {
-                    page_num: 1,
-                    page_size: 10,
-                },
-            )?;
-
-            let named = |name: &str| {
-                listed
-                    .entries
-                    .iter()
-                    .find(|entry| entry.filename() == name)
-                    .cloned()
+            let page_of = |path: &str, page_num, page_size| {
+                list_directory(
+                    &repo,
+                    Path::new(path),
+                    &commit.id,
+                    &PaginateOpts {
+                        page_num,
+                        page_size,
+                    },
+                )
             };
-            let first_entry = named("first.txt").expect("first.txt is listed");
-            let second_entry = named("second.txt").expect("second.txt is listed");
+            let top = page_of("", 1, 10)?;
+            assert_eq!(top.total_entries, 9);
+            assert_eq!(top.entries.len(), 9);
+            assert_eq!(top.entries.iter().filter(|e| e.is_dir()).count(), 5);
+            assert_eq!(top.entries.iter().filter(|e| !e.is_dir()).count(), 4);
 
-            assert!(
-                first_entry.latest_commit().is_none(),
-                "an entry whose commit is absent carries no commit"
-            );
-            assert!(
-                second_entry.latest_commit().is_some(),
-                "an entry whose commit is present still carries it"
-            );
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_api_local_entries_list_all() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
-            // (file already created in helper)
-            let file_to_add = repo.path.join("labels.txt");
-
-            // Commit the file
-            repositories::add(&repo, file_to_add).await?;
-            let commit = repositories::commit(&repo, "Adding labels file")?;
-
-            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
-            assert_eq!(entries.len(), 1);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_api_local_entries_count_one_for_commit() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
-            // (file already created in helper)
-            let file_to_add = repo.path.join("labels.txt");
-
-            // Commit the file
-            repositories::add(&repo, file_to_add).await?;
-            let commit = repositories::commit(&repo, "Adding labels file")?;
-
-            let count = repositories::entries::count_for_commit(&repo, &commit)?;
-            assert_eq!(count, 1);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_api_local_entries_count_many_for_commit() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
-            // (files already created in helper)
-            let dir_to_add = repo.path.join("train");
-            let num_files = util::fs::rcount_files_in_dir(&dir_to_add);
-
-            // Commit the dir
-            repositories::add(&repo, &dir_to_add).await?;
-            let commit = repositories::commit(&repo, "Adding training data")?;
-            let count = repositories::entries::count_for_commit(&repo, &commit)?;
-            assert_eq!(count, num_files);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_api_local_entries_count_many_dirs() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            test::write_txt_file_to_path(repo.path.join("README.md"), "README")?;
-            test::populate_dir_with_txt_files(repo.path.join("train"), "train", 3)?;
-            test::populate_dir_with_txt_files(repo.path.join("test"), "test", 2)?;
-            let num_files = util::fs::rcount_files_in_dir(&repo.path);
-
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all data")?;
-
-            let count = repositories::entries::count_for_commit(&repo, &commit)?;
-            assert_eq!(count, num_files);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_get_meta_entry_dir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let path = Path::new("annotations").join("train");
-            let entry = repositories::entries::get_meta_entry(&repo, commit, &path)?;
-
-            assert!(entry.is_dir);
-            assert_eq!(entry.filename, "train");
-            assert_eq!(Path::new(&entry.resource.unwrap().path), path);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_get_meta_entry_file() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let path = test::test_nlp_classification_csv();
-            let entry = repositories::entries::get_meta_entry(&repo, commit, &path)?;
-
-            assert!(!entry.is_dir);
-            assert_eq!(entry.filename, "test.tsv");
+            let train = page_of("train", 1, 10)?;
+            assert_eq!(train.total_entries, 7);
+            assert_eq!(train.entries.len(), 7);
+            let train_page_3 = page_of("train", 3, 3)?;
+            assert_eq!(train_page_3.total_entries, 7);
             assert_eq!(
-                Path::new(&entry.resource.unwrap().path),
-                test::test_nlp_classification_csv()
+                train_page_3.entries.len(),
+                1,
+                "the third page of three holds the seventh entry"
             );
+
+            let annotations_train = page_of("annotations/train", 1, 10)?;
+            assert_eq!(annotations_train.total_entries, 4);
+            assert_eq!(annotations_train.entries.len(), 4);
+
+            let dir_path = Path::new("annotations").join("train");
+            let file_path = test::test_nlp_classification_csv();
+            for (path, is_dir, filename) in
+                [(&dir_path, true, "train"), (&file_path, false, "test.tsv")]
+            {
+                let sync = get_meta_entry(&repo, &commit, path)?;
+                let async_ = get_meta_entry_async(&repo, &commit, path).await?;
+                assert_eq!(async_.filename, sync.filename);
+                assert_eq!(async_.hash, sync.hash);
+                assert_eq!(async_.is_dir, sync.is_dir);
+
+                assert_eq!(sync.is_dir, is_dir);
+                assert_eq!(sync.filename, filename);
+                let resource = sync.resource.expect("a meta entry carries its resource");
+                assert_eq!(Path::new(&resource.path), path.as_path());
+            }
+
+            let sync = get_directory(&repo, &commit, &dir_path)?;
+            let async_ = get_directory_async(&repo, &commit, &dir_path).await?;
+            assert!(sync.is_some());
+            assert_eq!(async_, sync);
+
+            // "" and "." both denote the repo root, and a nested path resolves normally.
+            for path in [Path::new(""), Path::new("."), dir_path.as_path()] {
+                // get_directory reads only the directory node.
+                let dir_node =
+                    get_directory(&repo, &commit, path)?.expect("directory should exist");
+
+                // A full-depth read of the same directory must report identical aggregates, since
+                // num_bytes and data_type_counts are stored on the directory node itself.
+                let full = tree::get_node_by_path(&repo, &commit, path)?
+                    .expect("directory node should exist")
+                    .dir()?;
+
+                assert_eq!(dir_node.num_bytes(), full.num_bytes());
+                assert_eq!(dir_node.data_type_counts(), full.data_type_counts());
+                assert!(dir_node.num_bytes() > 0);
+            }
+
+            let paginate_opts = PaginateOpts {
+                page_num: 1,
+                page_size: 100,
+            };
+            let sync = list_directory_w_workspace_depth(
+                &repo,
+                Path::new(""),
+                &commit.id,
+                None,
+                &paginate_opts,
+                &SortOpts::default(),
+                1,
+            )?;
+            let async_ = list_directory_w_workspace_depth_async(
+                &repo,
+                Path::new(""),
+                &commit.id,
+                None,
+                &paginate_opts,
+                &SortOpts::default(),
+                1,
+            )
+            .await?;
+            assert_eq!(async_.total_entries, sync.total_entries);
+            assert_eq!(async_.total_pages, sync.total_pages);
+            let async_names: Vec<&str> = async_.entries.iter().map(|e| e.filename()).collect();
+            let sync_names: Vec<&str> = sync.entries.iter().map(|e| e.filename()).collect();
+            assert_eq!(async_names, sync_names);
 
             Ok(())
         })
@@ -474,609 +439,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_directories_top_level_directory() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: 1,
-                    page_size: 10,
-                },
-            )?;
-            let dir_entries = paginated.entries;
-            let size = paginated.total_entries;
-            for entry in dir_entries.iter() {
-                println!("{entry:?}");
+    async fn test_list_directory_pages_dirs_before_files() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let num_dirs = 101;
+            for n in 0..num_dirs {
+                test::populate_dir_with_txt_files(
+                    repo.path.join(format!("dir_{n:0>3}")),
+                    "data",
+                    1,
+                )?;
             }
+            let num_files = 45;
+            test::populate_dir_with_txt_files(&repo.path, "file", num_files)?;
+            repositories::add(&repo, &repo.path).await?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
+            let total = num_dirs + num_files;
 
-            assert_eq!(size, 9);
-            assert_eq!(dir_entries.len(), 9);
+            let page = |page_num, page_size| {
+                list_directory(
+                    &repo,
+                    Path::new(""),
+                    &commit.id,
+                    &PaginateOpts {
+                        page_num,
+                        page_size,
+                    },
+                )
+            };
+
+            let second = page(2, 10)?;
+            assert_eq!(second.total_entries, total);
+            assert_eq!(second.total_pages, 15);
+            assert_eq!(second.entries.len(), 10);
             assert_eq!(
-                dir_entries
-                    .clone()
-                    .into_iter()
-                    .filter(|e| !e.is_dir())
-                    .count(),
-                4
+                second.entries[0].filename(),
+                "dir_010",
+                "directories list first, in name order"
             );
-            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir()).count(), 5);
 
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_full() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new("train"),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: 1,
-                    page_size: 10,
-                },
-            )?;
-            let dir_entries = paginated.entries;
-            let size = paginated.total_entries;
-
-            assert_eq!(size, 7);
-            assert_eq!(dir_entries.len(), 7);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_train_sub_directory_full() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new("annotations/train"),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: 1,
-                    page_size: 10,
-                },
-            )?;
-            let dir_entries = paginated.entries;
-            let size = paginated.total_entries;
-
-            assert_eq!(size, 4);
-            assert_eq!(dir_entries.len(), 4);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_subset() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new("train"),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: 3,
-                    page_size: 3,
-                },
-            )?;
-
-            let dir_entries = paginated.entries;
-            let total_entries = paginated.total_entries;
-
-            for entry in dir_entries.iter() {
-                println!("{entry:?}");
-            }
-
-            assert_eq!(total_entries, 7);
-            assert_eq!(dir_entries.len(), 1);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_1_exactly_ten() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 8 directories
-            for n in 0..8 {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-            // Create 2 files
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "hello world")?;
-
-            let filename = "README.md";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 1;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-            assert_eq!(paginated.total_entries, 10);
-            assert_eq!(paginated.total_pages, 1);
-            assert_eq!(paginated.entries.len(), 10);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_all_dirs_no_files() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 42 directories
-            for n in 0..42 {
-                let dirname = format!("dir_{n:0>3}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 2;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-
-            for entry in paginated.entries.iter() {
-                println!("{entry:?}");
-            }
-
-            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_010");
-
-            println!("{paginated:?}");
-            assert_eq!(paginated.total_entries, 42);
-            assert_eq!(paginated.total_pages, 5);
-            assert_eq!(paginated.entries.len(), 10);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_101_dirs_no_files() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 101 directories
-            for n in 0..101 {
-                let dirname = format!("dir_{n:0>3}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 11;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-
-            for entry in paginated.entries.iter() {
-                println!("{:?}", entry.filename());
-            }
-
-            assert_eq!(paginated.entries.first().unwrap().filename(), "dir_100");
-
-            println!("{paginated:?}");
-            assert_eq!(paginated.total_entries, 101);
-            assert_eq!(paginated.total_pages, 11);
-            assert_eq!(paginated.entries.len(), 1);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_exactly_ten_page_two() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 8 directories
-            for n in 0..8 {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-            // Create 2 files
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "hello world")?;
-
-            let filename = "README.md";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 2;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-            assert_eq!(paginated.total_entries, 10);
-            assert_eq!(paginated.total_pages, 1);
-            assert_eq!(paginated.entries.len(), 0);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_nine_entries_page_size_ten() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 7 directories
-            for n in 0..7 {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-            // Create 2 files
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "hello world")?;
-
-            let filename = "README.md";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 1;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-            assert_eq!(paginated.total_entries, 9);
-            assert_eq!(paginated.total_pages, 1);
-            assert_eq!(paginated.entries.len(), 9);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_eleven_entries_page_size_ten() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create 9 directories
-            for n in 0..9 {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-            // Create 2 files
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "hello world")?;
-
-            let filename = "README.md";
-            let filepath = repo.path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 1;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-            assert_eq!(paginated.total_entries, 11);
-            assert_eq!(paginated.total_pages, 2);
-            assert_eq!(paginated.entries.len(), page_size);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_many_dirs_many_files() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create many directories
-            let num_dirs = 32;
-            for n in 0..num_dirs {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-
-            // Create many files
-            let num_files = 45;
-            for n in 0..num_files {
-                let filename = format!("file_{n}.txt");
-                let filepath = repo.path.join(filename);
-                util::fs::write(filepath, format!("helloooo {n}"))?;
-            }
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 1;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-            assert_eq!(paginated.total_entries, num_dirs + num_files);
-            assert_eq!(paginated.total_pages, 8);
-            assert_eq!(paginated.entries.len(), page_size);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_one_dir_many_files_page_2() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create one directory
-            let dir_path = repo.path.join("lonely_dir");
-            util::fs::create_dir_all(&dir_path)?;
-            let filename = "data.txt";
-            let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "All the lonely directories")?;
-
-            // Create many files
-            let num_files = 45;
-            for n in 0..num_files {
-                let filename = format!("file_{n}.txt");
-                let filepath = repo.path.join(filename);
-                util::fs::write(filepath, format!("helloooo {n}"))?;
-            }
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 2;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-
-            assert_eq!(paginated.total_entries, num_files + 1);
-            assert_eq!(paginated.total_pages, 5);
-            assert_eq!(paginated.entries.len(), page_size);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directories_many_dir_some_files_page_2() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create many directories
-            let num_dirs = 9;
-            for n in 0..num_dirs {
-                let dirname = format!("dir_{n}");
-                let dir_path = repo.path.join(dirname);
-                util::fs::create_dir_all(&dir_path)?;
-                let filename = "data.txt";
-                let filepath = dir_path.join(filename);
-                util::fs::write(&filepath, format!("Hi {n}"))?;
-            }
-
-            // Create many files
-            let num_files = 8;
-            for n in 0..num_files {
-                let filename = format!("file_{n}.txt");
-                let filepath = repo.path.join(filename);
-                util::fs::write(filepath, format!("helloooo {n}"))?;
-            }
-
-            // Add and commit all the dirs and files
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            let page_number = 2;
-            let page_size = 10;
-
-            let paginated = repositories::entries::list_directory(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                &PaginateOpts {
-                    page_num: page_number,
-                    page_size,
-                },
-            )?;
-
-            assert_eq!(paginated.total_entries, num_files + num_dirs);
-            assert_eq!(paginated.total_pages, 2);
-            assert_eq!(paginated.entries.len(), 7);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_file_metadata_shows_is_indexed() -> Result<(), OxenError> {
-        // skip on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // Create a deeply nested directory
-            let dir_path = repo
-                .path
-                .join("data")
-                .join("train")
-                .join("images")
-                .join("cats");
-            util::fs::create_dir_all(&dir_path)?;
-
-            // Add two tabular files to it
-            let filename_1 = "cats.tsv";
-            let filepath_1 = dir_path.join(filename_1);
-            util::fs::write(filepath_1, "1\t2\t3\nhello\tworld\tsup\n")?;
-
-            let filename_2 = "dogs.csv";
-            let filepath_2 = dir_path.join(filename_2);
-            util::fs::write(filepath_2, "1,2,3\nhello,world,sup\n")?;
-
-            let path_1 = PathBuf::from("data")
-                .join("train")
-                .join("images")
-                .join("cats")
-                .join(filename_1);
-
-            let path_2 = PathBuf::from("data")
-                .join("train")
-                .join("images")
-                .join("cats")
-                .join(filename_2);
-
-            // And write a file in the same dir that is not tabular
-            let filename = "README.md";
-            let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "readme....")?;
-
-            // Add and commit all
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Adding all the data")?;
-
-            // Get the metadata entries for the two dataframes
-            let meta1 = repositories::entries::get_meta_entry(&repo, &commit, &path_1)?;
-            let meta2 = repositories::entries::get_meta_entry(&repo, &commit, &path_2)?;
-
-            let entry2 = repositories::entries::get_commit_entry(&repo, &commit, &path_2)?
-                .expect("Failed: could not get commit entry");
-
-            assert_eq!(meta1.is_queryable, Some(false));
-            assert_eq!(meta2.is_queryable, Some(false));
-
-            // Now index df2
-            let workspace_id = Uuid::new_v4().to_string();
-            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, false)?;
-            repositories::workspaces::data_frames::index(&repo, &workspace, &entry2.path).await?;
-
-            // Now get the metadata entries for the two dataframes
-            let meta1 = repositories::entries::get_meta_entry(&repo, &commit, &path_1)?;
-            let meta2 = repositories::entries::get_meta_entry(&repo, &commit, &path_2)?;
-
-            assert_eq!(meta1.is_queryable, Some(false));
-            assert_eq!(meta2.is_queryable, Some(true));
+            let eleventh = page(11, 10)?;
+            assert_eq!(eleventh.entries.len(), 10);
+            assert_eq!(eleventh.entries[0].filename(), "dir_100");
+            assert!(
+                eleventh.entries[1..].iter().all(|e| !e.is_dir()),
+                "files follow the last directory on the same page"
+            );
+
+            assert_eq!(
+                page(15, 10)?.entries.len(),
+                6,
+                "the last page holds the remainder"
+            );
+            assert_eq!(
+                page(16, 10)?.entries.len(),
+                0,
+                "a page past the end is empty"
+            );
+
+            // A page size at, above, and below the number of entries.
+            let exact = page(1, total)?;
+            assert_eq!((exact.total_pages, exact.entries.len()), (1, total));
+            assert_eq!(page(2, total)?.entries.len(), 0);
+            let larger = page(1, total + 1)?;
+            assert_eq!((larger.total_pages, larger.entries.len()), (1, total));
+            let smaller = page(1, total - 1)?;
+            assert_eq!((smaller.total_pages, smaller.entries.len()), (2, total - 1));
 
             Ok(())
         })
@@ -1109,11 +536,11 @@ mod tests {
             util::fs::write(dir_a.join("file_a1.txt"), "a1 content")?;
             util::fs::write(dir_a_subdir.join("file_sub.txt"), "sub content")?;
             util::fs::write(dir_b.join("file_b1.txt"), "b1 content")?;
+            fs::write(dir_b.join("cats.tsv"), "1\t2\t3\nhello\tworld\tsup\n")?;
+            fs::write(dir_b.join("dogs.csv"), "1,2,3\nhello,world,sup\n")?;
 
             repositories::add(&repo, &repo.path).await?;
-            let _first_commit = repositories::commit(&repo, "Adding nested structure")?;
-
-            sleep(std::time::Duration::from_millis(1100)).await;
+            let first_commit = repositories::commit(&repo, "Adding nested structure")?;
 
             util::fs::write(dir_a.join("file_a2.txt"), "a2 content")?;
             repositories::add(&repo, dir_a.join("file_a2.txt")).await?;
@@ -1230,114 +657,56 @@ mod tests {
                 assert_eq!(sub_children[0].filename, "file_sub.txt");
             }
 
-            Ok(())
-        })
-        .await
-    }
+            // Indexing one data frame in a workspace on the commit that last changed it makes only
+            // that one queryable.
+            if std::env::consts::OS != "windows" {
+                let cats = Path::new("dir_b").join("cats.tsv");
+                let dogs = Path::new("dir_b").join("dogs.csv");
+                let queryable = |path: &Path| -> Result<Option<bool>, OxenError> {
+                    Ok(get_meta_entry(&repo, &commit, path)?.is_queryable)
+                };
+                assert_eq!(queryable(&cats)?, Some(false));
+                assert_eq!(queryable(&dogs)?, Some(false));
 
-    #[tokio::test]
-    async fn test_get_directory_async_matches_sync() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-            let path = Path::new("annotations").join("train");
-
-            let sync = repositories::entries::get_directory(&repo, commit, &path)?;
-            let async_ = repositories::entries::get_directory_async(&repo, commit, &path).await?;
-            assert_eq!(async_, sync);
-            assert!(sync.is_some());
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_get_directory_preserves_aggregates_without_children() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-            // "" and "." both denote the repo root; a nested path resolves normally.
-            let nested = Path::new("annotations").join("train");
-            for path in [Path::new(""), Path::new("."), nested.as_path()] {
-                // get_directory reads only the directory node.
-                let dir_node = repositories::entries::get_directory(&repo, commit, path)?
-                    .expect("directory should exist");
-
-                // A full-depth read of the same directory must report identical aggregates, since
-                // num_bytes and data_type_counts are stored on the directory node itself.
-                let full = repositories::tree::get_node_by_path(&repo, commit, path)?
-                    .expect("directory node should exist")
-                    .dir()?;
-
-                assert_eq!(dir_node.num_bytes(), full.num_bytes());
-                assert_eq!(dir_node.data_type_counts(), full.data_type_counts());
-                assert!(dir_node.num_bytes() > 0);
+                let workspace_id = Uuid::new_v4().to_string();
+                let workspace = workspaces::create(&repo, &first_commit, workspace_id, false)?;
+                data_frames::index(&repo, &workspace, &dogs).await?;
+                assert_eq!(queryable(&cats)?, Some(false));
+                assert_eq!(queryable(&dogs)?, Some(true));
             }
 
-            Ok(())
-        })
-        .await
-    }
+            // dir_a/file_a1.txt still records the first commit, so removing that commit's node
+            // leaves the tree pointing at a commit the repository no longer has.
+            let absent: MerkleHash = first_commit.id.parse()?;
+            repo.merkle_node_store().delete(&absent)?;
+            assert!(commits::get_by_hash(&repo, &absent)?.is_none());
 
-    #[tokio::test]
-    async fn test_get_meta_entry_async_matches_sync() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-
-            for path in [
-                Path::new("annotations").join("train"),
-                test::test_nlp_classification_csv(),
-            ] {
-                let sync = repositories::entries::get_meta_entry(&repo, commit, &path)?;
-                let async_ =
-                    repositories::entries::get_meta_entry_async(&repo, commit, &path).await?;
-                assert_eq!(async_.filename, sync.filename);
-                assert_eq!(async_.hash, sync.hash);
-                assert_eq!(async_.is_dir, sync.is_dir);
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_list_directory_w_workspace_depth_async_matches_sync() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = repositories::commits::list(&repo)?;
-            let commit = commits.first().unwrap();
-            let paginate_opts = PaginateOpts {
-                page_num: 1,
-                page_size: 100,
-            };
-
-            let sync = repositories::entries::list_directory_w_workspace_depth(
+            let listed = list_directory(
                 &repo,
-                Path::new(""),
-                &commit.id,
-                None,
-                &paginate_opts,
-                &SortOpts::default(),
-                1,
+                Path::new("dir_a"),
+                "main",
+                &PaginateOpts {
+                    page_num: 1,
+                    page_size: 10,
+                },
             )?;
-            let async_ = repositories::entries::list_directory_w_workspace_depth_async(
-                &repo,
-                Path::new(""),
-                &commit.id,
-                None,
-                &paginate_opts,
-                &SortOpts::default(),
-                1,
-            )
-            .await?;
-
-            assert_eq!(async_.total_entries, sync.total_entries);
-            assert_eq!(async_.total_pages, sync.total_pages);
-            let async_names: Vec<&str> = async_.entries.iter().map(|e| e.filename()).collect();
-            let sync_names: Vec<&str> = sync.entries.iter().map(|e| e.filename()).collect();
-            assert_eq!(async_names, sync_names);
+            let named = |name: &str| {
+                listed
+                    .entries
+                    .iter()
+                    .find(|entry| entry.filename() == name)
+                    .cloned()
+            };
+            let older = named("file_a1.txt").expect("file_a1.txt is listed");
+            let newer = named("file_a2.txt").expect("file_a2.txt is listed");
+            assert!(
+                older.latest_commit().is_none(),
+                "an entry whose commit is absent carries no commit"
+            );
+            assert!(
+                newer.latest_commit().is_some(),
+                "an entry whose commit is present still carries it"
+            );
 
             Ok(())
         })
