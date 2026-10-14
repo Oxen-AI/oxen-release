@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::constants;
 use crate::constants::MAX_CONCURRENT_VERSION_PROBES;
 use crate::error::OxenError;
+use crate::model::MerkleHash;
 use crate::storage::{LocalVersionStore, S3Opts, S3VersionStore};
 use crate::util;
 use crate::view::versions::CleanCorruptedVersionsResult;
@@ -198,6 +199,22 @@ impl<'de> Deserialize<'de> for StorageConfig {
     }
 }
 
+/// A version file being stored part by part, from [`VersionStore::begin_version_upload`].
+#[async_trait]
+pub trait VersionUpload: Send + Sync {
+    /// Store part `part_number`, counting from 1: the bytes at offset
+    /// `(part_number - 1) * part_size`. Parts may be stored in any order and at the same time.
+    async fn upload_part(&self, part_number: u64, data: Bytes) -> Result<(), OxenError>;
+
+    /// Publish the file once every part is stored. `actual_hash` is the digest of all the parts'
+    /// bytes in order. On any error this discards the upload, and on a mismatch with the upload's
+    /// hash the error is [`OxenError::HashMismatch`].
+    async fn complete(&self, actual_hash: MerkleHash) -> Result<(), OxenError>;
+
+    /// Discard the upload and every part stored.
+    async fn abort(&self) -> Result<(), OxenError>;
+}
+
 /// Trait defining operations for version file storage backends
 #[async_trait]
 pub trait VersionStore: Debug + Send + Sync + 'static {
@@ -292,6 +309,16 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
     /// # Arguments
     /// * `hash` - The content hash that identifies this version
     async fn combine_version_chunks(&self, hash: &str) -> Result<(), OxenError>;
+
+    /// Start storing the version file `hash` of `size` bytes as parts of `part_size` bytes, the
+    /// last part holding the remainder. Nothing is visible under `hash` until
+    /// [`VersionUpload::complete`].
+    async fn begin_version_upload(
+        &self,
+        hash: &str,
+        size: u64,
+        part_size: u64,
+    ) -> Result<Box<dyn VersionUpload>, OxenError>;
 
     /// Get metadata of a version file
     ///
@@ -605,6 +632,15 @@ impl VersionStore for UnconfiguredS3VersionStore {
     }
 
     async fn combine_version_chunks(&self, _hash: &str) -> Result<(), OxenError> {
+        Err(OxenError::S3BackendMissingServerOpts)
+    }
+
+    async fn begin_version_upload(
+        &self,
+        _hash: &str,
+        _size: u64,
+        _part_size: u64,
+    ) -> Result<Box<dyn VersionUpload>, OxenError> {
         Err(OxenError::S3BackendMissingServerOpts)
     }
 
