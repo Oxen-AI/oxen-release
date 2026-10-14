@@ -591,13 +591,11 @@ mod tests {
             // An upload whose bytes do not match its hash publishes nothing.
             let wrong_hash = hash_buffer(b"some other file");
             let mismatch = Upload::begin(&repo, &wrong_hash, part_size as u64 + 1, None).await?;
-            let exclusive =
-                repo_locks::with_repo_exclusive_with_timeout(&repo, Duration::ZERO, async {
-                    Ok(())
-                })
-                .await;
+            let exclusive = repo_locks::begin_exclusive_with_timeout(&repo, Duration::ZERO)
+                .await
+                .err();
             assert!(
-                matches!(exclusive, Err(OxenError::LockTimeout(_))),
+                matches!(exclusive, Some(OxenError::LockTimeout(_))),
                 "an open upload makes maintenance wait: {exclusive:?}"
             );
             send(&mismatch, 2, Bytes::copy_from_slice(&data[..1])).await?;
@@ -623,8 +621,8 @@ mod tests {
             let aborted = Upload::find(&repo, idle.id()).err();
             assert!(matches!(aborted, Some(OxenError::VersionUploadNotFound(_))));
             drop((upload, idle));
-            repo_locks::with_repo_exclusive_with_timeout(&repo, Duration::ZERO, async { Ok(()) })
-                .await?;
+            let _exclusive =
+                repo_locks::begin_exclusive_with_timeout(&repo, Duration::ZERO).await?;
             Ok(())
         })
         .await
