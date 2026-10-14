@@ -37,11 +37,11 @@ use xxhash_rust::xxh3::Xxh3;
 /// AWS recommends uploading to S3 in a single PUT if filesize is <= 100 MB.
 const DEFAULT_ONESHOT_SIZE: u64 = 100 * 1024 * 1024;
 
-/// The smallest part S3 accepts, except the last.
-const MIN_PART_SIZE: usize = 5 * 1024 * 1024;
+/// The smallest part S3 accepts, 5 MiB, except the last.
+pub(crate) const MIN_PART_SIZE: usize = 5 * 1024 * 1024;
 
 /// The most parts one S3 multipart upload accepts.
-const MAX_PARTS: usize = 10_000;
+pub(crate) const MAX_PARTS: usize = 10_000;
 
 /// The most keys S3 accepts in one DeleteObjects request.
 const DELETE_OBJECTS_MAX_KEYS: usize = 1000;
@@ -2646,9 +2646,14 @@ pub(crate) mod tests {
             use crate::constants::TABLE_NAME;
             use crate::core::db::data_frames::df_db;
             use crate::core::db::data_frames::df_db::with_df_db_manager;
+            use crate::core::staged::staged_db_manager::get_staged_db_manager;
+            use crate::model::metadata::generic_metadata::GenericMetadata;
             use crate::model::{LocalRepository, Workspace};
             use crate::repositories;
-            use std::path::Path;
+            use crate::repositories::versions::uploads::{PartStored, Upload};
+            use crate::util::hasher::hash_buffer;
+            use crate::view::versions::WorkspaceDestination;
+            use std::path::{Path, PathBuf};
 
             let (s3_store, _tmp, _server) = setup_dyn().await;
 
@@ -2695,6 +2700,39 @@ pub(crate) mod tests {
                     })
                 })?;
                 assert!(count > 0, "expected the S3-indexed table to have rows");
+
+                // An upload into the workspace stages its file from the copy kept on disk.
+                let data = Bytes::from_static(b"one\ntwo\nthree");
+                let hash = hash_buffer(&data);
+                let destination = WorkspaceDestination {
+                    workspace_id: s3_workspace.id.clone(),
+                    path: PathBuf::from("uploaded.txt"),
+                };
+                let upload = Upload::begin(
+                    &s3_workspace.base_repo,
+                    &hash,
+                    data.len() as u64,
+                    Some(destination),
+                )
+                .await?;
+                let receiving = upload.receive_part(1)?.expect("part 1 is not received yet");
+                assert_eq!(receiving.store(data.clone()).await?, PartStored::Completed);
+                assert_eq!(
+                    s3_workspace
+                        .base_repo
+                        .version_store()
+                        .get_version(&hash)
+                        .await?,
+                    data
+                );
+                let staged = get_staged_db_manager(&s3_workspace.workspace_repo)?
+                    .read_from_staged_db("uploaded.txt")?
+                    .expect("the upload staged uploaded.txt");
+                let num_lines = match staged.node.file()?.metadata() {
+                    Some(GenericMetadata::MetadataText(text)) => text.text.num_lines,
+                    other => panic!("uploaded.txt is staged as text: {other:?}"),
+                };
+                assert_eq!(num_lines, 3, "staging reads the file's bytes from the copy");
 
                 Ok(())
             })

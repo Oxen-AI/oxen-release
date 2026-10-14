@@ -84,11 +84,21 @@ pub async fn add_version_file(
         .version_store()
         .materialize(file_hash, &workspace.dir())
         .await?;
+    add_version_file_from(workspace, &version_path, dst_path, file_hash).await
+}
 
+/// Stage the version file `file_hash` at `dst_path`, reading its bytes from `data_path`, a local
+/// copy of them.
+pub(crate) async fn add_version_file_from(
+    workspace: &Workspace,
+    data_path: &Path,
+    dst_path: &Path,
+    file_hash: &str,
+) -> Result<PathBuf, OxenError> {
     let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
     stage_file_with_hash(
         workspace,
-        &version_path,
+        data_path,
         dst_path,
         file_hash,
         &staged_db_manager,
