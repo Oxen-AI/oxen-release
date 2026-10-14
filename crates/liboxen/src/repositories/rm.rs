@@ -17,10 +17,11 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     let mut globs = Vec::new();
     let mut paths = HashSet::new();
     for path in &opts.paths {
-        if util::fs::is_glob_path(util::fs::path_relative_to_dir(path, &repo.path)?) {
+        let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
+        if util::fs::is_glob_path(&relative_path) {
             globs.push(path.clone());
         } else {
-            paths.insert(path.clone());
+            paths.insert(relative_path);
         }
     }
 
