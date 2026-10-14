@@ -2161,17 +2161,23 @@ pub(crate) mod tests {
                 .await
                 .expect("begin upload");
             let upload = upload_parts(upload, parts).await;
+            let numbers = parts.map(|(n, _)| n);
             let refused = upload.complete(partial_digest).await;
             assert!(
                 matches!(refused, Err(OxenError::InternalError(_))),
-                "parts {:?} do not cover the file: {refused:?}",
-                parts.map(|(n, _)| n)
+                "parts {numbers:?} do not cover the file: {refused:?}"
             );
             assert!(
                 !store
                     .version_exists(&partial_hash)
                     .await
-                    .expect("version exists")
+                    .expect("version exists"),
+                "parts {numbers:?} publish nothing"
+            );
+            let after_abort = upload.upload_part(1, Bytes::from_static(b"x")).await;
+            assert!(
+                after_abort.is_err(),
+                "the upload of parts {numbers:?} is aborted"
             );
         }
     }
