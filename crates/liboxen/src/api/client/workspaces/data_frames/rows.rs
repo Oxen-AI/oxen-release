@@ -202,760 +202,158 @@ pub async fn batch_update(
 
 #[cfg(test)]
 mod tests {
+    use crate::api::client::workspaces::data_frames::{self, columns};
+    use crate::api::client::workspaces::{self, changes};
+    use crate::repositories::workspaces::df;
 
-    use serde_json::Value;
+    use serde_json::{Value, json};
 
-    use crate::api;
-    use crate::config::UserConfig;
-    use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::constants::{self, OXEN_ID_COL};
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, OXEN_ID_COL};
     use crate::error::OxenError;
+    use crate::model::RemoteRepository;
     use crate::opts::DFOpts;
-    use crate::repositories;
     use crate::test;
     use polars::prelude::AnyValue;
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_stage_row_on_dataframe_json() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
+    use super::{add, batch_update, delete, get, update};
 
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
+    fn bbox_path() -> PathBuf {
+        Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv")
+    }
 
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let path = Path::new("annotations").join("train").join("bounding_box.csv");
-            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let result =
-                api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    data.to_string()
-                ).await;
+    async fn indexed_workspace(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+    ) -> Result<(), OxenError> {
+        workspaces::create(remote_repo, DEFAULT_BRANCH_NAME, workspace_id).await?;
+        data_frames::index(remote_repo, workspace_id, bbox_path()).await?;
+        Ok(())
+    }
 
-            assert!(result.is_ok());
+    async fn staged_rows(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+    ) -> Result<Vec<Value>, OxenError> {
+        let df = data_frames::get(remote_repo, workspace_id, bbox_path(), &DFOpts::empty()).await?;
+        let data = df.data_frame.expect("an indexed data frame").view.data;
+        Ok(data.as_array().expect("rows").clone())
+    }
 
-            Ok(remote_repo)
-        })
-        .await
+    fn row_id(row: &Value) -> String {
+        row[OXEN_ID_COL].as_str().expect("a row id").to_string()
+    }
+
+    async fn modified_file_count(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+    ) -> Result<usize, OxenError> {
+        let changes = changes::list(
+            remote_repo,
+            workspace_id,
+            Path::new(""),
+            DEFAULT_PAGE_NUM,
+            DEFAULT_PAGE_SIZE,
+        )
+        .await?;
+        Ok(changes.modified_files.entries.len())
     }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_should_not_stage_invalid_schema_for_dataframe() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
+    async fn test_add_update_and_delete_rows_in_workspaces() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let path = bbox_path();
 
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let data = "{\"id\": 1, \"name\": \"greg\"}";
-            let result = api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                data.to_string(),
-            )
-            .await;
+            // Edit one row at a time
+            indexed_workspace(&remote_repo, "edits").await?;
+            let rows = staged_rows(&remote_repo, "edits").await?;
+            let initial_count = rows.len();
+            let first_id = row_id(&rows[0]);
+            assert_eq!(get(&remote_repo, "edits", &path, &first_id).await?.data_frame.view.size.height, 1);
 
-            assert!(result.is_err());
+            let data = r#"{"file":"lebron>jordan.jpg", "label": "dog", "min_x":13, "min_y":14, "width": 100, "height": 100}"#;
+            update(&remote_repo, "edits", &path, &first_id, data.to_string()).await?;
+            let row = get(&remote_repo, "edits", &path, &first_id).await?;
+            assert_eq!(row.data_frame.view.data[0]["file"], "lebron>jordan.jpg");
 
-            Ok(remote_repo)
-        })
-        .await
-    }
+            // A deleted row leaves the staged table rather than being tombstoned
+            delete(&remote_repo, "edits", &path, &first_id).await?;
+            assert_eq!(get(&remote_repo, "edits", &path, &first_id).await?.data_frame.view.size.height, 0);
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_status_modified_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace = api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let directory = Path::new("annotations").join("train");
-            let path = directory.join("bounding_box.csv");
-            let data: &str = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::client::workspaces::data_frames::index(
-                &remote_repo,
-                &workspace_id,
-                &path,
-            ).await?;
-            api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                data.to_string()
-            ).await?;
-
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                &directory,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.modified_files.entries.len(), 1);
-            assert_eq!(entries.modified_files.total_entries, 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_row() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = UserConfig::identifier()?;
-
-            // Path to the CSV file
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
-            // Extract the first _oxen_row_id from the data frame
-            let binding = df.data_frame.unwrap();
-            let row_id_value = binding
-                .view
-                .data
-                .get(0)
-                .and_then(|row| row.get("_oxen_id"))
-                .unwrap();
-
-            let row_id = row_id_value.as_str().unwrap();
-
-            let row = api::client::workspaces::data_frames::rows::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-            )
-            .await?;
-
-            assert_eq!(row.data_frame.view.size.height, 1);
-
-            api::client::workspaces::data_frames::rows::delete(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-            )
-            .await?;
-
-            let row = api::client::workspaces::data_frames::rows::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-            )
-            .await?;
-
-            // The row is deleted from the staged table immediately, not
-            // tombstoned: fetching it again returns an empty result.
-            assert_eq!(row.data_frame.view.size.height, 0);
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_update_row() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Path to the CSV file
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
-            // Extract the first _oxen_row_id from the data frame
-            let binding = df
-                .data_frame
-                .unwrap();
-            let row_id_value = binding
-                .view
-                .data
-                .get(0)
-                .and_then(|row| row.get("_oxen_id"))
-                .unwrap();
-
-            let row_id = row_id_value.as_str().unwrap();
-
-            let row = api::client::workspaces::data_frames::rows::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-            )
-            .await?;
-
-            assert_eq!(row.data_frame.view.size.height, 1);
-
-            let data: &str = "{\"file\":\"lebron>jordan.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-            api::client::workspaces::data_frames::rows::update(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-                data.to_string()
-            )
-            .await?;
-
-            let row = api::client::workspaces::data_frames::rows::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                row_id,
-            )
-            .await?;
-
-            let data: Value = serde_json::from_value(row.data_frame.view.data[0].clone()).unwrap();
-            assert_eq!(data.get("file").unwrap(), "lebron>jordan.jpg");
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_stage_delete_row_keeps_remote_status_modified() -> Result<(), OxenError> {
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        };
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let repo_dir = repo_dir.join("new_repo");
-
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &repo_dir).await?;
-
-                // Remote add row
-                let path = test::test_nlp_classification_csv();
-
-                // Index dataset
-                let workspace_id = "my_workspace";
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
-                    .await?;
-
-                let mut opts = DFOpts::empty();
-                opts.add_row =
-                    Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                // Grab ID from the row we just added
-                let df =
-                    repositories::workspaces::df(&cloned_repo, workspace_id, &path, opts).await?;
-                let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
-                    AnyValue::String(s) => s.to_string(),
-                    AnyValue::StringOwned(s) => s.to_string(),
-                    _ => panic!("Expected string"),
-                };
-
-                // Make sure it is listed as modified
-                let directory = Path::new("");
-                let status = api::client::workspaces::changes::list(
-                    &remote_repo,
-                    workspace_id,
-                    directory,
-                    constants::DEFAULT_PAGE_NUM,
-                    constants::DEFAULT_PAGE_SIZE,
-                )
-                .await?;
-                assert_eq!(status.modified_files.entries.len(), 1);
-
-                // Delete it
-                let mut delete_opts = DFOpts::empty();
-                delete_opts.delete_row = Some(uuid);
-                repositories::workspaces::df(&cloned_repo, workspace_id, &path, delete_opts)
-                    .await?;
-
-                // Edits are applied, not tracked: deleting the added row does
-                // not detect that the edits cancelled out, so the data frame
-                // stays listed as modified.
-                let status = api::client::workspaces::changes::list(
-                    &remote_repo,
-                    workspace_id,
-                    directory,
-                    constants::DEFAULT_PAGE_NUM,
-                    constants::DEFAULT_PAGE_SIZE,
-                )
-                .await?;
-                assert_eq!(status.modified_files.entries.len(), 1);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_row_with_data() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations").join("train").join("bounding_box.csv");
-
-            let workspace_id = "my_workspace";
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                .await?;
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
-                .await?;
-
-            // Valid data to add
             let data = r#"{"file":"image1.jpg", "label": "dog", "min_x":13, "min_y":14, "width": 100, "height": 100}"#;
+            let (_df, added_id) = add(&remote_repo, "edits", &path, data.to_string()).await?;
+            assert!(added_id.is_some());
+            let rows = staged_rows(&remote_repo, "edits").await?;
+            assert!(rows.iter().any(|row| row["file"] == "image1.jpg"), "the added row is staged");
 
-            // Add the row
-            let result = api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                workspace_id,
-                &path,
-                data.to_string(),
-            ).await;
+            add(&remote_repo, "edits", &path, "{}".to_string()).await?;
+            assert_eq!(staged_rows(&remote_repo, "edits").await?.len(), initial_count + 1, "one deleted, two added");
 
-            assert!(result.is_ok());
+            let data = r#"{"id": 1, "name": "greg"}"#;
+            let err = add(&remote_repo, "edits", &path, data.to_string())
+                .await
+                .expect_err("a row outside the schema is refused");
+            assert!(err.to_string().contains("incompatible_schemas"), "{err}");
+            assert_eq!(modified_file_count(&remote_repo, "edits").await?, 1);
 
-            // Retrieve the DataFrame to check if the row exists
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-
-            let df_view = df.data_frame.unwrap().view;
-            // Check if the new row exists in the DataFrame
-            let rows = df_view.data.as_array().unwrap();
-
-            let is_added = rows.iter().any(|row| {
-                let row_value: Value = serde_json::from_value(row.clone()).unwrap();
-                row_value.get("file") == Some(&Value::from("image1.jpg"))
-            });
-
-
-            assert!(is_added, "The added row does not exist in the DataFrame.");
-
-
-            Ok(remote_repo)
-        }).await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_row_with_empty_data() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            // Create the workspace
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                .await?;
-
-            // Index the DataFrame to get the initial row count
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let initial_df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-            let initial_row_count = initial_df
-                .data_frame
-                .unwrap()
-                .view
-                .data
-                .as_array()
-                .unwrap()
-                .len();
-
-            // Empty data to add
-            let data = r#"{}"#;
-
-            // Attempt to add the row
-            let result = api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                data.to_string(),
-            )
-            .await;
-
-            assert!(result.is_ok());
-
-            // Index the DataFrame again to get the new row count
-            let updated_df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-            let updated_row_count = updated_df
-                .data_frame
-                .unwrap()
-                .view
-                .data
-                .as_array()
-                .unwrap()
-                .len();
-
-            // Assert that the row count did change
-            assert_eq!(
-                initial_row_count + 1,
-                updated_row_count,
-                "Row count should remain the same after adding empty data"
-            );
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_batch_update() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            let workspace_id = UserConfig::identifier()?;
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                .await?;
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            // Retrieve the DataFrame to get row IDs
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
-            let df_view = df.data_frame.unwrap().view;
-            let rows = df_view.data.as_array().unwrap();
-
-            // Extract row IDs for the rows you want to update
-            let oxen_id_1 = rows[0]["_oxen_id"].as_str().unwrap();
-            let oxen_id_2 = rows[1]["_oxen_id"].as_str().unwrap();
-
-            // Construct the JSON payload using the extracted row IDs
-            let updates = format!(
-                r#"{{
-                "data": [
-                    {{
-                        "row_id": "{oxen_id_1}",
-                        "value": {{
-                            "file": "cfxsx"
-                        }}
-                    }},
-                    {{
-                        "row_id": "{oxen_id_2}",
-                        "value": {{
-                            "file": "yfcsx"
-                        }}
-                    }}
-                ]
-            }}"#
-            );
-
-            // Perform batch update
-            let result = api::client::workspaces::data_frames::rows::batch_update(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                updates.to_string(), // Convert JSON to string for the HTTP request
-            )
-            .await;
-
-            assert!(result.is_ok(), "Batch update failed");
-
-            // Retrieve the DataFrame to check if the rows have been updated
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
-            let df_view = df.data_frame.unwrap().view;
-            let updated_rows = df_view.data.as_array().unwrap();
-
-            // Parse the JSON string into a Value
-            let updates_value: Value = serde_json::from_str(&updates).unwrap();
-
-            // Iterate over each update in the JSON array
-            if let Some(data_array) = updates_value.get("data").and_then(|v| v.as_array()) {
-                for update in data_array.iter() {
-                    let row_id = update.get("row_id").and_then(|v| v.as_str()).unwrap();
-                    let expected_file = update
-                        .get("value")
-                        .and_then(|v| v.get("file"))
-                        .and_then(|v| v.as_str())
-                        .unwrap();
-
-                    let is_updated = updated_rows.iter().any(|row| {
-                        let current_row: Value = serde_json::from_value(row.clone()).unwrap();
-                        current_row.get("_oxen_id").and_then(|v| v.as_str()) == Some(row_id)
-                            && current_row.get("file").and_then(|v| v.as_str())
-                                == Some(expected_file)
-                    });
-
-                    assert!(
-                        is_updated,
-                        "The row with ID {row_id} was not updated to file {expected_file}"
-                    );
-                }
-            } else {
-                panic!("Expected 'data' to be an array in updates");
+            // Update several rows at once, then again with a list column
+            indexed_workspace(&remote_repo, "batch").await?;
+            let rows = staged_rows(&remote_repo, "batch").await?;
+            let ids: Vec<String> = rows.iter().take(3).map(row_id).collect();
+            let updates = json!({"data": [
+                {"row_id": ids[0], "value": {"file": "cfxsx"}},
+                {"row_id": ids[1], "value": {"file": "yfcsx"}},
+            ]});
+            batch_update(&remote_repo, "batch", &path, updates.to_string()).await?;
+            let rows = staged_rows(&remote_repo, "batch").await?;
+            for update in updates["data"].as_array().expect("updates") {
+                let row = rows.iter().find(|row| row[OXEN_ID_COL] == update["row_id"]).expect("row");
+                assert_eq!(row["file"], update["value"]["file"]);
             }
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_batch_update_with_embeddings() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            let workspace_id = UserConfig::identifier()?;
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                .await?;
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            // Retrieve the DataFrame to get row IDs
-            let df = api::client::workspaces::data_frames::get(
+            columns::create(
                 &remote_repo,
-                &workspace_id,
+                "batch",
                 &path,
-                &DFOpts::empty(),
+                r#"{"name": "embedding", "data_type": "list[f64]"}"#.to_string(),
             )
             .await?;
-
-            let df_view = df.data_frame.unwrap().view;
-            let rows = df_view.data.as_array().unwrap();
-
-            // Extract row IDs for the rows you want to update
-            let oxen_id_1 = rows[0]["_oxen_id"].as_str().unwrap();
-            let oxen_id_2 = rows[1]["_oxen_id"].as_str().unwrap();
-            let oxen_id_3 = rows[2]["_oxen_id"].as_str().unwrap();
-
-            let column_data = r#"{"name": "embedding", "data_type": "list[f64]"}"#;
-
-            api::client::workspaces::data_frames::columns::create(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                column_data.to_string(),
-            )
-            .await?;
-
-            // Construct the JSON payload using the extracted row IDs
-            let updates = format!(
-                r#"{{
-                    "data": [
-                        {{
-                            "row_id": "{oxen_id_1}",
-                            "value": {{
-                                "file": "cfxsx",
-                                "embedding": [0.1, 0.2, 0.3]
-                            }}
-                        }},
-                        {{
-                            "row_id": "{oxen_id_2}",
-                            "value": {{
-                                "file": "yfcsx",
-                                "embedding": [0.4, 0.5, 0.6]
-                            }}
-                        }},
-                        {{
-                            "row_id": "{oxen_id_3}",
-                            "value": {{
-                                "file": "zxcvb",
-                                "embedding": [0.7, 0.8, 0.9]
-                            }}
-                        }}
-                    ]
-                }}"#
-            );
-
-            // Perform batch update
-            let result = api::client::workspaces::data_frames::rows::batch_update(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                updates.to_string(), // Convert JSON to string for the HTTP request
-            )
-            .await;
-
-            assert!(result.is_ok(), "Batch update failed");
-
-            // Retrieve the DataFrame to check if the rows have been updated
-            let df = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
-            let df_view = df.data_frame.unwrap().view;
-            let updated_rows = df_view.data.as_array().unwrap();
-
-            // Parse the JSON string into a Value
-            let updates_value: Value = serde_json::from_str(&updates).unwrap();
-
-            // Iterate over each update in the JSON array
-            if let Some(data_array) = updates_value.get("data").and_then(|v| v.as_array()) {
-                for update in data_array.iter() {
-                    let row_id = update.get("row_id").and_then(|v| v.as_str()).unwrap();
-                    let expected_file = update
-                        .get("value")
-                        .and_then(|v| v.get("file"))
-                        .and_then(|v| v.as_str())
-                        .unwrap();
-                    let expected_embedding = update
-                        .get("value")
-                        .and_then(|v| v.get("embedding"))
-                        .unwrap();
-
-                    let is_updated = updated_rows.iter().any(|row| {
-                        let current_row: Value = serde_json::from_value(row.clone()).unwrap();
-                        current_row.get("_oxen_id").and_then(|v| v.as_str()) == Some(row_id)
-                            && current_row.get("file").and_then(|v| v.as_str())
-                                == Some(expected_file)
-                            && current_row.get("embedding") == Some(expected_embedding)
-                    });
-
-                    assert!(
-                        is_updated,
-                        "The row with ID {row_id} was not updated to file {expected_file} with embedding {expected_embedding:?}"
-                    );
-                }
-            } else {
-                panic!("Expected 'data' to be an array in updates");
+            let updates = json!({"data": [
+                {"row_id": ids[0], "value": {"file": "cfxsx", "embedding": [0.1, 0.2, 0.3]}},
+                {"row_id": ids[1], "value": {"file": "yfcsx", "embedding": [0.4, 0.5, 0.6]}},
+                {"row_id": ids[2], "value": {"file": "zxcvb", "embedding": [0.7, 0.8, 0.9]}},
+            ]});
+            batch_update(&remote_repo, "batch", &path, updates.to_string()).await?;
+            let rows = staged_rows(&remote_repo, "batch").await?;
+            for update in updates["data"].as_array().expect("updates") {
+                let row = rows.iter().find(|row| row[OXEN_ID_COL] == update["row_id"]).expect("row");
+                assert_eq!(row["file"], update["value"]["file"]);
+                assert_eq!(row["embedding"], update["value"]["embedding"]);
             }
+
+            // Deleting a row added in the workspace leaves the data frame listed as modified,
+            // since edits are applied rather than tracked
+            indexed_workspace(&remote_repo, "add-then-delete").await?;
+            let mut opts = DFOpts::empty();
+            opts.add_row = Some(
+                r#"{"file":"image2.jpg", "label": "cat", "min_x":13, "min_y":14, "width": 100, "height": 100}"#
+                    .to_string(),
+            );
+            let added = df(&local_repo, "add-then-delete", &path, opts).await?;
+            let added_id = match added.column(OXEN_ID_COL)?.get(0)? {
+                AnyValue::String(s) => s.to_string(),
+                AnyValue::StringOwned(s) => s.to_string(),
+                other => panic!("Expected a string row id, got {other:?}"),
+            };
+            assert_eq!(modified_file_count(&remote_repo, "add-then-delete").await?, 1);
+            let mut opts = DFOpts::empty();
+            opts.delete_row = Some(added_id);
+            df(&local_repo, "add-then-delete", &path, opts).await?;
+            assert_eq!(modified_file_count(&remote_repo, "add-then-delete").await?, 1);
 
             Ok(remote_repo)
         })

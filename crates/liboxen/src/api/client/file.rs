@@ -224,47 +224,162 @@ pub async fn delete_file(
 
 #[cfg(test)]
 mod tests {
+    use crate::api::client::workspaces;
+    use crate::api::client::workspaces::files::upload_single_file;
+    use crate::repositories::commits::list_all;
+    use crate::util::fs;
 
     use bytes::Bytes;
     use tokio_stream::StreamExt;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
-    use crate::{api, repositories, test, util};
-    use std::path::{Path, PathBuf};
+    use crate::model::{NewCommitBody, RemoteRepository};
+    use crate::{api, repositories, test};
+    use std::path::Path;
+
+    use super::{GetFileOpts, delete_file, get_file, mv_file, put_file, put_file_to_path};
+
+    fn commit_body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            author: "Test Author".to_string(),
+            email: "test@example.com".to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    async fn file_bytes(
+        remote_repo: &RemoteRepository,
+        revision: &str,
+        path: &Path,
+    ) -> Result<Vec<u8>, OxenError> {
+        let mut stream = get_file(remote_repo, revision, path, GetFileOpts::default()).await?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            bytes.extend_from_slice(&chunk?);
+        }
+        Ok(bytes)
+    }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_update_file() -> Result<(), OxenError> {
+    async fn test_put_get_move_and_delete_files() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let directory_name = "test_data";
-            let file_path = test::test_img_file();
-            let commit_body = NewCommitBody {
-                author: "Test Author".to_string(),
-                email: "test@example.com".to_string(),
-                message: "Update file test".to_string(),
-            };
+            let bbox_path = test::test_bounding_box_csv();
+            assert!(
+                !file_bytes(&remote_repo, DEFAULT_BRANCH_NAME, &bbox_path)
+                    .await?
+                    .is_empty()
+            );
 
-            let response = api::client::file::put_file(
+            // A file staged in a workspace is readable through the workspace id
+            let workspace_id = "test_workspace_id";
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id).await?;
+            let staged = Path::new("annotations").join("train").join("file.txt");
+            let full_path = local_repo.path.join(&staged);
+            fs::write(&full_path, b"test content")?;
+            upload_single_file(
                 &remote_repo,
-                branch_name,
-                directory_name,
-                &file_path,
-                Some("test.jpeg"),
-                Some(commit_body),
+                workspace_id,
+                staged.parent().expect("a parent"),
+                &full_path,
             )
             .await?;
+            let bytes = file_bytes(&remote_repo, workspace_id, &staged).await?;
+            assert_eq!(bytes, Bytes::from_static(b"test content"));
+            fs::remove_file(&full_path)?;
 
+            // Put a file into a directory, and at a full path
+            let image = test::test_img_file();
+            let response = put_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "test_data",
+                &image,
+                Some("test.jpeg"),
+                Some(commit_body("put")),
+            )
+            .await?;
             assert_eq!(response.status.status_message, "resource_created");
-
-            // Pull changes from remote to local repo
+            let full_path_on_repo = "test_data/test_full_path.jpeg";
+            let response = put_file_to_path(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                full_path_on_repo,
+                &image,
+                Some("ignored-name.jpeg"),
+                Some(commit_body("put to path")),
+            )
+            .await?;
+            assert_eq!(response.status.status_message, "resource_created");
             repositories::pull(&local_repo).await?;
+            let put_path = local_repo.path.join("test_data").join("test.jpeg");
+            assert!(put_path.exists());
+            assert!(local_repo.path.join(full_path_on_repo).exists());
 
-            // Check that the file exists in the local repo after pulling
-            let file_path_in_repo = local_repo.path.join(directory_name).join("test.jpeg");
-            assert!(file_path_in_repo.exists());
+            // Move a file, then delete it at its new path
+            let moved = "renamed/images/test_moved.jpeg";
+            let response = mv_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "test_data/test.jpeg",
+                moved,
+                Some(commit_body("Move file")),
+            )
+            .await?;
+            assert_eq!(response.status.status_message, "resource_updated");
+            assert!(response.commit.message.contains("Move file"));
+            repositories::pull(&local_repo).await?;
+            assert!(
+                local_repo.path.join(moved).exists(),
+                "moved to its new path"
+            );
+            assert!(!put_path.exists(), "gone from its old path");
+
+            let response = delete_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &moved,
+                Some(commit_body("Delete moved file")),
+            )
+            .await?;
+            assert_eq!(response.status.status_message, "resource_deleted");
+            assert!(response.commit.message.contains("Delete moved file"));
+            repositories::pull(&local_repo).await?;
+            assert!(!local_repo.path.join(moved).exists());
+
+            // Deleting a file makes one commit
+            let prev_commits = list_all(&local_repo)?;
+            delete_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &bbox_path,
+                Some(commit_body("remove file")),
+            )
+            .await?;
+            repositories::pull(&local_repo).await?;
+            assert!(!local_repo.path.join(&bbox_path).exists());
+            assert_eq!(list_all(&local_repo)?.len(), prev_commits.len() + 1);
+
+            // A file in a deleted directory can no longer be fetched
+            delete_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "test_data",
+                Some(commit_body("delete test_data dir")),
+            )
+            .await?;
+            let result = get_file(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                Path::new(full_path_on_repo),
+                GetFileOpts::default(),
+            )
+            .await;
+            assert!(
+                result.is_err(),
+                "Fetching a file from a deleted directory should be an error"
+            );
 
             Ok(remote_repo)
         })
@@ -310,40 +425,6 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_update_file_to_full_path() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let file_path_on_repo = "test_data/test_full_path.jpeg";
-            let file_path = test::test_img_file();
-            let commit_body = NewCommitBody {
-                author: "Test Author".to_string(),
-                email: "test@example.com".to_string(),
-                message: "Update file test full path".to_string(),
-            };
-
-            let response = api::client::file::put_file_to_path(
-                &remote_repo,
-                branch_name,
-                file_path_on_repo,
-                &file_path,
-                Some("ignored-name.jpeg"),
-                Some(commit_body),
-            )
-            .await?;
-
-            assert_eq!(response.status.status_message, "resource_created");
-
-            repositories::pull(&local_repo).await?;
-            let file_path_in_repo = local_repo.path.join(file_path_on_repo);
-            assert!(file_path_in_repo.exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
     async fn test_update_file_to_full_path_on_empty_repo() -> Result<(), OxenError> {
         test::run_empty_configured_remote_repo_test(|local_repo, remote_repo| async move {
             let branch_name = "main";
@@ -370,239 +451,6 @@ mod tests {
             repositories::checkout(&local_repo, branch_name).await?;
             let file_path_in_repo = local_repo.path.join(file_path_on_repo);
             assert!(file_path_in_repo.exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_file() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let file_path = test::test_bounding_box_csv();
-            let mut stream = api::client::file::get_file(
-                &remote_repo,
-                branch_name,
-                &file_path,
-                api::client::file::GetFileOpts::default(),
-            )
-            .await?;
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                bytes.extend_from_slice(&chunk?);
-            }
-
-            assert!(!bytes.is_empty());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_file() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let prev_commits = repositories::commits::list_all(&local_repo)?;
-
-            let branch_name = "main";
-            let file_path = test::test_bounding_box_csv();
-
-            let commit_body = NewCommitBody {
-                author: "Test Author".to_string(),
-                email: "test@example.com".to_string(),
-                message: "remove file".to_string(),
-            };
-
-            // Delete the file on the remote repo
-            let _commit_response = api::client::file::delete_file(
-                &remote_repo,
-                &branch_name,
-                &file_path,
-                Some(commit_body),
-            )
-            .await?;
-
-            // Pull the change
-            repositories::pull(&local_repo).await?;
-
-            // Assert the commit was made and the file is removed
-            assert!(!local_repo.path.join(&file_path).exists());
-
-            /*
-            let commit = commit_response.commit;
-            let deleted_file_node =
-                repositories::tree::get_node_by_path(&local_repo, &commit, &file_path)?;
-            assert!(deleted_file_node.is_none());
-            */
-
-            let new_commits = repositories::commits::list_all(&local_repo)?;
-            assert_eq!(new_commits.len(), prev_commits.len() + 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_file_after_upload() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let branch_name = "main";
-
-            // Find a file (not a directory) to delete
-            // Files in train directory: dog_1.jpg, dog_2.jpg, dog_3.jpg, dog_4.jpg, cat_1.jpg, cat_2.jpg, cat_3.jpg
-            let file_to_delete = "train/dog_1.jpg";
-
-            // Verify the file exists before deletion
-            let file_path = local_repo.path.join(file_to_delete);
-            assert!(file_path.exists(), "File should exist before deletion");
-
-            // Delete the file
-            let delete_commit_body = NewCommitBody {
-                author: "Test Author".to_string(),
-                email: "test@example.com".to_string(),
-                message: "Delete existing file from training data".to_string(),
-            };
-
-            let delete_response = api::client::file::delete_file(
-                &remote_repo,
-                branch_name,
-                &file_to_delete,
-                Some(delete_commit_body),
-            )
-            .await?;
-
-            assert_eq!(delete_response.status.status_message, "resource_deleted");
-            assert!(
-                delete_response
-                    .commit
-                    .message
-                    .contains("Delete existing file from training data")
-            );
-
-            // Pull the deletion
-            repositories::pull(&local_repo).await?;
-
-            // Verify the file is deleted
-            assert!(!file_path.exists(), "File should be deleted after deletion");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_mv_file() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let branch_name = "main";
-
-            // File to move
-            let source_path = "train/dog_1.jpg";
-            let new_path = "renamed/images/dog_moved.jpg";
-
-            // Verify the file exists before moving
-            let file_path = local_repo.path.join(source_path);
-            assert!(file_path.exists(), "Source file should exist before move");
-
-            // Move the file
-            let mv_commit_body = NewCommitBody {
-                author: "Test Author".to_string(),
-                email: "test@example.com".to_string(),
-                message: "Move file to new location".to_string(),
-            };
-
-            let mv_response = api::client::file::mv_file(
-                &remote_repo,
-                branch_name,
-                source_path,
-                new_path,
-                Some(mv_commit_body),
-            )
-            .await?;
-
-            assert_eq!(mv_response.status.status_message, "resource_updated");
-            assert!(
-                mv_response
-                    .commit
-                    .message
-                    .contains("Move file to new location")
-            );
-
-            // Pull the changes
-            repositories::pull(&local_repo).await?;
-
-            // Verify the file is at the new location
-            let new_file_path = local_repo.path.join(new_path);
-            assert!(
-                new_file_path.exists(),
-                "File should exist at new location after move"
-            );
-
-            // Verify the file is no longer at the original location
-            assert!(
-                !file_path.exists(),
-                "File should not exist at original location after move"
-            );
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_file_with_workspace() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let base_dir = "annotations";
-            let data_set = "train";
-            let file_name = "file.txt";
-            let workspace_id = "test_workspace_id";
-
-            let file_path = PathBuf::from(base_dir)
-                .join(data_set)
-                .join(file_name)
-                .to_string_lossy()
-                .into_owned();
-
-            let directory_name = PathBuf::from(base_dir)
-                .join(data_set)
-                .to_string_lossy()
-                .into_owned();
-
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let full_path = local_repo.path.join(&file_path);
-            util::fs::write(&full_path, b"test content")?;
-
-            let _result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace.id,
-                directory_name,
-                &full_path,
-            )
-            .await;
-
-            let mut stream = api::client::file::get_file(
-                &remote_repo,
-                workspace_id,
-                Path::new(&file_path),
-                api::client::file::GetFileOpts::default(),
-            )
-            .await?;
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                bytes.extend_from_slice(&chunk?);
-            }
-
-            assert!(!bytes.is_empty());
-            assert_eq!(bytes, Bytes::from_static(b"test content"));
 
             Ok(remote_repo)
         })
@@ -711,44 +559,6 @@ mod tests {
                 thumbnail_bytes_custom[1], 0xD8,
                 "Custom thumbnail should be a JPEG"
             );
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test that downloading a file from a deleted directory returns an error
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_rm_directory() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let annotations_d = Path::new("annotations");
-            let train_d = annotations_d.join("train");
-            let file = train_d.join("bounding_box.csv");
-
-            // Remove the committed directory "annotations/train"
-            let c = api::client::file::delete_file(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &train_d,
-                Some(NewCommitBody {
-                    message: "delete train dir".into(),
-                    author: "author".into(),
-                    email: "ox@oxen.ai".into(),
-                }),
-            )
-            .await?;
-
-            println!("deleted {} as commit {}", train_d.display(), c.commit.id);
-
-            let result = api::client::file::get_file(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &file,
-                api::client::file::GetFileOpts::default(),
-            )
-            .await;
-            assert!(result.is_err(), "Fetching deleted file should be an error");
 
             Ok(remote_repo)
         })

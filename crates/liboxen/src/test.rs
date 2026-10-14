@@ -944,54 +944,7 @@ where
     Ok(())
 }
 
-/// Test interacting with a remote repo that has has the initial commit pushed
-pub async fn run_remote_repo_test_all_data_pushed<T, Fut>(test: T) -> Result<(), OxenError>
-where
-    T: FnOnce(RemoteRepository) -> Fut,
-    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
-{
-    init_test_env();
-    log::info!("<<<<< run_remote_repo_test_all_data_pushed start");
-    let empty_dir = create_empty_dir(test_run_dir())?;
-    let name = format!("repo_{}", uuid::Uuid::new_v4());
-    let path = empty_dir.join(name);
-    let mut local_repo = repositories::init(&path)?;
-
-    // Write all the files
-    populate_dir_with_training_data(&local_repo.path)?;
-    add_all_data_to_repo(&local_repo).await?;
-    repositories::commit(&local_repo, "Adding all data")?;
-
-    // Create the remote repo and point the local one at it
-    let repo = connect_remote_repo(&mut local_repo).await?;
-
-    repositories::push(&local_repo).await?;
-
-    // Run test to see if it panic'd
-    log::info!(">>>>> run_remote_repo_test_all_data_pushed running test");
-    let result = match test(repo).await {
-        Ok(_repo) => {
-            // TODO: Cleanup remote repo
-            // this was failing
-            true
-        }
-        Err(err) => {
-            eprintln!("Error running test. Err: {err}");
-            false
-        }
-    };
-
-    // Cleanup Local. The repo owns its LMDB env, which must be closed before the directory
-    // holding it is removed (see `assert_no_live_lmdb_envs`).
-    drop(local_repo);
-    maybe_cleanup_repo(&path)?;
-
-    // Assert everything okay after we cleanup the repo dir
-    assert!(result);
-    Ok(())
-}
-
-/// Same as run_remote_repo_test_all_data_pushed but with just one file
+/// Test interacting with a remote repo that has one commit of the bounding box csv pushed
 pub async fn run_remote_repo_test_bounding_box_csv_pushed<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
@@ -1038,7 +991,7 @@ where
     Ok(())
 }
 
-/// Same as run_remote_repo_test_all_data_pushed but with just one file
+/// Test interacting with a remote repo that has one commit of an embeddings jsonl pushed
 pub async fn run_remote_repo_test_embeddings_jsonl_pushed<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(RemoteRepository) -> Fut,
@@ -1409,18 +1362,6 @@ where
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
-    Ok(())
-}
-
-async fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
-    repositories::add(repo, repo.path.join("train")).await?;
-    repositories::add(repo, repo.path.join("test")).await?;
-    repositories::add(repo, repo.path.join("annotations")).await?;
-    repositories::add(repo, repo.path.join("large_files")).await?;
-    repositories::add(repo, repo.path.join("nlp")).await?;
-    repositories::add(repo, repo.path.join("labels.txt")).await?;
-    repositories::add(repo, repo.path.join("README.md")).await?;
-
     Ok(())
 }
 

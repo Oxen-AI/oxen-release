@@ -65,520 +65,209 @@ pub async fn commit(
 
 #[cfg(test)]
 mod tests {
+    use crate::api::client::branches::create_from_branch;
+    use crate::api::client::commits::get_by_id;
+    use crate::api::client::workspaces::data_frames::{columns, index};
+    use crate::api::client::workspaces::{self, files};
+    use crate::api::client::{data_frames, dir};
+    use crate::util::fs;
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
+    use crate::model::{NewCommitBody, RemoteRepository};
     use crate::opts::DFOpts;
     use crate::test;
-    use crate::{api, util};
+
+    fn commit_body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            message: message.to_string(),
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
+        }
+    }
+
+    /// Creates `branch_name` off main and opens a workspace on it for each id in `workspace_ids`.
+    async fn branch_with_workspaces(
+        remote_repo: &RemoteRepository,
+        branch_name: &str,
+        workspace_ids: &[&str],
+    ) -> Result<(), OxenError> {
+        create_from_branch(remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+        for workspace_id in workspace_ids {
+            workspaces::create(remote_repo, branch_name, workspace_id).await?;
+        }
+        Ok(())
+    }
+
+    async fn root_entry_count(
+        remote_repo: &RemoteRepository,
+        branch_name: &str,
+    ) -> Result<usize, OxenError> {
+        Ok(dir::list(remote_repo, branch_name, "", 1, 100)
+            .await?
+            .total_entries)
+    }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_commit_staged_multiple_files() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-data";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
+    async fn test_commit_workspaces_and_check_mergeability() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let bbox_dir = Path::new("annotations").join("train");
+            let bbox_path = local_repo.path.join(&bbox_dir).join("bounding_box.csv");
+            let bbox_dir = bbox_dir.to_str().expect("utf-8 path");
 
-            let workspace_id = UserConfig::identifier()?;
-            let directory_name = "data";
+            // Commit two staged files
+            branch_with_workspaces(&remote_repo, "add-data", &["add-data"]).await?;
             let paths = vec![
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            let result = api::client::workspaces::files::add(
+            files::add(&remote_repo, "add-data", "data", paths, &None).await?;
+            let commit = workspaces::commit(
                 &remote_repo,
-                &workspace_id,
-                directory_name,
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add staged data".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
-
-            let remote_commit = api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
-            assert!(remote_commit.is_some());
-            assert_eq!(commit.id, remote_commit.unwrap().id);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_mergeability_no_conflicts() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
-            let directory_name = "data";
-            let paths = vec![test::test_img_file()];
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                .await?;
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let mergeable = api::client::workspaces::commits::mergeability(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace_id,
+                "add-data",
+                "add-data",
+                &commit_body("Add staged data"),
             )
             .await?;
+            let remote_commit = get_by_id(&remote_repo, &commit.id).await?;
+            assert_eq!(remote_commit.map(|c| c.id), Some(commit.id));
+
+            // A workspace even with its branch merges with no conflicts
+            branch_with_workspaces(&remote_repo, "even", &["even"]).await?;
+            files::add(
+                &remote_repo,
+                "even",
+                "data",
+                vec![test::test_img_file()],
+                &None,
+            )
+            .await?;
+            let mergeable = super::mergeability(&remote_repo, "even", "even").await?;
             assert!(mergeable.is_mergeable);
             assert_eq!(mergeable.conflicts.len(), 0);
             assert_eq!(mergeable.commits.len(), 1);
 
-            Ok(remote_repo)
-        })
-        .await
-    }
+            // Two workspaces on one commit: the second merges when the first changed another file,
+            // and conflicts when the first changed the same file
+            for (branch_name, first_change, expect_conflict) in [
+                ("different-files", None, false),
+                (
+                    "same-file",
+                    Some(
+                        "file,label,min_x,min_y,width,height\ntest/test.jpg,dog,13.5,32.0,385,330",
+                    ),
+                    true,
+                ),
+            ] {
+                let (first, second) = (format!("{branch_name}-1"), format!("{branch_name}-2"));
+                branch_with_workspaces(&remote_repo, branch_name, &[&first, &second]).await?;
+                let first_paths = match first_change {
+                    Some(data) => {
+                        fs::write_to_path(&bbox_path, data)?;
+                        vec![bbox_path.clone()]
+                    }
+                    None => vec![test::test_img_file()],
+                };
+                files::add(&remote_repo, &first, bbox_dir, first_paths, &None).await?;
+                workspaces::commit(&remote_repo, branch_name, &first, &commit_body(&first)).await?;
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_mergeability_with_no_conflicts_different_files() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let workspace_1_id = "workspace_1";
-            let directory_name = Path::new("annotations").join("train");
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_1_id)
+                fs::write_to_path(&bbox_path, "file,label\ntest/test.jpg,dog")?;
+                files::add(
+                    &remote_repo,
+                    &second,
+                    bbox_dir,
+                    vec![bbox_path.clone()],
+                    &None,
+                )
                 .await?;
+                let mergeable = super::mergeability(&remote_repo, branch_name, &second).await?;
+                assert_eq!(mergeable.is_mergeable, !expect_conflict, "{branch_name}");
+                assert_eq!(
+                    mergeable.conflicts.len(),
+                    usize::from(expect_conflict),
+                    "{branch_name}"
+                );
+                assert_eq!(mergeable.commits.len(), 2, "{branch_name}");
+                let result =
+                    workspaces::commit(&remote_repo, branch_name, &second, &commit_body(&second))
+                        .await;
+                assert_eq!(
+                    result.is_err(),
+                    expect_conflict,
+                    "{branch_name}: {result:?}"
+                );
+            }
 
-            // Create a second workspace with the same branch off of the same commit
-            let workspace_2_id = "workspace_2";
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_2_id)
-                .await?;
-
-            // add an image file to workspace 1
-            let paths = vec![test::test_img_file()];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_1_id,
-                directory_name.to_str().unwrap(),
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-            let body = NewCommitBody {
-                message: "Add image".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            // Commit to get the branch ahead
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_1_id,
-                &body,
-            )
-            .await?;
-
-            // And write new data to the annotations/train/bounding_box.csv file
-            let bbox_path = local_repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let data = "file,label\ntest/test.jpg,dog";
-            util::fs::write_to_path(&bbox_path, data)?;
-            let paths = vec![bbox_path];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_2_id,
-                directory_name.to_str().unwrap(),
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let mergeable = api::client::workspaces::commits::mergeability(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_2_id,
-            )
-            .await?;
-            println!("mergeable: {mergeable:?}");
-            assert!(mergeable.is_mergeable);
-            assert_eq!(mergeable.conflicts.len(), 0);
-            assert_eq!(mergeable.commits.len(), 2);
-
-            let body = NewCommitBody {
-                message: "Update bounding box".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-
-            let commit_result = api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_2_id,
-                &body,
-            )
-            .await;
-            assert!(commit_result.is_ok());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_mergeability_with_conflicts() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let workspace_1_id = "workspace_1";
-            let directory_name = Path::new("annotations").join("train");
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_1_id)
-                .await?;
-
-            // Create a second workspace with the same branch off of the same commit
-            let workspace_2_id = "workspace_2";
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_2_id)
-                .await?;
-
-            // And write new data to the annotations/train/bounding_box.csv file
-            let bbox_path = local_repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let data = "file,label,min_x,min_y,width,height\ntest/test.jpg,dog,13.5,32.0,385,330";
-            util::fs::write_to_path(&bbox_path, data)?;
-            let paths = vec![bbox_path];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_1_id,
-                directory_name.to_str().unwrap(),
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-            let body = NewCommitBody {
-                message: "Update bounding box".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            // Commit to get the branch ahead
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_1_id,
-                &body,
-            )
-            .await?;
-
-            // And write new data to the annotations/train/bounding_box.csv file
-            let bbox_path = local_repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let data = "file,label\ntest/test.jpg,dog";
-            util::fs::write_to_path(&bbox_path, data)?;
-            let paths = vec![bbox_path];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_2_id,
-                directory_name.to_str().unwrap(),
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-            let body = NewCommitBody {
-                message: "Update bounding box".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-
-            let mergeable = api::client::workspaces::commits::mergeability(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_2_id,
-            )
-            .await?;
-            assert!(!mergeable.is_mergeable);
-            assert_eq!(mergeable.conflicts.len(), 1);
-            assert_eq!(mergeable.commits.len(), 2);
-
-            let commit_result = api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_2_id,
-                &body,
-            )
-            .await;
-            assert!(commit_result.is_err());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_commit_added_column_in_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
+            // A column added in a workspace lands in the committed schema
+            branch_with_workspaces(&remote_repo, "add-column", &["add-column"]).await?;
+            let df_path = PathBuf::from(bbox_dir).join("bounding_box.csv");
             let column_name = "my_new_column";
-            let data = format!(r#"{{"name":"{column_name}", "data_type": "str"}}"#);
-
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let result = api::client::workspaces::data_frames::columns::create(
+            index(&remote_repo, "add-column", &df_path).await?;
+            columns::create(
                 &remote_repo,
-                &workspace_id,
-                &path,
-                data.to_string(),
+                "add-column",
+                &df_path,
+                format!(r#"{{"name":"{column_name}", "data_type": "str"}}"#),
             )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Update row".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
-
-            let remote_commit = api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
-            assert!(remote_commit.is_some());
-            assert_eq!(commit.id, remote_commit.unwrap().id);
-
+            .await?;
+            let commit = workspaces::commit(
+                &remote_repo,
+                "add-column",
+                "add-column",
+                &commit_body("Add column"),
+            )
+            .await?;
+            let remote_commit = get_by_id(&remote_repo, &commit.id).await?;
+            assert_eq!(remote_commit.map(|c| c.id), Some(commit.id));
             let df =
-                api::client::data_frames::get(&remote_repo, branch_name, &path, DFOpts::empty())
-                    .await?;
-
+                data_frames::get(&remote_repo, "add-column", &df_path, DFOpts::empty()).await?;
             assert_eq!(
                 df.data_frame.source.schema.fields.len(),
                 df.data_frame.view.schema.fields.len()
             );
-
-            if !df
-                .data_frame
-                .view
-                .schema
-                .fields
-                .iter()
-                .any(|field| field.name == column_name)
-            {
-                panic!("Column `{column_name}` does not exist in the data frame");
-            }
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_commit_same_data_frame_file_twice() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let branch_name = "main";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = UserConfig::identifier()?;
-            let ws =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(ws.id, workspace_id);
-
-            let directory_name = "";
-            let paths = vec![test::test_100_parquet()];
-
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok(), "{result:?}");
-
-            let commit = api::client::workspaces::commit(
-                &remote_repo,
-                branch_name,
-                &workspace_id,
-                &NewCommitBody {
-                    message: "Adding 100 row parquet".to_string(),
-                    author: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
-            )
-            .await?;
-
-            let remote_commit = api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
-            assert_eq!(commit.id, remote_commit.unwrap().id);
-
-            // List the files on main
-            let revision = "main";
-            let path = "";
-            let page = 1;
-            let page_size = 100;
-            let entries =
-                api::client::dir::list(&remote_repo, revision, path, page, page_size).await?;
-
-            // There should be the README and the parquet file
-            assert_eq!(entries.total_entries, 2);
-            assert_eq!(entries.entries.len(), 2);
-
-            // Add the same file again
-            let workspace_id = UserConfig::identifier()? + "2";
-            let ws =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(ws.id, workspace_id);
-
-            let paths = vec![test::test_100_parquet()];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok(), "{result:?}");
-
-            println!("RESULT FROM 2nd ADD: {:?}", result.unwrap());
-
-            // Commit the changes
-            let result = api::client::workspaces::commit(
-                &remote_repo,
-                branch_name,
-                &workspace_id,
-                &NewCommitBody {
-                    message: "Adding 100 row parquet AGAIN".to_string(),
-                    author: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
-            )
-            .await;
-            assert!(result.is_err(), "{result:?}");
-
-            // List the files on main
-            let entries =
-                api::client::dir::list(&remote_repo, revision, path, page, page_size).await?;
-            assert_eq!(entries.total_entries, 2);
-            assert_eq!(entries.entries.len(), 2);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_reupload_unchanged_file_does_not_commit() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let branch_name = "main";
-
-            // First upload and commit
-            let workspace_id = UserConfig::identifier()?;
-            api::client::workspaces::create(&remote_repo, branch_name, &workspace_id).await?;
-
-            let paths = vec![test::test_img_file()];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                "images",
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok(), "{result:?}");
-
-            let body = NewCommitBody {
-                message: "Add image".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let first_commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
-            assert!(!first_commit.id.is_empty());
-
-            // Re-upload the same unchanged file
-            let workspace_id_2 = UserConfig::identifier()? + "_2";
-            api::client::workspaces::create(&remote_repo, branch_name, &workspace_id_2).await?;
-
-            let paths = vec![test::test_img_file()];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id_2,
-                "images",
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok(), "{result:?}");
-
-            // Commit should fail because there are no changes
-            let body = NewCommitBody {
-                message: "Re-add same image".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let result =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id_2, &body)
-                    .await;
             assert!(
-                result.is_err(),
-                "Expected commit to fail with no changes, but got: {result:?}"
+                df.data_frame
+                    .view
+                    .schema
+                    .fields
+                    .iter()
+                    .any(|field| field.name == column_name),
+                "column `{column_name}` is in the committed data frame"
             );
+
+            // Committing a file a second time, unchanged, makes no commit
+            for (branch_name, directory, file) in [
+                ("same-parquet", "", test::test_100_parquet()),
+                ("same-image", "images", test::test_img_file()),
+            ] {
+                let (first, second) = (format!("{branch_name}-1"), format!("{branch_name}-2"));
+                branch_with_workspaces(&remote_repo, branch_name, &[&first]).await?;
+                let entries_before = root_entry_count(&remote_repo, branch_name).await?;
+                files::add(&remote_repo, &first, directory, vec![file.clone()], &None).await?;
+                workspaces::commit(&remote_repo, branch_name, &first, &commit_body(&first)).await?;
+                assert_eq!(
+                    root_entry_count(&remote_repo, branch_name).await?,
+                    entries_before + 1
+                );
+
+                workspaces::create(&remote_repo, branch_name, &second).await?;
+                files::add(&remote_repo, &second, directory, vec![file], &None).await?;
+                let err =
+                    workspaces::commit(&remote_repo, branch_name, &second, &commit_body(&second))
+                        .await
+                        .expect_err("an unchanged file makes no commit");
+                assert!(
+                    err.to_string().contains("NoChanges"),
+                    "{branch_name}: {err}"
+                );
+                assert_eq!(
+                    root_entry_count(&remote_repo, branch_name).await?,
+                    entries_before + 1
+                );
+            }
 
             Ok(remote_repo)
         })
