@@ -1076,7 +1076,7 @@ who won the game?,The packers beat up on the bears,packers
             }
 
             let rm_opts = RmOpts {
-                path: PathBuf::from("images").join("cats"),
+                paths: vec![PathBuf::from("images").join("cats")],
                 staged: false,
                 recursive: true,
             };
@@ -1187,7 +1187,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // THIS IS THE CRUX of this test, do not remove images/cats, just remove images/
             let rm_opts = RmOpts {
-                path: PathBuf::from("images"),
+                paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };
@@ -1663,7 +1663,7 @@ who won the game?,The packers beat up on the bears,packers
             }
 
             let rm_opts = RmOpts {
-                path: PathBuf::from("images"),
+                paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };

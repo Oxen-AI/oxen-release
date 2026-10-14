@@ -957,7 +957,7 @@ mod tests {
 
             repositories::add(&local_repo, new_path).await?;
             let rm_opts = RmOpts {
-                path: PathBuf::from("train"),
+                paths: vec![PathBuf::from("train")],
                 staged: false,
                 recursive: true,
             };

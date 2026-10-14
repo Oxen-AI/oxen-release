@@ -1683,7 +1683,7 @@ mod tests {
 
                 // Remove the README.md on the remote
                 let rm_opts = RmOpts {
-                    path: PathBuf::from("README.md"),
+                    paths: vec![PathBuf::from("README.md")],
                     ..Default::default()
                 };
                 repositories::rm(&user_b_repo, &rm_opts).await?;

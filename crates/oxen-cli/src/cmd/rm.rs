@@ -24,9 +24,9 @@ pub fn rm_args() -> Command {
              instead.\n\n\
              To bring a deleted file back, run `oxen restore --staged <file>` to \
              unstage the removal, then `oxen restore <file>`.\n\n\
-             With `--staged`, the paths are removed from the staging area and the \
-             working-tree copies are left in place. This unstages an earlier `oxen add` \
-             or `oxen rm`, and the paths need not be committed.",
+             With `--staged`, the working-tree copies are left in place. A committed path \
+             is staged for removal and shows as untracked afterward, and a path that has \
+             never been committed has what is staged for it unstaged.",
         )
         .arg(
             Arg::new("files")
@@ -37,7 +37,7 @@ pub fn rm_args() -> Command {
         .arg(
             Arg::new("staged")
                 .long("staged")
-                .help("Removes the paths from the staging area without deleting them.")
+                .help("Stages the removal and leaves the working-tree copies in place.")
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
@@ -71,8 +71,7 @@ impl RunCmd for RmCmd {
             .collect::<Result<Vec<PathBuf>, OxenError>>()?;
 
         let opts = RmOpts {
-            // The path will get overwritten for each file that is removed
-            path: paths.first().unwrap().to_path_buf(),
+            paths,
             staged: args.get_flag("staged"),
             recursive: args.get_flag("recursive"),
         };
@@ -80,10 +79,7 @@ impl RunCmd for RmCmd {
         let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
-        for path in paths {
-            let path_opts = RmOpts::from_path_opts(&path, &opts);
-            repositories::rm(&repository, &path_opts).await?;
-        }
+        repositories::rm(&repository, &opts).await?;
 
         Ok(())
     }

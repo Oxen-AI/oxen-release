@@ -258,7 +258,14 @@ pub async fn add_files(
     // TODO: Make rm_with_staged_db return the stats of the files it removes
     if !paths_to_remove.is_empty() {
         log::trace!("removing paths: {:?}", paths_to_remove);
-        core::v_latest::rm::rm_with_staged_db(&paths_to_remove, repo, &rm_opts, &staged_db).await?;
+        core::v_latest::rm::rm_with_staged_db(
+            &paths_to_remove,
+            &HashSet::new(),
+            repo,
+            &rm_opts,
+            &staged_db,
+        )
+        .await?;
     }
 
     // Stop the timer, and round the duration to the nearest second

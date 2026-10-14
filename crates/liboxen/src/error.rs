@@ -228,6 +228,10 @@ pub enum OxenError {
     #[error("Path is staged for removal: {0}")]
     PathStagedForRemoval(PathBufError),
 
+    /// `oxen rm --staged` targeted a committed path whose removal is already staged.
+    #[error("Removal of {0} is already staged")]
+    RemovalAlreadyStaged(PathBufError),
+
     /// The workspace's staged database is in an inconsistent state — the directory
     /// exists but the underlying store cannot be read. Distinct from the clean-empty
     /// case, which yields an empty `StagedData` rather than an error.
@@ -883,6 +887,9 @@ impl OxenError {
             PathStagedForRemoval(_) => {
                 "Unstage the removal with `oxen workspace rm --staged <path>`, then retry the edit."
             }
+            RemovalAlreadyStaged(_) => {
+                "Unstage the removal with `oxen restore --staged <path>`, and bring the file back with `oxen restore <path>`."
+            }
             MergeInProgressMismatch { .. } => {
                 "Run `oxen merge --abort` to abandon the in-progress merge, or retry the original target."
             }
@@ -1044,6 +1051,7 @@ impl OxenError {
             | OxenError::HttpDeserializeError { status, .. } => is_fatal_http_status(*status),
             OxenError::HTTP(req_err) => req_err.status().is_some_and(is_fatal_http_status),
             OxenError::VersionsMissingOnServer { .. } => true,
+            OxenError::RemovalAlreadyStaged(_) => true,
             OxenError::ReachableObjectsMissing { .. } => true,
             OxenError::DirHashIndexMissing { .. } => true,
             OxenError::VersionStoreDataMissing { .. } => true,

@@ -373,7 +373,7 @@ mod tests {
             // `oxen rm` the only file, then commit. Under Oxen's first-class-directory
             // model the empty `subdir` remains tracked in the merkle tree.
             let rm_opts = RmOpts {
-                path: PathBuf::from("subdir/a.txt"),
+                paths: vec![PathBuf::from("subdir/a.txt")],
                 recursive: false,
                 staged: false,
             };
@@ -848,7 +848,7 @@ mod tests {
 
             // Remove all the things
             let rm_opts = RmOpts {
-                path: PathBuf::from("images/*"),
+                paths: vec![PathBuf::from("images/*")],
                 ..Default::default()
             };
 
@@ -922,7 +922,7 @@ mod tests {
             repositories::commit(&repo, "add train images")?;
 
             let rm_opts = RmOpts {
-                path: PathBuf::from("train/*"),
+                paths: vec![PathBuf::from("train/*")],
                 ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;

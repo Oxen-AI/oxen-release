@@ -118,7 +118,7 @@ impl PyRepo {
     pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let rm_opts = RmOpts {
-            path,
+            paths: vec![path],
             staged,
             recursive,
         };
