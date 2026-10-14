@@ -14,6 +14,7 @@ use futures::stream;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use log;
 use parking_lot::Mutex;
+use std::collections::BTreeMap;
 use std::iter;
 use std::path::Path;
 use std::pin::pin;
@@ -1162,7 +1163,7 @@ impl VersionStore for S3VersionStore {
     async fn begin_version_upload(
         &self,
         hash: &str,
-        _size: u64,
+        size: u64,
         _part_size: u64,
     ) -> Result<Box<dyn VersionUpload>, OxenError> {
         let expected_hash: MerkleHash = hash.parse()?;
@@ -1184,7 +1185,8 @@ impl VersionStore for S3VersionStore {
             key,
             upload_id,
             expected_hash,
-            parts: Mutex::new(Vec::new()),
+            size,
+            parts: Mutex::new(BTreeMap::new()),
         }))
     }
 
@@ -1234,13 +1236,16 @@ async fn upload_part(
 }
 
 /// A version file stored as an S3 multipart upload, one part per [`VersionUpload::upload_part`].
+/// Completing it checks that the stored parts run from part 1 with no gap and add up to its size.
 struct S3VersionUpload {
     client: Arc<Client>,
     bucket: String,
     key: String,
     upload_id: String,
     expected_hash: MerkleHash,
-    parts: Mutex<Vec<CompletedPart>>,
+    size: u64,
+    /// Each stored part and its length in bytes, by part number. A part stored again replaces it.
+    parts: Mutex<BTreeMap<i32, (CompletedPart, u64)>>,
 }
 
 #[async_trait]
@@ -1249,6 +1254,7 @@ impl VersionUpload for S3VersionUpload {
         let part_num = i32::try_from(part_number).map_err(|_| {
             OxenError::internal_error(format!("S3 part number {part_number} is out of range"))
         })?;
+        let len = data.len() as u64;
         let part = upload_part(
             Arc::clone(&self.client),
             self.bucket.clone(),
@@ -1258,7 +1264,7 @@ impl VersionUpload for S3VersionUpload {
             data,
         )
         .await?;
-        self.parts.lock().push(part);
+        self.parts.lock().insert(part_num, (part, len));
         Ok(())
     }
 
@@ -1271,10 +1277,21 @@ impl VersionUpload for S3VersionUpload {
                 actual: actual_hash,
             });
         }
-        let mut parts = std::mem::take(&mut *self.parts.lock());
-        parts.sort_by_key(|part| part.part_number);
+        let parts = std::mem::take(&mut *self.parts.lock());
+        let stored: u64 = parts.values().map(|(_, len)| len).sum();
+        let contiguous = parts.keys().zip(1..).all(|(&n, expected)| n == expected);
+        if stored != self.size || !contiguous {
+            self.abort().await?;
+            return Err(OxenError::internal_error(format!(
+                "The parts stored for {} are not a run from part 1 covering its {} bytes: {} parts \
+                 of {stored} bytes in all",
+                self.key,
+                self.size,
+                parts.len()
+            )));
+        }
         let completed = CompletedMultipartUpload::builder()
-            .set_parts(Some(parts))
+            .set_parts(Some(parts.into_values().map(|(part, _)| part).collect()))
             .build();
         self.client
             .complete_multipart_upload()
@@ -2089,8 +2106,8 @@ pub(crate) mod tests {
         let data: &[u8] = &vec![7; part_size + 3];
         let hash = hasher::hash_buffer(data);
         let digest: MerkleHash = hash.parse().expect("a version file hash parses");
-        let upload_parts = |upload: Box<dyn VersionUpload>| async move {
-            for (n, part) in [(2, &data[part_size..]), (1, &data[..part_size])] {
+        let upload_parts = |upload: Box<dyn VersionUpload>, parts: [_; 2]| async move {
+            for (n, part) in parts {
                 upload
                     .upload_part(n, Bytes::copy_from_slice(part))
                     .await
@@ -2098,20 +2115,29 @@ pub(crate) mod tests {
             }
             upload
         };
+        let in_reverse = [(2, &data[part_size..]), (1, &data[..part_size])];
         let upload = store
             .begin_version_upload(&hash, data.len() as u64, part_size as u64)
             .await
             .expect("begin upload");
-        let upload = upload_parts(upload).await;
+        let upload = upload_parts(upload, in_reverse).await;
+        upload
+            .upload_part(2, Bytes::copy_from_slice(&data[part_size..]))
+            .await
+            .expect("upload part 2 again");
         upload.complete(digest).await.expect("complete upload");
-        assert_eq!(store.get_version(&hash).await.expect("get version"), data);
+        assert_eq!(
+            store.get_version(&hash).await.expect("get version"),
+            data,
+            "a part stored twice appears once"
+        );
 
         let wrong = hasher::hash_buffer(b"some other file");
         let upload = store
             .begin_version_upload(&wrong, data.len() as u64, part_size as u64)
             .await
             .expect("begin upload");
-        let upload = upload_parts(upload).await;
+        let upload = upload_parts(upload, in_reverse).await;
         let mismatch = upload.complete(digest).await;
         assert!(
             matches!(mismatch, Err(OxenError::HashMismatch { .. })),
@@ -2120,6 +2146,34 @@ pub(crate) mod tests {
         assert!(!store.version_exists(&wrong).await.expect("version exists"));
         let after_abort = upload.upload_part(1, Bytes::from_static(b"x")).await;
         assert!(after_abort.is_err(), "the mismatched upload is aborted");
+
+        // An upload whose stored parts do not cover the file publishes nothing, even when given the
+        // matching digest: a short last part, and a gap where part 2 belongs. The parts can be
+        // smaller than S3's minimum, since the store refuses them before asking S3 to complete.
+        let partial = b"abcd";
+        let partial_hash = hasher::hash_buffer(partial);
+        let partial_digest: MerkleHash = partial_hash.parse().expect("a version file hash parses");
+        let short = [(1, &partial[..2]), (2, &partial[2..3])];
+        let gap = [(1, &partial[..2]), (3, &partial[2..])];
+        for parts in [short, gap] {
+            let upload = store
+                .begin_version_upload(&partial_hash, partial.len() as u64, 2)
+                .await
+                .expect("begin upload");
+            let upload = upload_parts(upload, parts).await;
+            let refused = upload.complete(partial_digest).await;
+            assert!(
+                matches!(refused, Err(OxenError::InternalError(_))),
+                "parts {:?} do not cover the file: {refused:?}",
+                parts.map(|(n, _)| n)
+            );
+            assert!(
+                !store
+                    .version_exists(&partial_hash)
+                    .await
+                    .expect("version exists")
+            );
+        }
     }
 
     // An absent key reaches us through two different SDK error enums — GetObjectError for reads
