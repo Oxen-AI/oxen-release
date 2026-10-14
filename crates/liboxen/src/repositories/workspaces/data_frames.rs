@@ -997,6 +997,27 @@ mod tests {
             assert_eq!(row_count()?, committed_rows);
             assert_eq!(staged_files()?, 1);
 
+            // The same holds for a committed row modified and then modified back, which leaves the
+            // table matching the commit again.
+            let staged_df = query(&workspace, &path, &page_opts(0, 10, None))?;
+            let committed_id = first_row_id(&staged_df)?;
+            for label in ["doggo", "dog"] {
+                rows::update(
+                    &repo,
+                    &workspace,
+                    &path,
+                    &committed_id,
+                    &json!({"label": label}),
+                )?;
+                let row = rows::get_by_id(&workspace, &path, &committed_id)?;
+                assert_eq!(row.column("label")?.get(0)?.get_str(), Some(label));
+            }
+            assert_eq!(
+                staged_files()?,
+                1,
+                "a committed row modified back to its committed value keeps the data frame staged"
+            );
+
             // An update applies in place to the row it addresses.
             let json_data = json!({"min_x": 13, "min_y": 14, "width": 100, "height": 100});
             let new_row = rows::add(&repo, &workspace, &path, &json_data)?;
@@ -1014,23 +1035,6 @@ mod tests {
             assert_eq!(row.height(), 1);
             assert_eq!(row.column("height")?.get(0)?.to_string(), "101");
             assert_eq!(row_count()?, committed_rows + 1);
-
-            // A committed row modified and then modified back keeps its original value, and the
-            // data frame stays staged.
-            let staged_df = query(&workspace, &path, &page_opts(0, 10, None))?;
-            let committed_id = first_row_id(&staged_df)?;
-            for label in ["doggo", "dog"] {
-                rows::update(
-                    &repo,
-                    &workspace,
-                    &path,
-                    &committed_id,
-                    &json!({"label": label}),
-                )?;
-                let row = rows::get_by_id(&workspace, &path, &committed_id)?;
-                assert_eq!(row.column("label")?.get(0)?.get_str(), Some(label));
-            }
-            assert_eq!(staged_files()?, 1);
 
             // The default (no-sql, no-sort) read path must return rows in a stable order across
             // edits: a DuckDB UPDATE physically relocates the row, and without the `_oxen_row_id`
