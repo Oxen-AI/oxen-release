@@ -299,6 +299,9 @@ mod tests {
                 .expect_err("a row outside the schema is refused");
             assert!(err.to_string().contains("incompatible_schemas"), "{err}");
             assert_eq!(modified_file_count(&remote_repo, "edits").await?, 1);
+            add(&remote_repo, "no-such-workspace", &path, "{}".to_string())
+                .await
+                .expect_err("a row for a workspace that does not exist is refused");
 
             // Update several rows at once, then again with a list column
             indexed_workspace(&remote_repo, "batch").await?;
