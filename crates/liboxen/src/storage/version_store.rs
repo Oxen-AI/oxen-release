@@ -207,8 +207,8 @@ pub trait VersionUpload: Send + Sync {
     async fn upload_part(&self, part_number: u64, data: Bytes) -> Result<(), OxenError>;
 
     /// Publish the file once every part is stored. `actual_hash` is the digest of all the parts'
-    /// bytes in order. On a mismatch with the upload's hash, this discards the upload and returns
-    /// [`OxenError::HashMismatch`].
+    /// bytes in order. On any error this discards the upload, and on a mismatch with the upload's
+    /// hash the error is [`OxenError::HashMismatch`].
     async fn complete(&self, actual_hash: MerkleHash) -> Result<(), OxenError>;
 
     /// Discard the upload and every part stored.

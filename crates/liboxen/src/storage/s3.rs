@@ -1293,14 +1293,25 @@ impl VersionUpload for S3VersionUpload {
         let completed = CompletedMultipartUpload::builder()
             .set_parts(Some(parts.into_values().map(|(part, _)| part).collect()))
             .build();
-        self.client
+        let result = self
+            .client
             .complete_multipart_upload()
             .bucket(&self.bucket)
             .key(&self.key)
             .upload_id(&self.upload_id)
             .multipart_upload(completed)
             .send()
-            .await?;
+            .await;
+        if let Err(err) = result {
+            if let Err(abort_err) = self.abort().await {
+                tracing::warn!(
+                    key = %self.key,
+                    error = %abort_err,
+                    "Failed to abort an S3 upload whose completion failed"
+                );
+            }
+            return Err(err.into());
+        }
         Ok(())
     }
 
@@ -2180,6 +2191,21 @@ pub(crate) mod tests {
                 "the upload of parts {numbers:?} is aborted"
             );
         }
+
+        // Parts that cover the file but fall below S3's minimum part size reach S3, which refuses
+        // to complete the upload.
+        let upload = store
+            .begin_version_upload(&partial_hash, partial.len() as u64, 2)
+            .await
+            .expect("begin upload");
+        let upload = upload_parts(upload, [(1, &partial[..2]), (2, &partial[2..])]).await;
+        let refused = upload.complete(partial_digest).await;
+        assert!(
+            matches!(refused, Err(OxenError::AwsError(_))),
+            "S3 refuses a part below its minimum: {refused:?}"
+        );
+        let after_abort = upload.upload_part(1, Bytes::from_static(b"x")).await;
+        assert!(after_abort.is_err(), "the upload S3 refused is aborted");
     }
 
     // An absent key reaches us through two different SDK error enums — GetObjectError for reads
