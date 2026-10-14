@@ -374,7 +374,7 @@ mod tests {
 
             // Remove a single file from the nested directory
             let rm_opts = RmOpts {
-                path: PathBuf::from("a/b/2.txt"),
+                paths: vec![PathBuf::from("a/b/2.txt")],
                 ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
@@ -386,7 +386,7 @@ mod tests {
 
             // Remove the nested directory outright
             let rm_opts = RmOpts {
-                path: PathBuf::from("a/b"),
+                paths: vec![PathBuf::from("a/b")],
                 recursive: true,
                 ..Default::default()
             };
@@ -398,7 +398,7 @@ mod tests {
 
             // Remove a subdirectory of the root, so the root's own count has to drop
             let rm_opts = RmOpts {
-                path: PathBuf::from("a"),
+                paths: vec![PathBuf::from("a")],
                 recursive: true,
                 ..Default::default()
             };
@@ -1205,7 +1205,7 @@ mod tests {
 
             // Remove the empty dir
             let rm_opts = RmOpts {
-                path: PathBuf::from("empty_dir"),
+                paths: vec![PathBuf::from("empty_dir")],
                 recursive: true,
                 ..Default::default()
             };

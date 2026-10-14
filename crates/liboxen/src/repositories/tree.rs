@@ -2214,7 +2214,7 @@ mod tests {
             util::fs::remove_dir_all(&dir_path)?;
 
             let opts = RmOpts {
-                path: dir_path,
+                paths: vec![dir_path],
                 staged: false,
                 recursive: true,
             };

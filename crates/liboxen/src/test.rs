@@ -618,7 +618,7 @@ pub async fn make_many_commits(local_repo: &LocalRepository) -> Result<(), OxenE
 
     // Remove the test dir to make a more complex history
     let rm_opts = RmOpts {
-        path: PathBuf::from("test"),
+        paths: vec![PathBuf::from("test")],
         recursive: true,
         ..Default::default()
     };

@@ -9,36 +9,34 @@ use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::{GlobOpts, RmOpts};
 use crate::{core, util};
-use std::path::PathBuf;
 
-/// Removes the path from the index
+/// Removes the paths from the index, refusing all of them when any one is refused
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("Rm with opts: {opts:?}");
 
-    let path = &opts.path;
+    let mut globs = Vec::new();
+    let mut paths = HashSet::new();
+    for path in &opts.paths {
+        if util::fs::is_glob_path(util::fs::path_relative_to_dir(path, &repo.path)?) {
+            globs.push(path.clone());
+        } else {
+            paths.insert(path.clone());
+        }
+    }
 
     let glob_opts = GlobOpts {
-        paths: vec![path.to_path_buf()],
+        paths: globs,
         staged_db: opts.staged,
-        merkle_tree: !opts.staged,
+        merkle_tree: true,
         working_dir: false,
         walk_dirs: false,
     };
+    let mut glob_matches = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
+    // A path given outright is refused even when a glob also matches it
+    glob_matches.retain(|path| !paths.contains(path));
+    paths.extend(glob_matches.iter().cloned());
 
-    let expanded_paths = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
-
-    p_rm(&expanded_paths, repo, opts).await?;
-
-    Ok(())
-}
-
-async fn p_rm(
-    paths: &HashSet<PathBuf>,
-    repo: &LocalRepository,
-    opts: &RmOpts,
-) -> Result<(), OxenError> {
-    core::v_latest::rm::rm(paths, repo, opts).await?;
-    Ok(())
+    core::v_latest::rm::rm(&paths, &glob_matches, repo, opts).await
 }
 
 #[cfg(test)]
@@ -79,7 +77,7 @@ mod tests {
 
             // Remove directory
             let opts = RmOpts {
-                path: rm_dir.to_owned(),
+                paths: vec![rm_dir.to_owned()],
                 recursive: true,
                 staged: false,
             };
@@ -242,7 +240,7 @@ mod tests {
                     repositories::clone_url(&cloned_remote_repo.remote.url, &new_repo_dir).await?;
 
                 let rm_opts = RmOpts {
-                    path: PathBuf::from("phi-4"),
+                    paths: vec![PathBuf::from("phi-4")],
                     recursive: true,
                     ..Default::default()
                 };
@@ -298,7 +296,7 @@ mod tests {
             }
 
             let rm_opts = RmOpts {
-                path: PathBuf::from("images"),
+                paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };
@@ -410,7 +408,7 @@ mod tests {
 
             // Remove all the cat images and subdirectories
             let rm_opts = RmOpts {
-                path: PathBuf::from("images"),
+                paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };
@@ -588,7 +586,7 @@ mod tests {
 
             // Remove with wildcard
             let rm_opts = RmOpts {
-                path: PathBuf::from("images/*"),
+                paths: vec![PathBuf::from("images/*")],
                 ..Default::default()
             };
 
@@ -600,21 +598,45 @@ mod tests {
             assert_eq!(status.staged_files.len(), 7);
             assert_eq!(status.removed_files.len(), 0);
 
-            // Unstage the changes with staged rm
+            // A staged rm by glob stages the matches whose removal is not staged yet
+            let cat_3 = Path::new("images").join("cat_3.jpg");
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(&cat_3)).await?;
             let rm_opts = RmOpts {
-                path: PathBuf::from("images/*"),
+                paths: vec![cat_3.clone(), Path::new("images").join("dog_2.jpg")],
+                staged: true,
+                ..Default::default()
+            };
+            let result = repositories::rm(&repo, &rm_opts).await;
+            assert!(
+                matches!(result, Err(OxenError::RemovalAlreadyStaged(_))),
+                "dog_2.jpg's removal is already staged: {result:?}"
+            );
+            let status = repositories::status(&repo).await?;
+            assert!(
+                !status.staged_files.contains_key(&cat_3),
+                "a refused path leaves the paths given with it untouched"
+            );
+            let rm_opts = RmOpts {
+                paths: vec![PathBuf::from("images/*")],
                 staged: true,
                 ..Default::default()
             };
 
             repositories::rm(&repo, &rm_opts).await?;
             let status = repositories::status(&repo).await?;
-            log::debug!("status: {status:?}");
-            status.print();
-
-            // Files unstaged, still removed
-            assert_eq!(status.staged_files.len(), 0);
-            assert_eq!(status.removed_files.len(), 7);
+            assert_eq!(
+                status
+                    .staged_files
+                    .get(&cat_3)
+                    .map(|entry| entry.status.clone()),
+                Some(StagedEntryStatus::Removed),
+                "the glob skips the six already staged and stages cat_3.jpg's removal"
+            );
+            assert_eq!(
+                status.paths_with_status(StagedEntryStatus::Removed).count(),
+                7
+            );
+            assert_eq!(status.removed_files.len(), 0);
 
             Ok(())
         })
@@ -680,7 +702,7 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: false, // This should be an error
             };
@@ -705,7 +727,7 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
             };
@@ -735,7 +757,7 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
             };
@@ -764,7 +786,7 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
             };
@@ -787,6 +809,23 @@ mod tests {
         test::run_select_data_repo_test_committed_async("README", |repo| async move {
             // Remove the readme
             let path = Path::new("README.md");
+
+            // A staged rm of a committed file with a staged edit stages the removal in place of
+            // the edit and leaves the edited file on disk
+            test::modify_txt_file(repo.path.join(path), "edited readme")?;
+            repositories::add(&repo, repo.path.join(path)).await?;
+            repositories::rm(&repo, &RmOpts::from_staged_path(path)).await?;
+            let status = repositories::status(&repo).await?;
+            assert_eq!(
+                status.staged_files.get(path).map(|entry| &entry.status),
+                Some(&StagedEntryStatus::Removed)
+            );
+            assert_eq!(
+                util::fs::read_from_path(repo.path.join(path))?,
+                "edited readme",
+                "--staged keeps the edited working copy"
+            );
+            assert_eq!(status.untracked_files, vec![path.to_path_buf()]);
 
             let opts = RmOpts::from_path(path);
             repositories::rm(&repo, &opts).await?;
@@ -812,7 +851,7 @@ mod tests {
             let path = Path::new("train");
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: false,
                 recursive: false, // This should be an error
             };
@@ -832,7 +871,7 @@ mod tests {
             let train_dir = Path::new("train");
 
             let opts = RmOpts {
-                path: train_dir.to_path_buf(),
+                paths: vec![train_dir.to_path_buf()],
                 staged: false,
                 recursive: true, // Need to specify recursive
             };
@@ -857,7 +896,7 @@ mod tests {
             let train_dir = Path::new("train");
 
             let opts = RmOpts {
-                path: train_dir.to_path_buf(),
+                paths: vec![train_dir.to_path_buf()],
                 staged: false,
                 recursive: true, // Need to specify recursive
             };
@@ -926,7 +965,7 @@ mod tests {
 
             // `oxen rm -r annotations/` must refuse — there's a modified file under it.
             let opts = RmOpts {
-                path: PathBuf::from("annotations"),
+                paths: vec![PathBuf::from("annotations")],
                 staged: false,
                 recursive: true,
             };
@@ -950,7 +989,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(path));
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
+                paths: vec![path.to_path_buf()],
                 staged: false,
                 recursive: true, // Must pass in recursive = true
             };
@@ -963,6 +1002,26 @@ mod tests {
             for staged_entry in status.staged_files.values() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
+
+            let staged_opts = RmOpts {
+                paths: vec![path.to_path_buf()],
+                staged: true,
+                recursive: true,
+            };
+            let result = repositories::rm(&repo, &staged_opts).await;
+            assert!(
+                matches!(result, Err(OxenError::RemovalAlreadyStaged(_))),
+                "a staged rm refuses a directory whose every file is already staged for removal"
+            );
+            let staged_opts = RmOpts {
+                recursive: false,
+                ..staged_opts
+            };
+            let result = repositories::rm(&repo, &staged_opts).await;
+            assert!(
+                result.is_err_and(|err| err.to_string().contains("requires -r")),
+                "a directory without -r is refused for that before its staged removal is checked"
+            );
 
             // commit the removal
             let commit = repositories::commit(&repo, "removed train dir")?;
@@ -979,14 +1038,17 @@ mod tests {
     #[tokio::test]
     async fn test_rm_dir_with_slash() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("train", |repo| async move {
-            // Remove the train dir
+            // Remove the train dir, keeping it on disk
             let path = Path::new("train/");
 
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(path));
+            let new_file = Path::new("train").join("new.txt");
+            util::fs::write_to_path(repo.path.join(&new_file), "new")?;
+            repositories::add(&repo, repo.path.join(&new_file)).await?;
 
             let opts = RmOpts {
-                path: path.to_path_buf(),
-                staged: false,
+                paths: vec![path.to_path_buf()],
+                staged: true,
                 recursive: true, // Must pass in recursive = true
             };
             repositories::rm(&repo, &opts).await?;
@@ -994,10 +1056,22 @@ mod tests {
             let status = repositories::status(&repo).await?;
             status.print();
 
-            assert_eq!(status.staged_files.len(), og_num_files);
+            assert_eq!(
+                status.staged_files.len(),
+                og_num_files,
+                "the committed files are staged for removal and the added file is unstaged"
+            );
             for staged_entry in status.staged_files.values() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
+            assert_eq!(
+                util::fs::rcount_files_in_dir(&repo.path.join(path)),
+                og_num_files + 1,
+                "--staged keeps the directory on disk"
+            );
+
+            let commit = repositories::commit(&repo, "removed train dir")?;
+            assert!(!repositories::tree::has_dir(&repo, &commit, path)?);
 
             Ok(())
         })
@@ -1012,7 +1086,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(&path));
 
             let opts = RmOpts {
-                path,
+                paths: vec![path],
                 staged: false,
                 recursive: true, // Must pass in recursive = true
             };
@@ -1056,7 +1130,7 @@ mod tests {
 
             // Use rm with "." pattern (this should exclude .oxen directory)
             let opts = RmOpts {
-                path: PathBuf::from("."),
+                paths: vec![PathBuf::from(".")],
                 staged: false,
                 recursive: true,
             };
@@ -1094,7 +1168,7 @@ mod tests {
 
             // Also test direct attempt to remove .oxen directory
             let direct_oxen_opts = RmOpts {
-                path: PathBuf::from(OXEN_HIDDEN_DIR),
+                paths: vec![PathBuf::from(OXEN_HIDDEN_DIR)],
                 staged: false,
                 recursive: true,
             };
@@ -1132,7 +1206,7 @@ mod tests {
 
             // Remove only the files in annotations/test/
             let rm_opts = RmOpts {
-                path: PathBuf::from("annotations/test/*"),
+                paths: vec![PathBuf::from("annotations/test/*")],
                 ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
@@ -1178,7 +1252,7 @@ mod tests {
 
             // oxen rm -r 1/2/3 — stage the removal
             let rm_opts = RmOpts {
-                path: PathBuf::from("1/2/3"),
+                paths: vec![PathBuf::from("1/2/3")],
                 recursive: true,
                 staged: false,
             };

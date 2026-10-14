@@ -66,7 +66,7 @@ pub async fn parse_glob_paths(
 
         if util::fs::is_glob_path(&glob_path) {
             if *staged_db {
-                // If staged flag set, only match against the staged db
+                // If staged flag set, match against the staged db
                 let Some(repo) = repo else {
                     return Err(OxenError::basic_str(
                         "Cannot parse staged_db for paths without a repo",
@@ -76,8 +76,9 @@ pub async fn parse_glob_paths(
                 let staged_paths = search_staged_db(&glob_path, repo).await?;
 
                 expanded_paths.extend(staged_paths);
-                // If the merkle_tree flag is set, match against the merkle tree
-            } else if *merkle_tree {
+            }
+            // If the merkle_tree flag is set, match against the merkle tree
+            if *merkle_tree {
                 if let Some(repo) = repo {
                     search_merkle_tree(&mut expanded_paths, repo, &glob_path)?;
                 } else {
