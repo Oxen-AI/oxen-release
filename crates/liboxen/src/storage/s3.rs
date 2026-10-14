@@ -1162,13 +1162,12 @@ impl VersionStore for S3VersionStore {
 
     async fn begin_version_upload(
         &self,
-        hash: &str,
+        hash: MerkleHash,
         size: u64,
         _part_size: u64,
     ) -> Result<Box<dyn VersionUpload>, OxenError> {
-        let expected_hash: MerkleHash = hash.parse()?;
         let client = self.client().await;
-        let key = self.generate_key(hash);
+        let key = self.generate_key(&hash.to_string());
         let upload = client
             .create_multipart_upload()
             .bucket(&self.bucket)
@@ -1184,7 +1183,7 @@ impl VersionStore for S3VersionStore {
             bucket: self.bucket.clone(),
             key,
             upload_id,
-            expected_hash,
+            expected_hash: hash,
             size,
             parts: Mutex::new(BTreeMap::new()),
         }))
@@ -2128,7 +2127,7 @@ pub(crate) mod tests {
         };
         let in_reverse = [(2, &data[part_size..]), (1, &data[..part_size])];
         let upload = store
-            .begin_version_upload(&hash, data.len() as u64, part_size as u64)
+            .begin_version_upload(digest, data.len() as u64, part_size as u64)
             .await
             .expect("begin upload");
         let upload = upload_parts(upload, in_reverse).await;
@@ -2145,7 +2144,11 @@ pub(crate) mod tests {
 
         let wrong = hasher::hash_buffer(b"some other file");
         let upload = store
-            .begin_version_upload(&wrong, data.len() as u64, part_size as u64)
+            .begin_version_upload(
+                wrong.parse().expect("a version file hash parses"),
+                data.len() as u64,
+                part_size as u64,
+            )
             .await
             .expect("begin upload");
         let upload = upload_parts(upload, in_reverse).await;
@@ -2168,7 +2171,7 @@ pub(crate) mod tests {
         let gap = [(1, &partial[..2]), (3, &partial[2..])];
         for parts in [short, gap] {
             let upload = store
-                .begin_version_upload(&partial_hash, partial.len() as u64, 2)
+                .begin_version_upload(partial_digest, partial.len() as u64, 2)
                 .await
                 .expect("begin upload");
             let upload = upload_parts(upload, parts).await;
@@ -2195,7 +2198,7 @@ pub(crate) mod tests {
         // Parts that cover the file but fall below S3's minimum part size reach S3, which refuses
         // to complete the upload.
         let upload = store
-            .begin_version_upload(&partial_hash, partial.len() as u64, 2)
+            .begin_version_upload(partial_digest, partial.len() as u64, 2)
             .await
             .expect("begin upload");
         let upload = upload_parts(upload, [(1, &partial[..2]), (2, &partial[2..])]).await;

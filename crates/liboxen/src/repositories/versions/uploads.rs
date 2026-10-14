@@ -63,8 +63,6 @@ pub enum PartStored {
 pub struct Upload {
     id: String,
     repo: LocalRepository,
-    /// The file's hash as the upload was begun with it, the key it is published under.
-    hash: String,
     expected_hash: MerkleHash,
     size: u64,
     part_size: u64,
@@ -122,7 +120,7 @@ impl Upload {
         destination: Option<WorkspaceDestination>,
         memory: u64,
     ) -> Result<Arc<Upload>, OxenError> {
-        let expected_hash = hash.parse().map_err(|_| {
+        let expected_hash: MerkleHash = hash.parse().map_err(|_| {
             OxenError::VersionUploadRefused(format!("'{hash}' is not a version file hash").into())
         })?;
         if size == 0 {
@@ -158,7 +156,7 @@ impl Upload {
         };
         let part_size = floor.max(size.div_ceil(s3::MAX_PARTS as u64));
         let stored_locally = matches!(
-            store.version_location(hash).await?,
+            store.version_location(&expected_hash.to_string()).await?,
             VersionLocation::Local(_)
         );
         let staging_copy = match workspace {
@@ -175,11 +173,12 @@ impl Upload {
             }
             _ => None,
         };
-        let storage = store.begin_version_upload(hash, size, part_size).await?;
+        let storage = store
+            .begin_version_upload(expected_hash, size, part_size)
+            .await?;
         let upload = Arc::new(Upload {
             id: id.clone(),
             repo: repo.clone(),
-            hash: hash.to_string(),
             expected_hash,
             size,
             part_size,
@@ -321,10 +320,18 @@ impl Upload {
             .ok_or_else(|| OxenError::WorkspaceNotFound(destination.workspace_id.clone().into()))?;
         match &self.staging_copy {
             Some(copy) => {
-                files::add_version_file_from(&workspace, copy.path(), &destination.path, &self.hash)
-                    .await?
+                files::add_version_file_from(
+                    &workspace,
+                    copy.path(),
+                    &destination.path,
+                    self.expected_hash,
+                )
+                .await?
             }
-            None => files::add_version_file(&workspace, &destination.path, &self.hash).await?,
+            None => {
+                let hash = self.expected_hash.to_string();
+                files::add_version_file(&workspace, &destination.path, &hash).await?
+            }
         };
         Ok(())
     }
@@ -522,8 +529,10 @@ mod tests {
                 .collect();
             let hash = hash_buffer(&data);
             let memory = (window * part_size) as u64;
+            let leading_zeros = format!("00{hash}");
             let upload =
-                Upload::begin_with_memory(&repo, &hash, data.len() as u64, None, memory).await?;
+                Upload::begin_with_memory(&repo, &leading_zeros, data.len() as u64, None, memory)
+                    .await?;
             assert_eq!(upload.part_size() as usize, part_size);
             assert_eq!(upload.num_parts() as usize, last);
             assert_eq!(upload.part_window() as usize, window);
@@ -568,7 +577,11 @@ mod tests {
                 send(&upload, last as u64, part(last)).await?,
                 PartStored::Completed
             );
-            assert_eq!(repo.version_store().get_version(&hash).await?, data);
+            assert_eq!(
+                repo.version_store().get_version(&hash).await?,
+                data,
+                "a hash begun with leading zeros publishes under its canonical spelling"
+            );
             let late = Upload::find(&repo, upload.id()).err();
             assert!(
                 matches!(late, Some(OxenError::VersionUploadNotFound(_))),
