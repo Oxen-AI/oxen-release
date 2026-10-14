@@ -471,6 +471,34 @@ impl AtomicFile {
         let mut src_file = File::open(src).map_err(|err| OxenError::file_error(src, err))?;
         self.stream(&mut src_file)
     }
+
+    /// Open a scratch file of `len` bytes for writes at arbitrary offsets, published to the target
+    /// by [`AtomicPartsFile::commit`]. Dropping it uncommitted discards everything written.
+    pub(crate) fn open_for_parts(self, len: u64) -> Result<AtomicPartsFile, OxenError> {
+        let tmp = AtomicTempFile::create(&self.target)?;
+        tmp.tmp.as_file().set_len(len)?;
+        Ok(AtomicPartsFile { file: self, tmp })
+    }
+}
+
+/// A scratch file filled by writes at offsets, from any number of threads at once, then published
+/// to its [`AtomicFile`] target in one atomic rename.
+pub(crate) struct AtomicPartsFile {
+    file: AtomicFile,
+    tmp: AtomicTempFile,
+}
+
+impl AtomicPartsFile {
+    /// Write `data` at `offset`.
+    pub(crate) fn write_at(&self, offset: u64, data: &[u8]) -> Result<(), OxenError> {
+        super::write_at(self.tmp.tmp.path(), offset, data)
+    }
+
+    /// Publish the file. `actual_hash` is the digest of the bytes written, which must match the
+    /// target's [`with_hash`][AtomicFile::with_hash] when one was set.
+    pub(crate) fn commit(self, actual_hash: Option<MerkleHash>) -> Result<(), OxenError> {
+        self.file.publish(self.tmp, actual_hash)
+    }
 }
 
 #[cfg(test)]

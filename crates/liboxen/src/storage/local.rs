@@ -6,14 +6,17 @@ use std::time::SystemTime;
 use crate::constants::{VERSION_CHUNK_FILE_NAME, VERSION_CHUNKS_DIR, VERSION_FILE_NAME};
 use crate::error::OxenError;
 use crate::model::MerkleHash;
-use crate::storage::version_store::{BoxedByteStream, VersionLocation, VersionStore};
-use crate::util::fs::AtomicFile;
+use crate::storage::version_store::{
+    BoxedByteStream, VersionLocation, VersionStore, VersionUpload,
+};
+use crate::util::fs::{AtomicFile, AtomicPartsFile};
 use crate::util::{concurrency, hasher};
 use crate::view::versions::CleanCorruptedVersionsResult;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use log;
+use parking_lot::Mutex;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -414,6 +417,28 @@ impl VersionStore for LocalVersionStore {
         Ok(())
     }
 
+    async fn begin_version_upload(
+        &self,
+        hash: &str,
+        size: u64,
+        part_size: u64,
+    ) -> Result<Box<dyn VersionUpload>, OxenError> {
+        let expected_hash: MerkleHash = hash.parse()?;
+        let version_path = self.version_path(hash);
+        let target = version_path.clone();
+        let file = spawn_blocking(move || {
+            AtomicFile::new(&target)
+                .with_hash(expected_hash)
+                .open_for_parts(size)
+        })
+        .await??;
+        Ok(Box::new(LocalVersionUpload {
+            version_path,
+            part_size,
+            file: Mutex::new(Some(Arc::new(file))),
+        }))
+    }
+
     // It's left here for a quick fix. TODO: Move the business logic to versions controller.
     async fn clean_corrupted_versions(
         &self,
@@ -612,6 +637,50 @@ impl VersionStore for LocalVersionStore {
 
     fn storage_kind(&self) -> crate::storage::StorageKind {
         crate::storage::StorageKind::Local
+    }
+}
+
+/// A version file stored by writing each part at its offset in one scratch file, which completing
+/// renames into place.
+struct LocalVersionUpload {
+    version_path: PathBuf,
+    part_size: u64,
+    /// `None` once the upload has completed or aborted.
+    file: Mutex<Option<Arc<AtomicPartsFile>>>,
+}
+
+impl LocalVersionUpload {
+    fn ended(&self) -> OxenError {
+        OxenError::internal_error(format!(
+            "The upload of {:?} has already completed or aborted",
+            self.version_path
+        ))
+    }
+}
+
+#[async_trait]
+impl VersionUpload for LocalVersionUpload {
+    async fn upload_part(&self, part_number: u64, data: Bytes) -> Result<(), OxenError> {
+        let file = self.file.lock().clone().ok_or_else(|| self.ended())?;
+        let offset = (part_number - 1) * self.part_size;
+        spawn_blocking(move || file.write_at(offset, &data)).await?
+    }
+
+    async fn complete(&self, actual_hash: MerkleHash) -> Result<(), OxenError> {
+        let file = self.file.lock().take().ok_or_else(|| self.ended())?;
+        let file = Arc::try_unwrap(file).map_err(|_| {
+            OxenError::internal_error(format!(
+                "The upload of {:?} completed while a part was still being written",
+                self.version_path
+            ))
+        })?;
+        spawn_blocking(move || file.commit(Some(actual_hash))).await?
+    }
+
+    async fn abort(&self) -> Result<(), OxenError> {
+        let file = self.file.lock().take();
+        spawn_blocking(move || drop(file)).await?;
+        Ok(())
     }
 }
 
@@ -888,6 +957,45 @@ mod tests {
 
         // ...and the chunks directory is removed.
         assert!(!chunks_dir.exists());
+
+        // An upload's parts land in any order and publish once the digest matches.
+        let data = b"part-one|part-two|tail";
+        let part_size = 9;
+        let hash = hasher::hash_buffer(data);
+        let digest: MerkleHash = hash.parse().expect("a version file hash parses");
+        let upload_parts = |upload: Box<dyn VersionUpload>| async move {
+            for n in [3, 1, 2] {
+                let start = (n - 1) * part_size;
+                let part = &data[start..data.len().min(start + part_size)];
+                upload
+                    .upload_part(n as u64, Bytes::copy_from_slice(part))
+                    .await
+                    .expect("upload part");
+            }
+            upload
+        };
+        let upload = store
+            .begin_version_upload(&hash, data.len() as u64, part_size as u64)
+            .await
+            .expect("begin upload");
+        let upload = upload_parts(upload).await;
+        upload.complete(digest).await.expect("complete upload");
+        assert_eq!(store.get_version(&hash).await.expect("get version"), data);
+
+        let wrong = hasher::hash_buffer(b"some other file");
+        let upload = store
+            .begin_version_upload(&wrong, data.len() as u64, part_size as u64)
+            .await
+            .expect("begin upload");
+        let upload = upload_parts(upload).await;
+        let mismatch = upload.complete(digest).await;
+        assert!(
+            matches!(mismatch, Err(OxenError::HashMismatch { .. })),
+            "a digest other than the upload's hash publishes nothing: {mismatch:?}"
+        );
+        assert!(!store.version_exists(&wrong).await.expect("version exists"));
+        let after_complete = upload.upload_part(1, Bytes::from_static(b"x")).await;
+        assert!(after_complete.is_err(), "the mismatched upload has ended");
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@
 
 mod atomic_file;
 pub use atomic_file::AtomicFile;
+pub(crate) use atomic_file::AtomicPartsFile;
 
 use async_std::pin::Pin;
 use bytes::Bytes;
@@ -17,6 +18,7 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufReader;
 use std::io::Cursor;
+use std::io::SeekFrom;
 use std::io::Write;
 use std::io::prelude::*;
 use std::path::Component;
@@ -43,6 +45,18 @@ use image::{DynamicImage, ImageBuffer, Rgb};
 use image::{ImageFormat, ImageReader};
 #[cfg(feature = "ffmpeg")]
 use video_rs::decode::Decoder;
+
+/// Write `data` at `offset` in the existing file at `path`. Writes to separate ranges may run on any
+/// number of threads at once.
+fn write_at(path: &Path, offset: u64, data: &[u8]) -> Result<(), OxenError> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .open(path)
+        .map_err(|err| OxenError::file_error(path, err))?;
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_all(data)?;
+    Ok(())
+}
 
 // Deprecated
 pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
