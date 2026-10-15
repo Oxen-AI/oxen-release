@@ -101,10 +101,12 @@ pub async fn index(
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use crate::api::client::workspaces::{self, data_frames};
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, Instant};
+
     use tokio::time::sleep;
 
-    use crate::config::UserConfig;
     use crate::config::embedding_config::EmbeddingStatus;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::df::tabular;
@@ -113,165 +115,53 @@ mod tests {
     use crate::opts::{DFOpts, PaginateOpts};
     use crate::test;
     use crate::view::data_frames::embeddings::EmbeddingColumnsResponse;
-    use crate::{api, repositories};
 
-    use std::path::Path;
+    use super::{get, index, neighbors};
 
     /// Polls the embedding index for `path` until its first column reports
-    /// [`EmbeddingStatus::Complete`], then returns that response with `columns`
-    /// guaranteed non-empty. A transient per-request failure (e.g. the server
-    /// briefly busy under load) is retried rather than failing the test; only a
-    /// genuine failure to complete within the ~10s budget returns an error.
+    /// [`EmbeddingStatus::Complete`], then returns that response with `columns` non-empty. A
+    /// failed request is retried until the 10s deadline.
     async fn wait_for_embedding_index(
         remote_repo: &RemoteRepository,
         workspace_id: &str,
         path: &Path,
     ) -> Result<EmbeddingColumnsResponse, OxenError> {
-        // Indexing is normally sub-second; the ~10s budget (1000 × 10ms) absorbs load spikes.
-        for _ in 0..1000 {
-            if let Ok(response) = api::client::workspaces::data_frames::embeddings::get(
-                remote_repo,
-                workspace_id,
-                path,
-            )
-            .await
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Instant::now() < deadline {
+            if let Ok(response) = get(remote_repo, workspace_id, path).await
                 && response.columns.first().map(|c| &c.status) == Some(&EmbeddingStatus::Complete)
             {
                 return Ok(response);
             }
-            sleep(std::time::Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(2)).await;
         }
         Err(OxenError::basic_str(
-            "embedding index did not reach Complete within the ~10s budget",
+            "embedding index did not reach Complete within 10s",
         ))
     }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_no_embeddings_in_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let result = api::client::workspaces::data_frames::embeddings::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            let response = result.unwrap();
-            assert_eq!(response.columns.len(), 0);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_index_embeddings_in_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
+    async fn test_index_query_and_download_embeddings() -> Result<(), OxenError> {
         test::run_remote_repo_test_embeddings_jsonl_pushed(|remote_repo| async move {
-            let branch_name = DEFAULT_BRANCH_NAME;
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = Path::new("annotations")
+            let path: PathBuf = Path::new("annotations")
                 .join("train")
                 .join("embeddings.jsonl");
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let column = "embedding";
-            let use_background_thread = true;
-            api::client::workspaces::data_frames::embeddings::index(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                column,
-                use_background_thread,
-            )
-            .await?;
 
-            let response = wait_for_embedding_index(&remote_repo, &workspace_id, &path).await?;
-            assert_eq!(response.columns.len(), 1);
-            assert_eq!(response.columns[0].name, column);
-            assert_eq!(response.columns[0].vector_length, 3);
+            // Index on the request thread
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "inline").await?;
+            data_frames::index(&remote_repo, "inline", &path).await?;
+            let response = get(&remote_repo, "inline", &path).await?;
+            assert_eq!(
+                response.columns.len(),
+                0,
+                "no column is indexed for embeddings yet"
+            );
+            index(&remote_repo, "inline", &path, column, false).await?;
+            let response = get(&remote_repo, "inline", &path).await?;
+            assert_eq!(response.columns[0].status, EmbeddingStatus::Complete);
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_query_embeddings_by_id() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_embeddings_jsonl_pushed(|remote_repo| async move {
-            let branch_name = DEFAULT_BRANCH_NAME;
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = Path::new("annotations")
-                .join("train")
-                .join("embeddings.jsonl");
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let column = "embedding";
-            let use_background_thread = false;
-            api::client::workspaces::data_frames::embeddings::index(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                column,
-                use_background_thread,
-            )
-            .await?;
-
-            let result = api::client::workspaces::data_frames::embeddings::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            let response = result.unwrap();
-            let indexing_status = response.columns[0].status.clone();
-            assert_eq!(indexing_status, EmbeddingStatus::Complete);
-
-            // Query the embeddings by id
             let opts = DFOpts {
                 find_embedding_where: Some(
                     "prompt = 'What is great way to version 0 images?'".to_string(),
@@ -280,136 +170,41 @@ mod tests {
                 page_size: Some(23),
                 ..DFOpts::empty()
             };
-            let result = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &opts,
-            )
-            .await;
-            assert!(result.is_ok());
-            let response = result.unwrap();
-            assert!(response.data_frame.is_some());
-            assert_eq!(
-                response.data_frame.unwrap().view.size.height,
-                opts.page_size.unwrap()
-            );
+            let response = data_frames::get(&remote_repo, "inline", &path, &opts).await?;
+            assert_eq!(response.data_frame.expect("a page").view.size.height, 23);
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_query_embeddings_by_embedding() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            let branch_name = DEFAULT_BRANCH_NAME;
-
-            // Write a small embeddings.json file
-            let path = Path::new("embeddings.json");
-            let data = json!([
-                {"id": 1, "text": "oxen is the best data platform", "embedding": [1.0, 2.0, 3.0]},
-                {"id": 2, "text": "collaborate on data in oxen.ai", "embedding": [2.0, 3.0, 4.0]},
-                {"id": 3, "text": "oxen is an open source data platform", "embedding": [3.0, 4.0, 5.0]},
-                {"id": 4, "text": "what is a good place to collaborate on data? Oxen.ai", "embedding": [4.0, 5.0, 6.0]},
-            ]);
-            let full_path = local_repo.path.join(path);
-            std::fs::write(&full_path, data.to_string())?;
-
-            // Add, commit, and push the file
-            repositories::add(&local_repo, &full_path).await?;
-            repositories::commit(&local_repo, "Add embeddings.json")?;
-            repositories::push(&local_repo).await?;
-
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let column = "embedding";
-            let use_background_thread = false;
-            api::client::workspaces::data_frames::embeddings::index(
-                &remote_repo,
-                &workspace_id,
-                path,
-                column,
-                use_background_thread,
-            )
-            .await?;
-
-            let embedding = vec![3.0, 4.0, 5.0];
+            // The fixture's row i holds the embedding [i.0, i.1, i.2]
             let paginate_opts = PaginateOpts {
                 page_num: 1,
                 page_size: 2,
             };
-            let result = api::client::workspaces::data_frames::embeddings::neighbors(
+            let response = neighbors(
                 &remote_repo,
-                &workspace_id,
-                path,
-                &column,
-                &embedding,
-                &paginate_opts,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            let response = result.unwrap();
-            assert!(response.data_frame.is_some());
-            assert_eq!(
-                response.data_frame.as_ref().unwrap().view.size.height,
-                paginate_opts.page_size
-            );
-            let rows = response.data_frame.as_ref().unwrap().view.data.as_array().unwrap();
-            assert_eq!(rows.len(), paginate_opts.page_size);
-            let first_row = rows[0].as_object().unwrap();
-            let first_row_id = first_row["id"].as_u64().unwrap();
-            assert_eq!(first_row_id, 3);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_embeddings_by_id() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_embeddings_jsonl_pushed(|remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let branch_name = DEFAULT_BRANCH_NAME;
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = Path::new("annotations")
-                .join("train")
-                .join("embeddings.jsonl");
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let column = "embedding";
-            let use_background_thread = true;
-            api::client::workspaces::data_frames::embeddings::index(
-                &remote_repo,
-                &workspace_id,
+                "inline",
                 &path,
                 column,
-                use_background_thread,
+                &vec![3.0, 3.1, 3.2],
+                &paginate_opts,
             )
             .await?;
+            let view = response.data_frame.expect("a page of neighbors").view;
+            assert_eq!(view.size.height, paginate_opts.page_size);
+            let rows = view.data.as_array().expect("rows");
+            assert_eq!(rows.len(), paginate_opts.page_size);
+            assert_eq!(rows[0]["prompt"], "What is great way to version 3 images?");
 
-            wait_for_embedding_index(&remote_repo, &workspace_id, &path).await?;
+            // Index on a background thread
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "background").await?;
+            data_frames::index(&remote_repo, "background", &path).await?;
+            index(&remote_repo, "background", &path, column, true).await?;
+            let response = wait_for_embedding_index(&remote_repo, "background", &path).await?;
+            assert_eq!(response.columns.len(), 1);
+            assert_eq!(response.columns[0].name, column);
+            assert_eq!(response.columns[0].vector_length, 3);
 
+            let remote_repo_copy = remote_repo.clone();
             test::run_empty_dir_test_async(|sync_dir| async move {
                 let output_path = sync_dir.join("test_download.parquet");
-
-                // Download the data frame sorted by embeddings
                 let opts = DFOpts {
                     find_embedding_where: Some(
                         "prompt = 'What is great way to version 0 images?'".to_string(),
@@ -418,92 +213,31 @@ mod tests {
                     output: Some(output_path.clone()),
                     ..DFOpts::empty()
                 };
-                api::client::workspaces::data_frames::download(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    &opts,
-                )
-                .await?;
-                assert!(output_path.exists());
-
-                // Row count matches the fixture; width is 4 (prompt, response, embedding,
-                // OXEN_ROW_ID).
+                data_frames::download(&remote_repo, "background", &path, &opts).await?;
+                // prompt, response, embedding, and the row id
                 let df = tabular::read_df(&output_path, DFOpts::empty()).await?;
-                println!("{df}");
                 assert_eq!(df.width(), 4);
                 assert_eq!(df.height(), test::EMBEDDINGS_FIXTURE_ROWS);
+
+                // An invalid query is a clean error, and the server still answers afterwards
+                let opts = DFOpts {
+                    find_embedding_where: Some("non_existent_column = test".to_string()),
+                    sort_by_similarity_to: Some(column.to_string()),
+                    ..DFOpts::empty()
+                };
+                let result = data_frames::get(&remote_repo, "background", &path, &opts).await;
+                assert!(result.is_err());
+                let result =
+                    data_frames::get(&remote_repo, "background", &path, &DFOpts::empty()).await;
+                assert!(
+                    result.is_ok(),
+                    "server should survive an invalid embedding query, got {result:?}"
+                );
                 Ok(())
             })
             .await?;
 
             Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_query_embeddings_invalid_query() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_embeddings_jsonl_pushed(|remote_repo| async move {
-            let branch_name = DEFAULT_BRANCH_NAME;
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = Path::new("annotations")
-                .join("train")
-                .join("embeddings.jsonl");
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let column = "embedding";
-            let use_background_thread = true;
-            api::client::workspaces::data_frames::embeddings::index(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                column,
-                use_background_thread,
-            )
-            .await?;
-
-            wait_for_embedding_index(&remote_repo, &workspace_id, &path).await?;
-
-            // Query the embeddings by id
-            let opts = DFOpts {
-                find_embedding_where: Some("non_existent_column = test".to_string()),
-                sort_by_similarity_to: Some(column.to_string()),
-                ..DFOpts::empty()
-            };
-            let result = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &opts,
-            )
-            .await;
-            assert!(result.is_err());
-
-            // The invalid query must be rejected as a clean error, not crash
-            // the server: a follow-up valid request still succeeds.
-            let result = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            )
-            .await;
-            assert!(
-                result.is_ok(),
-                "server should survive an invalid embedding query, got {result:?}"
-            );
-
-            Ok(remote_repo)
         })
         .await
     }

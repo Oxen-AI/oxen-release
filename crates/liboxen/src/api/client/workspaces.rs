@@ -188,450 +188,190 @@ pub async fn clear(remote_repo: &RemoteRepository) -> Result<(), OxenError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::api::client::branches::create_from_branch;
+    use crate::repositories::branches::create_checkout;
+    use crate::repositories::workspaces::df;
+    use crate::util::fs;
 
     use super::*;
 
-    use crate::api;
     use crate::command;
-    use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::repositories;
     use crate::test;
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_workspace() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let workspace_id = "test_workspace_id";
-            let workspace = create(&remote_repo, branch_name, workspace_id).await?;
-
-            assert_eq!(workspace.id, workspace_id);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_workspace_with_name() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let workspace_id = "test_workspace_id";
-            let workspace_name = "test_workspace_name";
-            let workspace =
-                create_with_name(&remote_repo, branch_name, workspace_id, workspace_name).await?;
-
-            assert_eq!(workspace.id, workspace_id);
-            assert_eq!(workspace.name, Some(workspace_name.to_string()));
-
-            let workspace = get(&remote_repo, &workspace_id).await?;
-            assert!(workspace.is_some());
-            assert_eq!(
-                workspace.as_ref().unwrap().name,
-                Some(workspace_name.to_string())
-            );
-            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
-
-            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
-            assert!(workspace.is_some());
-            assert_eq!(
-                workspace.as_ref().unwrap().name,
-                Some(workspace_name.to_string())
-            );
-            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_workspace_by_name() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let workspace_id = "test_workspace_id";
-            let workspace_name = "test_workspace_name";
-            create_with_name(&remote_repo, branch_name, workspace_id, workspace_name).await?;
-
-            // Create a second workspace with a different name
-            let workspace_id2 = "test_workspace_id2";
-            let workspace_name2 = "test_workspace_name2";
-            create_with_name(&remote_repo, branch_name, workspace_id2, workspace_name2).await?;
-
-            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
-            assert!(workspace.is_some());
-            assert_eq!(
-                workspace.as_ref().unwrap().name,
-                Some(workspace_name.to_string())
-            );
-            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
-
-            let workspace2 = get_by_name(&remote_repo, &workspace_name2).await?;
-            assert!(workspace2.is_some());
-            assert_eq!(
-                workspace2.as_ref().unwrap().name,
-                Some(workspace_name2.to_string())
-            );
-            assert_eq!(workspace2.as_ref().unwrap().id, workspace_id2);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_workspace_by_name_does_not_exist() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_name = "name_does_not_exist";
-
-            let workspace = get_by_name(&remote_repo, &workspace_name).await?;
-            assert!(workspace.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_workspace_by_id_does_not_exist() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_id = "id_does_not_exist";
-
-            let workspace = get(&remote_repo, &workspace_id).await?;
-            assert!(workspace.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_clear_workspaces() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            // Create 10 workspaces
-            for i in 0..10 {
-                create(
-                    &remote_repo,
-                    DEFAULT_BRANCH_NAME,
-                    &format!("test_workspace_{i}"),
-                )
-                .await?;
-            }
-
-            // Clear them
-            clear(&remote_repo).await?;
-
-            // Check they are gone
-            let workspaces = list(&remote_repo).await?;
-            assert_eq!(workspaces.len(), 0);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_workspaces() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            create(&remote_repo, branch_name, "test_workspace_id").await?;
-            create(&remote_repo, branch_name, "test_workspace_id2").await?;
-
-            let workspaces = list(&remote_repo).await?;
-            assert_eq!(workspaces.len(), 2);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_empty_workspaces() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspaces = list(&remote_repo).await?;
-            assert_eq!(workspaces.len(), 0);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_workspace() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "main";
-            let workspace_id = "test_workspace_id";
-            let workspace = create(&remote_repo, branch_name, workspace_id).await?;
-
-            assert_eq!(workspace.id, workspace_id);
-
-            let res = delete(&remote_repo, workspace_id).await;
-            assert!(res.is_ok());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
-        // Skip if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
+    fn commit_body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            message: message.to_string(),
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
         }
-
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo"))
-                        .await?;
-
-                // Remote stage row
-                let path = test::test_nlp_classification_csv();
-
-                // Create workspace
-                let workspace_id = "my_workspace";
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-
-                // Index the dataset
-                repositories::workspaces::df::index(&cloned_repo, workspace_id, &path).await?;
-
-                log::debug!("the path in question is {path:?}");
-                let mut opts = DFOpts::empty();
-
-                opts.add_row =
-                    Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                repositories::workspaces::df(&cloned_repo, workspace_id, &path, opts).await?;
-
-                // Local add col
-                let full_path = cloned_repo.path.join(path);
-                let mut opts = DFOpts::empty();
-                opts.add_col = Some("is_something:n/a:str".to_string());
-                opts.output = Some(full_path.to_path_buf()); // write back to same path
-                command::df(&full_path, opts).await?;
-                repositories::add(&cloned_repo, &full_path).await?;
-
-                // Commit and push the changed schema
-                repositories::commit(&cloned_repo, "Changed the schema 😇")?;
-                repositories::push(&cloned_repo).await?;
-
-                // Try to commit the remote changes, should fail
-                let body = NewCommitBody {
-                    message: "Remotely committing".to_string(),
-                    author: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                };
-                let result = api::client::workspaces::commit(
-                    &remote_repo,
-                    DEFAULT_BRANCH_NAME,
-                    workspace_id,
-                    &body,
-                )
-                .await;
-                assert!(result.is_err());
-
-                // Status should have one modified file
-                let remote_status = api::client::workspaces::changes::list(
-                    &remote_repo,
-                    &workspace_id,
-                    Path::new(""),
-                    constants::DEFAULT_PAGE_NUM,
-                    constants::DEFAULT_PAGE_SIZE,
-                )
-                .await?;
-                assert_eq!(remote_status.modified_files.entries.len(), 1);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
     }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            // Create branch behind-main off main
-            let new_branch = "behind-main";
-            let main_branch = "main";
+    async fn test_create_find_commit_and_clear_workspaces() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            assert_eq!(
+                list(&remote_repo).await?.len(),
+                0,
+                "a new remote has no workspaces"
+            );
+            assert!(get(&remote_repo, "id_does_not_exist").await?.is_none());
+            assert!(
+                get_by_name(&remote_repo, "name_does_not_exist")
+                    .await?
+                    .is_none()
+            );
 
-            let main_path = "images/folder";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, main_branch, "test_workspace")
-                    .await?;
-            let identifier = workspace.id;
+            let workspace = create(&remote_repo, DEFAULT_BRANCH_NAME, "unnamed_id").await?;
+            assert_eq!(workspace.id, "unnamed_id");
+            let named = [("named_id", "named"), ("named_id2", "named2")];
+            for (id, name) in named {
+                let workspace =
+                    create_with_name(&remote_repo, DEFAULT_BRANCH_NAME, id, name).await?;
+                assert_eq!(workspace.id, id);
+                assert_eq!(workspace.name.as_deref(), Some(name));
+            }
+            for (id, name) in named {
+                let by_id = get(&remote_repo, id).await?.expect("found by id");
+                assert_eq!(by_id.name.as_deref(), Some(name));
+                let by_name = get_by_name(&remote_repo, name)
+                    .await?
+                    .expect("found by name");
+                assert_eq!(by_name.id, id);
+            }
+            assert_eq!(list(&remote_repo).await?.len(), 3);
+            delete(&remote_repo, "unnamed_id").await?;
+            assert!(get(&remote_repo, "unnamed_id").await?.is_none());
 
-            api::client::branches::create_from_branch(&remote_repo, new_branch, main_branch)
-                .await?;
-
-            // Advance head on main branch, leave behind-main behind
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
+            // A commit closes an unnamed workspace and keeps a named one
+            create(&remote_repo, DEFAULT_BRANCH_NAME, "commit_unnamed_id").await?;
+            files::upload_single_file(
                 &remote_repo,
-                &identifier,
-                main_path,
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add to main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(&remote_repo, main_branch, &identifier, &body).await?;
-
-            let workspace =
-                api::client::workspaces::create(&remote_repo, new_branch, "test_workspace").await?;
-            let identifier = workspace.id;
-
-            // Add a file to behind-main
-            let image_path = test::test_1k_parquet();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &identifier,
-                main_path,
-                image_path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            // Make a commit to behind-main
-            let body = NewCommitBody {
-                message: "Add behind main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(&remote_repo, new_branch, &identifier, &body).await?;
-
-            let workspace =
-                api::client::workspaces::create(&remote_repo, new_branch, "test_workspace").await?;
-            let identifier = workspace.id;
-
-            // Add file at images/folder to behind-main, committed to main
-            let image_path = test::test_100_parquet();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &identifier,
-                main_path,
-                image_path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            // Check status: if valid, there should be an entry here for the file at images/folder
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new("");
-
-            let remote_status = api::client::workspaces::changes::list(
-                &remote_repo,
-                &identifier,
-                path,
-                page_num,
-                page_size,
+                "commit_unnamed_id",
+                "unnamed",
+                test::test_img_file(),
             )
             .await?;
-
-            assert_eq!(remote_status.added_files.entries.len(), 1);
-            assert_eq!(remote_status.added_files.total_entries, 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_not_named_workspaces_closing_after_commit() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_id = "test_workspace_id";
-            api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                .await?;
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &&workspace_id,
-                "",
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add to main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &body)
-                .await?;
-            let get_result = api::client::workspaces::get(&remote_repo, &workspace_id).await?;
-
-            assert!(get_result.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_named_workspaces_not_closing_after_commit() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let workspace_name = "test_workspace_name";
-            let workspace_id = "test_workspace_id";
-            api::client::workspaces::create_with_name(
+            commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                workspace_id,
-                workspace_name,
+                "commit_unnamed_id",
+                &commit_body("unnamed"),
             )
             .await?;
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_name,
-                "",
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
+            assert!(get(&remote_repo, "commit_unnamed_id").await?.is_none());
 
-            let body = NewCommitBody {
-                message: "Add to main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(
+            create_with_name(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                workspace_name,
-                &body,
+                "commit_named_id",
+                "commit_named",
             )
             .await?;
-            let workspace = api::client::workspaces::get(&remote_repo, &workspace_name).await?;
-            assert!(workspace.is_some());
-            assert_eq!(workspace.as_ref().unwrap().id, workspace_id);
+            files::upload_single_file(&remote_repo, "commit_named", "named", test::test_img_file())
+                .await?;
+            commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "commit_named",
+                &commit_body("named"),
+            )
+            .await?;
+            let workspace = get(&remote_repo, "commit_named")
+                .await?
+                .expect("still open");
+            assert_eq!(workspace.id, "commit_named_id");
+
+            // A workspace on a branch behind main stages a file main already committed there
+            let behind = "behind-main";
+            create_from_branch(&remote_repo, behind, DEFAULT_BRANCH_NAME).await?;
+            let folder = "images/folder";
+            create(&remote_repo, DEFAULT_BRANCH_NAME, "ahead").await?;
+            files::upload_single_file(&remote_repo, "ahead", folder, test::test_img_file()).await?;
+            commit(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "ahead",
+                &commit_body("Add to main"),
+            )
+            .await?;
+            create(&remote_repo, behind, "behind").await?;
+            files::upload_single_file(&remote_repo, "behind", folder, test::test_1k_parquet())
+                .await?;
+            commit(
+                &remote_repo,
+                behind,
+                "behind",
+                &commit_body("Add behind main"),
+            )
+            .await?;
+            create(&remote_repo, behind, "behind").await?;
+            files::upload_single_file(&remote_repo, "behind", folder, test::test_100_parquet())
+                .await?;
+            let status = changes::list(
+                &remote_repo,
+                "behind",
+                "",
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE,
+            )
+            .await?;
+            assert_eq!(status.added_files.entries.len(), 1);
+            assert_eq!(status.added_files.total_entries, 1);
+
+            // A workspace commit fails, keeping its edits, once a push changes the data frame's
+            // schema on its branch
+            let schema_branch = "schema-change";
+            create_checkout(&local_repo, schema_branch)?;
+            let path = Path::new("text.csv");
+            let full_path = local_repo.path.join(path);
+            fs::write_to_path(&full_path, "text,label\nI am a row,positive\n")?;
+            repositories::add(&local_repo, &full_path).await?;
+            repositories::commit(&local_repo, "Add text.csv")?;
+            repositories::push(&local_repo).await?;
+
+            create(&remote_repo, schema_branch, "schema_workspace").await?;
+            df::index(&local_repo, "schema_workspace", path).await?;
+            let mut opts = DFOpts::empty();
+            opts.add_row = Some(r#"{"text": "I am a new row", "label": "neutral"}"#.to_string());
+            df(&local_repo, "schema_workspace", path, opts).await?;
+
+            let mut opts = DFOpts::empty();
+            opts.add_col = Some("is_something:n/a:str".to_string());
+            opts.output = Some(full_path.clone());
+            command::df(&full_path, opts).await?;
+            repositories::add(&local_repo, &full_path).await?;
+            repositories::commit(&local_repo, "Changed the schema 😇")?;
+            repositories::push(&local_repo).await?;
+
+            let err = commit(
+                &remote_repo,
+                schema_branch,
+                "schema_workspace",
+                &commit_body("Remotely committing"),
+            )
+            .await
+            .expect_err("the branch moved past the workspace's commit");
+            assert!(err.to_string().contains("behind"), "{err}");
+            let status = changes::list(
+                &remote_repo,
+                "schema_workspace",
+                "",
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE,
+            )
+            .await?;
+            assert_eq!(status.modified_files.entries.len(), 1);
+
+            assert!(!list(&remote_repo).await?.is_empty());
+            clear(&remote_repo).await?;
+            assert_eq!(list(&remote_repo).await?.len(), 0);
+
             Ok(remote_repo)
         })
         .await

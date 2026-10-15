@@ -230,1126 +230,303 @@ pub async fn rename_data_frame(
 
 #[cfg(test)]
 mod tests {
+    use super::rows;
+    use crate::api::client::branches::create_from_branch;
+    use crate::api::client::{data_frames, workspaces};
+    use crate::util::fs;
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::df::tabular;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
+    use crate::model::{NewCommitBody, RemoteRepository};
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
-    use crate::{api, repositories, util};
+
+    use super::{download, get, index, list, rename_data_frame, restore, unindex};
+
+    fn commit_body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            message: message.to_string(),
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
+        }
+    }
+
+    fn bbox_row(file: &str) -> String {
+        format!(
+            r#"{{"file": "{file}", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100}}"#
+        )
+    }
+
+    async fn staged_height(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+        path: &Path,
+    ) -> Result<usize, OxenError> {
+        let res = get(remote_repo, workspace_id, path, &DFOpts::empty()).await?;
+        Ok(res
+            .data_frame
+            .expect("data frame should be present")
+            .source
+            .size
+            .height)
+    }
+
+    async fn committed_height(
+        remote_repo: &RemoteRepository,
+        branch_name: &str,
+        path: &Path,
+    ) -> Result<usize, OxenError> {
+        let df = data_frames::get(remote_repo, branch_name, path, DFOpts::empty()).await?;
+        assert_eq!(df.status.status_message, "resource_found");
+        Ok(df.data_frame.view.to_df().await.height())
+    }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_get_by_resource() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations/train/bounding_box.csv");
+    async fn test_query_edit_and_commit_workspace_data_frames() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let local_path = local_repo.path.join(&path);
+            let remote_repo_copy = remote_repo.clone();
 
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::put(
-                &remote_repo,
-                workspace_id,
-                path,
-                &serde_json::json!({"is_indexed": true}),
-            )
-            .await?;
-
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                workspace_id,
-                path,
-                &DFOpts::empty(),
-            )
-            .await?;
-
+            // Query and download an indexed data frame
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "query").await?;
+            assert_eq!(index(&remote_repo, "query", &path).await?.status, "success");
+            let res = get(&remote_repo, "query", &path, &DFOpts::empty()).await?;
             assert_eq!(res.status.status_message, "resource_found");
+            assert_eq!(
+                list(&remote_repo, DEFAULT_BRANCH_NAME, "query")
+                    .await?
+                    .entries
+                    .entries
+                    .len(),
+                1
+            );
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-            let res = api::client::workspaces::data_frames::list(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_id,
-            )
-            .await?;
-
-            assert_eq!(res.entries.entries.len(), 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_rename_data_frame() -> Result<(), OxenError> {
-        // Skip workspace ops on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Define the original and new paths for the data frame
-            let original_path = Path::new("annotations/train/bounding_box.csv");
-            let new_path = Path::new("new/dir/bounding_box_renamed.csv");
-
-            // Index the original data frame
-            api::client::workspaces::data_frames::index(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-            )
-            .await?;
-
-            // Rename the data frame
-            let rename_response = api::client::workspaces::data_frames::rename_data_frame(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-                &new_path,
-            )
-            .await?;
-            assert_eq!(rename_response.status, "success");
-            let user = UserConfig::get()?.to_user();
-            // Commit the changes
-            let new_commit = NewCommitBody {
-                author: user.name.to_owned(),
-                email: user.email.to_owned(),
-                message: "renamed data frame".to_string(),
+            let dogs = "SELECT * FROM df WHERE label = 'dog'";
+            let opts = DFOpts {
+                sql: Some(dogs.to_string()),
+                ..DFOpts::empty()
             };
+            let res = get(&remote_repo, "query", &path, &opts).await?;
+            assert_eq!(
+                res.data_frame.expect("a page").view.to_df().await.height(),
+                4
+            );
 
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace.id,
-                &new_commit,
-            )
-            .await?;
-
-            // Verify that the data frame has been renamed
-            let renamed_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &new_path,
-                DFOpts::empty(),
-            )
-            .await?;
-            assert_eq!(renamed_df.status.status_message, "resource_found");
-
-            let original_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &original_path,
-                DFOpts::empty(),
-            )
-            .await?;
-
-            assert_eq!(original_df.status.status_message, "resource_found");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_edit_rename_and_commit_data_frame_to_nonexistent_folder() -> Result<(), OxenError>
-    {
-        // Skip workspace ops on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Define the original path for the data frame
-
-            let original_path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let new_path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("nonexistent_folder"))
-                .join(Path::new("bounding_box_edited.csv"));
-
-            // Index the original data frame
-            api::client::workspaces::data_frames::index(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-            )
-            .await?;
-
-            let original_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &original_path,
-                DFOpts::empty(),
-            )
-            .await?;
-
-            let og_row_count = original_df.data_frame.view.to_df().await.height();
-            let new_row = r#"{"file": "train/dog_4.jpg", "label": "dog", "min_x": 15.0, "min_y": 20.0, "width": 300, "height": 400}"#;
-
-
-            // Edit the data frame (this is a placeholder for your actual edit logic)
-            let edit_response = api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-                new_row.to_string(), // Assuming this function takes the new path as a parameter
-            )
-            .await;
-            assert!(edit_response.is_ok());
-            api::client::workspaces::data_frames::rename_data_frame(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-                &new_path,
-            )
-            .await?;
-
-            // Commit the changes
-            let user = UserConfig::get()?.to_user();
-            let new_commit = NewCommitBody {
-                author: user.name.to_owned(),
-                email: user.email.to_owned(),
-                message: "edited data frame".to_string(),
-            };
-
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace.id,
-                &new_commit,
-            )
-            .await?;
-
-            // Verify that the edited data frame has the new name
-            let edited_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &new_path,
-                DFOpts::empty(),
-            )
-            .await?;
-            assert_eq!(edited_df.status.status_message, "resource_found");
-            let new_row_count = edited_df.data_frame.view.to_df().await.height();
-            assert_eq!(new_row_count, og_row_count + 1);
-
-            // Verify that the original data frame still exists
-            let original_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &original_path,
-                DFOpts::empty(),
-            )
-            .await?;
-            assert_eq!(original_df.data_frame.view.to_df().await.height(), og_row_count);
-            assert_eq!(original_df.status.status_message, "resource_found");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_edit_rename_and_commit_data_frame() -> Result<(), OxenError> {
-        // Skip workspace ops on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Define the original path for the data frame
-
-            let original_path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let new_path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box_edited.csv"));
-
-            // Index the original data frame
-            api::client::workspaces::data_frames::index(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-            )
-            .await?;
-
-            let original_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &original_path,
-                DFOpts::empty(),
-            )
-            .await?;
-
-            let og_row_count = original_df.data_frame.view.to_df().await.height();
-            let new_row = r#"{"file": "train/dog_4.jpg", "label": "dog", "min_x": 15.0, "min_y": 20.0, "width": 300, "height": 400}"#;
-
-
-            // Edit the data frame (this is a placeholder for your actual edit logic)
-            let edit_response = api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-                new_row.to_string(), // Assuming this function takes the new path as a parameter
-            )
-            .await;
-            assert!(edit_response.is_ok());
-
-            api::client::workspaces::data_frames::rename_data_frame(
-                &remote_repo,
-                &workspace.id,
-                &original_path,
-                &new_path,
-            )
-            .await?;
-
-            // Commit the changes
-            let user = UserConfig::get()?.to_user();
-            let new_commit = NewCommitBody {
-                author: user.name.to_owned(),
-                email: user.email.to_owned(),
-                message: "edited data frame".to_string(),
-            };
-
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace.id,
-                &new_commit,
-            )
-            .await?;
-
-            // Verify that the edited data frame has the new name
-            let edited_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &new_path,
-                DFOpts::empty(),
-            )
-            .await?;
-            assert_eq!(edited_df.status.status_message, "resource_found");
-            let new_row_count = edited_df.data_frame.view.to_df().await.height();
-            assert_eq!(new_row_count, og_row_count + 1);
-
-            // Verify that the original data frame still exists
-            let original_df = api::client::data_frames::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &original_path,
-                DFOpts::empty(),
-            )
-            .await?;
-            assert_eq!(original_df.data_frame.view.to_df().await.height(), og_row_count);
-            assert_eq!(original_df.status.status_message, "resource_found");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_query_workspace_data_frames_with_sql() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
+            let query_repo = remote_repo.clone();
+            let query_path = path.clone();
             test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("test_download.csv");
-                let mut opts = DFOpts::empty();
-                opts.sql = Some("SELECT * FROM df WHERE label = 'dog'".to_string());
-                opts.output = Some(output_path.clone());
-                let df = api::client::workspaces::data_frames::get(
+                let (remote_repo, path) = (query_repo, query_path);
+                let output = sync_dir.join("download.csv");
+                let opts = DFOpts {
+                    output: Some(output.clone()),
+                    ..DFOpts::empty()
+                };
+                download(&remote_repo, "query", &path, &opts).await?;
+                assert_eq!(
+                    fs::read_from_path(&output)?,
+                    fs::read_from_path(&local_path)?
+                );
+
+                let output = sync_dir.join("download.jsonl");
+                let opts = DFOpts {
+                    output: Some(output.clone()),
+                    ..DFOpts::empty()
+                };
+                download(&remote_repo, "query", &path, &opts).await?;
+                let original = tabular::read_df(&local_path, DFOpts::empty()).await?;
+                let downloaded = tabular::read_df(&output, DFOpts::empty()).await?;
+                assert_eq!(
+                    (downloaded.height(), downloaded.width()),
+                    (original.height(), original.width())
+                );
+
+                for (sql, shape) in [
+                    (dogs, (4, 6)),
+                    ("SELECT label, COUNT(*) FROM df GROUP BY label", (2, 2)),
+                ] {
+                    let output = sync_dir.join("query.csv");
+                    let opts = DFOpts {
+                        sql: Some(sql.to_string()),
+                        output: Some(output.clone()),
+                        ..DFOpts::empty()
+                    };
+                    download(&remote_repo, "query", &path, &opts).await?;
+                    let df = tabular::read_df(&output, DFOpts::empty()).await?;
+                    assert_eq!((df.height(), df.width()), shape, "{sql}");
+                }
+
+                let output = sync_dir.join("should_not_exist.csv");
+                let opts = DFOpts {
+                    output: Some(output.clone()),
+                    ..DFOpts::empty()
+                };
+                let result = download(
                     &remote_repo,
-                    workspace_id,
-                    &path,
-                    &opts,
-                )
-                .await?;
-
-                // There should be 4 rows with label = dog
-                let df = df.data_frame.unwrap();
-                let view_df = df.view.to_df().await;
-                assert_eq!(view_df.height(), 4);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_nonexistent_data_frame_returns_resource_not_found()
-    -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("should_not_exist.csv");
-                let mut opts = DFOpts::empty();
-                opts.output = Some(output_path.clone());
-                let result = api::client::workspaces::data_frames::download(
-                    &remote_repo,
-                    workspace_id,
+                    "query",
                     Path::new("this/path/does_not_exist.csv"),
                     &opts,
                 )
                 .await;
+                assert!(
+                    matches!(result, Err(OxenError::ResourceNotFound(_))),
+                    "{result:?}"
+                );
+                assert!(!output.exists());
+                Ok(())
+            })
+            .await?;
+            assert_eq!(
+                unindex(&remote_repo, "query", &path).await?.status,
+                "success"
+            );
 
-                assert!(result.is_err());
-                let err = result.unwrap_err();
-                match err {
-                    OxenError::ResourceNotFound(_) => {} // expected
-                    other => panic!("Expected OxenError::ResourceNotFound, got: {other:?}"),
+            // Stage, delete, and discard row edits: the csv holds 6 committed rows
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "edit").await?;
+            index(&remote_repo, "edit", &path).await?;
+            rows::add(&remote_repo, "edit", &path, bbox_row("image1.jpg")).await?;
+            let (_df, added_id) =
+                rows::add(&remote_repo, "edit", &path, bbox_row("image2.jpg")).await?;
+            assert_eq!(staged_height(&remote_repo, "edit", &path).await?, 8);
+            let added_id = added_id.expect("the added row's id");
+            rows::delete(&remote_repo, "edit", &path, &added_id).await?;
+            assert_eq!(staged_height(&remote_repo, "edit", &path).await?, 7);
+            restore(&remote_repo, "edit", &path).await?;
+            assert_eq!(
+                staged_height(&remote_repo, "edit", &path).await?,
+                6,
+                "restore discards the staged edits"
+            );
+
+            // Rename a data frame, with and without a staged row, each on its own branch
+            let og_height = committed_height(&remote_repo, DEFAULT_BRANCH_NAME, &path).await?;
+            for (branch_name, new_path, add_row) in [
+                (
+                    "rename",
+                    PathBuf::from("new/dir/bounding_box_renamed.csv"),
+                    false,
+                ),
+                (
+                    "edit-rename",
+                    Path::new("annotations")
+                        .join("train")
+                        .join("bounding_box_edited.csv"),
+                    true,
+                ),
+                (
+                    "edit-rename-new-dir",
+                    Path::new("annotations")
+                        .join("train")
+                        .join("nonexistent_folder")
+                        .join("bounding_box_edited.csv"),
+                    true,
+                ),
+            ] {
+                create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+                workspaces::create(&remote_repo, branch_name, branch_name).await?;
+                index(&remote_repo, branch_name, &path).await?;
+                if add_row {
+                    rows::add(
+                        &remote_repo,
+                        branch_name,
+                        &path,
+                        bbox_row("train/dog_4.jpg"),
+                    )
+                    .await?;
                 }
-                assert!(!output_path.exists());
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_workspace_data_frames() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-            test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("test_download.csv");
-                let mut opts = DFOpts::empty();
-                opts.output = Some(output_path.clone());
-                api::client::workspaces::data_frames::download(
+                let res = rename_data_frame(&remote_repo, branch_name, &path, &new_path).await?;
+                assert_eq!(res.status, "success");
+                workspaces::commit(
                     &remote_repo,
-                    workspace_id,
-                    &path,
-                    &opts,
+                    branch_name,
+                    branch_name,
+                    &commit_body(branch_name),
                 )
                 .await?;
 
-                assert!(output_path.exists());
+                let expected = og_height + usize::from(add_row);
+                assert_eq!(
+                    committed_height(&remote_repo, branch_name, &new_path).await?,
+                    expected,
+                    "{branch_name}"
+                );
+                assert_eq!(
+                    committed_height(&remote_repo, branch_name, &path).await?,
+                    og_height,
+                    "{branch_name}"
+                );
+            }
 
-                // Check the file contents are the same
-                let file_contents = std::fs::read_to_string(output_path)?;
-                let expected_contents = std::fs::read_to_string(local_repo.path.join(path))?;
-                assert_eq!(file_contents, expected_contents);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_workspace_data_frames_to_different_format() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-            test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("test_download.jsonl");
-                let mut opts = DFOpts::empty();
-                opts.output = Some(output_path.clone());
-                api::client::workspaces::data_frames::download(
-                    &remote_repo,
-                    workspace_id,
-                    &path,
-                    &opts,
-                )
-                .await?;
-
-                assert!(output_path.exists());
-
-                // Check the file contents are the same
-                let og_df = tabular::read_df(local_repo.path.join(path), DFOpts::empty()).await?;
-                let download_df = tabular::read_df(&output_path, DFOpts::empty()).await?;
-                assert_eq!(og_df.height(), download_df.height());
-                assert_eq!(og_df.width(), download_df.width());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_workspace_data_frames_with_sql() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-            test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("test_download.csv");
-                let mut opts = DFOpts::empty();
-                opts.sql = Some("SELECT * FROM df WHERE label = 'dog'".to_string());
-                opts.output = Some(output_path.clone());
-                api::client::workspaces::data_frames::download(
-                    &remote_repo,
-                    workspace_id,
-                    &path,
-                    &opts,
-                )
-                .await?;
-
-                assert!(output_path.exists());
-
-                // There should be 4 rows with label = dog
-                let df = tabular::read_df(&output_path, DFOpts::empty()).await?;
-                assert_eq!(df.height(), 4);
-                assert_eq!(df.width(), 6);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_workspace_data_frames_with_aggregation_sql() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            let path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-            test::run_empty_dir_test_async(|sync_dir| async move {
-                let output_path = sync_dir.join("test_download.csv");
-                let mut opts = DFOpts::empty();
-                opts.sql = Some("SELECT label, COUNT(*) FROM df GROUP BY label".to_string());
-                opts.output = Some(output_path.clone());
-                api::client::workspaces::data_frames::download(
-                    &remote_repo,
-                    workspace_id,
-                    &path,
-                    &opts,
-                )
-                .await?;
-
-                assert!(output_path.exists());
-
-                // There should be 2 rows by 2 columns
-                let df = tabular::read_df(&output_path, DFOpts::empty()).await?;
-                println!("{df}");
-                assert_eq!(df.height(), 2);
-                assert_eq!(df.width(), 2);
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_index_workspace_data_frames() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let path = Path::new("annotations/train/bounding_box.csv");
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            let res = api::client::workspaces::data_frames::index(&remote_repo, workspace_id, path)
-                .await?;
-
-            assert_eq!(res.status, "success");
-
-            let res =
-                api::client::workspaces::data_frames::unindex(&remote_repo, workspace_id, path)
-                    .await?;
-
-            assert_eq!(res.status, "success");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_index_workspace_data_frame_with_binary_column() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            let path = test::test_binary_column_parquet_file();
-
-            let file_name = "binary_col.parquet";
-            let dst_path = local_repo.path.join(file_name);
-            util::fs::copy(&path, &dst_path)?;
-
-            repositories::add(&local_repo, &dst_path).await?;
-            repositories::commit(&local_repo, "add binary column parquet file")?;
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
+            // Index a parquet file with a binary column
+            let binary_name = "binary_col.parquet";
+            fs::copy(
+                test::test_binary_column_parquet_file(),
+                local_repo.path.join(binary_name),
+            )?;
+            // A data frame at the repo root, for the pull below
+            let prompts_path = Path::new("prompts.jsonl");
+            fs::write_to_path(
+                local_repo.path.join(prompts_path),
+                "{\"prompt\": \"What is the meaning of life?\", \"label\": \"42\"}\n",
+            )?;
+            // A data frame stored as a JSON array rather than JSON lines
+            fs::write_to_path(
+                local_repo.path.join("labels.json"),
+                r#"[{"id": 1, "label": "cat"}, {"id": 2, "label": "dog"}]"#,
+            )?;
+            repositories::add(&local_repo, &local_repo.path).await?;
+            repositories::commit(&local_repo, "Add a binary column parquet file and prompts")?;
             repositories::push(&local_repo).await?;
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "binary").await?;
+            assert_eq!(
+                index(&remote_repo, "binary", binary_name).await?.status,
+                "success"
+            );
 
-            let workspace_id = "some_workspace";
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            let res =
-                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, file_name)
+            // A clone fast-forwards on each pull of a data frame committed from a workspace, nested
+            // or at the root
+            test::run_empty_dir_test_async(|empty_dir| async move {
+                let cloned_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &empty_dir.join("repo_b"))
+                        .await?;
+                for (workspace_id, df_path, row) in [
+                    ("workspace_a", path.as_path(), bbox_row("d-o-double-g.jpg")),
+                    (
+                        "workspace_b",
+                        prompts_path,
+                        r#"{"prompt": "What is another meaning of life?", "label": "43"}"#
+                            .to_string(),
+                    ),
+                ] {
+                    let og =
+                        tabular::read_df(cloned_repo.path.join(df_path), DFOpts::empty()).await?;
+                    workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id).await?;
+                    index(&remote_repo, workspace_id, df_path).await?;
+                    rows::add(&remote_repo, workspace_id, df_path, row).await?;
+                    workspaces::commit(
+                        &remote_repo,
+                        DEFAULT_BRANCH_NAME,
+                        workspace_id,
+                        &commit_body(workspace_id),
+                    )
                     .await?;
 
-            assert_eq!(res.status, "success");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_restore_modified_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let directory = Path::new("annotations").join("train");
-            let path = directory.join("bounding_box.csv");
-            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let result_1 = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    data.to_string()
-                ).await;
-            assert!(result_1.is_ok());
-
-            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_2 = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    data.to_string(),
-                ).await;
-            assert!(result_2.is_ok());
-
-
-            // Make sure both got staged: the table has the original 6 rows plus 2 added
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-            let df = res.data_frame.expect("data frame should be present");
-            assert_eq!(df.source.size.height, 8);
-
-            // Restore the data frame: discards all staged edits by re-indexing
-            let result_restore = api::client::workspaces::data_frames::restore(
-                &remote_repo,
-                &workspace_id,
-                &path,
-            ).await;
-            assert!(result_restore.is_ok());
-
-            // Back to the committed contents
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-            let df = res.data_frame.expect("data frame should be present");
-            assert_eq!(df.source.size.height, 6);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_modified_dataframe_row_count() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let directory = Path::new("annotations").join("train");
-            let path = directory.join("bounding_box.csv");
-            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-            api::client::workspaces::data_frames::index(
-                &remote_repo,
-                &workspace_id,
-                &path
-            ).await?;
-
-            api::client::workspaces::data_frames::rows::add(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                data.to_string()
-            ).await?;
-
-            // The added row is applied to the staged table (6 committed + 1)
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-            let df = res.data_frame.expect("data frame should be present");
-            assert_eq!(df.source.size.height, 7);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_row_from_modified_dataframe() -> Result<(), OxenError> {
-        // Skip duckdb if on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(branch.name, branch_name);
-            let workspace_id = UserConfig::identifier()?;
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id)
-                    .await;
-            assert!(workspace.is_ok());
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let directory = Path::new("annotations").join("train");
-            let path = directory.join("bounding_box.csv");
-            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-            api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    data.to_string()
-                ).await?;
-
-            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let (_df_2, row_id_2) = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    &workspace_id,
-                    &path,
-                    data.to_string(),
-                ).await?;
-
-            // Make sure both got staged (6 committed + 2 added)
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-            let df = res.data_frame.expect("data frame should be present");
-            assert_eq!(df.source.size.height, 8);
-
-            let uuid_2 = row_id_2.unwrap();
-            // Delete result_2
-            let result_delete = api::client::workspaces::data_frames::rows::delete(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &uuid_2
-            ).await;
-            assert!(result_delete.is_ok());
-
-            // The deleted row is gone from the staged table
-            let res = api::client::workspaces::data_frames::get(
-                &remote_repo,
-                &workspace_id,
-                &path,
-                &DFOpts::empty(),
-            ).await?;
-            let df = res.data_frame.expect("data frame should be present");
-            assert_eq!(df.source.size.height, 7);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test fast forward merge on pull
-    /*
-    oxen init
-    oxen add .
-    oxen commit -m "add data"
-    oxen push
-    # update data frame file on server
-    oxen pull repo_a (should be fast forward)
-    # update data frame file on server
-    oxen pull repo_a (should be fast forward)
-    */
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_update_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
-        if std::env::consts::OS == "windows" {
-            // Skip server side duckdb tests on windows
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|empty_dir| async move {
-                let cloned_repo_dir = empty_dir.join("repo_b");
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &cloned_repo_dir).await?;
-
-                // Read the initial data
-                let bbox_filename = Path::new("annotations")
-                    .join("train")
-                    .join("bounding_box.csv");
-                let bbox_file = cloned_repo.path.join(&bbox_filename);
-                let og_df = tabular::read_df(&bbox_file, DFOpts::empty()).await?;
-
-                // Update the file on the remote repo
-                let user = UserConfig::get()?.to_user();
-                let workspace_id = "workspace_a";
-                let workspace =
-                    api::client::workspaces::create(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id)
-                        .await;
-                assert!(workspace.is_ok());
-
-                // train/d-o-double-g.jpg,dog,101.5,32.0,385,330
-                let directory = Path::new("annotations").join("train");
-                let path = directory.join("bounding_box.csv");
-                let data = "{\"file\":\"d-o-double-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
-                        &remote_repo,
-                        workspace_id,
-                        &path,
-                        data.to_string()
-                    ).await?;
-                let new_commit = NewCommitBody {
-                    author: user.name.to_owned(),
-                    email: user.email.to_owned(),
-                    message: "Appending d-o-double-g data".to_string(),
-                };
-                api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &new_commit).await?;
-
-                // Pull in the changes
-                repositories::pull(&cloned_repo).await?;
-
-                // Check that we have the new data
-                let bbox_file = cloned_repo.path.join(&bbox_filename);
-                let df = tabular::read_df(&bbox_file, DFOpts::empty()).await?;
-                assert_eq!(df.height(), og_df.height() + 1);
-
-                // Add a more rows on this branch
-                let workspace_id = "workspace_b";
-                let workspace =
-                    api::client::workspaces::create(&remote_repo, &DEFAULT_BRANCH_NAME, &workspace_id)
-                        .await;
-                assert!(workspace.is_ok());
-
-                // train/d-o-triple-g.jpg,dog,101.5,32.0,385,330
-                let directory = Path::new("annotations").join("train");
-                let path = directory.join("bounding_box.csv");
-                let data = "{\"file\":\"d-o-triple-g.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
-                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path).await?;
-
-                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
-                        &remote_repo,
-                        workspace_id,
-                        &path,
-                        data.to_string()
-                    ).await?;
-                let new_commit = NewCommitBody {
-                    author: user.name.to_owned(),
-                    email: user.email.to_owned(),
-                    message: "Appending d-o-triple-g data".to_string(),
-                };
-                api::client::workspaces::commit(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id, &new_commit).await?;
-
-                // Pull in the changes
-                repositories::pull(&cloned_repo).await?;
-
-                // Check that we have the new data
-                let bbox_file = cloned_repo.path.join(&bbox_filename);
-                let df = tabular::read_df(&bbox_file, DFOpts::empty()).await?;
-                assert_eq!(df.height(), og_df.height() + 2);
-
+                    repositories::pull(&cloned_repo).await?;
+                    let df =
+                        tabular::read_df(cloned_repo.path.join(df_path), DFOpts::empty()).await?;
+                    assert_eq!(df.height(), og.height() + 1, "{df_path:?}");
+                }
                 Ok(())
             })
             .await?;
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_update_root_df_on_server_fast_forward_pull() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-
-            test::run_empty_dir_test_async(|empty_dir| async move {
-                let cloned_repo_dir = empty_dir.join("repo_b");
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &cloned_repo_dir).await?;
-
-                // Read the initial data
-                let prompts_filename = Path::new("prompts.jsonl");
-                let prompts_file = cloned_repo.path.join(prompts_filename);
-                let og_df = tabular::read_df(&prompts_file, DFOpts::empty()).await?;
-
-                // Update the file on the remote repo
-                let user = UserConfig::get()?.to_user();
-                let workspace_id = "workspace_a";
-                let workspace = api::client::workspaces::create(
-                    &remote_repo,
-                    &DEFAULT_BRANCH_NAME,
-                    &workspace_id,
-                )
-                .await;
-                assert!(workspace.is_ok());
-
-                // Add a row to the prompts file
-                let data = "{\"prompt\": \"What is another meaning of life?\", \"label\": \"43\"}";
-
-                api::client::workspaces::data_frames::index(
-                    &remote_repo,
-                    workspace_id,
-                    prompts_filename,
-                )
-                .await?;
-
-                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    workspace_id,
-                    prompts_filename,
-                    data.to_string(),
-                )
-                .await?;
-                let new_commit = NewCommitBody {
-                    author: user.name.to_owned(),
-                    email: user.email.to_owned(),
-                    message: "Appending 43 data".to_string(),
-                };
-                api::client::workspaces::commit(
-                    &remote_repo,
-                    DEFAULT_BRANCH_NAME,
-                    workspace_id,
-                    &new_commit,
-                )
-                .await?;
-
-                // Pull in the changes
-                repositories::pull(&cloned_repo).await?;
-
-                // Check that we have the new data
-                let prompts_file = cloned_repo.path.join(prompts_filename);
-                let df = tabular::read_df(&prompts_file, DFOpts::empty()).await?;
-                assert_eq!(df.height(), og_df.height() + 1);
-
-                // Add a more rows on this branch
-                let workspace_id = "workspace_b";
-                let workspace = api::client::workspaces::create(
-                    &remote_repo,
-                    &DEFAULT_BRANCH_NAME,
-                    &workspace_id,
-                )
-                .await;
-                assert!(workspace.is_ok());
-
-                // Add a row to the prompts file
-                let data =
-                    "{\"prompt\": \"What is another another meaning of life?\", \"label\": \"44\"}";
-
-                api::client::workspaces::data_frames::index(
-                    &remote_repo,
-                    workspace_id,
-                    prompts_filename,
-                )
-                .await?;
-
-                let (_df_1, _row_id_1) = api::client::workspaces::data_frames::rows::add(
-                    &remote_repo,
-                    workspace_id,
-                    prompts_filename,
-                    data.to_string(),
-                )
-                .await?;
-                let new_commit = NewCommitBody {
-                    author: user.name.to_owned(),
-                    email: user.email.to_owned(),
-                    message: "Appending 44 data".to_string(),
-                };
-                api::client::workspaces::commit(
-                    &remote_repo,
-                    DEFAULT_BRANCH_NAME,
-                    workspace_id,
-                    &new_commit,
-                )
-                .await?;
-
-                // Pull in the changes
-                repositories::pull(&cloned_repo).await?;
-
-                // Check that we have the new data
-                let prompts_file = cloned_repo.path.join(prompts_filename);
-                let df = tabular::read_df(&prompts_file, DFOpts::empty()).await?;
-                assert_eq!(df.height(), og_df.height() + 2);
-
-                Ok(())
-            })
-            .await?;
             Ok(remote_repo_copy)
         })
         .await

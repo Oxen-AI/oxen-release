@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex;
-use tokio::time::Duration;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::constants::stream_segment_size;
@@ -619,7 +618,6 @@ async fn chunk_and_send_large_entries(
         return Ok(());
     }
 
-    use tokio::time::sleep;
     type PieceOfWork = (CommitEntry, RemoteRepository);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
 
@@ -733,9 +731,6 @@ async fn chunk_and_send_large_entries(
 
     log::debug!("All large file tasks done. :-)");
 
-    // Sleep again to let things sync...
-    sleep(Duration::from_millis(100)).await;
-
     Ok(())
 }
 
@@ -765,7 +760,6 @@ async fn bundle_and_send_small_entries(
     let client = Arc::new(api::client::new_for_remote_repo(remote_repo)?);
 
     // Split into chunks, zip up, and post to server
-    use tokio::time::sleep;
     type PieceOfWork = (
         Vec<CommitEntry>,
         LocalRepository,
@@ -868,8 +862,6 @@ async fn bundle_and_send_small_entries(
     if let Some(err) = first_error.lock().await.clone() {
         return Err(OxenError::basic_str(err));
     }
-
-    sleep(Duration::from_millis(100)).await;
 
     Ok(())
 }

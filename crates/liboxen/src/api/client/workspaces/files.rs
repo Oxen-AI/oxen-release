@@ -1096,21 +1096,27 @@ fn jitter() -> usize {
 
 #[cfg(test)]
 mod tests {
+    use crate::api::client::branches::create_from_branch;
+    use crate::api::client::commits::get_by_id;
+    use crate::api::client::workspaces::{self, changes};
+    use crate::api::client::{dir, entries, file, schemas, versions};
+    use crate::model::metadata::MetadataDir;
+    use crate::repositories::commits::head_commit;
+    use crate::util::fs;
 
-    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
     use crate::model::{EntryDataType, NewCommitBody, RemoteRepository};
-    use crate::opts::CloneOpts;
     use crate::opts::fetch_opts::FetchOpts;
-    use crate::view::workspaces::WorkspaceResponseWithStatus;
-    use crate::{api, constants};
-    use crate::{repositories, test};
-    use std::path::PathBuf;
+    use crate::repositories;
+    use crate::test;
+    use crate::view::RemoteStagedStatus;
+    use std::path::{Path, PathBuf, absolute};
 
-    use std::path::Path;
     use tempfile::TempDir;
     use tokio_stream::StreamExt;
-    use uuid;
+
+    use super::{add, add_files, download, mv, rm, upload_single_file};
 
     #[test]
     fn test_expected_staged_path_mirrors_server_normalization() {
@@ -1218,88 +1224,167 @@ mod tests {
         );
     }
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_stage_single_file() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
+    fn commit_body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            message: message.to_string(),
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
+        }
+    }
 
-            let directory_name = "images";
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                vec![path],
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-            let result = result.unwrap();
-            assert!(result.is_empty(), "{:?}", result);
-
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory_name);
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
-            let assert_path = PathBuf::from("images").join(PathBuf::from("dwight_vince.jpeg"));
-
-            assert_eq!(
-                entries.added_files.entries[0].filename(),
-                assert_path.to_str().unwrap(),
-            );
-
-            Ok(remote_repo)
-        })
+    async fn staged(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+        directory: &str,
+    ) -> Result<RemoteStagedStatus, OxenError> {
+        changes::list(
+            remote_repo,
+            workspace_id,
+            Path::new(directory),
+            DEFAULT_PAGE_NUM,
+            DEFAULT_PAGE_SIZE,
+        )
         .await
+    }
+
+    async fn tabular_count(
+        remote_repo: &RemoteRepository,
+        revision: &str,
+    ) -> Result<usize, OxenError> {
+        let entries =
+            entries::list_entries_with_type(remote_repo, "", revision, &EntryDataType::Tabular)
+                .await?;
+        Ok(entries.len())
+    }
+
+    /// Stages files under `base_dir` with `add_files` and checks each keeps its path relative to it.
+    async fn check_add_files_preserves_paths(
+        remote_repo: &RemoteRepository,
+        workspace_id: &str,
+        base_dir: &Path,
+        use_relative_paths: bool,
+    ) -> Result<(), OxenError> {
+        workspaces::create(remote_repo, DEFAULT_BRANCH_NAME, workspace_id).await?;
+        let sub_dir_1 = base_dir.join("data_being_added");
+        let sub_dir_2 = sub_dir_1.join("nested");
+        fs::create_dir_all(&sub_dir_2)?;
+        let files = [
+            (sub_dir_2.join("file_a.txt"), "content a"),
+            (sub_dir_2.join("file_b.txt"), "content b"),
+            (sub_dir_1.join("file_c.txt"), "contents c"),
+            (base_dir.join("root_file.txt"), "root content"),
+        ];
+        for (path, contents) in &files {
+            test::write_txt_file_to_path(path, contents)?;
+        }
+        let paths: Vec<PathBuf> = files
+            .into_iter()
+            .map(|(path, _)| match use_relative_paths {
+                true => path
+                    .strip_prefix(base_dir)
+                    .expect("under base_dir")
+                    .to_path_buf(),
+                false => absolute(path).expect("an absolute path"),
+            })
+            .collect();
+        let result = add_files(remote_repo, workspace_id, base_dir, paths).await;
+        assert!(result.is_ok(), "add_files failed: {result:?}");
+
+        let entries = staged(remote_repo, workspace_id, "").await?;
+        assert_eq!(entries.added_files.total_entries, 4, "{workspace_id}");
+        let staged: Vec<String> = entries
+            .added_files
+            .entries
+            .iter()
+            .map(|e| e.filename().to_string())
+            .collect();
+        for path in [
+            Path::new("data_being_added")
+                .join("nested")
+                .join("file_a.txt"),
+            Path::new("data_being_added")
+                .join("nested")
+                .join("file_b.txt"),
+            Path::new("data_being_added").join("file_c.txt"),
+            PathBuf::from("root_file.txt"),
+        ] {
+            let path = path.to_string_lossy().to_string();
+            assert!(
+                staged.contains(&path),
+                "{workspace_id}: expected '{path}' in {staged:?}"
+            );
+        }
+        Ok(())
     }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_stage_large_file() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-large-file";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
+    async fn test_stage_commit_and_download_workspace_files() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let img_name = test::test_img_file()
+                .file_name()
+                .expect("a name")
+                .to_string_lossy()
+                .to_string();
 
-            let directory_name = "my_large_file";
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
+            // Stage one image, two images, a file in deep subdirectories, and an absolute path
+            for (workspace_id, directory, paths) in [
+                ("single", "images", vec![test::test_img_file()]),
+                (
+                    "multiple",
+                    "data",
+                    vec![
+                        test::test_img_file(),
+                        test::test_img_file_with_name("cole_anthony.jpeg"),
+                    ],
+                ),
+                ("deep", "my/images/dir/is/long", vec![test::test_img_file()]),
+                (
+                    "absolute",
+                    "new-images",
+                    vec![fs::canonicalize(test::test_img_file())?],
+                ),
+            ] {
+                workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id).await?;
+                let count = paths.len();
+                let failed = add(&remote_repo, workspace_id, directory, paths, &None).await?;
+                assert!(failed.is_empty(), "{workspace_id}: {failed:?}");
+                let entries = staged(&remote_repo, workspace_id, directory).await?;
+                assert_eq!(entries.added_files.entries.len(), count, "{workspace_id}");
+                assert_eq!(entries.added_files.total_entries, count, "{workspace_id}");
+                if count == 1 {
+                    let expected = Path::new(directory).join(&img_name);
+                    assert_eq!(
+                        entries.added_files.entries[0].filename(),
+                        expected.to_string_lossy()
+                    );
+                }
+            }
 
-            let path = test::test_30k_parquet();
-            let refused = api::client::versions::parallel_large_file_upload(
+            // `oxen workspace add` stages under the default "." directory, which the server
+            // collapses: the file must not be reported as failed
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "dot").await?;
+            let failed = add(&remote_repo, "dot", ".", vec![test::test_img_file()], &None).await?;
+            assert!(
+                failed.is_empty(),
+                "a file staged under '.' is not a failure, got: {failed:?}"
+            );
+            assert_eq!(
+                staged(&remote_repo, "dot", "")
+                    .await?
+                    .added_files
+                    .total_entries,
+                1
+            );
+
+            // A chunked upload into .oxen is refused, and a large file stages in chunks
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "large").await?;
+            let large = test::test_30k_parquet();
+            let refused = versions::parallel_large_file_upload(
                 &remote_repo,
-                &path,
+                &large,
                 Some(".OXEN"),
-                Some(workspace_id.clone()),
+                Some("large".to_string()),
                 None,
                 None,
             )
@@ -1308,315 +1393,137 @@ mod tests {
                 panic!("a chunked upload into .oxen is refused");
             };
             assert!(err.to_string().contains(".oxen directory"), "{err}");
+            add(&remote_repo, "large", "my_large_file", vec![large], &None).await?;
+            assert_eq!(
+                staged(&remote_repo, "large", "my_large_file")
+                    .await?
+                    .added_files
+                    .total_entries,
+                1
+            );
 
-            let result = api::client::workspaces::files::add(
+            // Removing a staged file unstages it
+            workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, "rm").await?;
+            let staged_path =
+                upload_single_file(&remote_repo, "rm", "images", test::test_img_file()).await?;
+            rm(&remote_repo, "rm", staged_path).await?;
+            assert_eq!(
+                staged(&remote_repo, "rm", "images")
+                    .await?
+                    .added_files
+                    .total_entries,
+                0
+            );
+
+            // Download committed, staged, and missing files through a workspace
+            let workspace = workspaces::create_with_name(
                 &remote_repo,
-                &workspace_id,
-                directory_name,
-                vec![path],
-                &None,
+                DEFAULT_BRANCH_NAME,
+                "download_id",
+                "download_name",
+            )
+            .await?;
+            let found = workspaces::get_by_name(&remote_repo, "download_name").await?;
+            assert_eq!(found.map(|w| w.id), Some(workspace.id.clone()));
+            let temp_dir = TempDir::new()?;
+            let output = temp_dir.path().join("readme.md");
+            download(&remote_repo, "download_id", "README.md", Some(&output)).await?;
+            assert_eq!(fs::read_from_path(&output)?, "Hello World");
+
+            let output = temp_dir.path().join("fallback_readme.md");
+            entries::download_entry(
+                &remote_repo,
+                Path::new("README.md"),
+                &output,
+                &workspace.commit.id,
+            )
+            .await?;
+            assert_eq!(fs::read_from_path(&output)?, "Hello World");
+
+            let upload = temp_dir.path().join("file_to_upload.txt");
+            fs::write(&upload, "Hello world! How are you today?")?;
+            upload_single_file(&remote_repo, "download_id", "images", &upload).await?;
+            let output = temp_dir.path().join("downloaded.txt");
+            download(
+                &remote_repo,
+                "download_id",
+                "images/file_to_upload.txt",
+                Some(&output),
+            )
+            .await?;
+            assert_eq!(
+                fs::read_from_path(&output)?,
+                "Hello world! How are you today?"
+            );
+
+            let output = temp_dir.path().join("missing.txt");
+            let result = download(
+                &remote_repo,
+                "download_id",
+                "this_file_does_not_exist.txt",
+                Some(&output),
             )
             .await;
-            assert!(result.is_ok());
+            assert!(
+                matches!(result, Err(OxenError::PathDoesNotExist(_))),
+                "{result:?}"
+            );
+            assert!(!output.exists());
 
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory_name);
-            let entries = api::client::workspaces::changes::list(
+            assert!(
+                workspaces::get(&remote_repo, "workspace_does_not_exist")
+                    .await?
+                    .is_none()
+            );
+            let result = download(
                 &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_stage_multiple_files() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-data";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let directory_name = "data";
-            let paths = vec![
-                test::test_img_file(),
-                test::test_img_file_with_name("cole_anthony.jpeg"),
-            ];
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                paths,
-                &None,
+                "workspace_does_not_exist",
+                "README.md",
+                Some(&output),
             )
             .await;
-            assert!(result.is_ok());
+            assert!(result.is_err());
+            assert!(!output.exists());
 
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory_name);
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 2);
-            assert_eq!(entries.added_files.total_entries, 2);
+            // Commit a parquet file, a csv, and an unreadable parquet file one after another
+            let branch_name = "data-frames";
+            create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            let tabular_before = tabular_count(&remote_repo, branch_name).await?;
+            for (directory, file, tabular_after) in [
+                ("", test::test_1k_parquet(), tabular_before + 1),
+                (
+                    "moare_data",
+                    test::test_csv_file_with_name("emojis.csv"),
+                    tabular_before + 2,
+                ),
+                (
+                    "broken_data",
+                    test::test_invalid_parquet_file(),
+                    tabular_before + 2,
+                ),
+            ] {
+                workspaces::create(&remote_repo, branch_name, "data_frames").await?;
+                upload_single_file(&remote_repo, "data_frames", directory, file).await?;
+                let message = format!("Add a data frame to '{directory}'");
+                workspaces::commit(
+                    &remote_repo,
+                    branch_name,
+                    "data_frames",
+                    &commit_body(&message),
+                )
+                .await?;
+                assert_eq!(
+                    tabular_count(&remote_repo, branch_name).await?,
+                    tabular_after,
+                    "{directory}"
+                );
+            }
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_remote_readme_repo_and_commit_multiple_data_frames()
-    -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let file_to_post = test::test_1k_parquet();
-            let directory_name = "";
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                file_to_post,
-            )
-            .await;
-            println!("result: {result:?}");
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add another data frame".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace_id,
-                &body,
-            )
-            .await?;
-
-            // List the entries
-            let entries = api::client::entries::list_entries_with_type(
-                &remote_repo,
-                "",
-                DEFAULT_BRANCH_NAME,
-                &EntryDataType::Tabular,
-            )
-            .await?;
-            assert_eq!(entries.len(), 1);
-
-            // Upload a new data frame
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-            let file_to_post = test::test_csv_file_with_name("emojis.csv");
-            let directory_name = "moare_data";
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                file_to_post,
-            )
-            .await;
-            println!("result: {result:?}");
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add emojis data frame".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace_id,
-                &body,
-            )
-            .await?;
-
-            // List the entries
-            let entries = api::client::entries::list_entries_with_type(
-                &remote_repo,
-                "",
-                DEFAULT_BRANCH_NAME,
-                &EntryDataType::Tabular,
-            )
-            .await?;
-            assert_eq!(entries.len(), 2);
-            println!("entries: {entries:?}");
-
-            // Upload a new broken data frame
-            let workspace =
-                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
-                    .await?;
-            assert_eq!(workspace.id, workspace_id);
-            let file_to_post = test::test_invalid_parquet_file();
-            let directory_name = "broken_data";
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                file_to_post,
-            )
-            .await;
-            println!("result: {result:?}");
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add broken data frame".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::client::workspaces::commit(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &workspace_id,
-                &body,
-            )
-            .await?;
-
-            // List the entries
-            let entries = api::client::entries::list_entries_with_type(
-                &remote_repo,
-                "",
-                DEFAULT_BRANCH_NAME,
-                &EntryDataType::Tabular,
-            )
-            .await?;
-            assert_eq!(entries.len(), 2);
-            println!("entries: {entries:?}");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_commit_staged_single_file_and_pull() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-data";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let file_to_post = test::test_img_file();
-            let directory_name = "data";
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                file_to_post,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add one image".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
-
-            let remote_commit = api::client::commits::get_by_id(&remote_repo, &commit.id).await?;
-            assert!(remote_commit.is_some());
-            assert_eq!(commit.id, remote_commit.unwrap().id);
-
-            let remote_repo_cloned = remote_repo.clone();
-            test::run_empty_dir_test_async(|cloned_repo_dir| async move {
-                // Clone repo
-                let opts = CloneOpts::new(remote_repo.remote.url, cloned_repo_dir.join("new_repo"));
-                let cloned_repo = repositories::clone(&opts).await?;
-
-                // Make sure that image is not on main branch
-                let path = cloned_repo
-                    .path
-                    .join(directory_name)
-                    .join(test::test_img_file().file_name().unwrap());
-                assert!(!path.exists());
-
-                // Pull the branch with new data
-                let mut fetch_opts = FetchOpts::new();
-                fetch_opts.branch = "add-data".to_string();
-                repositories::pull_remote_branch(&cloned_repo, &fetch_opts).await?;
-
-                // We should have the commit locally
-                let local_commit = repositories::commits::head_commit(&cloned_repo)?;
-                assert_eq!(local_commit.id, commit.id);
-
-                // The file should exist locally
-                println!("Looking for file at path: {path:?}");
-                assert!(path.exists());
-
-                Ok(())
-            })
-            .await?;
-
-            Ok(remote_repo_cloned)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_commit_schema_on_branch() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
+            // Committing an image and a data frame adds a schema and counts both in each directory
             let branch_name = "test-schema-issues";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let original_schemas = api::client::schemas::list(&remote_repo, branch_name).await?;
-            let original_root_counts =
-                api::client::dir::file_counts(&remote_repo, branch_name, "").await?;
-            let count_of = |fc: &crate::model::metadata::MetadataDir, dt: &str| {
+            create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            let original_schemas = schemas::list(&remote_repo, branch_name).await?;
+            let count_of = |fc: &MetadataDir, dt: &str| {
                 fc.dir
                     .data_types
                     .iter()
@@ -1624,841 +1531,111 @@ mod tests {
                     .map(|d| d.count)
                     .unwrap_or(0)
             };
-            let original_image_count = count_of(&original_root_counts, "image");
-            let original_tabular_count = count_of(&original_root_counts, "tabular");
-
-            let directory_name = "tabular";
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Post a parquet file
-            let path = test::test_1k_parquet();
-            let result = api::client::workspaces::files::upload_single_file(
+            let root = dir::file_counts(&remote_repo, branch_name, "").await?;
+            let (root_images, root_tabular) =
+                (count_of(&root, "image"), count_of(&root, "tabular"));
+            workspaces::create(&remote_repo, branch_name, "schema").await?;
+            upload_single_file(&remote_repo, "schema", "tabular", test::test_1k_parquet()).await?;
+            upload_single_file(&remote_repo, "schema", "tabular", test::test_img_file()).await?;
+            let commit = workspaces::commit(
                 &remote_repo,
-                &workspace_id,
-                directory_name,
-                path,
+                branch_name,
+                "schema",
+                &commit_body("Add one data frame and one image"),
             )
-            .await;
-            assert!(result.is_ok());
-
-            // Post an image file
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let body = NewCommitBody {
-                message: "Add one data frame and one image".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
+            .await?;
             assert!(commit.message.contains("Add one data frame and one image"));
-
-            // List the schemas on that branch
-            let schemas = api::client::schemas::list(&remote_repo, branch_name).await?;
+            let schemas = schemas::list(&remote_repo, branch_name).await?;
             assert_eq!(schemas.len(), original_schemas.len() + 1);
-
-            // The freshly created subdirectory contains exactly the 2 files we just uploaded.
-            let file_counts =
-                api::client::dir::file_counts(&remote_repo, branch_name, directory_name).await?;
-            assert_eq!(file_counts.dir.data_types.len(), 2);
-            assert_eq!(count_of(&file_counts, "image"), 1);
-            assert_eq!(count_of(&file_counts, "tabular"), 1);
-
-            // The root counts pick up the same 2 files on top of whatever the seed already had.
-            let file_counts = api::client::dir::file_counts(&remote_repo, branch_name, "").await?;
-            assert_eq!(count_of(&file_counts, "image"), original_image_count + 1);
+            let counts = dir::file_counts(&remote_repo, branch_name, "tabular").await?;
+            assert_eq!(counts.dir.data_types.len(), 2);
             assert_eq!(
-                count_of(&file_counts, "tabular"),
-                original_tabular_count + 1
+                (count_of(&counts, "image"), count_of(&counts, "tabular")),
+                (1, 1)
             );
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_rm_file() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let directory_name = "images";
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            // Remove the file
-            let result =
-                api::client::workspaces::files::rm(&remote_repo, &workspace_id, result.unwrap())
-                    .await;
-            assert!(result.is_ok());
-
-            // Make sure we have 0 files staged
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory_name);
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 0);
-            assert_eq!(entries.added_files.total_entries, 0);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_stage_file_in_multiple_subdirectories() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let directory_name = "my/images/dir/is/long";
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let path = test::test_img_file();
-            let result = api::client::workspaces::files::upload_single_file(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory_name);
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_multiple_files() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-multiple-files";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = format!("test-workspace-{}", uuid::Uuid::new_v4());
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Prepare paths and directory
-            let paths = vec![
-                test::test_img_file(),
-                test::test_img_file_with_name("cole_anthony.jpeg"),
-            ];
-            let directory = "test_data";
-
-            // Call the add function with multiple files
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory,
-                paths,
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            // Verify that both files were added
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new(directory);
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-            assert_eq!(entries.added_files.entries.len(), 2);
-            assert_eq!(entries.added_files.total_entries, 2);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_file_under_dot_directory_reports_no_failure() -> Result<(), OxenError> {
-        // `oxen workspace add` stages under the default "." directory, which the server collapses
-        // when it normalizes the joined path. The client must reconcile against the same collapsed
-        // path or a staged file reads as failed. The load-bearing assertion is that the returned
-        // failure list is empty -- the sibling add tests only check is_ok(), which stays true even
-        // when every file is wrongly reported as failed.
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-under-dot-directory";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // local_repo None mirrors the CLI: the staging path is the bare filename, sent under ".".
-            let failed = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                ".",
-                vec![test::test_img_file()],
-                &None,
-            )
-            .await?;
-            assert!(
-                failed.is_empty(),
-                "a file staged under the default '.' directory must not read as failed, got: {failed:?}"
-            );
-
-            // Confirm the file actually staged at the workspace root.
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                Path::new(""),
-                constants::DEFAULT_PAGE_NUM,
-                constants::DEFAULT_PAGE_SIZE,
-            )
-            .await?;
-            assert_eq!(entries.added_files.total_entries, 1);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_file_with_absolute_path() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_local_repo, remote_repo| async move {
-            let branch_name = "add-images-with-absolute-path";
-            let branch = api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let directory_name = "new-images";
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Get the absolute path to the file
-            let path = crate::util::fs::canonicalize(test::test_img_file())?;
-            let result = api::client::workspaces::files::add(
-                &remote_repo,
-                &workspace_id,
-                directory_name,
-                vec![path],
-                &None,
-            )
-            .await;
-            assert!(result.is_ok());
-
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new("");
-            let entries = api::client::workspaces::changes::list(
-                &remote_repo,
-                &workspace_id,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
-
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
-
-            let assert_path = PathBuf::from("new-images").join(PathBuf::from("dwight_vince.jpeg"));
+            let root = dir::file_counts(&remote_repo, branch_name, "").await?;
             assert_eq!(
-                entries.added_files.entries[0].filename(),
-                assert_path.to_str().unwrap(),
+                (count_of(&root, "image"), count_of(&root, "tabular")),
+                (root_images + 1, root_tabular + 1)
             );
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Download file from the workspace's base repo using the workspace download endpoint
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_version_file_from_workspace() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let branch_name = constants::DEFAULT_BRANCH_NAME;
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            let bounding_box_path = PathBuf::from("README.md");
-
-            // Create a temporary directory for the output file
-            let temp_dir = TempDir::new()?;
-            let output_path = temp_dir.path().join("output.md");
-
-            // Download the bounding box from the base repo to a new path
-            api::client::workspaces::files::download(
-                &remote_repo,
-                &workspace_id,
-                bounding_box_path.to_str().unwrap(),
-                Some(&output_path),
-            )
-            .await?;
-
-            assert!(output_path.exists());
-
-            // TempDir will automatically clean up when it goes out of scope
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_mv_file() -> Result<(), OxenError> {
-        // Skip workspace ops on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            // Move a committed file
             let branch_name = "mv-file-test";
-            let branch = api::client::branches::create_from_branch(
+            create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            workspaces::create(&remote_repo, branch_name, "mv").await?;
+            let (original_path, new_path) = ("README.md", "renamed/docs/README_moved.md");
+            assert_eq!(
+                mv(&remote_repo, "mv", original_path, new_path)
+                    .await?
+                    .status,
+                "success"
+            );
+            let commit = workspaces::commit(
                 &remote_repo,
                 branch_name,
-                DEFAULT_BRANCH_NAME,
+                "mv",
+                &commit_body("Moved a file"),
             )
             .await?;
-            assert_eq!(branch.name, branch_name);
-
-            let workspace_id = uuid::Uuid::new_v4().to_string();
-            let workspace =
-                api::client::workspaces::create(&remote_repo, branch_name, &workspace_id).await?;
-            assert_eq!(workspace.id, workspace_id);
-
-            // Use an image file that already exists in the repo (non-tabular to test files::mv)
-            let original_path = "train/dog_1.jpg";
-            let new_path = "renamed/images/dog_1_moved.jpg";
-
-            // Move/rename the file
-            let mv_response = api::client::workspaces::files::mv(
-                &remote_repo,
-                &workspace_id,
-                original_path,
-                new_path,
-            )
-            .await?;
-            assert_eq!(mv_response.status, "success");
-
-            // Commit the changes
-            let body = NewCommitBody {
-                message: "Moved file to new location".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            let commit =
-                api::client::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
-                    .await?;
-
-            // Verify the file exists at the new path after commit
-            let new_file =
-                api::client::entries::get_entry(&remote_repo, new_path, &commit.id).await?;
+            let new_file = entries::get_entry(&remote_repo, new_path, &commit.id).await?;
             assert!(new_file.is_some(), "File should exist at new path");
-
-            // Verify the actual file content is accessible at the new path
-            let mut stream = api::client::file::get_file(
+            let mut stream = file::get_file(
                 &remote_repo,
                 branch_name,
                 Path::new(new_path),
-                api::client::file::GetFileOpts::default(),
+                file::GetFileOpts::default(),
             )
             .await?;
-            let mut file_bytes = Vec::new();
+            let mut bytes = Vec::new();
             while let Some(chunk) = stream.next().await {
-                file_bytes.extend_from_slice(&chunk?);
+                bytes.extend_from_slice(&chunk?);
             }
-            assert!(
-                !file_bytes.is_empty(),
-                "File content should not be empty at new path"
-            );
-
-            // Verify the original path no longer exists
-            let old_file =
-                api::client::entries::get_entry(&remote_repo, original_path, &commit.id).await?;
+            assert_eq!(bytes, b"Hello World");
+            let old_file = entries::get_entry(&remote_repo, original_path, &commit.id).await?;
             assert!(old_file.is_none(), "File should not exist at original path");
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test that downloading a non-existent file returns OxenError::ResourceNotFound
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_file_from_nonexistent_workspace() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let non_existent_workspace_id = "workspace_does_not_exist";
-
-            // Verify the workspace doesn't exist
-            let workspace =
-                api::client::workspaces::get(&remote_repo, non_existent_workspace_id).await?;
-            assert!(workspace.is_none());
-
-            // Try to download a file from the non-existent workspace
-            let temp_dir = TempDir::new()?;
-            let output_path = temp_dir.path().join("output.md");
-
-            let result = api::client::workspaces::files::download(
+            // Pull a branch a workspace committed to
+            let branch_name = "add-data";
+            create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            workspaces::create(&remote_repo, branch_name, "add-data").await?;
+            upload_single_file(&remote_repo, "add-data", "data", test::test_img_file()).await?;
+            let commit = workspaces::commit(
                 &remote_repo,
-                non_existent_workspace_id,
-                "README.md",
-                Some(&output_path),
-            )
-            .await;
-
-            assert!(result.is_err());
-            assert!(!output_path.exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    async fn make_workspace(
-        remote_repo: &RemoteRepository,
-    ) -> Result<WorkspaceResponseWithStatus, OxenError> {
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = api::client::workspaces::create(
-            remote_repo,
-            &constants::DEFAULT_BRANCH_NAME,
-            &workspace_id,
-        )
-        .await?;
-        assert_eq!(
-            workspace.id, workspace_id,
-            "Expected to create workspace with ID {} but got ID {}",
-            workspace_id, workspace.id
-        );
-        Ok(workspace)
-    }
-
-    // Test that downloading a file uploaded to the workspace works
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_uploaded_file_from_workspace() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace_id = make_workspace(&remote_repo).await?.id;
-            let temp_dir = TempDir::new()?;
-
-            let test_filename = "file_to_upload.txt";
-            let test_file = {
-                let p = temp_dir.path().join(test_filename);
-                tokio::fs::write(&p, b"Hello world! How are you today?").await?;
-                p
-            };
-
-            let upload_path = {
-                let upload_path = "images";
-                api::client::workspaces::files::upload_single_file(
-                    &remote_repo,
-                    &workspace_id,
-                    upload_path,
-                    &test_file,
-                )
-                .await?;
-                upload_path
-            };
-
-            let output_path = {
-                let output_path = temp_dir.path().join("downloaded.jpeg");
-                let file_path = format!("{upload_path}/{test_filename}");
-                api::client::workspaces::files::download(
-                    &remote_repo,
-                    &workspace_id,
-                    &file_path,
-                    Some(&output_path),
-                )
-                .await?;
-                assert!(
-                    output_path.exists(),
-                    "Expecting to have downloaded file to: {}",
-                    output_path.display()
-                );
-                output_path
-            };
-
-            let downloaded_contents = tokio::fs::read_to_string(&output_path).await?;
-            assert_eq!(downloaded_contents, "Hello world! How are you today?");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test the fallback path: download from commit when file not in workspace
-    // This tests the download_entry function which is used as fallback in CLI
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_entry_fallback_for_committed_file() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace = make_workspace(&remote_repo).await?;
-            let temp_dir = TempDir::new()?;
-
-            // Download the README.md (which is in the commit, not uploaded to workspace)
-            // using download_entry (the fallback path in CLI)
-            let output_path = {
-                let output_path = temp_dir.path().join("fallback_readme.md");
-                api::client::entries::download_entry(
-                    &remote_repo,
-                    Path::new("README.md"),
-                    &output_path,
-                    &workspace.commit.id,
-                )
-                .await?;
-                assert!(
-                    output_path.exists(),
-                    "Expecting to have downloaded output to: {}",
-                    output_path.display()
-                );
-                output_path
-            };
-
-            let content = std::fs::read_to_string(&output_path)?;
-            assert!(!content.is_empty(), "Expecting non-empty README.md file");
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test workspace lookup by name for download scenario
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_workspace_lookup_by_name_for_download() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace_name = "my-download-workspace";
-            let workspace = {
-                let workspace_id = uuid::Uuid::new_v4().to_string();
-                let workspace = api::client::workspaces::create_with_name(
-                    &remote_repo,
-                    &constants::DEFAULT_BRANCH_NAME,
-                    &workspace_id,
-                    workspace_name,
-                )
-                .await?;
-                assert_eq!(workspace.id, workspace_id);
-                assert_eq!(workspace.name, Some(workspace_name.to_string()));
-                workspace
-            };
-
-            // Look up workspace by name (as CLI does)
-            let found_workspace =
-                api::client::workspaces::get_by_name(&remote_repo, workspace_name).await?;
-            assert!(found_workspace.is_some());
-            let found_workspace = found_workspace.unwrap();
-            assert_eq!(found_workspace.id, workspace.id);
-
-            let temp_dir = TempDir::new()?;
-            let output_path = temp_dir.path().join("readme_by_name.md");
-
-            api::client::workspaces::files::download(
-                &remote_repo,
-                &found_workspace.id,
-                "README.md",
-                Some(&output_path),
+                branch_name,
+                "add-data",
+                &commit_body("Add one image"),
             )
             .await?;
+            let remote_commit = get_by_id(&remote_repo, &commit.id).await?;
+            assert_eq!(remote_commit.map(|c| c.id), Some(commit.id.clone()));
+            let pulled_path = local_repo.path.join("data").join(&img_name);
+            assert!(!pulled_path.exists());
+            let mut fetch_opts = FetchOpts::new();
+            fetch_opts.branch = branch_name.to_string();
+            repositories::pull_remote_branch(&local_repo, &fetch_opts).await?;
+            assert_eq!(head_commit(&local_repo)?.id, commit.id);
+            assert!(pulled_path.exists());
 
-            assert!(output_path.exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    // Test that workspace lookup by non-existent name returns None
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_workspace_lookup_by_nonexistent_name() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let non_existent_name = "workspace_name_does_not_exist";
-
-            let workspace =
-                api::client::workspaces::get_by_name(&remote_repo, non_existent_name).await?;
-            assert!(workspace.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_nonexistent_file_returns_path_dne() -> Result<(), OxenError> {
-        test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
-            let workspace_id = make_workspace(&remote_repo).await?.id;
+            // `add_files` keeps paths relative to the base directory, inside a repo or not, and
+            // whether the paths given are relative or absolute
             let temp_dir = TempDir::new()?;
-            let output_path = temp_dir.path().join("output.txt");
-
-            let result = api::client::workspaces::files::download(
-                &remote_repo,
-                &workspace_id,
-                "this_file_does_not_exist.txt",
-                Some(&output_path),
-            )
-            .await;
-
-            assert!(result.is_err(), "Expected error for nonexistent file");
-            let err = result.unwrap_err();
-            assert!(
-                matches!(err, OxenError::PathDoesNotExist(_)),
-                "Expected PathDoesNotExist error, got: {err:?}"
-            );
-            assert!(
-                !output_path.exists(),
-                "Not expecting '{}' to exist",
-                output_path.display()
-            );
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_files_preserves_paths_local_repo_relative_paths() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            help_test_add_files_preserve_path(&remote_repo, &local_repo.path, true).await?;
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_files_preserves_paths_local_repo_absolute_paths() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            help_test_add_files_preserve_path(
-                &remote_repo,
-                &std::path::absolute(local_repo.path).unwrap(),
-                false,
-            )
-            .await?;
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_files_preserves_paths_tempdir_relative_paths() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_, remote_repo| async move {
-            let base_dir_guard = tempfile::tempdir()?;
-            let base_dir = base_dir_guard.path().to_path_buf();
-            help_test_add_files_preserve_path(&remote_repo, &base_dir, true).await?;
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_add_files_preserves_paths_tempdir_absolute_paths() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|_, remote_repo| async move {
-            let base_dir_guard = tempfile::tempdir()?;
-            let base_dir = base_dir_guard.path().to_path_buf();
-            help_test_add_files_preserve_path(&remote_repo, &base_dir, false).await?;
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    async fn help_test_add_files_preserve_path(
-        remote_repo: &RemoteRepository,
-        base_dir: &Path,
-        use_relative_paths: bool,
-    ) -> Result<(), OxenError> {
-        let branch_name = "add-files-preserve-paths";
-        let branch = api::client::branches::create_from_branch(
-            remote_repo,
-            branch_name,
-            DEFAULT_BRANCH_NAME,
-        )
-        .await?;
-        assert_eq!(branch.name, branch_name);
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace =
-            api::client::workspaces::create(remote_repo, branch_name, &workspace_id).await?;
-        assert_eq!(workspace.id, workspace_id);
-
-        let sub_dir_1 = base_dir.join("data_being_added");
-        let sub_dir_2 = sub_dir_1.join("nested");
-        std::fs::create_dir_all(&sub_dir_2)?;
-
-        let file_a = sub_dir_2.join("file_a.txt");
-        let file_b = sub_dir_2.join("file_b.txt");
-        let file_c = sub_dir_1.join("file_c.txt");
-        let file_root = base_dir.join("root_file.txt");
-
-        test::write_txt_file_to_path(&file_a, "content a")?;
-        test::write_txt_file_to_path(&file_b, "content b")?;
-        test::write_txt_file_to_path(&file_c, "contents c")?;
-
-        // Also create a file at the repo root
-        test::write_txt_file_to_path(&file_root, "root content")?;
-
-        // Build paths (mix of absolute and relative)
-        let paths: Vec<PathBuf> = {
-            let paths = vec![file_a, file_b, file_c, file_root];
-            if use_relative_paths {
-                paths
-                    .into_iter()
-                    .map(|p| p.strip_prefix(base_dir).unwrap().to_path_buf())
-                    .collect()
-            } else {
-                paths
-                    .into_iter()
-                    .map(|p| std::path::absolute(p).unwrap())
-                    .collect()
+            for (workspace_id, base_dir, use_relative_paths) in [
+                ("repo-relative", local_repo.path.clone(), true),
+                ("repo-absolute", absolute(&local_repo.path)?, false),
+                ("tempdir-relative", temp_dir.path().to_path_buf(), true),
+                ("tempdir-absolute", temp_dir.path().to_path_buf(), false),
+            ] {
+                check_add_files_preserves_paths(
+                    &remote_repo,
+                    workspace_id,
+                    &base_dir,
+                    use_relative_paths,
+                )
+                .await?;
             }
-        };
 
-        // Call add_files — should preserve relative paths
-        let result =
-            api::client::workspaces::files::add_files(remote_repo, &workspace_id, base_dir, paths)
-                .await;
-        assert!(result.is_ok(), "add_files failed: {result:?}");
-
-        // Verify all 4 files were staged
-        let page_num = constants::DEFAULT_PAGE_NUM;
-        let page_size = constants::DEFAULT_PAGE_SIZE;
-        let entries = api::client::workspaces::changes::list(
-            remote_repo,
-            &workspace_id,
-            Path::new(""),
-            page_num,
-            page_size,
-        )
-        .await?;
-        assert_eq!(
-            entries.added_files.total_entries, 4,
-            "Expected 4 staged files, got {}",
-            entries.added_files.total_entries
-        );
-
-        // Collect the staged filenames and verify paths are preserved
-        let staged: Vec<String> = entries
-            .added_files
-            .entries
-            .iter()
-            .map(|e| e.filename().to_string())
-            .collect();
-
-        for p in [
-            format!(
-                "data_being_added{}nested{}file_a.txt",
-                std::path::MAIN_SEPARATOR_STR,
-                std::path::MAIN_SEPARATOR_STR
-            ),
-            format!(
-                "data_being_added{}nested{}file_b.txt",
-                std::path::MAIN_SEPARATOR_STR,
-                std::path::MAIN_SEPARATOR_STR
-            ),
-            format!(
-                "data_being_added{}file_c.txt",
-                std::path::MAIN_SEPARATOR_STR
-            ),
-            "root_file.txt".to_string(),
-        ] {
-            assert!(
-                staged.contains(&p),
-                "Expected '{p}' in staged paths, got: {staged:?}"
-            )
-        }
-
-        Ok(())
+            Ok(remote_repo)
+        })
+        .await
     }
 }

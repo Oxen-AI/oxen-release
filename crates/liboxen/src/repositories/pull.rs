@@ -41,12 +41,15 @@ pub use crate::core::v_latest::pull::pull_remote_branch;
 #[cfg(test)]
 mod tests {
     use crate::api;
+    use crate::api::client::workspaces;
+    use crate::api::client::workspaces::files::upload_single_file;
 
     use crate::config::RepositoryConfig;
     use crate::constants;
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::df::tabular;
     use crate::error::OxenError;
+    use crate::model::NewCommitBody;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
     use crate::opts::FetchOpts;
@@ -1816,6 +1819,24 @@ mod tests {
     async fn test_pull_and_merge_non_empty_repos() -> Result<(), OxenError> {
         // Create a remote repo with a commit
         test::run_remote_created_and_readme_remote_repo_test(|remote_repo| async move {
+            // Commit from a workspace on the repository the server created
+            let workspace_id = "server-created";
+            workspaces::create(&remote_repo, constants::DEFAULT_BRANCH_NAME, workspace_id).await?;
+            let hello = test::test_text_file_with_name("hello.txt");
+            upload_single_file(&remote_repo, workspace_id, "server", &hello).await?;
+            let body = NewCommitBody {
+                message: "Add hello from a workspace".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            workspaces::commit(
+                &remote_repo,
+                constants::DEFAULT_BRANCH_NAME,
+                workspace_id,
+                &body,
+            )
+            .await?;
+
             let remote_repo_clone = remote_repo.clone();
             test::run_empty_dir_test_async(|dir| async move {
                 // Create an empty repo locally
@@ -1837,13 +1858,14 @@ mod tests {
                 // Pull the remote
                 repositories::pull(&local_repo).await?;
 
-                // Both files should exist in the local repo
+                // The local and remote files should all exist in the local repo
                 assert!(hello_file.exists());
                 assert!(PathBuf::from("README.md").exists());
+                assert!(local_repo.path.join("server").join("hello.txt").exists());
 
-                // There should be 3 total commits: The two divergent commits, and the merge commit
+                // There should be 4 total commits: the remote's two, the local one, and the merge
                 let commits = repositories::commits::list_all(&local_repo)?;
-                assert_eq!(commits.len(), 3);
+                assert_eq!(commits.len(), 4);
 
                 Ok(())
             })
