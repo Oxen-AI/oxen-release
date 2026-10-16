@@ -341,7 +341,10 @@ jobs:
         run: |
           cd ${{ github.workspace }}/oxen-python
           source .venv/bin/activate
-          pytest -s tests
+          # Each fixture copies tests/data into its own tmp_path, and pytest keeps every one until
+          # the session ends. Ubuntu 26.04 runners mount /tmp as an ~8 GB tmpfs that the suite
+          # outgrows, so keep pytest's temp tree on the runner's disk.
+          pytest -s tests --basetemp "$RUNNER_TEMP/pytest"
 
       - name: Run oxen-python tests (Windows)
         if: steps.changes.outputs.code == 'true' && matrix.platform == 'windows'
