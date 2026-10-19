@@ -29,7 +29,7 @@ linker_messages = "allow"
 actix-http = "3.4.0"
 actix-multipart = "0.8"
 actix-multipart-test = "0.0.3"
-actix-web = { version = "4.9.0", features = ["rustls"] }
+actix-web = { version = "4.17.0", features = ["rustls"] }
 anyhow = "1.0.102"
 approx = "0.5.1"
 arrow = "=58.1.0"
