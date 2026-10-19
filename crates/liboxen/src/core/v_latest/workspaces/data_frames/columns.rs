@@ -48,7 +48,7 @@ pub fn delete(
     Ok(result)
 }
 
-pub async fn update(
+pub fn update(
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
     column_to_update: &ColumnToUpdate,

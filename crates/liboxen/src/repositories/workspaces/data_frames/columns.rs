@@ -17,7 +17,7 @@ pub fn add(
     core::v_latest::workspaces::data_frames::columns::add(workspace, file_path.as_ref(), new_column)
 }
 
-pub async fn update(
+pub fn update(
     _repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
@@ -28,7 +28,6 @@ pub async fn update(
         file_path.as_ref(),
         column_to_update,
     )
-    .await
 }
 
 pub fn delete(
