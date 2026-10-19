@@ -1,0 +1,37 @@
+name: Classify changes
+description: >
+  Report which CI work a pull request's changed files can affect, so a job can skip the steps they
+  cannot. Every other event, and any pull request whose changed files cannot be listed, reports
+  everything. Requires the pull request's merge commit checked out with `fetch-depth: 2`.
+outputs:
+  code:
+    description: "'true' when a file other than Markdown changed."
+    value: ${{ steps.classify.outputs.code }}
+  rust:
+    description: "'true' when a file other than Markdown or one under oxen-python/ or cli-test/ changed."
+    value: ${{ steps.classify.outputs.rust }}
+runs:
+  using: composite
+  steps:
+    - id: classify
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        code=true
+        rust=true
+        if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only HEAD^1 HEAD)" && [ -n "$files" ]; then
+          code=false
+          rust=false
+          while IFS= read -r file; do
+            case "$file" in
+              *.md) ;;
+              oxen-python/* | cli-test/*) code=true ;;
+              *) code=true; rust=true ;;
+            esac
+          done <<< "$files"
+          printf 'Changed files:\n%s\n' "$files"
+        fi
+        echo "code=$code rust=$rust"
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        echo "rust=$rust" >> "$GITHUB_OUTPUT"

@@ -16,23 +16,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          fetch-depth: 2
           persist-credentials: false
 
+      - name: Classify changes
+        id: changes
+        uses: ./.github/actions/classify-changes
+
       - name: Free up disk space
+        if: steps.changes.outputs.code == 'true'
         uses: ./.github/actions/free-disk-space
 
       - name: Setup Rust Toolchain
+        if: steps.changes.outputs.code == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           cache: false # We use Swatinem/rust-cache directly below for save-if control.
 
       - name: Remove other Rust toolchains
+        if: steps.changes.outputs.code == 'true'
         uses: ./.github/actions/remove-other-rust-toolchains
 
       # Must precede the tool versions load: rust-cache hashes every CARGO*/RUST* environment
       # variable into its key, so the cargo-tool pins in tool-versions.env would otherwise bust
       # the whole build cache every time one of them is bumped.
       - name: Cache Rust dependencies
+        if: steps.changes.outputs.code == 'true'
         uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2.9.2 + PR 377
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -42,15 +51,18 @@ jobs:
           cache-bin: false # See the rust-test job in ci_test.yml for rationale.
 
       - name: Load tool versions
+        if: steps.changes.outputs.code == 'true'
         run: grep -E '^[A-Z0-9_]+=' tool-versions.env >> "$GITHUB_ENV"
 
       - name: Install uv
+        if: steps.changes.outputs.code == 'true'
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
 
       - name: Install FFmpeg 9
+        if: steps.changes.outputs.code == 'true'
         # Install FFmpeg 9 (the `production` feature enables `ffmpeg`) and point pkg-config
         # at it for the build steps below.
         run: |
@@ -61,6 +73,7 @@ jobs:
 
       # oxen-py is left to the maturin step below, which builds it with the flags the bindings need.
       - name: Build with production features
+        if: steps.changes.outputs.code == 'true'
         run: cargo build --workspace --exclude oxen-py --features production
 
       # The Test Suite workflow builds with default features, so tests behind a production-only
@@ -70,9 +83,11 @@ jobs:
       # adding one elsewhere. oxen-py is excluded because its test binary needs the Python
       # runtime installed by the maturin step below.
       - name: Test (production features)
+        if: steps.changes.outputs.code == 'true'
         run: cargo test --workspace --exclude oxen-py --features production --lib telemetry
 
       - name: Build oxen-python with production features
+        if: steps.changes.outputs.code == 'true'
         run: |
           cd oxen-python
           uv sync --no-install-project
@@ -81,12 +96,15 @@ jobs:
 
       # ── Test 1: Log file writing (OXEN_LOG_DIR + NDJSON) ──────────────
       - name: Test log file writing
+        if: steps.changes.outputs.code == 'true'
         run: bin/logfile-test
 
       # ── Test 2: FmtSpan events (OXEN_FMT_SPAN=CLOSE) ─────────────────
       - name: Test FmtSpan span events
+        if: steps.changes.outputs.code == 'true'
         run: bin/fmt-span-test
 
       # ── Test 3: OTel telemetry (Jaeger + full push/pull workflow) ─────
       - name: Test OTel telemetry with Jaeger
+        if: steps.changes.outputs.code == 'true'
         run: bin/otel-metrics-test
