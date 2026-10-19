@@ -1,14 +1,22 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
+use crate::helpers::get_repo_async;
 use crate::params::{app_data, path_param};
+use crate::tasks;
 
 use actix_web::{HttpRequest, HttpResponse, web::Bytes};
+use liboxen::core::db::data_frames::DataFrameError;
 use liboxen::core::repo_locks;
+use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::{DFOpts, PaginateOpts};
-use liboxen::repositories;
+use liboxen::repositories::data_frames::schemas::{
+    get_by_path_async, get_staged_schema_with_staged_db_manager_async,
+};
+use liboxen::repositories::workspaces;
+use liboxen::repositories::workspaces::data_frames;
+use liboxen::repositories::workspaces::data_frames::{columns, embeddings, is_indexed_async};
 use liboxen::view::data_frames::embeddings::{
     EmbeddingColumnsResponse, EmbeddingQuery, IndexEmbeddingRequest,
 };
@@ -24,18 +32,21 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
 
-    let repo = get_repo(app_data, namespace, repo_name)?;
-    let file_path = Path::new(path_param(&req, "path")?);
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
+    let columns =
+        tasks::spawn_blocking(move || embeddings::list_indexed_columns(&workspace, &file_path))
+            .await
+            .map_err(OxenError::from)??;
+
     let response = EmbeddingColumnsResponse {
-        columns: repositories::workspaces::data_frames::embeddings::list_indexed_columns(
-            &workspace, file_path,
-        )?,
+        columns,
         status: StatusMessage::resource_found(),
     };
 
@@ -49,15 +60,15 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
 
-    let repo = get_repo(app_data, namespace, repo_name)?;
-    let file_path = Path::new(path_param(&req, "path")?);
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, file_path)?;
+    let is_indexed = is_indexed_async(&workspace, &file_path).await?;
     log::debug!("neighbors is_indexed: {is_indexed}");
     if !is_indexed {
         let response = WorkspaceJsonDataFrameViewResponse {
@@ -74,7 +85,6 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
 
     log::debug!("neighbors: Embedding query: {body:?}");
     let request: EmbeddingQuery = serde_json::from_str(&body)?;
-    let count = repositories::workspaces::data_frames::count(&workspace, file_path)?;
 
     let opts = {
         let mut opts = DFOpts::empty();
@@ -83,21 +93,30 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
         opts
     };
 
-    let df = repositories::workspaces::data_frames::embeddings::nearest_neighbors(
-        &workspace,
-        file_path,
-        &request.column,
-        request.embedding,
-        &PaginateOpts {
-            page_num: request.page_num,
-            page_size: request.page_size,
-        },
-        false,
-    )?;
+    let pagination = PaginateOpts {
+        page_num: request.page_num,
+        page_size: request.page_size,
+    };
+    let (count, df) = {
+        let workspace = workspace.clone();
+        let file_path = file_path.clone();
+        tasks::spawn_blocking(move || -> Result<_, DataFrameError> {
+            let count = data_frames::count(&workspace, &file_path)?;
+            let df = embeddings::nearest_neighbors(
+                &workspace,
+                &file_path,
+                &request.column,
+                request.embedding,
+                &pagination,
+                false,
+            )?;
+            Ok((count, df))
+        })
+        .await
+        .map_err(OxenError::from)??
+    };
 
-    let Some(mut df_schema) =
-        repositories::data_frames::schemas::get_by_path(&repo, &workspace.commit, file_path)?
-    else {
+    let Some(mut df_schema) = get_by_path_async(&repo, &workspace.commit, &file_path).await? else {
         log::warn!("Failed to get schema for data frame {file_path:?}");
         return Err(OxenHttpError::NotFound);
     };
@@ -108,7 +127,7 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     };
 
     let og_schema = if let Some(schema) =
-        repositories::data_frames::schemas::get_by_path(&repo, &workspace.commit, &resource.path)?
+        get_by_path_async(&repo, &workspace.commit, Path::new(&resource.path)).await?
     {
         schema
     } else {
@@ -120,14 +139,10 @@ pub async fn neighbors(req: HttpRequest, body: String) -> Result<HttpResponse, O
     let mut df_views =
         JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts).await?;
 
-    let new_schema = repositories::data_frames::schemas::get_staged_schema_with_staged_db_manager(
-        &workspace.workspace_repo,
-        file_path,
-    )?;
-    repositories::workspaces::data_frames::columns::update_column_schemas(
-        new_schema,
-        &mut df_views,
-    );
+    let new_schema =
+        get_staged_schema_with_staged_db_manager_async(&workspace.workspace_repo, &file_path)
+            .await?;
+    columns::update_column_schemas(new_schema, &mut df_views);
 
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
@@ -149,11 +164,11 @@ pub async fn post(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHt
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
 
-    let repo = get_repo(app_data, namespace, repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
-    let file_path = Path::new(path_param(&req, "path")?);
+    let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
@@ -167,17 +182,15 @@ pub async fn post(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHt
     let column = request.column;
     let use_background_thread = request.use_background_thread.unwrap_or(false);
 
-    repositories::workspaces::data_frames::embeddings::index(
-        &workspace,
-        file_path,
-        &column,
-        use_background_thread,
-    )?;
+    let columns = tasks::spawn_blocking(move || {
+        embeddings::index(&workspace, &file_path, &column, use_background_thread)?;
+        embeddings::list_indexed_columns(&workspace, &file_path)
+    })
+    .await
+    .map_err(OxenError::from)??;
 
     let response = EmbeddingColumnsResponse {
-        columns: repositories::workspaces::data_frames::embeddings::list_indexed_columns(
-            &workspace, file_path,
-        )?,
+        columns,
         status: StatusMessage::resource_found(),
     };
 
