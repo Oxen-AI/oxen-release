@@ -2,12 +2,15 @@ use actix_web::{HttpRequest, HttpResponse};
 
 use crate::controllers;
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::helpers::get_repo_async;
+use crate::params::{app_data, parse_resource_async, path_param};
+use crate::tasks;
 
+use liboxen::constants;
+use liboxen::error::OxenError;
 use liboxen::model::merkle_tree::node::EMerkleTreeNode;
+use liboxen::repositories::tree;
 use liboxen::view::FileWithHash;
-use liboxen::{constants, repositories};
 
 /// Export resource as a zip
 #[utoipa::path(
@@ -30,31 +33,42 @@ pub async fn download_zip(req: HttpRequest) -> Result<HttpResponse, OxenHttpErro
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repo = get_repo(app_data, &namespace, &repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
 
-    let resource = parse_resource(&req, &repo)?;
+    let resource = parse_resource_async(&req, &repo).await?;
     let directory = resource.path.clone();
     let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
 
-    let Some(dir_node) =
-        repositories::tree::get_dir_with_children_recursive(&repo, &commit, &directory, None)?
-    else {
+    let listed = {
+        let repo = repo.clone();
+        tasks::spawn_blocking(move || -> Result<_, OxenError> {
+            let Some(dir_node) =
+                tree::get_dir_with_children_recursive(&repo, &commit, &directory, None)?
+            else {
+                return Ok(None);
+            };
+
+            log::debug!("download_dir_as_zip found dir node: {dir_node:?}");
+            let files = dir_node.list_files()?;
+
+            let total_bytes: u64 = files
+                .values()
+                .filter_map(|node| {
+                    if let EMerkleTreeNode::File(file_node) = &node.node {
+                        Some(file_node.num_bytes())
+                    } else {
+                        None
+                    }
+                })
+                .sum();
+            Ok(Some((files, total_bytes)))
+        })
+        .await
+        .map_err(OxenError::from)??
+    };
+    let Some((files, total_bytes)) = listed else {
         return Err(OxenHttpError::NotFound);
     };
-
-    log::debug!("download_dir_as_zip found dir node: {dir_node:?}");
-    let files = dir_node.list_files()?;
-
-    let total_bytes: u64 = files
-        .values()
-        .filter_map(|node| {
-            if let EMerkleTreeNode::File(file_node) = &node.node {
-                Some(file_node.num_bytes())
-            } else {
-                None
-            }
-        })
-        .sum();
     if total_bytes > constants::MAX_ZIP_DOWNLOAD_SIZE {
         return Err(OxenHttpError::BadRequest(format!("Download request exceeded size limit ({} bytes) for zip file downloads: found {} bytes", constants::MAX_ZIP_DOWNLOAD_SIZE, total_bytes).into()));
     }
