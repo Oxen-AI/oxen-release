@@ -23,6 +23,8 @@ pub fn versions() -> Scope {
             "/{version_id}/metadata",
             web::get().to(controllers::versions::metadata),
         )
+        // Deprecated, with `/complete` and `/create`: clients upload in parts through `/uploads`.
+        // Removal is tracked in docs/deprecations.md.
         .route(
             "/{version_id}/chunks",
             web::put().to(controllers::versions::chunks::upload),

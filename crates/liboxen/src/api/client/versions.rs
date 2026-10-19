@@ -1,13 +1,12 @@
 use crate::api;
 use crate::api::client;
-use crate::constants::{max_retries, stream_segment_size};
+use crate::constants::max_retries;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, MerkleHash, RemoteRepository};
-use crate::util::{self, concurrency};
+use crate::util::concurrency;
 use crate::view::versions::{
-    CleanCorruptedVersionsResponse, CompleteVersionUploadRequest, CompletedFileUpload,
-    CreateVersionUploadRequest, MultipartLargeFileUpload, MultipartLargeFileUploadStatus,
-    VersionFile, VersionFileResponse,
+    BeginVersionUploadRequest, CleanCorruptedVersionsResponse, VersionFile, VersionFileResponse,
+    VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
 };
 use crate::view::{ErrorFileInfo, ErrorFilesResponse};
 
@@ -16,19 +15,18 @@ use async_compression::tokio::bufread::GzipDecoder;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use futures_util::StreamExt;
-use futures_util::stream::FuturesUnordered;
-use http::Method;
-use http::header::CONTENT_LENGTH;
+use futures_util::stream;
+use http::header::{CONTENT_LENGTH, RETRY_AFTER};
+use http::{Method, StatusCode};
 use rand::{RngExt, rng};
 use tokio_tar::Archive;
-use tokio_util::codec::{BytesCodec, FramedRead};
+use tokio_util::io::ReaderStream;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io::{SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::Semaphore;
 use tokio::time::sleep;
@@ -38,7 +36,6 @@ use tokio::time::sleep;
 // https://github.com/huggingface/hf_transfer/blob/main/src/lib.rs#L104
 const BASE_WAIT_TIME: usize = 300;
 const MAX_WAIT_TIME: usize = 10_000;
-const PARALLEL_FAILURES: usize = 63;
 
 /// Get the size of a version
 pub async fn get(
@@ -85,92 +82,214 @@ pub async fn clean(
     }
 }
 
-/// Uploads a large file to the server in parallel and unpacks it in the versions directory
-/// Returns the `MultipartLargeFileUpload` struct for the created upload
+/// Uploads the large file at `file_path`, whose content hashes to `hash`, in parts, and stages it at
+/// `destination` when one is given. A file the server already has is staged without sending it.
 pub async fn parallel_large_file_upload(
     remote_repo: &RemoteRepository,
-    file_path: impl AsRef<Path>,
-    dst_dir: Option<impl AsRef<Path>>, // dst_dir is provided for workspace add workflow
-    workspace_id: Option<String>,
-    commit_entry: Option<CommitEntry>, // entry is provided for push workflow
-    progress: Option<&Arc<PushProgress>>, // for push workflow
-) -> Result<MultipartLargeFileUpload, OxenError> {
-    log::debug!("multipart_large_file_upload path: {:?}", file_path.as_ref());
+    file_path: &Path,
+    hash: MerkleHash,
+    destination: Option<WorkspaceDestination>,
+    progress: Option<&Arc<PushProgress>>,
+) -> Result<(), OxenError> {
+    let size = file_path
+        .metadata()
+        .map_err(|_| OxenError::path_does_not_exist(file_path))?
+        .len();
+    let client = api::client::new_for_remote_repo(remote_repo)?;
+    let url = api::endpoint::url_from_repo(remote_repo, "/versions/uploads")?;
+    let request = BeginVersionUploadRequest {
+        hash: hash.to_string(),
+        size,
+        destination,
+    };
 
-    let mut upload =
-        create_multipart_large_file_upload(remote_repo, file_path, dst_dir, commit_entry).await?;
-
-    log::debug!("multipart_large_file_upload upload: {:?}", upload.hash);
-
-    let max_retries = max_retries();
-    let results = upload_chunks(
-        remote_repo,
-        &mut upload,
-        stream_segment_size(),
-        PARALLEL_FAILURES,
-        max_retries,
-        progress,
-    )
-    .await?;
-    let num_chunks = results.len();
-    log::debug!("multipart_large_file_upload num_chunks: {num_chunks:?}");
-    complete_multipart_large_file_upload(remote_repo, upload, num_chunks, workspace_id).await
-}
-
-/// Creates a new multipart large file upload
-/// Will reject the upload if the hash already exists on the server.
-/// The rejection helps prevent duplicate uploads or parallel uploads of the same file.
-/// Returns the `MultipartLargeFileUpload` struct for the created upload
-async fn create_multipart_large_file_upload(
-    remote_repo: &RemoteRepository,
-    file_path: impl AsRef<Path>,
-    dst_dir: Option<impl AsRef<Path>>,
-    commit_entry: Option<CommitEntry>,
-) -> Result<MultipartLargeFileUpload, OxenError> {
-    let file_path = file_path.as_ref();
-    let dst_dir = dst_dir.as_ref();
-
-    let (file_size, hash) = match commit_entry {
-        Some(commit_entry) => (commit_entry.num_bytes, commit_entry.hash.clone()),
-        None => {
-            // Figure out how many parts we need to upload
-            let Ok(metadata) = file_path.metadata() else {
-                return Err(OxenError::path_does_not_exist(file_path));
-            };
-            let file_size = metadata.len();
-            let hash = util::hasher::hash_file_contents(file_path)?;
-            (file_size, hash)
+    // Reports bytes to `progress`, never more than the file's size, so the parts an upload begun
+    // again sends a second time are not counted twice.
+    let mut reported = 0;
+    let mut report = |len: u64| {
+        if let Some(progress) = progress {
+            let len = len.min(size - reported);
+            progress.add_bytes(len);
+            reported += len;
         }
     };
 
-    let uri = format!("/versions/{hash}/create");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = client::new_for_url(&url)?;
+    let attempts = max_retries() + 1;
+    let mut completed = false;
+    for _ in 0..attempts {
+        let response =
+            send_retrying(|| async { Ok(client.post(&url).json(&request).send().await?) }).await?;
+        let body = client::parse_json_body(&url, response).await?;
+        let begun: VersionUploadResponse = serde_json::from_str(&body)?;
+        let (upload_id, part_size, num_parts, part_window) = match begun.file {
+            VersionUploadStart::AwaitingParts {
+                upload_id,
+                part_size,
+                num_parts,
+                part_window,
+            } => (upload_id, part_size, num_parts, part_window),
+            VersionUploadStart::AlreadyStored => {
+                completed = true;
+                break;
+            }
+            VersionUploadStart::Unknown => {
+                return Err(OxenError::internal_error(format!(
+                    "{url} began an upload this client does not recognize: {body}"
+                )));
+            }
+        };
 
-    let body = CreateVersionUploadRequest {
-        hash: hash.to_string(),
-        file_name: file_path.file_name().unwrap().to_string_lossy().to_string(),
-        size: file_size,
-        dst_dir: dst_dir.map(|d| d.as_ref().to_path_buf()),
-    };
+        let parts_url = api::endpoint::url_from_repo(
+            remote_repo,
+            &format!("/versions/uploads/{upload_id}/parts"),
+        )?;
+        let requests = Semaphore::new(concurrency::num_threads_for_items(num_parts as usize));
+        let mut parts = stream::iter(1..=num_parts)
+            .map(|part_number| {
+                let offset = (part_number - 1) * part_size;
+                let len = part_size.min(size - offset);
+                let url = format!("{parts_url}/{part_number}");
+                let (client, requests) = (&client, &requests);
+                async move {
+                    let _request = requests.acquire().await.map_err(|err| {
+                        OxenError::internal_error(format!("Failed to wait for a request: {err}"))
+                    })?;
+                    send_part(client, &url, file_path, offset, len)
+                        .await
+                        .map(|sent| (sent, len))
+                }
+            })
+            // The server accepts a part at most `part_window` parts past the first it has not
+            // hashed, which is never past the first part still in flight.
+            .buffered(part_window.max(1) as usize);
+        while let Some(sent) = parts.next().await {
+            let (sent, len) = sent?;
+            match sent {
+                PartSent::Stored => report(len),
+                PartSent::Completed => {
+                    completed = true;
+                    break;
+                }
+                PartSent::UploadGone => break,
+            }
+        }
+        if completed {
+            break;
+        }
+        // The server no longer has the upload: it completed without a response reaching us, or it
+        // was aborted. Beginning again tells the two apart.
+        log::debug!("Beginning the upload of {hash} again");
+    }
+    if !completed {
+        return Err(OxenError::internal_error(format!(
+            "{url} did not complete the upload of {hash} after {attempts} attempts"
+        )));
+    }
+    report(size);
+    if let Some(progress) = progress {
+        progress.add_files(1);
+    }
+    Ok(())
+}
 
-    let body = serde_json::to_string(&body)?;
-    let response = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .body(body)
-        .send()
+/// What sending one part of an upload did.
+#[derive(Debug, PartialEq, Eq)]
+enum PartSent {
+    /// The server stored the part, and waits for others.
+    Stored,
+    /// The part completed the upload.
+    Completed,
+    /// The server no longer has the upload.
+    UploadGone,
+}
+
+/// Send the `len` bytes of `file_path` at `offset` as the part at `url`.
+async fn send_part(
+    client: &reqwest::Client,
+    url: &str,
+    file_path: &Path,
+    offset: u64,
+    len: u64,
+) -> Result<PartSent, OxenError> {
+    // A part sent again is ignored once the server stores it, so a part whose response is lost
+    // partway through is sent again to learn what became of it.
+    for _ in 0..=max_retries() {
+        let response = send_retrying(|| async {
+            let mut file = tokio::fs::File::open(file_path).await?;
+            file.seek(SeekFrom::Start(offset)).await?;
+            let body = reqwest::Body::wrap_stream(ReaderStream::with_capacity(
+                file.take(len),
+                1024 * 1024,
+            ));
+            Ok(client
+                .put(url)
+                .header(CONTENT_LENGTH, len)
+                .body(body)
+                .send()
+                .await?)
+        })
         .await?;
-    response.error_for_status()?;
+        if response.status() == StatusCode::NOT_FOUND {
+            return Ok(PartSent::UploadGone);
+        }
+        let body = match client::parse_json_body(url, response).await {
+            Err(OxenError::HTTP(err)) if err.is_body() || err.is_decode() => {
+                log::warn!("Lost the response for the part at {url}: {err}");
+                continue;
+            }
+            body => body?,
+        };
+        let stored: VersionUploadPartResponse = serde_json::from_str(&body)?;
+        return Ok(if stored.completed {
+            PartSent::Completed
+        } else {
+            PartSent::Stored
+        });
+    }
+    Err(OxenError::internal_error(format!(
+        "Lost every response for the part at {url}"
+    )))
+}
 
-    Ok(MultipartLargeFileUpload {
-        local_path: file_path.to_path_buf(),
-        dst_dir: dst_dir.map(|d| d.as_ref().to_path_buf()),
-        hash: hash.parse()?,
-        size: file_size,
-        status: MultipartLargeFileUploadStatus::Pending,
-        reason: None,
-    })
+/// Send the request `send` makes, and send it again when it fails to send or gets a response that
+/// may clear up on its own (408, 425, 429, or a 5xx other than 501 and 505), up to `max_retries` times.
+/// Each retry waits for the response's `Retry-After`, or else a backoff. Returns the last response.
+async fn send_retrying<F, Fut>(mut send: F) -> Result<reqwest::Response, OxenError>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<reqwest::Response, OxenError>>,
+{
+    let max_retries = max_retries();
+    let transient = |status: StatusCode| match status {
+        StatusCode::REQUEST_TIMEOUT | StatusCode::TOO_EARLY | StatusCode::TOO_MANY_REQUESTS => true,
+        StatusCode::NOT_IMPLEMENTED | StatusCode::HTTP_VERSION_NOT_SUPPORTED => false,
+        status => status.is_server_error(),
+    };
+    let mut attempt = 0;
+    loop {
+        let sent = send().await;
+        let retry_after = match &sent {
+            Ok(response) if !transient(response.status()) => return sent,
+            Ok(response) => response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|seconds| seconds.parse().ok())
+                .map(Duration::from_secs),
+            Err(err) => {
+                log::warn!("Failed to send a request, attempt {attempt}: {err}");
+                None
+            }
+        };
+        if attempt >= max_retries {
+            return sent;
+        }
+        let backoff = || {
+            Duration::from_millis(exponential_backoff(BASE_WAIT_TIME, attempt, MAX_WAIT_TIME) as u64)
+        };
+        sleep(retry_after.unwrap_or_else(backoff)).await;
+        attempt += 1;
+    }
 }
 
 /// Batch download.
@@ -313,178 +432,6 @@ pub async fn try_download_data_from_version_paths(
     }
 }
 
-async fn upload_chunks(
-    remote_repo: &RemoteRepository,
-    upload: &mut MultipartLargeFileUpload,
-    chunk_size: u64,
-    parallel_failures: usize,
-    max_retries: usize,
-    progress: Option<&Arc<PushProgress>>,
-) -> Result<Vec<HashMap<String, String>>, OxenError> {
-    let client = Arc::new(api::client::new_for_remote_repo(remote_repo)?);
-
-    // Figure out how many parts we need to upload
-    let file_size = upload.size;
-    let num_chunks = file_size.div_ceil(chunk_size);
-
-    let max_files = concurrency::num_threads_for_items(num_chunks as usize);
-    let mut handles = FuturesUnordered::new();
-    let semaphore = Arc::new(Semaphore::new(max_files));
-    let parallel_failures_semaphore = Arc::new(Semaphore::new(parallel_failures));
-
-    for chunk_number in 0..num_chunks {
-        let remote_repo = remote_repo.clone();
-        let upload = upload.clone();
-        let client = Arc::clone(&client);
-
-        let start = chunk_number * chunk_size;
-        let semaphore = semaphore.clone();
-        let parallel_failures_semaphore = parallel_failures_semaphore.clone();
-        handles.push(tokio::spawn(async move {
-                    let permit = semaphore
-                        .clone()
-                        .acquire_owned()
-                        .await
-                        .map_err(|err| OxenError::basic_str(format!("Error acquiring semaphore: {err}")))?;
-                    let mut chunk = upload_chunk(&client, &remote_repo, &upload, start, chunk_size).await;
-                    let mut i = 0;
-                    if parallel_failures > 0 {
-                        while let Err(ul_err) = chunk {
-                            if i >= max_retries {
-                                return Err(OxenError::basic_str(format!(
-                                    "Failed after too many retries ({max_retries}): {ul_err}"
-                                )));
-                            }
-
-                            let parallel_failure_permit = parallel_failures_semaphore.clone().try_acquire_owned().map_err(|err| {
-                                OxenError::basic_str(format!(
-                                    "Failed too many failures in parallel ({parallel_failures}): {ul_err} ({err})"
-                                ))
-                            })?;
-
-                            let wait_time = exponential_backoff(BASE_WAIT_TIME, i, MAX_WAIT_TIME);
-                            sleep(Duration::from_millis(wait_time as u64)).await;
-
-                            chunk = upload_chunk(&client, &remote_repo, &upload, start, chunk_size).await;
-                            i += 1;
-                            drop(parallel_failure_permit);
-                        }
-                    }
-                    drop(permit);
-                    chunk
-                    .map_err(|e| OxenError::basic_str(format!("Upload error {e}")))
-                    .map(|chunk| (chunk_number, chunk, chunk_size))
-                }));
-    }
-
-    let mut results: Vec<HashMap<String, String>> = vec![HashMap::default(); num_chunks as usize];
-
-    while let Some(result) = handles.next().await {
-        match result {
-            Ok(Ok((chunk_number, headers, size))) => {
-                log::debug!("Uploaded part {chunk_number} with size {size}");
-                results[chunk_number as usize] = headers;
-                if let Some(p) = progress {
-                    p.add_bytes(size);
-                }
-            }
-            Ok(Err(py_err)) => {
-                return Err(py_err);
-            }
-            Err(err) => {
-                return Err(OxenError::basic_str(format!(
-                    "Error occurred while uploading: {err}"
-                )));
-            }
-        }
-    }
-    if let Some(p) = progress {
-        p.add_files(1);
-    }
-    Ok(results)
-}
-
-async fn upload_chunk(
-    client: &reqwest::Client,
-    remote_repo: &RemoteRepository,
-    upload: &MultipartLargeFileUpload,
-    start: u64,
-    chunk_size: u64,
-) -> Result<HashMap<String, String>, OxenError> {
-    let path = &upload.local_path;
-    let mut options = OpenOptions::new();
-    let mut file = options.read(true).open(path).await?;
-
-    let file_size = upload.size;
-    let bytes_transferred = std::cmp::min(file_size - start, chunk_size);
-
-    file.seek(SeekFrom::Start(start)).await?;
-    let chunk = file.take(chunk_size);
-
-    let file_hash = &upload.hash.to_string();
-
-    let uri = format!("/versions/{file_hash}/chunks?offset={start}");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let response = client
-        .put(url)
-        .header(CONTENT_LENGTH, bytes_transferred)
-        .body(reqwest::Body::wrap_stream(FramedRead::new(
-            chunk,
-            BytesCodec::new(),
-        )))
-        .send()
-        .await?;
-    let response = response.error_for_status()?;
-    let mut headers = HashMap::new();
-    for (name, value) in response.headers().into_iter() {
-        headers.insert(
-            name.to_string(),
-            value
-                .to_str()
-                .map_err(|e| OxenError::basic_str(format!("Invalid header value: {e}")))?
-                .to_owned(),
-        );
-    }
-    Ok(headers)
-}
-
-async fn complete_multipart_large_file_upload(
-    remote_repo: &RemoteRepository,
-    upload: MultipartLargeFileUpload,
-    num_chunks: usize,
-    workspace_id: Option<String>,
-) -> Result<MultipartLargeFileUpload, OxenError> {
-    let file_hash = &upload.hash.to_string();
-
-    let uri = format!("/versions/{file_hash}/complete");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("complete_multipart_large_file_upload {url}");
-    let client = client::new_for_url(&url)?;
-
-    let body = CompleteVersionUploadRequest {
-        files: vec![CompletedFileUpload {
-            hash: file_hash.to_string(),
-            file_name: upload
-                .local_path
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .to_string(),
-            dst_dir: upload.dst_dir.clone(),
-            num_chunks: Some(num_chunks),
-            upload_results: None,
-        }],
-        workspace_id,
-    };
-
-    let body = serde_json::to_string(&body)?;
-    let response = client.post(&url).body(body).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    log::debug!("complete_multipart_large_file_upload got body: {body}");
-    Ok(upload)
-}
-
 /// Multipart batch upload with retry
 /// Uploads a batch of small files to the server in parallel and retries on failure
 /// Returns a list of files that failed to upload
@@ -601,35 +548,98 @@ mod tests {
 
     use crate::api;
     use crate::error::OxenError;
+    use crate::model::MerkleHash;
     use crate::test;
+    use crate::util::hasher::u128_hash_file_contents;
+
+    use super::{PartSent, send_part};
+
+    #[tokio::test]
+    async fn test_send_part_waits_out_a_429_and_reports_a_gone_upload() -> Result<(), OxenError> {
+        let mut server = mockito::Server::new_async().await;
+        let deferred = server
+            .mock("PUT", "/parts/1")
+            .with_status(429)
+            .with_header("retry-after", "0")
+            .create_async()
+            .await;
+        let completed = server
+            .mock("PUT", "/parts/1")
+            .with_body(
+                r#"{"status":"success","status_message":"resource_created","completed":true}"#,
+            )
+            .create_async()
+            .await;
+        let gone = server
+            .mock("PUT", "/parts/2")
+            .with_status(404)
+            .create_async()
+            .await;
+        let cut_off = server
+            .mock("PUT", "/parts/3")
+            .with_chunked_body(|body| {
+                body.write_all(br#"{"status":"success""#)?;
+                Err(std::io::Error::other("the connection drops"))
+            })
+            .create_async()
+            .await;
+        let resent = server
+            .mock("PUT", "/parts/3")
+            .with_body(
+                r#"{"status":"success","status_message":"resource_created","completed":false}"#,
+            )
+            .create_async()
+            .await;
+        // Reading the system's proxy settings takes most of a quarter second on macOS.
+        let client = reqwest::Client::builder().no_proxy().build()?;
+        let file = test::test_30k_parquet();
+
+        let part_1 = format!("{}/parts/1", server.url());
+        assert_eq!(
+            send_part(&client, &part_1, &file, 0, 10).await?,
+            PartSent::Completed,
+            "a part refused with 429 is sent again after its Retry-After"
+        );
+        let part_2 = format!("{}/parts/2", server.url());
+        assert_eq!(
+            send_part(&client, &part_2, &file, 10, 10).await?,
+            PartSent::UploadGone
+        );
+        let part_3 = format!("{}/parts/3", server.url());
+        assert_eq!(
+            send_part(&client, &part_3, &file, 20, 10).await?,
+            PartSent::Stored,
+            "a part whose response is cut off partway through is sent again"
+        );
+        deferred.assert_async().await;
+        completed.assert_async().await;
+        gone.assert_async().await;
+        cut_off.assert_async().await;
+        resent.assert_async().await;
+        Ok(())
+    }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_upload_large_file_in_chunks() -> Result<(), OxenError> {
+    async fn test_upload_large_file_in_parts() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
             let path = test::test_30k_parquet();
-
-            // Get original file size
-            let metadata = path.metadata().unwrap();
-            let original_file_size = metadata.len();
-
-            // Just testing upload, not adding to workspace
-            let workspace_id = None;
-            let dst_dir: Option<PathBuf> = None;
-            let result = api::client::versions::parallel_large_file_upload(
+            let hash = MerkleHash::new(u128_hash_file_contents(&path)?);
+            api::client::versions::parallel_large_file_upload(
                 &remote_repo,
-                path,
-                dst_dir,
-                workspace_id,
+                &path,
+                hash,
                 None,
                 None,
             )
-            .await;
-            assert!(result.is_ok());
+            .await?;
 
-            let version = api::client::versions::get(&remote_repo, result.unwrap().hash).await?;
-            assert!(version.is_some());
-            assert_eq!(version.unwrap().size, original_file_size);
+            let version = api::client::versions::get(&remote_repo, hash).await?;
+            assert_eq!(
+                version.map(|version| version.size),
+                Some(path.metadata()?.len()),
+                "the server stores the whole file"
+            );
 
             Ok(remote_repo)
         })

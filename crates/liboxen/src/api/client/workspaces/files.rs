@@ -3,9 +3,10 @@ use crate::api::client::internal_types::LocalOrBase;
 use crate::constants::{max_retries, stream_segment_size};
 use crate::core::progress::push_progress::PushProgress;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, RemoteRepository};
+use crate::model::{Commit, LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::GlobOpts;
 use crate::util::{self, concurrency};
+use crate::view::versions::WorkspaceDestination;
 use crate::view::{ErrorFileInfo, FilePathsResponse};
 use crate::{api, repositories, view, view::workspaces::ValidateUploadFeasibilityRequest};
 
@@ -297,18 +298,26 @@ async fn upload_multiple_files(
             Some(LocalOrBase::Local(_)) | None => directory.to_path_buf(),
         };
 
-        let hash = util::hasher::hash_file_contents(&path).unwrap_or_default();
-
-        match api::client::versions::parallel_large_file_upload(
-            remote_repo,
-            &path,
-            Some(&dst_dir),
-            Some(workspace_id.to_string()),
-            None,
-            None,
-        )
-        .await
-        {
+        let destination = WorkspaceDestination {
+            workspace_id: workspace_id.to_string(),
+            path: dst_dir.join(path.file_name().unwrap_or_default()),
+        };
+        let (hash, uploaded) = match util::hasher::u128_hash_file_contents(&path) {
+            Ok(hash) => {
+                let hash = MerkleHash::new(hash);
+                let uploaded = api::client::versions::parallel_large_file_upload(
+                    remote_repo,
+                    &path,
+                    hash,
+                    Some(destination),
+                    None,
+                )
+                .await;
+                (hash.to_string(), uploaded)
+            }
+            Err(err) => (String::new(), Err(err)),
+        };
+        match uploaded {
             Ok(_) => log::debug!("Successfully uploaded large file: {path:?}"),
             Err(err) => {
                 let msg = format!("Failed to upload large file {path:?}");
@@ -1103,10 +1112,12 @@ mod tests {
     use crate::model::metadata::MetadataDir;
     use crate::repositories::commits::head_commit;
     use crate::util::fs;
+    use crate::util::hasher::u128_hash_file_contents;
+    use crate::view::versions::WorkspaceDestination;
 
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
-    use crate::model::{EntryDataType, NewCommitBody, RemoteRepository};
+    use crate::model::{EntryDataType, MerkleHash, NewCommitBody, RemoteRepository};
     use crate::opts::fetch_opts::FetchOpts;
     use crate::repositories;
     use crate::test;
@@ -1383,9 +1394,11 @@ mod tests {
             let refused = versions::parallel_large_file_upload(
                 &remote_repo,
                 &large,
-                Some(".OXEN"),
-                Some("large".to_string()),
-                None,
+                MerkleHash::new(u128_hash_file_contents(&large)?),
+                Some(WorkspaceDestination {
+                    workspace_id: "large".to_string(),
+                    path: Path::new(".OXEN").join("large.parquet"),
+                }),
                 None,
             )
             .await;
