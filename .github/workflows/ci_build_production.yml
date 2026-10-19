@@ -22,6 +22,8 @@ jobs:
       - name: Classify changes
         id: changes
         uses: ./.github/actions/classify-changes
+        with:
+          job: build-production
 
       - name: Free up disk space
         if: steps.changes.outputs.code == 'true'
@@ -108,3 +110,9 @@ jobs:
       - name: Test OTel telemetry with Jaeger
         if: steps.changes.outputs.code == 'true'
         run: bin/otel-metrics-test
+
+      - name: Record the pass
+        if: steps.changes.outputs.code == 'true'
+        uses: ./.github/actions/record-pass
+        with:
+          name: ${{ steps.changes.outputs.pass-record }}

@@ -17,6 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+permissions:
+  actions: read # to find a pass record
+  contents: read
+
 defaults:
   run:
     shell: bash -leo pipefail {0}
@@ -32,6 +36,7 @@ jobs:
     name: Test Suite
     uses: ./.github/workflows/ci_test.yml
     permissions:
+      actions: read # to find a pass record
       contents: read
       id-token: write
 

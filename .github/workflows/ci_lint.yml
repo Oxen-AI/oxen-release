@@ -22,6 +22,8 @@ jobs:
       - name: Classify changes
         id: changes
         uses: ./.github/actions/classify-changes
+        with:
+          job: lint
 
       - name: Setup Rust Toolchain
         if: steps.changes.outputs.code == 'true'
@@ -48,9 +50,11 @@ jobs:
           cache-bin: false # See the rust-test job in ci_test.yml for rationale.
 
       - name: Load tool versions
+        if: steps.changes.outputs.code == 'true' || github.event_name == 'pull_request'
         run: grep -E '^[A-Z0-9_]+=' tool-versions.env >> "$GITHUB_ENV"
 
       - name: Install uv
+        if: steps.changes.outputs.code == 'true' || github.event_name == 'pull_request'
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -73,5 +77,11 @@ jobs:
 
       # A change to Markdown alone needs only the one hook that checks it.
       - name: Check trailing whitespace
-        if: steps.changes.outputs.code != 'true'
+        if: steps.changes.outputs.code != 'true' && github.event_name == 'pull_request'
         run: uvx pre-commit run --color=always trailing-whitespace --all-files
+
+      - name: Record the pass
+        if: steps.changes.outputs.code == 'true'
+        uses: ./.github/actions/record-pass
+        with:
+          name: ${{ steps.changes.outputs.pass-record }}

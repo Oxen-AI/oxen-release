@@ -1,26 +1,63 @@
 name: Classify changes
 description: >
-  Report which CI work a pull request's changed files can affect, so a job can skip the steps they
-  cannot. Every other event, and any pull request whose changed files cannot be listed, reports
-  everything. Requires the pull request's merge commit checked out with `fetch-depth: 2`.
+  Report which of a CI job's steps must run. A pull request, or a push of one commit to main, runs
+  the steps its changed files can affect. Such a push to main also skips them all when a pull
+  request run from this repository already recorded a pass for the same job on the same tree, and
+  the commit changes nothing in the Rust cache key. Every other case, and any failure to decide,
+  runs everything. Requires the commit checked out with `fetch-depth: 2` and a token with
+  `actions: read`.
+inputs:
+  job:
+    description: The job's name in its pass record, distinct for each matrix entry.
+    required: true
 outputs:
   code:
-    description: "'true' when a file other than Markdown changed."
+    description: "'true' when the steps that a file other than Markdown can affect must run."
     value: ${{ steps.classify.outputs.code }}
   rust:
-    description: "'true' when a file other than Markdown or one under oxen-python/ or cli-test/ changed."
+    description: "'true' when the steps that a file other than Markdown or one under oxen-python/ or cli-test/ can affect must run."
     value: ${{ steps.classify.outputs.rust }}
+  pass-record:
+    description: The artifact name that records this job passing on this tree.
+    value: ${{ steps.classify.outputs.pass-record }}
 runs:
   using: composite
   steps:
     - id: classify
       shell: bash
       env:
+        GH_TOKEN: ${{ github.token }}
+        JOB: ${{ inputs.job }}
         EVENT_NAME: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        BEFORE: ${{ github.event.before }}
+        REPO: ${{ github.repository }}
+        RUNS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs
       run: |
+        pass_record="passed-$JOB-$(git rev-parse 'HEAD^{tree}')"
+
+        # Lists the files the commit changes, for a pull request or a push of one commit to main, and
+        # nothing for any other run.
+        changed_files() {
+          if [ "$EVENT_NAME" = pull_request ] \
+            || { [ "$EVENT_NAME" = push ] && [ "$REF" = refs/heads/main ] && [ "$BEFORE" = "$(git rev-parse HEAD^1)" ]; }; then
+            git diff --name-only HEAD^1 HEAD
+          fi
+        }
+
+        # Succeeds when a pull request run from this repository recorded a pass for this job on this
+        # tree.
+        passed_already() {
+          local passed_run
+          passed_run="$(gh api "repos/$REPO/actions/artifacts?name=$pass_record&per_page=100" \
+            --jq '[.artifacts[].workflow_run | select(.head_repository_id == .repository_id)][0].id // empty')" || return 1
+          [ -n "$passed_run" ] || return 1
+          echo "A pull request run already passed $JOB on this tree: $RUNS_URL/$passed_run"
+        }
+
         code=true
         rust=true
-        if [ "$EVENT_NAME" = pull_request ] && files="$(git diff --name-only HEAD^1 HEAD)" && [ -n "$files" ]; then
+        if files="$(changed_files)" && [ -n "$files" ]; then
           code=false
           rust=false
           while IFS= read -r file; do
@@ -31,7 +68,16 @@ runs:
             esac
           done <<< "$files"
           printf 'Changed files:\n%s\n' "$files"
+          if [ "$EVENT_NAME" = push ] && [ "$code" = true ] \
+            && ! grep -qE '(^|/)Cargo\.(lock|toml)$|^rust-toolchain\.toml$|^\.cargo/|^\.github/' <<< "$files" \
+            && passed_already; then
+            code=false
+            rust=false
+          fi
         fi
         echo "code=$code rust=$rust"
-        echo "code=$code" >> "$GITHUB_OUTPUT"
-        echo "rust=$rust" >> "$GITHUB_OUTPUT"
+        {
+          echo "code=$code"
+          echo "rust=$rust"
+          echo "pass-record=$pass_record"
+        } >> "$GITHUB_OUTPUT"

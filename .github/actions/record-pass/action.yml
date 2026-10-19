@@ -1,0 +1,25 @@
+name: Record the pass
+description: >
+  Upload the record that this job passed on this tree, which lets the same job on main skip its
+  steps (see classify-changes). Records only a pull request run from this repository, the only kind
+  classify-changes accepts. Run it as the job's last step, gated like the job's other steps.
+inputs:
+  name:
+    description: The pass record's name, from classify-changes' `pass-record` output.
+    required: true
+runs:
+  using: composite
+  steps:
+    - if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+      shell: bash
+      env:
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: echo "$RUN_URL" > "$RUNNER_TEMP/pass-record.txt"
+
+    - if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ runner.temp }}/pass-record.txt
+        retention-days: 14
+        overwrite: true
