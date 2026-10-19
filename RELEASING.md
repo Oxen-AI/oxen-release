@@ -33,7 +33,7 @@ Pushing the `v*` tag automatically triggers the **Release** workflow ([`release.
 
 - **Linux arm64 and x86_64** ([`release_linux.yml`](.github/workflows/release_linux.yml)) — EC2 runners
 - **Linux arm64 and x86_64 for RHEL 8** ([`release_linux.yml`](.github/workflows/release_linux.yml)) — EC2 runners, building inside the manylinux_2_28 container so the artifacts run on glibc 2.28. These run in parallel with the two jobs above, each on its own runner.
-- **macOS arm64 and x86_64** ([`release_macos.yml`](.github/workflows/release_macos.yml)) — GitHub-hosted runner, cross-compiled
+- **macOS arm64 and x86_64** ([`release_macos.yml`](.github/workflows/release_macos.yml)) — GitHub-hosted Apple Silicon runners, one per architecture, with x86_64 cross-compiled
 - **Windows x86_64** ([`release_windows.yml`](.github/workflows/release_windows.yml)) — EC2 runner
 - **Docker arm64 and x86_64** ([`release_docker.yml`](.github/workflows/release_docker.yml)) — EC2 runners
 
