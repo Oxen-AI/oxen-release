@@ -684,16 +684,17 @@ async fn chunk_and_send_large_entries(
                     }
                 };
 
-                match api::client::versions::parallel_large_file_upload(
-                    &remote_repo,
-                    &*version_path,
-                    None::<PathBuf>,
-                    None,
-                    Some(commit_entry.clone()),
-                    Some(&bar),
-                )
-                .await
-                {
+                let uploaded = async {
+                    api::client::versions::parallel_large_file_upload(
+                        &remote_repo,
+                        &version_path,
+                        commit_entry.hash.parse()?,
+                        None,
+                        Some(&bar),
+                    )
+                    .await
+                };
+                match uploaded.await {
                     Ok(_) => {
                         log::debug!(
                             "worker[{}] successfully uploaded {:?}",

@@ -563,8 +563,8 @@ mod tests {
     use liboxen::util;
     use liboxen::view::FilePathsResponse;
     use liboxen::view::versions::{
-        BeginVersionUploadRequest, VersionUploadPartResponse, VersionUploadResponse,
-        VersionUploadStart, WorkspaceDestination,
+        BeginVersionUploadRequest, CompleteVersionUploadRequest, CompletedFileUpload,
+        VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
     };
     use std::path::Path;
 
@@ -722,6 +722,18 @@ mod tests {
                 .route(
                     "/oxen/{namespace}/{repo_name}/versions/uploads/{upload_id}/parts/{part_number}",
                     web::put().to(controllers::versions::uploads::upload_part),
+                )
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions/{version_id}/create",
+                    web::post().to(controllers::versions::chunks::create),
+                )
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions/{version_id}/chunks",
+                    web::put().to(controllers::versions::chunks::upload),
+                )
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions/{version_id}/complete",
+                    web::post().to(controllers::versions::chunks::complete),
                 ),
         )
         .await;
@@ -852,6 +864,56 @@ mod tests {
                 .staged_files
                 .contains_key(Path::new("data/again.bin")),
             "a stored file is staged at the destination it is begun with: {:?}",
+            status.staged_files.keys()
+        );
+
+        // A released client uploads in chunks, which `complete` assembles and stages.
+        let chunked: Vec<u8> = (0..stream_segment_size() + 10)
+            .map(|i| (i % 241) as u8)
+            .collect();
+        let chunked_hash = util::hasher::hash_buffer(&chunked);
+        let version = format!("/oxen/{namespace}/{repo_name}/versions/{chunked_hash}");
+        let req = TestRequest::post()
+            .uri(&format!("{version}/create"))
+            .set_payload("{}")
+            .to_request();
+        assert_eq!(call_service(&app, req).await.status(), StatusCode::OK);
+        let half = chunked.len() / 2;
+        for (offset, chunk) in [(half, &chunked[half..]), (0, &chunked[..half])] {
+            let req = TestRequest::put()
+                .uri(&format!("{version}/chunks?offset={offset}"))
+                .set_payload(chunk.to_vec())
+                .to_request();
+            assert_eq!(call_service(&app, req).await.status(), StatusCode::OK);
+        }
+        let req = TestRequest::post()
+            .uri(&format!("{version}/complete"))
+            .set_json(CompleteVersionUploadRequest {
+                files: vec![CompletedFileUpload {
+                    hash: chunked_hash.clone(),
+                    file_name: "chunked.bin".to_string(),
+                    dst_dir: Some("data".into()),
+                    num_chunks: Some(2),
+                    upload_results: None,
+                }],
+                workspace_id: Some(workspace_id.clone()),
+            })
+            .to_request();
+        assert_eq!(call_service(&app, req).await.status(), StatusCode::OK);
+        assert_eq!(
+            repo.version_store().get_version(&chunked_hash).await?,
+            chunked,
+            "`complete` stores the chunks as one file"
+        );
+        let workspace = repositories::workspaces::get(&repo, &workspace_id)?
+            .ok_or_else(|| OxenError::WorkspaceNotFound(workspace_id.clone().into()))?;
+        let status = repositories::workspaces::status::status(&workspace)?;
+        drop(workspace);
+        assert!(
+            status
+                .staged_files
+                .contains_key(Path::new("data/chunked.bin")),
+            "`complete` stages the file at its destination: {:?}",
             status.staged_files.keys()
         );
 
