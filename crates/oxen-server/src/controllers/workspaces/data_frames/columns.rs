@@ -1,16 +1,20 @@
 use std::path::PathBuf;
 
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
+use crate::helpers::get_repo_async;
 use crate::params::{app_data, path_param};
+use crate::tasks;
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::core::repo_locks;
-use liboxen::error::StringError;
+use liboxen::error::{OxenError, StringError};
 use liboxen::model::Schema;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::opts::DFOpts;
-use liboxen::repositories;
+use liboxen::repositories::data_frames::schemas::get_staged_schema_with_staged_db_manager_async;
+use liboxen::repositories::workspaces;
+use liboxen::repositories::workspaces::data_frames::columns;
+use liboxen::repositories::workspaces::data_frames::is_indexed_async;
 use liboxen::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
 use liboxen::view::json_data_frame_view::JsonDataFrameColumnResponse;
 use liboxen::view::{
@@ -24,7 +28,7 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
-    let repo = get_repo(app_data, namespace.clone(), repo_name.clone())?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
@@ -33,8 +37,7 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     })?;
 
     if let Some(obj) = body_json.as_object_mut() {
-        if obj.contains_key("dtype") {
-            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
+        if let Some(dtype_value) = obj.remove("dtype") {
             obj.insert("data_type".to_string(), dtype_value);
         }
     } else {
@@ -51,24 +54,20 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("create column with data {new_column:?}");
 
     // Get the workspace
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
     // Make sure the data frame is indexed
-    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
-
-    if !is_editable {
+    if !is_indexed_async(&workspace, &file_path).await? {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df = repositories::workspaces::data_frames::columns::add(
-        &repo,
-        &workspace,
-        &file_path,
-        &new_column,
-    )?;
+    let column_df =
+        tasks::spawn_blocking(move || columns::add(&repo, &workspace, &file_path, &new_column))
+            .await
+            .map_err(OxenError::from)??;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(column_df.schema());
@@ -96,7 +95,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
-    let repo = get_repo(app_data, namespace.clone(), repo_name.clone())?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let column_name = path_param(&req, "column_name")
@@ -112,24 +111,23 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("create column with data {column_to_delete:?}");
 
     // Get the workspace
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
     // Make sure the data frame is indexed
-    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
-
-    if !is_editable {
+    if !is_indexed_async(&workspace, &file_path).await? {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df = match repositories::workspaces::data_frames::columns::delete(
-        &repo,
-        &workspace,
-        &file_path,
-        &column_to_delete,
-    ) {
+    let deleted = tasks::spawn_blocking(move || {
+        columns::delete(&repo, &workspace, &file_path, &column_to_delete)
+    })
+    .await
+    .map_err(OxenError::from)?;
+
+    let column_df = match deleted {
         Ok(df) => df,
         Err(e) => {
             log::warn!("Error deleting column: {e:?}");
@@ -164,36 +162,30 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
-    let repo = get_repo(app_data, namespace.clone(), repo_name.clone())?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let column_name = path_param(&req, "column_name")
-        .map_err(|_| OxenHttpError::BadRequest("Column name missing in path parameters".into()))?;
+        .map_err(|_| OxenHttpError::BadRequest("Column name missing in path parameters".into()))?
+        .to_string();
 
     let mut body_json: Value = serde_json::from_str(&body).map_err(|_err| {
         OxenHttpError::BadRequest("Failed to parse request body into JSON".into())
     })?;
 
-    let mut metadata_json: Option<serde_json::Value> = None;
-    if let Some(obj) = body_json.as_object_mut() {
-        if obj.contains_key("name") {
-            let name_value = obj.remove("name").unwrap(); // Safe to unwrap because we just checked it exists
-            obj.insert("new_name".to_string(), name_value);
-        }
-        if obj.contains_key("dtype") {
-            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
-            obj.insert("new_data_type".to_string(), dtype_value);
-        }
-
-        obj.insert("name".to_string(), json!(column_name));
-        if obj.contains_key("metadata") {
-            metadata_json = Some(obj.remove("metadata").unwrap()); // Safe to unwrap because we just checked it exists
-        }
-    } else {
+    let Some(obj) = body_json.as_object_mut() else {
         return Err(OxenHttpError::BadRequest(
             "Request body is not a valid JSON object".into(),
         ));
+    };
+    if let Some(name_value) = obj.remove("name") {
+        obj.insert("new_name".to_string(), name_value);
     }
+    if let Some(dtype_value) = obj.remove("dtype") {
+        obj.insert("new_data_type".to_string(), dtype_value);
+    }
+    obj.insert("name".to_string(), json!(column_name));
+    let metadata_json = obj.remove("metadata");
 
     let column_to_update: ColumnToUpdate = serde_json::from_value(body_json).map_err(|_err| {
         OxenHttpError::BadRequest(
@@ -207,35 +199,35 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("update column with data {column_to_update:?}");
 
     // Get the workspace
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
     // Make sure the data frame is indexed
-    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
-
-    if !is_editable {
+    if !is_indexed_async(&workspace, &file_path).await? {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    if let Some(metadata) = metadata_json {
-        repositories::workspaces::data_frames::columns::add_column_metadata(
-            &repo,
-            &workspace,
-            file_path.clone(),
-            column_name.to_string(),
-            &metadata,
-        )?;
-    }
-
-    let column_df = repositories::workspaces::data_frames::columns::update(
-        &repo,
-        &workspace,
-        &file_path,
-        &column_to_update,
-    )
-    .await?;
+    // The metadata write stages against the column's current name, so it runs ahead of a rename.
+    let workspace_repo = workspace.workspace_repo.clone();
+    let column_df = {
+        let file_path = file_path.clone();
+        tasks::spawn_blocking(move || {
+            if let Some(metadata) = metadata_json {
+                columns::add_column_metadata(
+                    &repo,
+                    &workspace,
+                    file_path.clone(),
+                    column_name,
+                    &metadata,
+                )?;
+            }
+            columns::update(&repo, &workspace, &file_path, &column_to_update)
+        })
+        .await
+        .map_err(OxenError::from)??
+    };
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(column_df.schema());
@@ -247,14 +239,9 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         view: column_df_view,
     };
 
-    let new_schema = repositories::data_frames::schemas::get_staged_schema_with_staged_db_manager(
-        &workspace.workspace_repo,
-        &file_path,
-    )?;
-    repositories::workspaces::data_frames::columns::update_column_schemas(
-        new_schema,
-        &mut df_views,
-    );
+    let new_schema =
+        get_staged_schema_with_staged_db_manager_async(&workspace_repo, &file_path).await?;
+    columns::update_column_schemas(new_schema, &mut df_views);
 
     let response = JsonDataFrameColumnResponse {
         data_frame: df_views,
@@ -303,10 +290,10 @@ pub async fn add_column_metadata(
     let repo_name = path_param(&req, "repo_name")?.to_string();
     let workspace_id = path_param(&req, "workspace_id")?.to_string();
     let path = path_param(&req, "path")?.to_string();
-    let repo = get_repo(app_data, namespace, repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
 
-    let Some(workspace) = repositories::workspaces::get(&repo, &workspace_id)? else {
+    let Some(workspace) = workspaces::get_async(&repo, &workspace_id).await? else {
         return Ok(HttpResponse::NotFound()
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
@@ -316,16 +303,21 @@ pub async fn add_column_metadata(
     // Extract the column_name and metadata from the parsed JSON
     let column_name = parsed_json["column_name"]
         .as_str()
-        .ok_or_else(|| OxenHttpError::BasicError("column_name is required".into()))?;
-    let column_metadata = &parsed_json["metadata"];
+        .ok_or_else(|| OxenHttpError::BasicError("column_name is required".into()))?
+        .to_string();
+    let column_metadata = parsed_json["metadata"].clone();
 
-    repositories::workspaces::data_frames::columns::add_column_metadata(
-        &repo,
-        &workspace,
-        path.into(),
-        column_name.to_string(),
-        column_metadata,
-    )?;
+    tasks::spawn_blocking(move || {
+        columns::add_column_metadata(
+            &repo,
+            &workspace,
+            path.into(),
+            column_name,
+            &column_metadata,
+        )
+    })
+    .await
+    .map_err(OxenError::from)??;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }

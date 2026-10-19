@@ -1172,7 +1172,7 @@ mod tests {
             };
             let (_, snapshot) = get_staged_db_manager(&workspace.workspace_repo)?
                 .read_staged_entries_for_commit(&ProgressBar::hidden())?;
-            let df = columns::update(&repo, &workspace, &path, &rename).await?;
+            let df = columns::update(&repo, &workspace, &path, &rename)?;
             assert!(df.column("my col 2").is_ok());
             assert!(df.column("my col").is_err());
             get_staged_db_manager(&workspace.workspace_repo)?.remove_unchanged(&snapshot)?;
