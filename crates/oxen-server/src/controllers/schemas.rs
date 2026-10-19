@@ -1,10 +1,12 @@
 use std::path::Path;
 
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::helpers::get_repo_async;
+use crate::params::{app_data, parse_resource_async, path_param};
+use crate::tasks;
 
-use liboxen::repositories;
+use liboxen::repositories::data_frames::schemas;
+use liboxen::repositories::revisions;
 use liboxen::view::schema::SchemaWithPath;
 
 use actix_web::{HttpRequest, HttpResponse};
@@ -17,13 +19,13 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
 
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repo = get_repo(app_data, namespace, repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
 
     // Try to see if they are asking for a specific file
-    if let Ok(resource) = parse_resource(&req, &repo)
+    if let Ok(resource) = parse_resource_async(&req, &repo).await
         && resource.path != Path::new("")
     {
-        let commit = &resource.clone().commit.unwrap();
+        let commit = resource.commit.clone().ok_or(OxenHttpError::NotFound)?;
 
         log::debug!(
             "schemas::list_or_get file {:?} commit {}",
@@ -31,8 +33,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             commit
         );
 
-        let schema =
-            repositories::data_frames::schemas::get_by_path(&repo, commit, &resource.path)?;
+        let schema = schemas::get_by_path_async(&repo, &commit, &resource.path).await?;
 
         let mut schema_w_paths: Vec<SchemaWithPath> = vec![];
         if let Some(schema) = schema {
@@ -49,7 +50,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
         let response = ListSchemaResponse {
             status: StatusMessage::resource_found(),
             schemas: schema_w_paths,
-            commit: Some(commit.clone()),
+            commit: Some(commit),
             resource: Some(resource),
         };
         return Ok(HttpResponse::Ok().json(response));
@@ -58,13 +59,19 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     // Otherwise, list all schemas
     let revision = path_param(&req, "resource")?.to_string();
 
-    let commit = repositories::revisions::get(&repo, &revision)?
+    let commit = revisions::get_async(&repo, &revision)
+        .await?
         .ok_or_else(|| OxenError::RevisionNotFound(revision.as_str().into()))?;
 
     log::debug!("schemas::list_or_get revision {revision} commit {commit}");
 
-    let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-    let mut schema_w_paths: Vec<SchemaWithPath> = schemas
+    let listed = {
+        let commit = commit.clone();
+        tasks::spawn_blocking(move || schemas::list(&repo, &commit))
+            .await
+            .map_err(OxenError::from)??
+    };
+    let mut schema_w_paths: Vec<SchemaWithPath> = listed
         .into_iter()
         .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
         .collect();
