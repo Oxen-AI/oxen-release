@@ -53,7 +53,7 @@ use liboxen::view::repository::{
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::versions::{
     BeginVersionUploadRequest, VersionFile, VersionFileResponse, VersionUploadPartResponse,
-    VersionUploadResponse, WorkspaceDestination,
+    VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
 };
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{
@@ -267,7 +267,7 @@ const START_SERVER_USAGE: &str = "Usage: `oxen-server start -i 0.0.0.0 -p 3000`"
             MetadataVideo, MetadataAudio, MetadataTabular,
             // Version Schemas,
             VersionFile, VersionFileResponse, BeginVersionUploadRequest, WorkspaceDestination,
-            VersionUploadResponse, VersionUploadPartResponse,
+            VersionUploadResponse, VersionUploadStart, VersionUploadPartResponse,
             // Size Schemas
             RepoSizeFile, SizeStatus,
         ),

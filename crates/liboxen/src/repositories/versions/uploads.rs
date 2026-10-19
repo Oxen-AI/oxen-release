@@ -8,8 +8,9 @@
 //! `MAX_UPLOAD_MEMORY` of parts at once, so a part may arrive only as far ahead of the next one the
 //! hash needs as that allows. Until the upload completes, a part sent again once stored is accepted
 //! and ignored, so a client can resend any part whose response it lost. Once it completes, any part
-//! gets [`OxenError::VersionUploadNotFound`], as for an upload that was aborted, so a client that
-//! lost the last part's response checks whether the version file exists.
+//! gets [`OxenError::VersionUploadNotFound`], as for an upload that was aborted. Beginning an upload
+//! of a file the store already has stages it and needs no parts, so a client that lost the last
+//! part's response, or whose file failed to stage, begins the upload again.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, LazyLock};
@@ -59,6 +60,15 @@ pub enum PartStored {
     Completed,
 }
 
+/// Whether a started upload needs its parts sent.
+pub enum UploadStart {
+    /// The upload waits for its parts.
+    AwaitingParts(Arc<Upload>),
+    /// The store already had the file, so the upload needs no parts. The file is staged at the
+    /// upload's destination, if it has one.
+    AlreadyStored,
+}
+
 /// A version file being uploaded in parts.
 pub struct Upload {
     id: String,
@@ -102,13 +112,13 @@ pub struct ReceivingPart {
 
 impl Upload {
     /// Begin uploading the version file `hash` of `size` bytes to `repo`, to be staged at
-    /// `destination` once it completes.
+    /// `destination` once it completes. A file the store already has is staged at once.
     pub async fn begin(
         repo: &LocalRepository,
         hash: &str,
         size: u64,
         destination: Option<WorkspaceDestination>,
-    ) -> Result<Arc<Upload>, OxenError> {
+    ) -> Result<UploadStart, OxenError> {
         Self::begin_with_memory(repo, hash, size, destination, MAX_UPLOAD_MEMORY).await
     }
 
@@ -119,7 +129,7 @@ impl Upload {
         size: u64,
         destination: Option<WorkspaceDestination>,
         memory: u64,
-    ) -> Result<Arc<Upload>, OxenError> {
+    ) -> Result<UploadStart, OxenError> {
         let expected_hash: MerkleHash = hash.parse().map_err(|_| {
             OxenError::VersionUploadRefused(format!("'{hash}' is not a version file hash").into())
         })?;
@@ -147,16 +157,24 @@ impl Upload {
             None => None,
         };
 
-        let id = Uuid::new_v4().to_string();
         let write = repo_locks::begin_write(repo)?;
         let store = repo.version_store();
+        let hash = expected_hash.to_string();
+        if store.version_exists(&hash).await? {
+            if let (Some(workspace), Some(destination)) = (&workspace, &destination) {
+                files::add_version_file(workspace, &destination.path, &hash).await?;
+            }
+            return Ok(UploadStart::AlreadyStored);
+        }
+
+        let id = Uuid::new_v4().to_string();
         let floor = match store.storage_kind() {
             StorageKind::Local => stream_segment_size(),
             StorageKind::S3 => stream_segment_size().max(s3::MIN_PART_SIZE as u64),
         };
         let part_size = floor.max(size.div_ceil(s3::MAX_PARTS as u64));
         let stored_locally = matches!(
-            store.version_location(&expected_hash.to_string()).await?,
+            store.version_location(&hash).await?,
             VersionLocation::Local(_)
         );
         let staging_copy = match workspace {
@@ -199,7 +217,7 @@ impl Upload {
             _write: write,
         });
         UPLOADS.lock().insert(id, Arc::clone(&upload));
-        Ok(upload)
+        Ok(UploadStart::AwaitingParts(upload))
     }
 
     /// The open upload `upload_id` to `repo`.
@@ -530,9 +548,12 @@ mod tests {
             let hash = hash_buffer(&data);
             let memory = (window * part_size) as u64;
             let leading_zeros = format!("00{hash}");
-            let upload =
+            let UploadStart::AwaitingParts(upload) =
                 Upload::begin_with_memory(&repo, &leading_zeros, data.len() as u64, None, memory)
-                    .await?;
+                    .await?
+            else {
+                panic!("the store does not have {hash} yet");
+            };
             assert_eq!(upload.part_size() as usize, part_size);
             assert_eq!(upload.num_parts() as usize, last);
             assert_eq!(upload.part_window() as usize, window);
@@ -587,10 +608,21 @@ mod tests {
                 matches!(late, Some(OxenError::VersionUploadNotFound(_))),
                 "a completed upload takes no more parts"
             );
+            assert!(
+                matches!(
+                    Upload::begin(&repo, &hash, data.len() as u64, None).await?,
+                    UploadStart::AlreadyStored
+                ),
+                "an upload of a file the store has needs no parts"
+            );
 
             // An upload whose bytes do not match its hash publishes nothing.
             let wrong_hash = hash_buffer(b"some other file");
-            let mismatch = Upload::begin(&repo, &wrong_hash, part_size as u64 + 1, None).await?;
+            let UploadStart::AwaitingParts(mismatch) =
+                Upload::begin(&repo, &wrong_hash, part_size as u64 + 1, None).await?
+            else {
+                panic!("the store does not have {wrong_hash}");
+            };
             let exclusive = repo_locks::begin_exclusive_with_timeout(&repo, Duration::ZERO)
                 .await
                 .err();
@@ -606,7 +638,11 @@ mod tests {
 
             // An upload with a part arriving is not idle. Once no part arrives, it is aborted and
             // gives up the repository's write gate.
-            let idle = Upload::begin(&repo, &hash, data.len() as u64, None).await?;
+            let UploadStart::AwaitingParts(idle) =
+                Upload::begin(&repo, &wrong_hash, data.len() as u64, None).await?
+            else {
+                panic!("the store does not have {wrong_hash}");
+            };
             send(&idle, 2, part(2)).await?;
             let later = Instant::now() + IDLE_TIMEOUT + Duration::from_secs(1);
             let receiving = idle.receive_part(1)?.expect("part 1 is not received yet");

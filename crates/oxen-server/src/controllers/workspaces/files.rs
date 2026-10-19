@@ -564,7 +564,7 @@ mod tests {
     use liboxen::view::FilePathsResponse;
     use liboxen::view::versions::{
         BeginVersionUploadRequest, VersionUploadPartResponse, VersionUploadResponse,
-        WorkspaceDestination,
+        VersionUploadStart, WorkspaceDestination,
     };
     use std::path::Path;
 
@@ -767,15 +767,23 @@ mod tests {
         let resp = call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let begun: VersionUploadResponse = serde_json::from_slice(&read_body(resp).await)?;
-        assert_eq!(begun.num_parts, 2);
+        let VersionUploadStart::AwaitingParts {
+            upload_id,
+            part_size,
+            num_parts,
+            part_window,
+        } = begun.file
+        else {
+            panic!("the store does not have the file yet: {:?}", begun.file);
+        };
+        assert_eq!(num_parts, 2);
         assert!(
-            begun.part_window >= begun.num_parts,
-            "the window covers every part of a two-part file: {}",
-            begun.part_window
+            part_window >= num_parts,
+            "the window covers every part of a two-part file: {part_window}"
         );
 
-        let part_size = begun.part_size as usize;
-        let parts_uri = |n: u64| format!("{uploads}/{}/parts/{n}", begun.upload_id);
+        let part_size = part_size as usize;
+        let parts_uri = |n: u64| format!("{uploads}/{upload_id}/parts/{n}");
         let mut completed = Vec::new();
         for (part_number, part) in [(2, &data[part_size..]), (1, &data[..part_size])] {
             let req = TestRequest::put()
@@ -812,6 +820,39 @@ mod tests {
             resp.status(),
             StatusCode::NOT_FOUND,
             "a completed upload takes no more parts"
+        );
+
+        // Beginning the upload again, as a client that lost the last part's response does, stages
+        // the stored file with no parts to send.
+        let req = TestRequest::post()
+            .uri(&uploads)
+            .set_json(BeginVersionUploadRequest {
+                hash: hash.clone(),
+                size: data.len() as u64,
+                destination: Some(WorkspaceDestination {
+                    workspace_id: workspace_id.clone(),
+                    path: "data/again.bin".into(),
+                }),
+            })
+            .to_request();
+        let resp = call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let again: VersionUploadResponse = serde_json::from_slice(&read_body(resp).await)?;
+        assert!(
+            matches!(again.file, VersionUploadStart::AlreadyStored),
+            "a stored file needs no parts: {:?}",
+            again.file
+        );
+        let workspace = repositories::workspaces::get(&repo, &workspace_id)?
+            .ok_or_else(|| OxenError::WorkspaceNotFound(workspace_id.clone().into()))?;
+        let status = repositories::workspaces::status::status(&workspace)?;
+        drop(workspace);
+        assert!(
+            status
+                .staged_files
+                .contains_key(Path::new("data/again.bin")),
+            "a stored file is staged at the destination it is begun with: {:?}",
+            status.staged_files.keys()
         );
 
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
