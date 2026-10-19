@@ -17,6 +17,7 @@ use std::path::PathBuf;
 
 use liboxen::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use liboxen::repositories;
+use liboxen::repositories::tree;
 use liboxen::util;
 use liboxen::view::tree::nodes::{
     CommitNodeResponse, DirNodeResponse, FileNodeResponse, VNodeResponse,
@@ -24,9 +25,9 @@ use liboxen::view::tree::nodes::{
 use tempfile::NamedTempFile;
 
 use crate::errors::OxenHttpError;
-use crate::helpers::{get_repo, stream_with_heartbeat};
+use crate::helpers::{get_repo_async, stream_with_heartbeat};
 use crate::params::TreeDepthQuery;
-use crate::params::parse_resource;
+use crate::params::parse_resource_async;
 use crate::params::{app_data, maybe_parse_two_dot, path_param};
 use crate::tasks;
 
@@ -45,10 +46,14 @@ pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse,
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
     let hash_str = path_param(&req, "hash")?.to_string();
 
-    let node = repositories::tree::get_node_by_id(&repository, &hash_str.parse()?)?
+    let hash = hash_str.parse()?;
+
+    let node = tasks::spawn_blocking(move || tree::get_node_by_id(&repository, &hash))
+        .await
+        .map_err(OxenError::from)??
         .ok_or(OxenHttpError::NotFound)?;
 
     node_to_json(node)
@@ -62,7 +67,7 @@ pub async fn list_missing_node_hashes(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
@@ -74,7 +79,10 @@ pub async fn list_missing_node_hashes(
         "list_missing_node_hashes checking {} node ids",
         request.hashes.len()
     );
-    let hashes = repositories::tree::list_missing_node_hashes(&repository, &request.hashes)?;
+    let hashes =
+        tasks::spawn_blocking(move || tree::list_missing_node_hashes(&repository, &request.hashes))
+            .await
+            .map_err(OxenError::from)??;
     log::debug!(
         "list_missing_node_hashes found {} missing node ids",
         hashes.len()
@@ -94,7 +102,7 @@ pub async fn list_missing_file_hashes_from_commits(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
 
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
@@ -131,7 +139,7 @@ pub async fn list_missing_file_hashes(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
     let hash_str = path_param(&req, "hash")?.to_string();
     let hash = hash_str.parse()?;
 
@@ -155,7 +163,7 @@ pub async fn mark_nodes_as_synced(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repository)?;
 
     let mut bytes = web::BytesMut::new();
@@ -167,9 +175,14 @@ pub async fn mark_nodes_as_synced(
     let hashes = request.hashes;
     log::debug!("mark_nodes_as_synced marking {} node hashes", &hashes.len());
 
-    for hash in &hashes {
-        node_sync_status::mark_node_as_synced(&repository, hash)?;
-    }
+    let hashes = tasks::spawn_blocking(move || -> Result<_, OxenError> {
+        for hash in &hashes {
+            node_sync_status::mark_node_as_synced(&repository, hash)?;
+        }
+        Ok(hashes)
+    })
+    .await
+    .map_err(OxenError::from)??;
 
     log::debug!("successfully marked {} commit hashes", &hashes.len());
     Ok(HttpResponse::Ok().json(MerkleHashesResponse {
@@ -186,7 +199,7 @@ pub async fn create_nodes(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
     // Begin the write before streaming so a request landing while a maintenance op holds the repo
     // is rejected with 429 up front; it moves into the work future below to stay in flight across
     // the deferred unpack.
@@ -264,7 +277,7 @@ pub async fn download_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, name)?;
+    let repository = get_repo_async(app_data, &namespace, &name).await?;
 
     // Stream the entire tree tarball straight into the response body so the server never
     // buffers the whole (potentially huge) tree in memory.
@@ -333,11 +346,12 @@ pub async fn get_node_hash_by_path(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, repo_name)?;
-    let resource = parse_resource(&req, &repository)?;
+    let repository = get_repo_async(app_data, &namespace, &repo_name).await?;
+    let resource = parse_resource_async(&req, &repository).await?;
     let commit = resource.commit.ok_or(OxenHttpError::NotFound)?;
 
-    let node = repositories::tree::get_node_by_path(&repository, &commit, &resource.path)?
+    let node = tree::get_node_by_path_async(&repository, &commit, &resource.path)
+        .await?
         .ok_or(OxenHttpError::NotFound)?;
 
     Ok(HttpResponse::Ok().json(MerkleHashResponse {
@@ -354,7 +368,7 @@ pub async fn download_tree_nodes(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let name = path_param(&req, "repo_name")?.to_string();
-    let repository = get_repo(app_data, namespace, name)?;
+    let repository = get_repo_async(app_data, &namespace, &name).await?;
     let base_head_str = path_param(&req, "base_head")?.to_string();
     let is_download = query.is_download.unwrap_or(false);
 
@@ -451,9 +465,11 @@ pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let name = path_param(&req, "repo_name")?.to_string();
     let hash_str = path_param(&req, "hash")?.to_string();
     let hash = hash_str.parse()?;
-    let repository = get_repo(app_data, namespace, name)?;
+    let repository = get_repo_async(app_data, &namespace, &name).await?;
 
-    let buffer = repositories::tree::compress_node(&repository, &hash)?;
+    let buffer = tasks::spawn_blocking(move || tree::compress_node(&repository, &hash))
+        .await
+        .map_err(OxenError::from)??;
 
     Ok(HttpResponse::Ok().body(buffer))
 }
