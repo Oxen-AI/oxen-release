@@ -2653,7 +2653,7 @@ pub(crate) mod tests {
             use crate::model::metadata::generic_metadata::GenericMetadata;
             use crate::model::{LocalRepository, Workspace};
             use crate::repositories;
-            use crate::repositories::versions::uploads::{PartStored, Upload};
+            use crate::repositories::versions::uploads::{PartStored, Upload, UploadStart};
             use crate::util::hasher::hash_buffer;
             use crate::view::versions::WorkspaceDestination;
             use std::path::{Path, PathBuf};
@@ -2711,13 +2711,16 @@ pub(crate) mod tests {
                     workspace_id: s3_workspace.id.clone(),
                     path: PathBuf::from("uploaded.txt"),
                 };
-                let upload = Upload::begin(
+                let UploadStart::AwaitingParts(upload) = Upload::begin(
                     &s3_workspace.base_repo,
                     &hash,
                     data.len() as u64,
                     Some(destination),
                 )
-                .await?;
+                .await?
+                else {
+                    panic!("the store does not have {hash} yet");
+                };
                 let receiving = upload.receive_part(1)?.expect("part 1 is not received yet");
                 assert_eq!(receiving.store(data.clone()).await?, PartStored::Completed);
                 assert_eq!(

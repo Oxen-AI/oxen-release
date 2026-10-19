@@ -1,10 +1,10 @@
 use actix_web::{HttpRequest, HttpResponse, web};
 use futures_util::stream::StreamExt as _;
 use liboxen::error::OxenError;
-use liboxen::repositories::versions::uploads::{PartStored, Upload};
+use liboxen::repositories::versions::uploads::{PartStored, Upload, UploadStart};
 use liboxen::view::StatusMessage;
 use liboxen::view::versions::{
-    BeginVersionUploadRequest, VersionUploadPartResponse, VersionUploadResponse,
+    BeginVersionUploadRequest, VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart,
 };
 
 use crate::errors::OxenHttpError;
@@ -14,12 +14,12 @@ use crate::tasks;
 
 /// POST /versions/uploads
 /// Begin uploading a version file in parts. When the request gives a destination, the file is
-/// staged there once the upload completes.
+/// staged there once the upload completes, or at once when the store already has it.
 #[utoipa::path(
     post,
     path = "/api/repos/{namespace}/{repo_name}/versions/uploads",
     tag = "Version Files",
-    description = "Begin uploading a large file in parts. A file may be at most 1 TiB, a provisional limit. The response gives the upload id, the size of every part but the last, the number of parts, and how many parts the upload accepts at once, starting at the first part not yet hashed. When the request gives a destination, a workspace and a path, the file is staged there once its last part arrives.",
+    description = "Begin uploading a large file in parts. A file may be at most 1 TiB, a provisional limit. The response's `file` is `awaiting_parts`, with the upload id, the size of every part but the last, the number of parts, and how many parts the upload accepts at once, starting at the first part not yet hashed. When the request gives a destination, a workspace and a path, the file is staged there once its last part arrives. When the store already has the file, `file` is `already_stored`: no parts are needed, and the file is staged at the destination, if one was given. A client whose upload completed without a response, or failed to stage, begins it again.",
     summary = "Begin a version file upload",
     params(
         ("namespace" = String, Path, description = "The namespace of the repository", example = "ox"),
@@ -27,7 +27,7 @@ use crate::tasks;
     ),
     request_body(content = BeginVersionUploadRequest, content_type = "application/json"),
     responses(
-        (status = 200, description = "Upload begun", body = VersionUploadResponse),
+        (status = 200, description = "Upload begun, or the file already stored", body = VersionUploadResponse),
         (status = 400, description = "Invalid hash, size, or destination"),
         (status = 404, description = "Repository or workspace not found"),
         (status = 429, description = "Repository busy with maintenance"),
@@ -47,14 +47,23 @@ pub async fn begin(
         destination.path = request_relative_path(&destination.path, false, "destination path")?;
     }
 
-    let upload = Upload::begin(&repo, &request.hash, request.size, request.destination).await?;
-    Ok(HttpResponse::Ok().json(VersionUploadResponse {
-        status: StatusMessage::resource_created(),
-        upload_id: upload.id().to_string(),
-        part_size: upload.part_size(),
-        num_parts: upload.num_parts(),
-        part_window: upload.part_window(),
-    }))
+    let (status, file) =
+        match Upload::begin(&repo, &request.hash, request.size, request.destination).await? {
+            UploadStart::AwaitingParts(upload) => (
+                StatusMessage::resource_created(),
+                VersionUploadStart::AwaitingParts {
+                    upload_id: upload.id().to_string(),
+                    part_size: upload.part_size(),
+                    num_parts: upload.num_parts(),
+                    part_window: upload.part_window(),
+                },
+            ),
+            UploadStart::AlreadyStored => (
+                StatusMessage::resource_found(),
+                VersionUploadStart::AlreadyStored,
+            ),
+        };
+    Ok(HttpResponse::Ok().json(VersionUploadResponse { status, file }))
 }
 
 /// PUT /versions/uploads/{upload_id}/parts/{part_number}
@@ -64,7 +73,7 @@ pub async fn begin(
     put,
     path = "/api/repos/{namespace}/{repo_name}/versions/uploads/{upload_id}/parts/{part_number}",
     tag = "Version Files",
-    description = "Upload one part of a file. A part may arrive up to `part_window` parts from the earliest part not yet hashed, counting that part, and one further ahead is refused with 429 and Retry-After, as is a part sent again while its first copy is still being stored. Until the upload completes, a part sent again after it was stored is accepted and ignored. Once it completes, any part gets 404, as for an upload that was aborted, so a client that lost the response for the last part checks whether the version file exists (`GET /versions/{hash}/metadata`) and, for an upload with a destination, whether the workspace staged it. Each part but the last is exactly the upload's part size. The response for the part that completes the file reports `completed: true`, once the file is verified against its hash and staged in the upload's workspace, if it has one.",
+    description = "Upload one part of a file. A part may arrive up to `part_window` parts from the earliest part not yet hashed, counting that part, and one further ahead is refused with 429 and Retry-After, as is a part sent again while its first copy is still being stored. Until the upload completes, a part sent again after it was stored is accepted and ignored. Once it completes, any part gets 404, as for an upload that was aborted, so a client that lost the response for the last part begins the upload again, which answers with no parts to send once the file is stored. Each part but the last is exactly the upload's part size. The response for the part that completes the file reports `completed: true`, once the file is verified against its hash and staged in the upload's workspace, if it has one.",
     summary = "Upload one part of a version file",
     params(
         ("namespace" = String, Path, description = "The namespace of the repository", example = "ox"),
