@@ -25,7 +25,7 @@ use crate::model::merkle_tree::node::file_node::FileNodeOpts;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::workspace::Workspace;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
-use crate::opts::{GlobOpts, RmOpts};
+use crate::opts::GlobOpts;
 use crate::storage::version_store::VersionStore;
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
@@ -34,6 +34,7 @@ use pathdiff::diff_paths;
 use std::ops::AddAssign;
 
 use crate::core::v_latest::index::CommitMerkleTree;
+use crate::core::v_latest::rm;
 use crate::model::merkle_tree::node::{
     EMerkleTreeNode, FileNode, MerkleTreeNode, StagedMerkleTreeNode,
 };
@@ -164,11 +165,6 @@ pub async fn add_files(
 
     let mut paths_to_remove = HashSet::new();
     let mut unstaged_paths = Vec::new();
-    let rm_opts = RmOpts {
-        recursive: true,
-        ..Default::default()
-    };
-
     for path in paths {
         let corrected_path = match (path.is_absolute(), repo_path.is_absolute()) {
             (true, true) | (true, false) => path.clone(),
@@ -254,17 +250,10 @@ pub async fn add_files(
     }
 
     // Stage the non-existent paths as removed
-    // TODO: Make rm_with_staged_db return the stats of the files it removes
+    // TODO: Count these removals in the totals `oxen add` prints
     if !paths_to_remove.is_empty() {
         log::trace!("removing paths: {:?}", paths_to_remove);
-        core::v_latest::rm::rm_with_staged_db(
-            &paths_to_remove,
-            &HashSet::new(),
-            repo,
-            &rm_opts,
-            &staged_db,
-        )
-        .await?;
+        rm::stage_removal_of_deleted_paths(&paths_to_remove, repo, &staged_db)?;
     }
 
     // Stop the timer, and round the duration to the nearest second
