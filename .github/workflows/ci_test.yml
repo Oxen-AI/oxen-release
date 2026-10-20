@@ -4,6 +4,7 @@ on:
   workflow_call:
 
 permissions:
+  actions: read # to find a pass record
   contents: read
 
 jobs:
@@ -49,6 +50,8 @@ jobs:
       - name: Classify changes
         id: changes
         uses: ./.github/actions/classify-changes
+        with:
+          job: rust-test-${{ matrix.platform }}
 
       - name: Free up disk space
         if: steps.changes.outputs.rust == 'true' && matrix.platform == 'linux'
@@ -166,6 +169,12 @@ jobs:
             oxen-server.err.log
           if-no-files-found: ignore
 
+      - name: Record the pass
+        if: steps.changes.outputs.rust == 'true'
+        uses: ./.github/actions/record-pass
+        with:
+          name: ${{ steps.changes.outputs.pass-record }}
+
   python-test:
     name: Python Tests
     runs-on: ${{ matrix.os }}
@@ -199,6 +208,8 @@ jobs:
       - name: Classify changes
         id: changes
         uses: ./.github/actions/classify-changes
+        with:
+          job: python-test-${{ matrix.platform }}
 
       - name: Free up disk space
         if: steps.changes.outputs.code == 'true' && matrix.platform == 'linux'
@@ -349,3 +360,9 @@ jobs:
           cd ${{ github.workspace }}\oxen-python
           .venv\Scripts\Activate.ps1
           pytest -s tests --ignore=tests/test_data_frame.py --ignore=tests/test_embeddings.py --ignore=tests/test_fsspec_backend.py
+
+      - name: Record the pass
+        if: steps.changes.outputs.code == 'true'
+        uses: ./.github/actions/record-pass
+        with:
+          name: ${{ steps.changes.outputs.pass-record }}
