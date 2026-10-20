@@ -1,6 +1,7 @@
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
+use crate::helpers::get_repo_async;
 use crate::params::{app_data, parse_two_dot, path_param, resolve_base_head_branches};
+use crate::tasks;
 
 use actix_web::{HttpRequest, HttpResponse};
 
@@ -8,6 +9,8 @@ use liboxen::core::repo_locks;
 use liboxen::error::OxenError;
 use liboxen::model::User;
 use liboxen::repositories;
+use liboxen::repositories::commits::get_by_id_async;
+use liboxen::repositories::merge::list_commits_between_branches;
 use liboxen::view::StatusMessage;
 use liboxen::view::merge::{
     MergeConflictFile, MergeResult, MergeSuccessResponse, Mergeable, MergeableResponse,
@@ -46,11 +49,17 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let base_head = path_param(&req, "base_head")?.to_string();
 
     // Get the repository or return error
-    let repository = get_repo(app_data, namespace, name)?;
+    let repository = get_repo_async(app_data, &namespace, &name).await?;
 
     // Parse the base and head from the base..head string
     let (base, head) = parse_two_dot(&base_head)?;
-    let (base_commit, head_commit) = resolve_base_head_branches(&repository, &base, &head)?;
+    let (base_commit, head_commit) = {
+        let repository = repository.clone();
+        let (base, head) = (base.clone(), head.clone());
+        tasks::spawn_blocking(move || resolve_base_head_branches(&repository, &base, &head))
+            .await
+            .map_err(OxenError::from)??
+    };
     let base = base_commit.ok_or_else(|| OxenError::RevisionNotFound(base.into()))?;
     let head = head_commit.ok_or_else(|| OxenError::RevisionNotFound(head.into()))?;
 
@@ -66,7 +75,10 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let is_mergeable = conflicts.is_empty();
 
     // Get commits
-    let commits = repositories::merge::list_commits_between_branches(&repository, &base, &head)?;
+    let commits =
+        tasks::spawn_blocking(move || list_commits_between_branches(&repository, &base, &head))
+            .await
+            .map_err(OxenError::from)??;
 
     // Create response object
     let response = MergeableResponse {
@@ -122,12 +134,18 @@ pub async fn merge(
     };
 
     // Get the repository or return error
-    let repo = get_repo(app_data, namespace, name)?;
+    let repo = get_repo_async(app_data, &namespace, &name).await?;
     let _write = repo_locks::begin_write(&repo)?;
 
     // Parse the base and head from the base..head string
     let (base, head) = parse_two_dot(&base_head)?;
-    let (maybe_base_branch, maybe_head_branch) = resolve_base_head_branches(&repo, &base, &head)?;
+    let (maybe_base_branch, maybe_head_branch) = {
+        let repo = repo.clone();
+        let (base, head) = (base.clone(), head.clone());
+        tasks::spawn_blocking(move || resolve_base_head_branches(&repo, &base, &head))
+            .await
+            .map_err(OxenError::from)??
+    };
     let Some(base_branch) = maybe_base_branch else {
         return Err(OxenError::RevisionNotFound(base.into()).into());
     };
@@ -135,9 +153,12 @@ pub async fn merge(
         return Err(OxenError::RevisionNotFound(head.into()).into());
     };
 
-    // .unwrap() safe because branches must have commits
-    let base_commit = repositories::commits::get_by_id(&repo, &base_branch.commit_id)?.unwrap();
-    let head_commit = repositories::commits::get_by_id(&repo, &head_branch.commit_id)?.unwrap();
+    let base_commit = get_by_id_async(&repo, &base_branch.commit_id)
+        .await?
+        .ok_or_else(|| OxenError::RevisionNotFound(base_branch.commit_id.clone().into()))?;
+    let head_commit = get_by_id_async(&repo, &head_branch.commit_id)
+        .await?
+        .ok_or_else(|| OxenError::RevisionNotFound(head_branch.commit_id.clone().into()))?;
 
     let merge_commit =
         repositories::merge::merge_into_base(&repo, &head_branch, &base_branch, &author).await?;
