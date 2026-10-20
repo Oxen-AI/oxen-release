@@ -19,23 +19,32 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     for path in &opts.paths {
         let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
         if util::fs::is_glob_path(&relative_path) {
-            globs.push(path.clone());
+            globs.push((path.clone(), relative_path));
         } else {
             paths.insert(relative_path);
         }
     }
 
-    let glob_opts = GlobOpts {
-        paths: globs,
-        staged_db: opts.staged,
-        merkle_tree: true,
-        working_dir: false,
-        walk_dirs: false,
-    };
-    let mut glob_matches = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
-    // A path given outright is refused even when a glob also matches it
-    glob_matches.retain(|path| !paths.contains(path));
-    paths.extend(glob_matches.iter().cloned());
+    let mut glob_matches = Vec::with_capacity(globs.len());
+    for (glob, relative_glob) in globs {
+        let glob_opts = GlobOpts {
+            paths: vec![glob],
+            staged_db: opts.staged,
+            merkle_tree: true,
+            working_dir: false,
+            walk_dirs: false,
+        };
+        let mut matches = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
+        // A path given outright is refused even when a glob also matches it
+        matches.retain(|path| !paths.contains(path));
+        glob_matches.push((relative_glob, matches));
+    }
+    paths.extend(
+        glob_matches
+            .iter()
+            .flat_map(|(_, matches)| matches)
+            .cloned(),
+    );
 
     core::v_latest::rm::rm(&paths, &glob_matches, repo, opts).await
 }
@@ -649,6 +658,14 @@ mod tests {
                 7
             );
             assert_eq!(status.removed_files.len(), 0);
+
+            let glob = Path::new("images").join("*").display().to_string();
+            let result = repositories::rm(&repo, &rm_opts).await;
+            assert!(
+                matches!(&result, Err(err @ OxenError::RemovalAlreadyStaged(_))
+                    if err.to_string().contains(&glob)),
+                "a staged glob whose every match already has its removal staged fails: {result:?}"
+            );
 
             Ok(())
         })

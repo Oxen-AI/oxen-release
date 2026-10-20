@@ -41,11 +41,12 @@ use rocksdb::DB;
 
 use std::sync::Arc;
 
-/// Removes `paths`, of which `glob_matches` are the ones only a glob matched: under `--staged`,
-/// those are skipped rather than refused when their removal is already staged.
+/// Removes `paths`. `glob_matches` pairs each glob given with its matches that no path given
+/// outright also names: under `--staged`, those are skipped rather than refused when their removal
+/// is already staged, and a glob whose every match is skipped fails.
 pub async fn rm(
     paths: &HashSet<PathBuf>,
-    glob_matches: &HashSet<PathBuf>,
+    glob_matches: &[(PathBuf, HashSet<PathBuf>)],
     repo: &LocalRepository,
     opts: &RmOpts,
 ) -> Result<(), OxenError> {
@@ -513,7 +514,7 @@ fn process_remove_file_and_parents(
 
 fn remove_inner(
     paths: &HashSet<PathBuf>,
-    glob_matches: &HashSet<PathBuf>,
+    glob_matches: &[(PathBuf, HashSet<PathBuf>)],
     repo: &LocalRepository,
     opts: &RmOpts,
     staged_db: &DB,
@@ -536,6 +537,11 @@ fn remove_inner(
     };
 
     // Look every path up before changing anything, so a refused path leaves the others untouched
+    let only_glob_matched: HashSet<&PathBuf> = glob_matches
+        .iter()
+        .flat_map(|(_, matches)| matches)
+        .collect();
+    let mut skipped = HashSet::new();
     let mut parent_nodes = HashMap::new();
     let mut committed = Vec::with_capacity(paths.len());
     let mut uncommitted = HashSet::new();
@@ -573,7 +579,8 @@ fn remove_inner(
                 }
                 if opts.staged && is_removal_staged(&relative_path, &node, staged_db)? {
                     // A glob passes over its matches whose removal is staged and removes the rest
-                    if glob_matches.contains(path) {
+                    if only_glob_matched.contains(path) {
+                        skipped.insert(path.clone());
                         continue;
                     }
                     return Err(OxenError::RemovalAlreadyStaged(relative_path.into()));
@@ -593,6 +600,12 @@ fn remove_inner(
                     format!("Error: {relative_path:?} must be committed in order to use `oxen rm`");
                 return Err(OxenError::basic_str(error));
             }
+        }
+    }
+    // A glob with nothing left to remove fails, as git fails a pathspec that matches no file
+    for (glob, matches) in glob_matches {
+        if !matches.is_empty() && matches.is_subset(&skipped) {
+            return Err(OxenError::RemovalAlreadyStaged(glob.clone().into()));
         }
     }
 
