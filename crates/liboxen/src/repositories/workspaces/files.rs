@@ -576,6 +576,38 @@ mod tests {
         .await
     }
 
+    // Tabular files move through the data frame rename, which must refuse a removed file too.
+    #[tokio::test]
+    async fn test_data_frame_rename_refuses_file_staged_for_removal() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            fs::write_to_path(repo.path.join("table.csv"), "x,y\n1,2\n")?;
+            repositories::add(&repo, &repo.path).await?;
+            let commit = repositories::commit(&repo, "Add table")?;
+            let workspace =
+                repositories::workspaces::create(&repo, &commit, Uuid::new_v4().to_string(), true)?;
+            workspaces::files::rm(&workspace, &[PathBuf::from("table.csv")]).await?;
+
+            let result =
+                repositories::workspaces::data_frames::rename(&workspace, "table.csv", "moved.csv")
+                    .await;
+            assert!(
+                matches!(result, Err(OxenError::PathStagedForRemoval(_))),
+                "{result:?}"
+            );
+            assert_eq!(staged_status(&workspace, "moved.csv"), None);
+            assert_eq!(
+                staged_status(&workspace, "table.csv"),
+                Some(StagedEntryStatus::Removed)
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
     // A path that exists only in the workspace is unstaged; only a path with nothing at it fails.
     #[tokio::test]
     async fn test_rm_staged_only_paths() -> Result<(), OxenError> {

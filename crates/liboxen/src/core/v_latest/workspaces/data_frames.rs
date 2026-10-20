@@ -526,10 +526,20 @@ pub async fn rename(
         let path = path.clone();
         let new_path = new_path.clone();
         spawn_blocking(move || -> Result<ControlFlow<PathBuf, _>, OxenError> {
+            let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
+            let staged_entry = staged_db_manager.read_from_staged_db(&path)?;
+            // Renaming it would restore content the workspace already deleted, as a file `mv`
+            // also refuses.
+            if staged_entry
+                .as_ref()
+                .is_some_and(|entry| entry.status == StagedEntryStatus::Removed)
+            {
+                return Err(OxenError::PathStagedForRemoval(path.into()));
+            }
+
             move_index(&workspace, &path, &new_path)?;
 
-            let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
-            if let Some(staged_entry) = staged_db_manager.read_from_staged_db(&path)? {
+            if let Some(staged_entry) = staged_entry {
                 return move_staged_entry(
                     &workspace,
                     &staged_db_manager,
