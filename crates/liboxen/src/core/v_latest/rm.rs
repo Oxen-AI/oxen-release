@@ -73,18 +73,23 @@ pub(crate) fn stage_removal_of_deleted_paths(
         return Err(OxenError::basic_str("Error: head commit not found"));
     };
     let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
+    let mut parent_nodes = HashMap::new();
     let mut committed = Vec::with_capacity(paths.len());
     for path in paths {
         let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
         let parent_path = relative_path.parent().unwrap_or(Path::new(""));
         let name = util::fs::path_relative_to_dir(&relative_path, parent_path)?;
-        let parent = CommitMerkleTree::dir_with_children(
-            repo,
-            &head_commit,
-            parent_path,
-            Some(&dir_hashes),
-        )?;
+        let parent = match parent_nodes.entry(parent_path.to_path_buf()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(CommitMerkleTree::dir_with_children(
+                repo,
+                &head_commit,
+                parent_path,
+                Some(&dir_hashes),
+            )?),
+        };
         let Some(node) = parent
+            .as_ref()
             .map(|parent| parent.get_by_path(name))
             .transpose()?
             .flatten()
