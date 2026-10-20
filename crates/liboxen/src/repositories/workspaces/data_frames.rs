@@ -654,6 +654,50 @@ mod tests {
         Ok(workspace)
     }
 
+    /// Moving a directory carries a data frame's staged row edits with it: the edit reads at the
+    /// new path before the commit and is in the committed file after it.
+    #[tokio::test]
+    async fn test_directory_move_keeps_staged_row_edits() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
+            let branch_name = "test-move-edited";
+            let branch = repositories::branches::create_checkout(&repo, branch_name)?;
+            let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let workspace =
+                repositories::workspaces::create(&repo, &commit, UserConfig::identifier()?, true)?;
+            let train = Path::new("annotations").join("train");
+            let moved = Path::new("annotations").join("moved_train");
+            let file_path = train.join("bounding_box.csv");
+            let moved_path = moved.join("bounding_box.csv");
+
+            workspaces::data_frames::index(&repo, &workspace, &file_path).await?;
+            let row = json!({"file": "dawg1.jpg", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100});
+            workspaces::data_frames::rows::add(&repo, &workspace, &file_path, &row)?;
+            assert_eq!(workspaces::data_frames::count(&workspace, &file_path)?, 7);
+
+            workspaces::files::mv(&workspace, &train, &moved).await?;
+            assert_eq!(workspaces::data_frames::count(&workspace, &moved_path)?, 7);
+
+            let new_commit = NewCommitBody {
+                author: "author".to_string(),
+                email: "email".to_string(),
+                message: "Move the edited data frame".to_string(),
+            };
+            let committed = workspaces::commit(&workspace, &new_commit, branch_name).await?;
+            assert!(repositories::tree::get_file_by_path(&repo, &committed, &file_path)?.is_none());
+
+            let reader =
+                repositories::workspaces::create(&repo, &committed, UserConfig::identifier()?, true)?;
+            workspaces::data_frames::index(&repo, &reader, &moved_path).await?;
+            assert_eq!(workspaces::data_frames::count(&reader, &moved_path)?, 7);
+
+            Ok(())
+        })
+        .await
+    }
+
     /// The `_oxen_id` of the first row of `df`.
     fn first_row_id(df: &DataFrame) -> Result<String, OxenError> {
         Ok(df
