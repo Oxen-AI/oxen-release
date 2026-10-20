@@ -548,6 +548,34 @@ mod tests {
         .await
     }
 
+    // Moving a file the workspace removed would restore its content at the new path.
+    #[tokio::test]
+    async fn test_mv_refuses_file_staged_for_removal() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            workspaces::files::rm(&workspace, &[PathBuf::from("other.txt")]).await?;
+
+            let result =
+                workspaces::files::mv(&workspace, Path::new("other.txt"), Path::new("moved.txt"))
+                    .await;
+            assert!(
+                matches!(result, Err(OxenError::PathStagedForRemoval(_))),
+                "{result:?}"
+            );
+            assert_eq!(staged_status(&workspace, "moved.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "other.txt"),
+                Some(StagedEntryStatus::Removed)
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
     // A path that exists only in the workspace is unstaged; only a path with nothing at it fails.
     #[tokio::test]
     async fn test_rm_staged_only_paths() -> Result<(), OxenError> {

@@ -1136,6 +1136,11 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
     let staged_file = match staged_db_manager.read_from_staged_db(path)? {
+        // Moving it would restore content the workspace already deleted, as `mv_dir` and edits
+        // to removed paths also refuse.
+        Some(entry) if entry.status == StagedEntryStatus::Removed => {
+            return Err(OxenError::PathStagedForRemoval(path.to_path_buf().into()));
+        }
         Some(entry) if !matches!(entry.node.node, EMerkleTreeNode::Directory(_)) => {
             Some(entry.node.file()?)
         }

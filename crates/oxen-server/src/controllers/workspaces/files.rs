@@ -318,17 +318,17 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
     Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
-/// Move or rename a file within the workspace
+/// Move or rename a file or directory within the workspace
 #[utoipa::path(
     patch,
     path = "/api/repos/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}",
-    description = "Move or rename a file within the workspace.",
+    description = "Move or rename a file or directory within the workspace. A directory moves with everything under it.",
     tag = "Workspace Files",
     params(
         ("namespace" = String, Path, description = "The namespace of the repository", example = "ox"),
         ("repo_name" = String, Path, description = "The name of the repository", example = "ImageNet-1k"),
         ("workspace_id" = String, Path, description = "The UUID of the workspace", example = "580c0587-c157-417b-9118-8686d63d2745"),
-        ("path" = String, Path, description = "The current path to the file to move/rename", example = "images/train/dog_1.jpg")
+        ("path" = String, Path, description = "The current path to the file or directory to move/rename", example = "images/train/dog_1.jpg")
     ),
     request_body(
         content = RenameRequest,
@@ -337,8 +337,9 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
     ),
     responses(
         (status = 200, description = "File successfully moved/renamed", body = StatusMessage),
-        (status = 400, description = "Invalid request (empty new_path or new_path already exists)"),
-        (status = 404, description = "Workspace or file not found")
+        (status = 400, description = "Invalid request (empty new_path, a file's new_path already exists, or new_path is the source or inside it)"),
+        (status = 404, description = "Workspace or file not found"),
+        (status = 409, description = "A directory's new_path already exists, or something is staged at it")
     )
 )]
 pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -366,10 +367,14 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    // Check if new_path already exists in the workspace or base repo
-    if repositories::tree::get_node_by_path_async(&repo, &workspace.commit, &new_path)
-        .await?
-        .is_some()
+    let is_dir = repositories::workspaces::files::is_dir(&workspace, &path).await?;
+
+    // A file move onto an existing path is a bad request. A directory move checks its
+    // destination itself and refuses an existing one with a 409.
+    if !is_dir
+        && repositories::tree::get_node_by_path_async(&repo, &workspace.commit, &new_path)
+            .await?
+            .is_some()
     {
         return Err(OxenHttpError::BadRequest(
             "new_path already exists in the repository".into(),
@@ -377,9 +382,7 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
     }
 
     // For tabular files, use the data_frames rename instead
-    if util::fs::is_tabular(&path)
-        && !repositories::workspaces::files::is_dir(&workspace, &path).await?
-    {
+    if util::fs::is_tabular(&path) && !is_dir {
         repositories::workspaces::data_frames::rename(&workspace, &path, &new_path).await?;
     } else {
         repositories::workspaces::files::mv(&workspace, &path, &new_path).await?;
