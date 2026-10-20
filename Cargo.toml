@@ -38,7 +38,6 @@ async-compression = { version = "0.4.2", features = ["tokio", "gzip", "futures-i
 async-recursion = "1.1.1"
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.6"
-async-tempfile = "0.8"
 async-trait = "0.1.80"
 async-walkdir = "2.1.0"
 async_zip = { version = "0.0.19", features = ["full"] }

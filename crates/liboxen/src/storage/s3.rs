@@ -1382,13 +1382,9 @@ pub(crate) mod tests {
 
     /// Spin up an in-process s3s server on a loopback port. The returned temp dir and join handle
     /// must be kept alive for the server's lifetime.
-    async fn spawn_s3s() -> (
-        SocketAddr,
-        async_tempfile::TempDir,
-        tokio::task::JoinHandle<()>,
-    ) {
-        let tmp = async_tempfile::TempDir::new().await.unwrap();
-        let fs = s3s_fs::FileSystem::new(tmp.dir_path()).unwrap();
+    async fn spawn_s3s() -> (SocketAddr, tempfile::TempDir, tokio::task::JoinHandle<()>) {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let fs = s3s_fs::FileSystem::new(tmp.path()).unwrap();
 
         let mut builder = s3s::service::S3ServiceBuilder::new(fs);
         builder.set_auth(s3s::auth::SimpleAuth::from_single("test", "test"));
@@ -1420,7 +1416,7 @@ pub(crate) mod tests {
     /// and join handle alive for as long as the store is used.
     pub(crate) async fn setup() -> (
         S3VersionStore,
-        async_tempfile::TempDir,
+        tempfile::TempDir,
         tokio::task::JoinHandle<()>,
     ) {
         let (addr, tmp, server_handle) = spawn_s3s().await;
@@ -1696,8 +1692,8 @@ pub(crate) mod tests {
             .await
             .unwrap();
 
-        let dest_dir = async_tempfile::TempDir::new().await.unwrap();
-        let dest_path = dest_dir.dir_path().join("subdir/output.bin");
+        let dest_dir = tempfile::TempDir::new().unwrap();
+        let dest_path = dest_dir.path().join("subdir/output.bin");
         let mtime = SystemTime::UNIX_EPOCH + std::time::Duration::new(1_700_000_000, 123_456_789);
 
         store
@@ -2416,7 +2412,7 @@ pub(crate) mod tests {
         /// Build an s3s-backed store as a trait object, the form `read_version_df` consumes.
         async fn setup_dyn() -> (
             Arc<dyn VersionStore>,
-            async_tempfile::TempDir,
+            tempfile::TempDir,
             tokio::task::JoinHandle<()>,
         ) {
             set_test_aws_env();

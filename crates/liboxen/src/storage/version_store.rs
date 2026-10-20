@@ -46,7 +46,7 @@ pub enum LocalFilePath {
     Stable(PathBuf),
     /// A temporary file that is deleted when this value is dropped. Callers must treat it as
     /// read-only.
-    Temp(async_tempfile::TempFile),
+    Temp(tempfile::NamedTempFile),
 }
 
 impl Deref for LocalFilePath {
@@ -55,7 +55,7 @@ impl Deref for LocalFilePath {
     fn deref(&self) -> &Path {
         match self {
             LocalFilePath::Stable(p) => p.as_path(),
-            LocalFilePath::Temp(t) => t.file_path(),
+            LocalFilePath::Temp(t) => t.path(),
         }
     }
 }
@@ -70,7 +70,7 @@ impl std::fmt::Debug for LocalFilePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LocalFilePath::Stable(p) => write!(f, "Stable({p:?})"),
-            LocalFilePath::Temp(t) => write!(f, "Temp({:?})", t.file_path()),
+            LocalFilePath::Temp(t) => write!(f, "Temp({:?})", t.path()),
         }
     }
 }
@@ -448,12 +448,12 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
             VersionLocation::Local(path) => Ok(LocalFilePath::Stable(path)),
             VersionLocation::S3 { .. } => {
                 util::fs::create_dir_all(dir)?;
-                let temp = async_tempfile::TempFile::new_in(dir).await.map_err(|e| {
+                let temp = tempfile::NamedTempFile::new_in(dir).map_err(|e| {
                     OxenError::basic_str(format!("Failed to create temp file: {e}"))
                 })?;
                 // Materialized temp file is read-only and short-lived (DuckDB ingest / ffmpeg
                 // / similar). Mtime is irrelevant for read-only consumers, so stamp with `now`.
-                self.copy_version_to_path(hash, temp.file_path(), SystemTime::now())
+                self.copy_version_to_path(hash, temp.path(), SystemTime::now())
                     .await?;
                 Ok(LocalFilePath::Temp(temp))
             }
