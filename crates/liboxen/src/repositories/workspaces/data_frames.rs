@@ -698,6 +698,63 @@ mod tests {
         .await
     }
 
+    /// A directory move that fails partway moves nothing: an index move that cannot complete
+    /// puts back the indexes already moved and leaves the staged db untouched.
+    #[tokio::test]
+    async fn test_failed_directory_move_moves_nothing() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            let commit = repositories::commits::head_commit(&repo)?;
+            let workspace =
+                repositories::workspaces::create(&repo, &commit, UserConfig::identifier()?, true)?;
+            let train = Path::new("annotations").join("train");
+            let moved = Path::new("annotations").join("moved_train");
+            let first = train.join("bounding_box.csv");
+            let second = train.join("one_shot.csv");
+
+            workspaces::data_frames::index(&repo, &workspace, &first).await?;
+            workspaces::data_frames::index(&repo, &workspace, &second).await?;
+            let row = json!({"file": "dawg1.jpg", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100});
+            workspaces::data_frames::rows::add(&repo, &workspace, &first, &row)?;
+
+            // Indexes move in path order, so `first` moves before `second` hits this file where
+            // its index directory would go.
+            let blocker = duckdb_path(&workspace, &moved.join("one_shot.csv"))
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            util::fs::create_dir_all(blocker.parent().unwrap())?;
+            std::fs::write(&blocker, "not a directory")?;
+
+            let staged_snapshot = || -> Result<Vec<_>, OxenError> {
+                Ok(get_staged_db_manager(&workspace.workspace_repo)?
+                    .read_entries_under(Path::new(""))?
+                    .into_iter()
+                    .map(|(path, entry)| (path, entry.status, entry.node.hash))
+                    .collect())
+            };
+            let before = staged_snapshot()?;
+
+            assert!(workspaces::files::mv(&workspace, &train, &moved).await.is_err());
+
+            assert_eq!(staged_snapshot()?, before);
+            assert!(
+                get_staged_db_manager(&workspace.workspace_repo)?
+                    .read_entries_under(&moved)?
+                    .is_empty()
+            );
+            assert!(duckdb_path(&workspace, &first).exists());
+            assert!(duckdb_path(&workspace, &second).exists());
+            assert!(!duckdb_path(&workspace, &moved.join("bounding_box.csv")).exists());
+            assert_eq!(workspaces::data_frames::count(&workspace, &first)?, 7);
+
+            Ok(())
+        })
+        .await
+    }
+
     /// The `_oxen_id` of the first row of `df`.
     fn first_row_id(df: &DataFrame) -> Result<String, OxenError> {
         Ok(df

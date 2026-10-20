@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
@@ -158,7 +159,129 @@ fn normalize_key(path: impl AsRef<Path>) -> String {
     path.as_ref().to_string_lossy().replace('\\', "/")
 }
 
+fn serialize_staged_node(node: &StagedMerkleTreeNode) -> Result<Vec<u8>, OxenError> {
+    let mut buf = Vec::new();
+    node.serialize(&mut Serializer::new(&mut buf))
+        .map_err(|e| OxenError::basic_str(e.to_string()))?;
+    Ok(buf)
+}
+
+/// Staged-db writes collected in memory and applied together by
+/// [`StagedDBManager::write_batch`], so a concurrent reader sees all of them or none. A later
+/// write to a key replaces an earlier one. Keys and values match the per-call methods of the same
+/// names on [`StagedDBManager`].
+#[derive(Default)]
+pub struct StagedWriteBatch {
+    ops: BTreeMap<String, Option<Vec<u8>>>,
+}
+
+impl StagedWriteBatch {
+    pub fn upsert_file_node(
+        &mut self,
+        relative_path: impl AsRef<Path>,
+        status: StagedEntryStatus,
+        file_node: &FileNode,
+    ) -> Result<(), OxenError> {
+        self.upsert_staged_node(
+            relative_path,
+            &StagedMerkleTreeNode {
+                status,
+                node: MerkleTreeNode::from_file(file_node.clone()),
+            },
+        )
+    }
+
+    pub fn upsert_staged_node(
+        &mut self,
+        path: impl AsRef<Path>,
+        staged_node: &StagedMerkleTreeNode,
+    ) -> Result<(), OxenError> {
+        self.ops.insert(
+            normalize_key(path),
+            Some(serialize_staged_node(staged_node)?),
+        );
+        Ok(())
+    }
+
+    pub fn delete_entry(&mut self, path: impl AsRef<Path>) {
+        self.ops.insert(normalize_key(path), None);
+    }
+
+    pub fn add_directory(
+        &mut self,
+        directory_path: impl AsRef<Path>,
+        seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+    ) -> Result<(), OxenError> {
+        let directory_path = directory_path.as_ref();
+        if !seen_dirs.lock().insert(directory_path.to_path_buf()) {
+            return Ok(());
+        }
+        let dir_entry = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Added,
+            node: MerkleTreeNode::default_dir_from_path(directory_path),
+        };
+        // `StagedDBManager::add_directory` keys directories by the raw path, not `normalize_key`.
+        self.ops.insert(
+            directory_path.to_str().unwrap().to_string(),
+            Some(serialize_staged_node(&dir_entry)?),
+        );
+        Ok(())
+    }
+
+    pub fn add_parent_directories(
+        &mut self,
+        path: &Path,
+        seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+    ) -> Result<(), OxenError> {
+        for dir in path.ancestors().skip(1) {
+            self.add_directory(dir, seen_dirs)?;
+        }
+        Ok(())
+    }
+}
+
 impl StagedDBManager {
+    /// Apply every write in `batch` atomically.
+    pub fn write_batch(&self, batch: StagedWriteBatch) -> Result<(), OxenError> {
+        let mut write_batch = WriteBatch::default();
+        for (key, value) in batch.ops {
+            match value {
+                Some(value) => write_batch.put(key.as_bytes(), value),
+                None => write_batch.delete(key.as_bytes()),
+            }
+        }
+        self.staged_db.write().write(write_batch)?;
+        Ok(())
+    }
+
+    /// [`Self::read_entries_under`] as it will read once `batch` is written.
+    pub fn read_entries_under_with(
+        &self,
+        path: &Path,
+        batch: &StagedWriteBatch,
+    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+        let mut entries: BTreeMap<PathBuf, StagedMerkleTreeNode> =
+            self.read_entries_under(path)?.into_iter().collect();
+        for (key, value) in &batch.ops {
+            let entry_path = PathBuf::from(key);
+            if !entry_path.starts_with(path) {
+                continue;
+            }
+            match value {
+                Some(value) => match rmp_serde::from_slice::<StagedMerkleTreeNode>(value) {
+                    Ok(entry) => {
+                        entries.insert(entry_path, entry);
+                    }
+                    Err(e) => log::error!("read_entries_under_with error decoding {key}: {e}"),
+                },
+                None => {
+                    entries.remove(&entry_path);
+                }
+            }
+        }
+        Ok(entries.into_iter().collect())
+    }
+
     /// Upsert a file node to the staged db
     pub fn upsert_file_node(
         &self,
