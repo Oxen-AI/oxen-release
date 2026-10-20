@@ -53,24 +53,48 @@ pub async fn rm(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DB = DB::open(&db_opts, dunce::simplified(&db_path))?;
 
-    rm_with_staged_db(paths, glob_matches, repo, opts, &staged_db).await
-}
-
-pub async fn rm_with_staged_db(
-    paths: &HashSet<PathBuf>,
-    glob_matches: &HashSet<PathBuf>,
-    repo: &LocalRepository,
-    opts: &RmOpts,
-    staged_db: &DB,
-) -> Result<(), OxenError> {
     // `--staged` keeps the working copy, so a modification there is never lost
     if !opts.staged && !list_modified_files(repo, paths).await?.is_empty() {
         let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
         return Err(OxenError::basic_str(error));
     }
 
-    remove_inner(paths, glob_matches, repo, opts, staged_db)?;
+    remove_inner(paths, glob_matches, repo, opts, &staged_db)?;
     Ok(())
+}
+
+/// Stages the removal of the committed `paths`, which are gone from the working tree.
+pub(crate) fn stage_removal_of_deleted_paths(
+    paths: &HashSet<PathBuf>,
+    repo: &LocalRepository,
+    staged_db: &DB,
+) -> Result<CumulativeStats, OxenError> {
+    let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? else {
+        return Err(OxenError::basic_str("Error: head commit not found"));
+    };
+    let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
+    let mut committed = Vec::with_capacity(paths.len());
+    for path in paths {
+        let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
+        let parent_path = relative_path.parent().unwrap_or(Path::new(""));
+        let name = util::fs::path_relative_to_dir(&relative_path, parent_path)?;
+        let parent = CommitMerkleTree::dir_with_children(
+            repo,
+            &head_commit,
+            parent_path,
+            Some(&dir_hashes),
+        )?;
+        let Some(node) = parent
+            .map(|parent| parent.get_by_path(name))
+            .transpose()?
+            .flatten()
+        else {
+            let error = format!("{relative_path:?} is neither on disk nor committed");
+            return Err(OxenError::basic_str(error));
+        };
+        committed.push((relative_path, node));
+    }
+    stage_committed_removals(repo, &head_commit, &dir_hashes, committed, true, staged_db)
 }
 
 // We have the inner function here so we can open the staged db once
@@ -575,46 +599,14 @@ fn remove_inner(
 
     // Every committed path has a HEAD to have been found in
     if let Some(head_commit) = &head_commit {
-        for (path, node) in committed {
-            let full_path = repo.path.join(&path);
-            match &node.node {
-                EMerkleTreeNode::Directory(_) => {
-                    if opts.staged {
-                        // Drop everything staged under the directory, so files added since HEAD
-                        // unstage
-                        let mut batch = WriteBatch::default();
-                        for (entry_path, _) in staged_entries_under(&path, staged_db)? {
-                            batch.delete(entry_path.to_string_lossy().as_bytes());
-                        }
-                        staged_db.write(batch)?;
-                    }
-                    total +=
-                        remove_dir_inner(repo, head_commit, &path, Some(&dir_hashes), staged_db)?;
-                    // Remove dir from working directory, which the user might have removed
-                    // manually before using `oxen rm`
-                    if !opts.staged
-                        && full_path.exists()
-                        && full_path != repo.path
-                        && full_path != repo.path.join(OXEN_HIDDEN_DIR)
-                    {
-                        log::debug!("Removing directory: {full_path:?}");
-                        util::fs::remove_dir_all(&full_path)?;
-                        log::debug!("Successfully removed directory from filesystem");
-                    }
-                    // TODO: Currently, there's no way to avoid re-staging the parent dirs with glob
-                    // paths. Potentially, we can could a mutex global to all paths?
-                }
-                EMerkleTreeNode::File(file_node) => {
-                    total += remove_file_inner(repo, &path, file_node, staged_db)?;
-                    // user might have removed file manually before using `oxen rm`
-                    if !opts.staged && full_path.exists() {
-                        log::debug!("Removing file: {full_path:?}");
-                        util::fs::remove_file(&full_path)?;
-                    }
-                }
-                _ => return Err(OxenError::basic_str("Error: Unexpected file type")),
-            }
-        }
+        total += stage_committed_removals(
+            repo,
+            head_commit,
+            &dir_hashes,
+            committed,
+            opts.staged,
+            staged_db,
+        )?;
     }
 
     // Stop the timer, and round the duration to the nearest second
@@ -629,6 +621,50 @@ fn remove_inner(
         humantime::format_duration(duration)
     );
 
+    Ok(total)
+}
+
+/// Stages the removal of each committed path, given with its HEAD node, and deletes its working
+/// copy unless `keep_working_copy`.
+fn stage_committed_removals(
+    repo: &LocalRepository,
+    head_commit: &Commit,
+    dir_hashes: &HashMap<PathBuf, MerkleHash>,
+    committed: Vec<(PathBuf, MerkleTreeNode)>,
+    keep_working_copy: bool,
+    staged_db: &DB,
+) -> Result<CumulativeStats, OxenError> {
+    let mut total = CumulativeStats::default();
+    for (path, node) in committed {
+        let full_path = repo.path.join(&path);
+        match &node.node {
+            EMerkleTreeNode::Directory(_) => {
+                total += remove_dir_inner(repo, head_commit, &path, Some(dir_hashes), staged_db)?;
+                // Remove dir from working directory, which the user might have removed
+                // manually before using `oxen rm`
+                if !keep_working_copy
+                    && full_path.exists()
+                    && full_path != repo.path
+                    && full_path != repo.path.join(OXEN_HIDDEN_DIR)
+                {
+                    log::debug!("Removing directory: {full_path:?}");
+                    util::fs::remove_dir_all(&full_path)?;
+                    log::debug!("Successfully removed directory from filesystem");
+                }
+                // TODO: Currently, there's no way to avoid re-staging the parent dirs with glob
+                // paths. Potentially, we can could a mutex global to all paths?
+            }
+            EMerkleTreeNode::File(file_node) => {
+                total += remove_file_inner(repo, &path, file_node, staged_db)?;
+                // user might have removed file manually before using `oxen rm`
+                if !keep_working_copy && full_path.exists() {
+                    log::debug!("Removing file: {full_path:?}");
+                    util::fs::remove_file(&full_path)?;
+                }
+            }
+            _ => return Err(OxenError::basic_str("Error: Unexpected file type")),
+        }
+    }
     Ok(total)
 }
 
@@ -675,6 +711,13 @@ fn remove_dir_inner(
                 return Err(OxenError::basic_str(error));
             }
         };
+
+    // Drop everything staged under the directory, so files added since HEAD unstage
+    let mut batch = WriteBatch::default();
+    for (entry_path, _) in staged_entries_under(path, staged_db)? {
+        batch.delete(entry_path.to_string_lossy().as_bytes());
+    }
+    staged_db.write(batch)?;
 
     process_remove_dir(repo, path, &dir_node, staged_db)
 }

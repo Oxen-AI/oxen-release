@@ -553,8 +553,8 @@ impl WalkOutput {
 /// Read the entries of a directory (one stat-call per entry, parallelized via rayon),
 /// or wrap a single non-dir path. Bad-metadata entries are skipped with a debug log
 /// rather than failing the whole walk. A non-dir path whose metadata is unreadable
-/// (e.g. the user passed a path that's been deleted on disk — `rm_with_staged_db`
-/// runs status against just-deleted dirs to check for modifications) yields an empty
+/// (e.g. the user passed a path that's been deleted on disk — `oxen rm` runs status
+/// against just-deleted dirs to check for modifications) yields an empty
 /// list; the missing-file case is then surfaced by `walk_status`'s tree-side check
 /// for single-file paths (see the block guarded on `!is_dir && !full_path.exists()`).
 fn read_dir_entries(

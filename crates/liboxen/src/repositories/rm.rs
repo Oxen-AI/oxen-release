@@ -296,12 +296,23 @@ mod tests {
                 util::fs::remove_file(&repo_filepath)?;
             }
 
+            let added = images_dir.join("cat_4.jpg");
+            util::fs::write_to_path(&added, "cat 4")?;
+            repositories::add(&repo, &added).await?;
+
             let rm_opts = RmOpts {
                 paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
+            let status = repositories::status(&repo).await?;
+            assert!(
+                !status
+                    .staged_files
+                    .contains_key(&util::fs::path_relative_to_dir(&added, &repo.path)?),
+                "cat_4.jpg, staged under the removed directory, is unstaged with it"
+            );
             let commit = repositories::commit(&repo, "Removing cat images")?;
 
             for i in 1..=3 {
@@ -930,7 +941,7 @@ mod tests {
         .await
     }
 
-    /// Regression: `rm_with_staged_db`'s "modified files" safety check used to filter
+    /// Regression: `oxen rm`'s "modified files" safety check used to filter
     /// `status.modified_files` with `paths.contains(path.parent())`, which only caught
     /// modifications one level below a requested dir. A modification two-or-more levels
     /// down was silently dropped, so `oxen rm -r <dir>` proceeded and destroyed the
