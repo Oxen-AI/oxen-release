@@ -1,10 +1,11 @@
 use bytes::BytesMut;
 use filetime::FileTime;
 use futures::StreamExt;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLockWriteGuard};
 use reqwest::Client;
 use reqwest::header::HeaderValue;
 use reqwest::redirect;
+use rocksdb::DB;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs::File;
@@ -965,12 +966,7 @@ fn p_rm(workspace: &Workspace, path: &Path) -> Result<Vec<ErrorFileInfo>, OxenEr
             }
             unstage_entries_under(workspace, &relative_path, &committed)?;
         };
-    } else if !get_staged_db_manager(workspace_repo)?
-        .read_entries_under(&relative_path)?
-        .is_empty()
-    {
-        unstage_entries_under(workspace, &relative_path, &HashSet::new())?;
-    } else {
+    } else if !unstage_entries_under(workspace, &relative_path, &HashSet::new())? {
         // If the path has neither a file node or dir node in the tree, it cannot be staged for removal
         // Return as err_file
         err_files.push(ErrorFileInfo {
@@ -984,42 +980,42 @@ fn p_rm(workspace: &Workspace, path: &Path) -> Result<Vec<ErrorFileInfo>, OxenEr
 }
 
 /// Unstage every staged entry at or below `path` that is not in `committed`, then drop the
-/// staged-only directory markers above `path` left with nothing under them.
+/// staged-only directory markers above `path` left with nothing under them. Returns whether
+/// anything was staged at or below `path`.
 fn unstage_entries_under(
     workspace: &Workspace,
     path: &Path,
     committed: &HashSet<PathBuf>,
-) -> Result<(), OxenError> {
+) -> Result<bool, OxenError> {
     let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
-    for (entry_path, entry) in staged_db_manager.read_entries_under(path)? {
+    // One guard over the reads and the write: `begin_write` doesn't exclude other writers.
+    let db = staged_db_manager.lock_for_write();
+    let entries = staged_db_manager.read_entries_under_locked(&db, path)?;
+    if entries.is_empty() {
+        return Ok(false);
+    }
+    let mut batch = StagedWriteBatch::default();
+    for (entry_path, entry) in entries {
         if committed.contains(&entry_path) {
             continue;
         }
         if let EMerkleTreeNode::File(_) = &entry.node.node {
             unindex_if_staged_table(workspace, &entry_path)?;
         }
-        staged_db_manager.delete_entry(&entry_path)?;
+        batch.delete_entry(&entry_path);
     }
-    prune_empty_staged_dirs(workspace, &staged_db_manager, path)
+    prune_empty_staged_dirs(workspace, &staged_db_manager, &db, &mut batch, path)?;
+    staged_db_manager.write_batch_locked(&db, batch)?;
+    Ok(true)
 }
 
-/// Delete the staged directory markers above `path` that name no committed directory and have no
-/// staged entries left under them, so a commit does not create them as empty directories.
+/// Add to `batch` deletions of the staged directory markers above `path` that name no committed
+/// directory and will have no staged entries left under them once `batch` is written, so a commit
+/// does not create them as empty directories.
 fn prune_empty_staged_dirs(
     workspace: &Workspace,
     staged_db_manager: &StagedDBManager,
-    path: &Path,
-) -> Result<(), OxenError> {
-    let mut batch = StagedWriteBatch::default();
-    prune_empty_staged_dirs_in(workspace, staged_db_manager, &mut batch, path)?;
-    staged_db_manager.write_batch(batch)
-}
-
-/// [`prune_empty_staged_dirs`] against the staged db as it will be once `batch` is written,
-/// adding its deletions to `batch`.
-fn prune_empty_staged_dirs_in(
-    workspace: &Workspace,
-    staged_db_manager: &StagedDBManager,
+    db: &RwLockWriteGuard<DB>,
     batch: &mut StagedWriteBatch,
     path: &Path,
 ) -> Result<(), OxenError> {
@@ -1027,7 +1023,7 @@ fn prune_empty_staged_dirs_in(
         if dir == Path::new("")
             || repositories::tree::has_dir(&workspace.base_repo, &workspace.commit, dir)?
             || staged_db_manager
-                .read_entries_under_with(dir, batch)?
+                .read_entries_under_with_locked(db, dir, batch)?
                 .iter()
                 .any(|(entry_path, _)| entry_path != dir)
         {
@@ -1148,9 +1144,12 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     }
 
     let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
+    // One guard from the first read to the batch write: `begin_write` doesn't exclude other
+    // writers, so a stage landing in between would be overwritten or left behind by the move.
+    let db = staged_db_manager.lock_for_write();
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-    let staged_file = match staged_db_manager.read_from_staged_db(path)? {
+    let staged_file = match staged_db_manager.read_from_staged_db_locked(&db, path)? {
         // Moving it would restore content the workspace already deleted, as `mv_dir` and edits
         // to removed paths also refuse.
         Some(entry) if entry.status == StagedEntryStatus::Removed => {
@@ -1166,7 +1165,10 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     let source_exists_in_base = source_in_base.is_some();
 
     if let Some(file_node) = staged_file.or(source_in_base) {
-        if staged_db_manager.read_from_staged_db(new_path)?.is_some() {
+        if staged_db_manager
+            .read_from_staged_db_locked(&db, new_path)?
+            .is_some()
+        {
             return Err(OxenError::DestinationAlreadyStaged(
                 new_path.to_path_buf().into(),
             ));
@@ -1187,10 +1189,17 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
             dest_exists_in_base,
             &seen_dirs,
         )?;
-        return staged_db_manager.write_batch(batch);
+        return staged_db_manager.write_batch_locked(&db, batch);
     }
 
-    mv_dir(workspace, &staged_db_manager, path, new_path, &seen_dirs)
+    mv_dir(
+        workspace,
+        &staged_db_manager,
+        &db,
+        path,
+        new_path,
+        &seen_dirs,
+    )
 }
 
 /// Stage the move of one file, given its resolved node (staged, or else committed). The caller
@@ -1231,10 +1240,12 @@ fn mv_file_node(
 /// workspace, or both) to the same relative location under `new_path`.
 ///
 /// All or nothing: validation runs before any write, data frame indexes move next (and move back
-/// if one fails), and every staged-db change lands in one atomic batch.
+/// if one fails), and every staged-db change lands in one atomic batch. `db` is held throughout,
+/// so nothing called here may take the staged db lock again.
 fn mv_dir(
     workspace: &Workspace,
     staged_db_manager: &StagedDBManager,
+    db: &RwLockWriteGuard<DB>,
     path: &Path,
     new_path: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
@@ -1252,7 +1263,7 @@ fn mv_dir(
         }
     }
     let staged: HashMap<PathBuf, StagedMerkleTreeNode> = staged_db_manager
-        .read_entries_under(path)?
+        .read_entries_under_locked(db, path)?
         .into_iter()
         .collect();
 
@@ -1293,7 +1304,9 @@ fn mv_dir(
 
     // A committed destination staged for removal still has that staged entry, so this refuses it.
     if repositories::tree::get_node_by_path(base_repo, commit, new_path)?.is_some()
-        || !staged_db_manager.read_entries_under(new_path)?.is_empty()
+        || !staged_db_manager
+            .read_entries_under_locked(db, new_path)?
+            .is_empty()
     {
         return Err(OxenError::DestinationAlreadyStaged(
             new_path.to_path_buf().into(),
@@ -1310,7 +1323,10 @@ fn mv_dir(
     let mut moves: Vec<(&Path, PathBuf, &FileNode, bool)> = Vec::with_capacity(files.len());
     for (p, file_node, in_base) in &files {
         let dest = relocate(p)?;
-        if staged_db_manager.read_from_staged_db(&dest)?.is_some() {
+        if staged_db_manager
+            .read_from_staged_db_locked(db, &dest)?
+            .is_some()
+        {
             return Err(OxenError::DestinationAlreadyStaged(dest.into()));
         }
         moves.push((p, dest, file_node, *in_base));
@@ -1330,7 +1346,7 @@ fn mv_dir(
     // The moves above stage `Added` markers over the source directories. A committed directory
     // is staged as removed (as `rm` of a directory does), and a staged-only one is unstaged, so
     // the source does not survive the commit as an empty directory.
-    for (p, entry) in staged_db_manager.read_entries_under_with(path, &batch)? {
+    for (p, entry) in staged_db_manager.read_entries_under_with_locked(db, path, &batch)? {
         if is_dir(&entry.node) && !committed.contains_key(&p) {
             batch.delete_entry(&p);
         }
@@ -1354,10 +1370,13 @@ fn mv_dir(
         }
     }
     if committed.is_empty() {
-        prune_empty_staged_dirs_in(workspace, staged_db_manager, &mut batch, path)?;
+        prune_empty_staged_dirs(workspace, staged_db_manager, db, &mut batch, path)?;
     } else {
         batch.add_parent_directories(path, seen_dirs)?;
     }
+
+    #[cfg(test)]
+    tests::after_mv_dir_plan();
 
     // A data frame's staged edits live in its DuckDB index, keyed by path.
     let mut moved_indexes: Vec<(&Path, &Path)> = vec![];
@@ -1372,7 +1391,7 @@ fn mv_dir(
         moved_indexes.push((p, dest));
     }
 
-    if let Err(err) = staged_db_manager.write_batch(batch) {
+    if let Err(err) = staged_db_manager.write_batch_locked(db, batch) {
         restore_indexes(workspace, &moved_indexes);
         return Err(err);
     }
@@ -1386,5 +1405,96 @@ fn restore_indexes(workspace: &Workspace, moved: &[(&Path, &Path)]) {
         {
             log::error!("mv_dir: could not move the index for {dest:?} back to {path:?}: {err}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::path::Path;
+    use std::time::Duration;
+
+    use uuid::Uuid;
+
+    use crate::core::staged::staged_db_manager::get_staged_db_manager;
+    use crate::error::OxenError;
+    use crate::model::StagedEntryStatus;
+    use crate::repositories::{self, workspaces};
+    use crate::test;
+    use crate::util::fs;
+
+    thread_local! {
+        static AFTER_MV_DIR_PLAN: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+    }
+
+    /// Runs the hook a test set on this thread, after `mv_dir` has read the staged db and planned
+    /// its batch but before it writes.
+    pub(super) fn after_mv_dir_plan() {
+        if let Some(hook) = AFTER_MV_DIR_PLAN.with(|hook| hook.borrow_mut().take()) {
+            hook();
+        }
+    }
+
+    // A stage that arrives after the move has read the staged db waits for the move's batch, so
+    // the move neither overwrites nor discards it.
+    #[tokio::test]
+    async fn test_mv_dir_serializes_concurrent_stage() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            fs::write_to_path(repo.path.join("data/a.txt"), "A")?;
+            repositories::add(&repo, &repo.path).await?;
+            let commit = repositories::commit(&repo, "Add data")?;
+            let workspace =
+                repositories::workspaces::create(&repo, &commit, Uuid::new_v4().to_string(), true)?;
+            let new_file = workspace.workspace_repo.path.join("data/new.txt");
+            fs::write_to_path(&new_file, "new")?;
+            workspaces::files::add(&workspace, new_file).await?;
+
+            let new_path = Path::new("data/new.txt");
+            let staged = get_staged_db_manager(&workspace.workspace_repo)?
+                .read_from_staged_db(new_path)?
+                .unwrap();
+            let original = staged.node.file()?;
+            let mut restaged = original.clone();
+            restaged.set_last_modified(1, 2);
+
+            let workspace_repo = workspace.workspace_repo.clone();
+            let concurrent = restaged.clone();
+            let writer = std::sync::Arc::new(parking_lot::Mutex::new(None));
+            let writer_handle = writer.clone();
+            AFTER_MV_DIR_PLAN.with(|hook| {
+                *hook.borrow_mut() = Some(Box::new(move || {
+                    *writer_handle.lock() = Some(std::thread::spawn(move || {
+                        get_staged_db_manager(&workspace_repo)?.upsert_file_node(
+                            Path::new("data/new.txt"),
+                            StagedEntryStatus::Added,
+                            &concurrent,
+                        )?;
+                        Ok::<_, OxenError>(())
+                    }));
+                    // Give the writer time to reach the staged db before the move writes.
+                    std::thread::sleep(Duration::from_millis(200));
+                }));
+            });
+
+            super::mv_sync(&workspace, Path::new("data"), Path::new("moved"))?;
+            writer.lock().take().unwrap().join().unwrap()?;
+
+            let manager = get_staged_db_manager(&workspace.workspace_repo)?;
+            let at_old = manager.read_from_staged_db(new_path)?.unwrap();
+            assert_eq!(at_old.status, StagedEntryStatus::Added);
+            assert_eq!(at_old.node.file()?.last_modified_seconds(), 1);
+            let at_new = manager
+                .read_from_staged_db(Path::new("moved/new.txt"))?
+                .unwrap();
+            assert_eq!(
+                at_new.node.file()?.last_modified_seconds(),
+                original.last_modified_seconds()
+            );
+            Ok(())
+        })
+        .await
     }
 }

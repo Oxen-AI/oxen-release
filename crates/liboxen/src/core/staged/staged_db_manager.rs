@@ -9,7 +9,7 @@ use std::sync::{Arc, LazyLock};
 use std::thread::sleep;
 
 use indicatif::ProgressBar;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
 use rmp_serde::Serializer;
 use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use serde::Serialize;
@@ -166,6 +166,46 @@ fn serialize_staged_node(node: &StagedMerkleTreeNode) -> Result<Vec<u8>, OxenErr
     Ok(buf)
 }
 
+fn read_from_db(db: &DB, path: &Path) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let key = normalize_key(path);
+    let Some(data) = db.get(key.as_bytes())? else {
+        return Ok(None);
+    };
+    match rmp_serde::from_slice(&data) {
+        Ok(val) => Ok(Some(val)),
+        Err(e) => {
+            log::error!("Failed to deserialize data for key {key}: {e}");
+            Err(OxenError::basic_str(format!(
+                "Failed to deserialize staged data: {e}"
+            )))
+        }
+    }
+}
+
+fn read_entries_under_in(
+    db: &DB,
+    path: &Path,
+) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+    let prefix = normalize_key(path);
+    let mut entries = vec![];
+    for item in db.iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward)) {
+        let (key, value) = item?;
+        if !key.starts_with(prefix.as_bytes()) {
+            break;
+        }
+        let key = str::from_utf8(&key).map_err(|e| OxenError::basic_str(e.to_string()))?;
+        let entry_path = PathBuf::from(key);
+        if !entry_path.starts_with(path) {
+            continue;
+        }
+        match rmp_serde::from_slice::<StagedMerkleTreeNode>(&value) {
+            Ok(entry) => entries.push((entry_path, entry)),
+            Err(e) => log::error!("read_entries_under error decoding {key}: {e}"),
+        }
+    }
+    Ok(entries)
+}
+
 /// Staged-db writes collected in memory and applied together by
 /// [`StagedDBManager::write_batch`], so a concurrent reader sees all of them or none. A later
 /// write to a key replaces an earlier one. Keys and values match the per-call methods of the same
@@ -241,8 +281,24 @@ impl StagedWriteBatch {
 }
 
 impl StagedDBManager {
+    /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
+    /// interleave with. Pass the guard to the `*_locked` methods; calling any other method of this
+    /// manager while holding it deadlocks.
+    pub fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
+        self.staged_db.write()
+    }
+
     /// Apply every write in `batch` atomically.
     pub fn write_batch(&self, batch: StagedWriteBatch) -> Result<(), OxenError> {
+        self.write_batch_locked(&self.staged_db.write(), batch)
+    }
+
+    /// [`Self::write_batch`] under a guard from [`Self::lock_for_write`].
+    pub fn write_batch_locked(
+        &self,
+        db: &RwLockWriteGuard<DB>,
+        batch: StagedWriteBatch,
+    ) -> Result<(), OxenError> {
         let mut write_batch = WriteBatch::default();
         for (key, value) in batch.ops {
             match value {
@@ -250,18 +306,20 @@ impl StagedDBManager {
                 None => write_batch.delete(key.as_bytes()),
             }
         }
-        self.staged_db.write().write(write_batch)?;
+        db.write(write_batch)?;
         Ok(())
     }
 
-    /// [`Self::read_entries_under`] as it will read once `batch` is written.
-    pub fn read_entries_under_with(
+    /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`], as it will read
+    /// once `batch` is written.
+    pub fn read_entries_under_with_locked(
         &self,
+        db: &RwLockWriteGuard<DB>,
         path: &Path,
         batch: &StagedWriteBatch,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
         let mut entries: BTreeMap<PathBuf, StagedMerkleTreeNode> =
-            self.read_entries_under(path)?.into_iter().collect();
+            read_entries_under_in(db, path)?.into_iter().collect();
         for (key, value) in &batch.ops {
             let entry_path = PathBuf::from(key);
             if !entry_path.starts_with(path) {
@@ -518,22 +576,16 @@ impl StagedDBManager {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-        let key = normalize_key(&path);
+        read_from_db(&self.staged_db.read(), path.as_ref())
+    }
 
-        let db_r = self.staged_db.read();
-        let data = match db_r.get(key.as_bytes())? {
-            Some(d) => d,
-            None => return Ok(None),
-        };
-        match rmp_serde::from_slice(&data) {
-            Ok(val) => Ok(Some(val)),
-            Err(e) => {
-                log::error!("Failed to deserialize data for key {key}: {e}");
-                Err(OxenError::basic_str(format!(
-                    "Failed to deserialize staged data: {e}"
-                )))
-            }
-        }
+    /// [`Self::read_from_staged_db`] under a guard from [`Self::lock_for_write`].
+    pub fn read_from_staged_db_locked(
+        &self,
+        db: &RwLockWriteGuard<DB>,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+        read_from_db(db, path.as_ref())
     }
 
     /// Every staged entry at or below `path`, with its path. Undecodable entries are skipped.
@@ -541,25 +593,16 @@ impl StagedDBManager {
         &self,
         path: &Path,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-        let prefix = normalize_key(path);
-        let db = self.staged_db.read();
-        let mut entries = vec![];
-        for item in db.iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward)) {
-            let (key, value) = item?;
-            if !key.starts_with(prefix.as_bytes()) {
-                break;
-            }
-            let key = str::from_utf8(&key).map_err(|e| OxenError::basic_str(e.to_string()))?;
-            let entry_path = PathBuf::from(key);
-            if !entry_path.starts_with(path) {
-                continue;
-            }
-            match rmp_serde::from_slice::<StagedMerkleTreeNode>(&value) {
-                Ok(entry) => entries.push((entry_path, entry)),
-                Err(e) => log::error!("read_entries_under error decoding {key}: {e}"),
-            }
-        }
-        Ok(entries)
+        read_entries_under_in(&self.staged_db.read(), path)
+    }
+
+    /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`].
+    pub fn read_entries_under_locked(
+        &self,
+        db: &RwLockWriteGuard<DB>,
+        path: &Path,
+    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+        read_entries_under_in(db, path)
     }
 
     /// Read all entries below a path from the staged db
