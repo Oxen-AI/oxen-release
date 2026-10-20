@@ -10,7 +10,7 @@ use std::thread::sleep;
 use indicatif::ProgressBar;
 use parking_lot::{Mutex, RwLock};
 use rmp_serde::Serializer;
-use rocksdb::{DB, IteratorMode, WriteBatch};
+use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use serde::Serialize;
 
 use crate::constants::STAGED_DIR;
@@ -411,6 +411,32 @@ impl StagedDBManager {
                 )))
             }
         }
+    }
+
+    /// Every staged entry at or below `path`, with its path. Undecodable entries are skipped.
+    pub fn read_entries_under(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+        let prefix = normalize_key(path);
+        let db = self.staged_db.read();
+        let mut entries = vec![];
+        for item in db.iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward)) {
+            let (key, value) = item?;
+            if !key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let key = str::from_utf8(&key).map_err(|e| OxenError::basic_str(e.to_string()))?;
+            let entry_path = PathBuf::from(key);
+            if !entry_path.starts_with(path) {
+                continue;
+            }
+            match rmp_serde::from_slice::<StagedMerkleTreeNode>(&value) {
+                Ok(entry) => entries.push((entry_path, entry)),
+                Err(e) => log::error!("read_entries_under error decoding {key}: {e}"),
+            }
+        }
+        Ok(entries)
     }
 
     /// Read all entries below a path from the staged db

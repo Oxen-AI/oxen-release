@@ -299,6 +299,10 @@ pub enum OxenError {
     #[error("Expected a file path, but the path is empty")]
     EmptyPath,
 
+    /// A move or rename targeted its own source path or a path inside it.
+    #[error("Cannot move {0} into itself")]
+    MoveIntoItself(PathBufError),
+
     /// A move or rename targeted a path that already has a staged entry.
     #[error("Destination already staged: {0}")]
     DestinationAlreadyStaged(PathBufError),

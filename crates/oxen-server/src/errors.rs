@@ -555,6 +555,19 @@ impl error::ResponseError for OxenHttpError {
                         });
                         HttpResponse::UnprocessableEntity().json(error_json)
                     }
+                    OxenError::MoveIntoItself(path) => {
+                        log::warn!("Move refused, destination is the source or inside it: {path}");
+                        let error_json = json!({
+                            "error": {
+                                "type": "move_into_itself",
+                                "title": "Cannot move a path into itself",
+                                "detail": format!("{path} cannot be moved to itself or to a path inside it."),
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::BadRequest().json(error_json)
+                    }
                     OxenError::DestinationAlreadyStaged(path) => {
                         log::warn!("Move refused, destination already staged: {path}");
                         let error_json = json!({
@@ -1388,6 +1401,10 @@ mod tests {
             (
                 OxenError::DestinationAlreadyStaged(PathBuf::from("a.txt").into()),
                 StatusCode::CONFLICT,
+            ),
+            (
+                OxenError::MoveIntoItself(PathBuf::from("a").into()),
+                StatusCode::BAD_REQUEST,
             ),
         ];
 

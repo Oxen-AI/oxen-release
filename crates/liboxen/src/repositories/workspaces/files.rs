@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 pub use crate::core::v_latest::workspaces::files::exists;
 
+pub use crate::core::v_latest::workspaces::files::is_dir;
+
 pub use crate::core::v_latest::workspaces::files::add;
 
 pub use crate::core::v_latest::workspaces::files::rm;
@@ -38,11 +40,15 @@ pub use crate::core::v_latest::workspaces::files::mv;
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    use uuid::Uuid;
 
     use crate::config::UserConfig;
+    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::core::staged::staged_db_manager::get_staged_db_manager;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
+    use crate::model::{Commit, LocalRepository, NewCommitBody, StagedEntryStatus, Workspace};
     use crate::repositories::size;
     use crate::repositories::{self, workspaces};
     use crate::test;
@@ -293,6 +299,290 @@ mod tests {
                 "the intermediate path was never committed, so it is unstaged rather than \
                  staged for removal"
             );
+
+            Ok(())
+        })
+        .await
+    }
+    fn body(message: &str) -> NewCommitBody {
+        NewCommitBody {
+            message: message.to_string(),
+            author: "Bessie".to_string(),
+            email: "bessie@oxen.ai".to_string(),
+        }
+    }
+
+    // Commits data/a.txt, data/sub/b.txt and other.txt, and returns an editable workspace on it.
+    async fn dir_workspace(repo: &LocalRepository) -> Result<Workspace, OxenError> {
+        for (path, content) in [
+            ("data/a.txt", "A"),
+            ("data/sub/b.txt", "B"),
+            ("other.txt", "Other"),
+        ] {
+            fs::write_to_path(repo.path.join(path), content)?;
+        }
+        repositories::add(repo, &repo.path).await?;
+        let commit = repositories::commit(repo, "Add data")?;
+        repositories::workspaces::create(repo, &commit, Uuid::new_v4().to_string(), true)
+    }
+
+    async fn stage_new_file(workspace: &Workspace, path: &str) -> Result<(), OxenError> {
+        let path = workspace.workspace_repo.path.join(path);
+        fs::write_to_path(&path, "new")?;
+        workspaces::files::add(workspace, path).await?;
+        Ok(())
+    }
+
+    fn staged_status(workspace: &Workspace, path: &str) -> Option<StagedEntryStatus> {
+        workspaces::status::status(workspace)
+            .unwrap()
+            .staged_files
+            .get(Path::new(path))
+            .map(|entry| entry.status.clone())
+    }
+
+    fn assert_files(repo: &LocalRepository, commit: &Commit, present: &[&str], absent: &[&str]) {
+        for path in present {
+            assert!(
+                repositories::tree::get_file_by_path(repo, commit, path)
+                    .unwrap()
+                    .is_some(),
+                "{path} should be in the commit"
+            );
+        }
+        for path in absent {
+            assert!(
+                repositories::tree::get_node_by_path(repo, commit, path)
+                    .unwrap()
+                    .is_none(),
+                "{path} should not be in the commit"
+            );
+            assert!(
+                !repositories::tree::has_dir(repo, commit, path).unwrap(),
+                "{path} should not be a directory in the commit"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mv_committed_dir_with_nested_subdir() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+
+            workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await?;
+
+            assert_eq!(
+                staged_status(&workspace, "data/a.txt"),
+                Some(StagedEntryStatus::Removed)
+            );
+            assert_eq!(
+                staged_status(&workspace, "data/sub/b.txt"),
+                Some(StagedEntryStatus::Removed)
+            );
+            assert_eq!(
+                staged_status(&workspace, "moved/a.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+            assert_eq!(
+                staged_status(&workspace, "moved/sub/b.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+
+            let commit =
+                workspaces::commit(&workspace, &body("Move data"), DEFAULT_BRANCH_NAME).await?;
+            assert_files(
+                &repo,
+                &commit,
+                &["moved/a.txt", "moved/sub/b.txt", "other.txt"],
+                &["data", "data/sub", "data/a.txt", "data/sub/b.txt"],
+            );
+            assert!(repositories::tree::has_dir(&repo, &commit, "moved/sub")?);
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Files added in the workspace move with the directory, and a file staged for removal stays
+    // removed rather than reappearing under the new path.
+    #[tokio::test]
+    async fn test_mv_dir_with_committed_and_staged_only_files() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+            stage_new_file(&workspace, "data/fresh/deep.txt").await?;
+            workspaces::files::rm(&workspace, &[PathBuf::from("data/a.txt")]).await?;
+
+            workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await?;
+
+            assert_eq!(staged_status(&workspace, "data/new.txt"), None);
+            assert_eq!(staged_status(&workspace, "data/fresh/deep.txt"), None);
+            assert_eq!(staged_status(&workspace, "moved/a.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "moved/new.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+            assert_eq!(
+                staged_status(&workspace, "moved/fresh/deep.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+
+            let commit =
+                workspaces::commit(&workspace, &body("Move data"), DEFAULT_BRANCH_NAME).await?;
+            assert_files(
+                &repo,
+                &commit,
+                &["moved/new.txt", "moved/fresh/deep.txt", "moved/sub/b.txt"],
+                &["data", "data/fresh", "moved/a.txt"],
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_mv_staged_only_dir() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            stage_new_file(&workspace, "outer/fresh/x.txt").await?;
+            stage_new_file(&workspace, "outer/fresh/deep/y.txt").await?;
+
+            workspaces::files::mv(&workspace, Path::new("outer/fresh"), Path::new("renamed"))
+                .await?;
+
+            let commit =
+                workspaces::commit(&workspace, &body("Move fresh"), DEFAULT_BRANCH_NAME).await?;
+            assert_files(
+                &repo,
+                &commit,
+                &["renamed/x.txt", "renamed/deep/y.txt", "data/a.txt"],
+                &["outer", "outer/fresh"],
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_mv_dir_refuses_bad_destinations() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            stage_new_file(&workspace, "staged/z.txt").await?;
+
+            for dest in ["other.txt", "staged"] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new("data"), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::DestinationAlreadyStaged(_))),
+                    "moving onto {dest} should be refused, got {result:?}"
+                );
+            }
+            for dest in ["data", "data/sub/inner"] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new("data"), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::MoveIntoItself(_))),
+                    "moving into {dest} should be refused, got {result:?}"
+                );
+            }
+            let result =
+                workspaces::files::mv(&workspace, Path::new("nope"), Path::new("elsewhere")).await;
+            assert!(
+                matches!(result, Err(OxenError::PathDoesNotExist(_))),
+                "a missing source should be refused, got {result:?}"
+            );
+
+            assert_eq!(staged_status(&workspace, "data/a.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "staged/z.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Removing a directory also unstages the files added under it in the workspace, so the commit
+    // does not bring the directory back.
+    #[tokio::test]
+    async fn test_rm_dir_drops_staged_only_files() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+            stage_new_file(&workspace, "data/fresh/deep.txt").await?;
+
+            let err_files = workspaces::files::rm(&workspace, &[PathBuf::from("data")]).await?;
+            assert!(err_files.is_empty(), "{err_files:?}");
+            assert_eq!(staged_status(&workspace, "data/new.txt"), None);
+            assert_eq!(staged_status(&workspace, "data/fresh/deep.txt"), None);
+
+            let commit =
+                workspaces::commit(&workspace, &body("Remove data"), DEFAULT_BRANCH_NAME).await?;
+            assert_files(
+                &repo,
+                &commit,
+                &["other.txt"],
+                &["data", "data/new.txt", "data/fresh"],
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    // A path that exists only in the workspace is unstaged; only a path with nothing at it fails.
+    #[tokio::test]
+    async fn test_rm_staged_only_paths() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let workspace = dir_workspace(&repo).await?;
+            stage_new_file(&workspace, "outer/fresh/x.txt").await?;
+            stage_new_file(&workspace, "outer/fresh/deep/y.txt").await?;
+            stage_new_file(&workspace, "lone.txt").await?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+
+            let err_files = workspaces::files::rm(
+                &workspace,
+                &[
+                    PathBuf::from("outer/fresh"),
+                    PathBuf::from("lone.txt"),
+                    PathBuf::from("data/new.txt"),
+                ],
+            )
+            .await?;
+            assert!(err_files.is_empty(), "{err_files:?}");
+
+            // Markers on committed directories may stay; nothing else should.
+            let left: Vec<PathBuf> = get_staged_db_manager(&workspace.workspace_repo)?
+                .read_entries_under(Path::new(""))?
+                .into_iter()
+                .map(|(path, _)| path)
+                .filter(|path| path != Path::new("") && path != Path::new("data"))
+                .collect();
+            assert!(left.is_empty(), "nothing should be left staged: {left:?}");
+
+            let err_files = workspaces::files::rm(&workspace, &[PathBuf::from("nope")]).await?;
+            assert_eq!(err_files.len(), 1);
 
             Ok(())
         })

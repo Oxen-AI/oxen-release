@@ -377,7 +377,9 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
     }
 
     // For tabular files, use the data_frames rename instead
-    if util::fs::is_tabular(&path) {
+    if util::fs::is_tabular(&path)
+        && !repositories::workspaces::files::is_dir(&workspace, &path).await?
+    {
         repositories::workspaces::data_frames::rename(&workspace, &path, &new_path).await?;
     } else {
         repositories::workspaces::files::mv(&workspace, &path, &new_path).await?;
@@ -581,6 +583,69 @@ mod tests {
         assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
 
         // cleanup
+        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
+        Ok(())
+    }
+
+    // A directory named like a tabular file moves as a directory, not through the data frame
+    // rename, whether it is committed or exists only as staged files.
+    #[actix_web::test]
+    async fn test_mv_directory_with_tabular_name() -> Result<(), OxenError> {
+        liboxen::test::init_test_env();
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Mv-Tabular-Dir";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+
+        util::fs::write_to_path(repo.path.join("exports.csv/a.txt"), "A")?;
+        util::fs::write_to_path(repo.path.join("exports.csv/b.csv"), "x,y\n1,2\n")?;
+        repositories::add(&repo, &repo.path).await?;
+        let commit = repositories::commit(&repo, "Add exports")?;
+
+        let workspace_id = uuid::Uuid::new_v4().to_string();
+        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, true)?;
+        let fresh = workspace.workspace_repo.path.join("fresh.csv/x.txt");
+        util::fs::write_to_path(&fresh, "X")?;
+        repositories::workspaces::files::add(&workspace, &fresh).await?;
+
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData::new(sync_dir.clone()))
+                .route(
+                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
+                    web::patch().to(controllers::workspaces::files::mv),
+                ),
+        )
+        .await;
+
+        for (path, new_path) in [("exports.csv", "renamed"), ("fresh.csv", "fresh_renamed")] {
+            let uri =
+                format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}");
+            let req = actix_web::test::TestRequest::patch()
+                .uri(&uri)
+                .set_payload(format!(r#"{{"new_path": "{new_path}"}}"#))
+                .to_request();
+            let resp = actix_web::test::call_service(&app, req).await;
+            assert_eq!(
+                resp.status(),
+                actix_web::http::StatusCode::OK,
+                "moving {path} to {new_path}"
+            );
+        }
+
+        let status = repositories::workspaces::status::status(&workspace)?;
+        for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
+            assert_eq!(
+                status
+                    .staged_files
+                    .get(std::path::Path::new(path))
+                    .map(|entry| entry.status.clone()),
+                Some(liboxen::model::StagedEntryStatus::Added),
+                "{path} should be staged as added"
+            );
+        }
+
+        drop((app, workspace));
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
         Ok(())
     }

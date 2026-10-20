@@ -526,25 +526,7 @@ pub async fn rename(
         let path = path.clone();
         let new_path = new_path.clone();
         spawn_blocking(move || -> Result<ControlFlow<PathBuf, _>, OxenError> {
-            // Handle duckdb file operations first
-            let og_db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, &path);
-            let og_db_path_parent = db_parent(&og_db_path)?;
-            let new_db_path =
-                repositories::workspaces::data_frames::duckdb_path(&workspace, &new_path);
-            let new_db_path_parent = db_parent(&new_db_path)?;
-
-            // The source database is closed and held while its files are copied and removed, so
-            // nothing can write into a database that is about to be deleted. Closing checkpoints
-            // the WAL into the database file first, so the copy carries a whole database and no
-            // WAL file that would be replayed against the copy.
-            with_db_closed(&og_db_path, || -> Result<(), OxenError> {
-                if !new_db_path_parent.exists() {
-                    util::fs::create_dir_all(new_db_path_parent)?;
-                }
-                util::fs::copy_dir_all(og_db_path_parent, new_db_path_parent)?;
-                util::fs::remove_dir_all(og_db_path_parent)?;
-                Ok(())
-            })?;
+            move_index(&workspace, &path, &new_path)?;
 
             let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
             if let Some(staged_entry) = staged_db_manager.read_from_staged_db(&path)? {
@@ -662,6 +644,31 @@ fn move_staged_entry(
 }
 
 /// The directory holding a data frame's DuckDB database.
+/// Move the DuckDB index of the data frame at `path` to `new_path`'s index location.
+pub(crate) fn move_index(
+    workspace: &Workspace,
+    path: &Path,
+    new_path: &Path,
+) -> Result<(), OxenError> {
+    let og_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let og_db_path_parent = db_parent(&og_db_path)?;
+    let new_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, new_path);
+    let new_db_path_parent = db_parent(&new_db_path)?;
+
+    // The source database is closed and held while its files are copied and removed, so
+    // nothing can write into a database that is about to be deleted. Closing checkpoints
+    // the WAL into the database file first, so the copy carries a whole database and no
+    // WAL file that would be replayed against the copy.
+    with_db_closed(&og_db_path, || -> Result<(), OxenError> {
+        if !new_db_path_parent.exists() {
+            util::fs::create_dir_all(new_db_path_parent)?;
+        }
+        util::fs::copy_dir_all(og_db_path_parent, new_db_path_parent)?;
+        util::fs::remove_dir_all(og_db_path_parent)?;
+        Ok(())
+    })
+}
+
 fn db_parent(db_path: &Path) -> Result<&Path, OxenError> {
     db_path
         .parent()
