@@ -161,7 +161,7 @@ pub fn get_file_metadata_with_extension(
                 Ok(None)
             }
         },
-        EntryDataType::Audio => match audio::get_metadata(path) {
+        EntryDataType::Audio => match audio::get_metadata(path.as_ref(), extension) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataAudio(metadata))),
             Err(err) => {
                 log::warn!("could not compute audio metadata: {err}");
