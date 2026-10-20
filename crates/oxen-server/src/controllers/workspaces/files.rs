@@ -1,32 +1,32 @@
 use crate::errors::OxenHttpError;
-use crate::helpers::{file_stream_response, get_repo, get_repo_async};
+use crate::helpers::{
+    BodyEncoding, file_stream_response, get_repo, get_repo_async, spool_to_temp_file,
+};
 use crate::params::{app_data, path_param};
 use crate::tasks;
 
-use liboxen::constants::stream_segment_size;
-use liboxen::core;
+use liboxen::constants::{MAX_FILE_SIZE, stream_segment_size};
 use liboxen::core::repo_locks;
 use liboxen::core::staged::get_staged_db_manager;
+use liboxen::core::v_latest::workspaces::files::{VersionFileCopy, add_version_files_from};
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
 use liboxen::model::merkle_tree::node::EMerkleTreeNode;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::metadata::metadata_video::VideoThumbnail;
+use liboxen::model::{LocalRepository, MerkleHash};
 use liboxen::repositories;
+use liboxen::storage::LocalFilePath;
 use liboxen::util;
-use liboxen::util::hasher;
 use liboxen::view::workspaces::RenameRequest;
-use liboxen::view::{
-    ErrorFileInfo, FilePathsResponse, FileWithHash, StatusMessage, StatusMessageDescription,
-};
+use liboxen::view::{FilePathsResponse, StatusMessage, StatusMessageDescription};
 
 use actix_multipart::Multipart;
-use actix_web::Error;
 use actix_web::{HttpRequest, HttpResponse, web};
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::task::{JoinError, JoinSet};
 use utoipa;
 
 #[derive(utoipa::ToSchema)]
@@ -217,38 +217,19 @@ pub async fn add(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, O
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    let (upload_files, err_files) = save_parts(payload, &repo).await?;
-    log::debug!("Save multiparts found {} err_files", err_files.len());
-    log::debug!(
-        "Calling add version files from the core workspace logic with {} files",
-        upload_files.len(),
-    );
+    let received = save_parts(payload, &repo, &directory, &workspace.dir()).await?;
+    log::debug!("Stored {} files", received.len());
 
-    let mut files_to_stage = Vec::with_capacity(upload_files.len());
-    for upload_file in upload_files {
-        // The multipart filename is the staging path relative to `directory`. `workspace_staged_path`
-        // joins and normalizes both (preserving subdirectories, rejecting absolute paths and `..`
-        // traversal from either the untrusted `directory` or the filename, collapsing an empty or `.`
-        // directory to the workspace root) -- the client reconciles against the same helper.
-        let dst_path = match util::fs::workspace_staged_path(&directory, &upload_file.path) {
-            Ok(dst_path) => dst_path,
-            Err(e) => {
-                return Err(OxenHttpError::BadRequest(
-                    format!(
-                        "Invalid staging path (directory {directory:?}, file {:?}): {e}",
-                        upload_file.path
-                    )
-                    .into(),
-                ));
-            }
-        };
-        files_to_stage.push((dst_path, upload_file.hash));
-    }
-
-    // Stage the whole batch under one staged-db handle rather than reopening it per file.
-    let (ret_files, stage_err_files) =
-        core::v_latest::workspaces::files::add_version_files_at_paths(&workspace, files_to_stage)
-            .await?;
+    // Stage from the local copies, which stay readable until `received` drops after staging.
+    let files_to_stage = received
+        .iter()
+        .map(|file| VersionFileCopy {
+            dst_path: file.dst_path.clone(),
+            hash: file.hash,
+            data_path: file.copy.to_path_buf(),
+        })
+        .collect();
+    let (ret_files, stage_err_files) = add_version_files_from(&workspace, files_to_stage).await?;
     for err in &stage_err_files {
         log::error!("Error staging file {:?}: {}", err.path, err.error);
     }
@@ -405,148 +386,132 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
 
-// Read the payload files into memory, compute the hash, and save to version store
-// Unlike controllers::versions::save_multiparts, the hash must be computed here,
-// As this function expects the filename to be the file path, not the hash
-pub async fn save_parts(
+/// A file received in a multipart upload and stored, with a local copy of its bytes to stage from.
+struct ReceivedFile {
+    dst_path: PathBuf,
+    hash: MerkleHash,
+    copy: LocalFilePath,
+    /// The part's position among the upload's file parts.
+    part_index: usize,
+}
+
+/// Write each file part of `payload` to a temporary file in `dir`, gunzipping a gzipped part, and
+/// store the files in the repository's version store, several at once. A part's filename is its
+/// path relative to `directory`.
+///
+/// Returns the files stored, in the order their parts arrived. A part that fails to arrive or to
+/// store is logged and left out.
+async fn save_parts(
     mut payload: Multipart,
     repo: &LocalRepository,
-) -> Result<(Vec<FileWithHash>, Vec<ErrorFileInfo>), Error> {
-    // Receive a multipart request and save the files to the version store
+    directory: &str,
+    dir: &Path,
+) -> Result<Vec<ReceivedFile>, OxenHttpError> {
     let version_store = repo.version_store();
-    let gzip_mime: mime::Mime = "application/gzip".parse().unwrap();
+    let max_in_flight = util::concurrency::default_num_threads() * 4;
+    let mut in_flight: JoinSet<Option<ReceivedFile>> = JoinSet::new();
+    let mut received = vec![];
+    let mut part_count = 0;
 
-    let mut upload_files: Vec<FileWithHash> = vec![];
-    let mut err_files: Vec<ErrorFileInfo> = vec![];
-
-    while let Some(mut field) = payload.try_next().await? {
+    while let Some(field) = payload
+        .try_next()
+        .await
+        .map_err(|_| OxenHttpError::FailedToReadRequestPayload)?
+    {
         let Some(content_disposition) = field.content_disposition().cloned() else {
             continue;
         };
-
-        if let Some(name) = content_disposition.get_name()
-            && (name == "file[]" || name == "file")
-        {
-            // The file path is passed in as the filename
-            let upload_filename = content_disposition.get_filename().map_or_else(
-                || {
-                    Err(actix_web::error::ErrorBadRequest(
-                        "Missing hash in multipart request",
-                    ))
-                },
-                |fhash_os_str| Ok(fhash_os_str.to_string()),
-            )?;
-
-            let mut field_bytes = Vec::new();
-            while let Some(chunk) = field.try_next().await? {
-                field_bytes.extend_from_slice(&chunk);
+        if !matches!(content_disposition.get_name(), Some("file[]" | "file")) {
+            continue;
+        }
+        let Some(filename) = content_disposition.get_filename() else {
+            return Err(OxenHttpError::BadRequest(
+                "Missing filename in multipart request".into(),
+            ));
+        };
+        // `workspace_staged_path` joins and normalizes both, preserving subdirectories, rejecting
+        // absolute paths and `..` traversal from either the untrusted `directory` or the filename,
+        // and collapsing an empty or `.` directory to the workspace root. The client reconciles
+        // against the same helper.
+        let dst_path =
+            util::fs::workspace_staged_path(directory, Path::new(filename)).map_err(|e| {
+                OxenHttpError::BadRequest(
+                    format!(
+                        "Invalid staging path (directory {directory:?}, file {filename:?}): {e}"
+                    )
+                    .into(),
+                )
+            })?;
+        let part_index = part_count;
+        part_count += 1;
+        let is_gzipped = field
+            .content_type()
+            .map(|mime| mime.type_() == mime::APPLICATION && mime.subtype() == "gzip")
+            .unwrap_or(false);
+        let encoding = if is_gzipped {
+            BodyEncoding::Gzip {
+                max_decompressed: stream_segment_size(),
             }
+        } else {
+            BodyEncoding::Plain
+        };
 
-            let is_gzipped = field
-                .content_type()
-                .map(|mime| {
-                    mime.type_() == gzip_mime.type_() && mime.subtype() == gzip_mime.subtype()
-                })
-                .unwrap_or(false);
-
-            let upload_filename_copy = upload_filename.clone();
-
-            let (upload_filehash, data_to_store) = match tasks::spawn_blocking_per_item(
-                move || -> Result<(String, Vec<u8>), OxenError> {
-                    let data = if is_gzipped {
-                        log::debug!(
-                            "Decompressing gzipped data for file: {upload_filename_copy:?}"
-                        );
-                        util::compression::decompress_gzip_capped(
-                            &field_bytes,
-                            stream_segment_size(),
-                        )?
-                    } else {
-                        log::debug!("Data for file {upload_filename_copy:?} is not gzipped.");
-                        field_bytes
-                    };
-                    let hash = hasher::hash_buffer(&data);
-                    Ok((hash, data))
-                },
-            )
-            .await
-            {
-                Ok(Ok((hash, data))) => (hash, data),
-                Ok(Err(e)) => {
-                    log::error!(
-                        "Failed to decompress data for file {}: {:?}",
-                        upload_filename,
-                        e
-                    );
-                    record_error_file(
-                        &mut err_files,
-                        upload_filename.clone(),
-                        None,
-                        format!("Failed to decompress data: {e:?}"),
-                    );
-                    continue;
-                }
+        let spooled =
+            match spool_to_temp_file(field, dir.to_path_buf(), MAX_FILE_SIZE, encoding).await? {
+                Ok(spooled) => spooled,
                 Err(e) => {
-                    log::error!(
-                        "Failed to execute blocking decompression task for file {}: {}",
-                        upload_filename,
-                        e
-                    );
-                    record_error_file(
-                        &mut err_files,
-                        upload_filename.clone(),
-                        None,
-                        format!("Failed to execute blocking decompression: {e}"),
-                    );
+                    log::error!("Failed to receive {dst_path:?}: {e}");
                     continue;
                 }
             };
 
-            match version_store
-                .store_version(&upload_filehash, data_to_store.into())
-                .await
-            {
-                Ok(_) => {
-                    upload_files.push(FileWithHash {
-                        hash: upload_filehash.to_string(),
-                        path: upload_filename.into(),
-                    });
-                    log::debug!("Successfully stored version for hash: {upload_filehash}");
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to store version for hash {}: {}",
-                        upload_filehash,
-                        e
-                    );
-                    record_error_file(
-                        &mut err_files,
-                        upload_filehash.clone(),
-                        None,
-                        format!("Failed to store version: {e}"),
-                    );
-                    continue;
-                }
+        // Bound the stores in flight before dispatching the next one.
+        while in_flight.len() >= max_in_flight {
+            if let Some(result) = in_flight.join_next().await {
+                received.extend(store_task_result(result)?);
             }
         }
+
+        let version_store = Arc::clone(&version_store);
+        in_flight.spawn(tasks::inherit_hub(async move {
+            let hash = spooled.hash;
+            match version_store
+                .store_version_from_temp_file(hash, spooled.file, spooled.len)
+                .await
+            {
+                Ok(copy) => Some(ReceivedFile {
+                    dst_path,
+                    hash,
+                    copy,
+                    part_index,
+                }),
+                Err(e) => {
+                    log::error!("Failed to store {dst_path:?} as version {hash}: {e}");
+                    None
+                }
+            }
+        }));
     }
 
-    Ok((upload_files, err_files))
+    while let Some(result) = in_flight.join_next().await {
+        received.extend(store_task_result(result)?);
+    }
+    // Stores finish in any order, and staging in arrival order keeps the last of two parts with
+    // one path.
+    received.sort_by_key(|file| file.part_index);
+
+    Ok(received)
 }
 
-// Record the error file info for retry
-fn record_error_file(
-    err_files: &mut Vec<ErrorFileInfo>,
-    filehash: String,
-    filepath: Option<PathBuf>,
-    error: String,
-) {
-    let info = ErrorFileInfo {
-        hash: filehash,
-        path: filepath,
-        error,
-    };
-    err_files.push(info);
+/// A finished store task's file, or `None` for a file it failed to store. A task that panicked
+/// fails the whole upload with a 500.
+fn store_task_result(
+    result: Result<Option<ReceivedFile>, JoinError>,
+) -> Result<Option<ReceivedFile>, OxenHttpError> {
+    result.map_err(|e| {
+        log::error!("version store task panicked: {e}");
+        OxenError::internal_error(format!("version store task panicked: {e}")).into()
+    })
 }
 
 #[cfg(test)]
@@ -558,7 +523,9 @@ mod tests {
     use actix_web::test::{TestRequest, call_service, read_body};
     use actix_web::{App, web};
     use liboxen::constants::stream_segment_size;
+    use liboxen::core::staged::get_staged_db_manager;
     use liboxen::error::OxenError;
+    use liboxen::model::merkle_tree::node::EMerkleTreeNode;
     use liboxen::repositories;
     use liboxen::util;
     use liboxen::view::FilePathsResponse;
@@ -566,7 +533,7 @@ mod tests {
         BeginVersionUploadRequest, CompleteVersionUploadRequest, CompletedFileUpload,
         VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
     };
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use actix_multipart::test::create_form_data_payload_and_headers;
     use actix_web::web::Bytes;
@@ -1135,21 +1102,44 @@ mod tests {
         encoder.write_all(&decompressed)?;
         let gzipped = encoder.finish()?;
 
-        let (body, headers) = create_form_data_payload_and_headers(
-            "file[]",
-            Some("bomb.bin".to_string()),
-            Some("application/gzip".parse::<mime::Mime>().unwrap()),
-            Bytes::from(gzipped),
-        );
+        // Two valid gzipped parts for one path follow the bomb, to check one refused part leaves
+        // the rest, and that the later of two parts for one path is the one staged.
+        let gzip = |content: &[u8]| -> std::io::Result<Vec<u8>> {
+            let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(content)?;
+            encoder.finish()
+        };
+        let after = gzip(b"after the bomb")?;
+        let later = gzip(b"later for the same path")?;
+        let boundary = "test-bomb-boundary";
+        let mut body: Vec<u8> = Vec::new();
+        for (filename, part) in [
+            ("bomb.bin", &gzipped),
+            ("after.txt", &after),
+            ("after.txt", &later),
+        ] {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"file[]\"; filename=\"{filename}\"\r\n"
+                )
+                .as_bytes(),
+            );
+            body.extend_from_slice(b"Content-Type: application/gzip\r\n\r\n");
+            body.extend_from_slice(part);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
 
         let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/data");
 
         let req = actix_web::test::TestRequest::post()
             .uri(&uri)
-            .app_data(OxenAppData::new(sync_dir.to_path_buf()));
-        let req = headers
-            .into_iter()
-            .fold(req, |req, hdr| req.insert_header(hdr))
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
+            .insert_header((
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
             .set_payload(body)
             .to_request();
 
@@ -1165,16 +1155,32 @@ mod tests {
 
         let resp = actix_web::test::call_service(&app, req).await;
         // The endpoint drops the offending part rather than failing the whole request, so the
-        // response is still 200 but nothing is staged.
+        // response is still 200 and only the valid parts are staged.
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
 
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let response: FilePathsResponse = serde_json::from_slice(&bytes)?;
-        assert!(
-            response.paths.is_empty(),
-            "expected no staged paths for a rejected gzip bomb, got {:?}",
-            response.paths
+        assert_eq!(
+            response.paths,
+            vec![PathBuf::from("data/after.txt"); 2],
+            "only the parts after the rejected gzip bomb stage"
         );
+        // Scoped so the workspace's handles on the repository close before the cleanup below.
+        {
+            let workspace =
+                repositories::workspaces::get(&repo, &workspace_id)?.expect("the workspace exists");
+            let staged = get_staged_db_manager(&workspace.workspace_repo)?
+                .read_from_staged_db("data/after.txt")?
+                .expect("after.txt is staged");
+            let EMerkleTreeNode::File(file_node) = staged.node.node else {
+                panic!("after.txt is staged as a file");
+            };
+            assert_eq!(
+                file_node.hash().to_string(),
+                util::hasher::hash_buffer(b"later for the same path"),
+                "the later of two parts for one path is the one staged"
+            );
+        }
 
         // The decompressed content was never hashed or stored, so its blob must be absent.
         let bomb_hash = util::hasher::hash_buffer(&decompressed);

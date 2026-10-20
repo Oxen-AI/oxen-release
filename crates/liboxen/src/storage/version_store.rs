@@ -236,6 +236,23 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
         size: u64,
     ) -> Result<(), OxenError>;
 
+    /// Store `file`, whose `size` bytes hash to `hash`, as a version file, and return a local file
+    /// holding those bytes. The local store moves `file` into place and returns the version file,
+    /// and a remote store uploads it and returns `file` itself.
+    ///
+    /// **The returned file is read-only**, as with [`Self::materialize`].
+    async fn store_version_from_temp_file(
+        &self,
+        hash: MerkleHash,
+        file: tempfile::NamedTempFile,
+        size: u64,
+    ) -> Result<LocalFilePath, OxenError> {
+        let reader = tokio::fs::File::from_std(file.reopen()?);
+        self.store_version_from_reader(&hash.to_string(), Box::new(reader), size)
+            .await?;
+        Ok(LocalFilePath::Temp(file))
+    }
+
     /// Store a version file from bytes.
     ///
     /// The `data` must hash to `hash`; on mismatch the call rejects and stores nothing.

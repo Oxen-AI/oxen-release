@@ -197,6 +197,9 @@ pub const STREAM_SEGMENT_SIZE: u64 = 1024 * 1024 * 10;
 /// Standard buffer size for streaming I/O across the codebase — `BufReader` / `BufWriter`
 /// capacities, per-chunk sizes in Channel hand-off pipelines, and similar.
 pub const STREAMING_BUF_SIZE: usize = 10 * 1024 * 1024;
+/// The largest file an upload session or a workspace upload accepts, 1 TiB. This is provisional, to
+/// be raised when users need larger files.
+pub const MAX_FILE_SIZE: u64 = 1024 * 1024 * 1024 * 1024;
 // Allow up to N concurrent upload tasks
 /// Allow up to N concurrent upload tasks
 pub const MAX_CONCURRENT_UPLOADS: usize = 30;
