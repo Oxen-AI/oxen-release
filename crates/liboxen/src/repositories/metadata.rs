@@ -5,7 +5,6 @@ use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::merkle_tree::node::{DirNode, FileNode};
-use crate::model::metadata::MetadataDir;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::parsed_resource::ParsedResourceView;
 use crate::model::{Commit, LocalRepository, MetadataEntry};
@@ -29,10 +28,8 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         .file_name()
         .ok_or_else(|| OxenError::file_has_no_name(path))?;
     let size = get_file_size(path)?;
-    let mime_type = util::fs::file_mime_type(path);
-    let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
+    let (mime_type, data_type, metadata) = inspect_file(path, path)?;
     let extension = util::fs::file_extension(path);
-    let metadata = get_file_metadata(path, &data_type)?;
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
@@ -134,9 +131,31 @@ pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
     Ok(metadata.len())
 }
 
+/// Reads the MIME type, data type, and metadata of the file at `data_path`, whose name is
+/// `file_path`. Fails when the file cannot be opened or read, and gives no metadata for content
+/// that cannot be parsed.
+pub(crate) fn inspect_file(
+    data_path: &Path,
+    file_path: &Path,
+) -> Result<(String, EntryDataType, Option<GenericMetadata>), OxenError> {
+    let mut file =
+        File::open(data_path).map_err(|err| OxenError::file_open_error(data_path, err))?;
+    let head =
+        util::fs::read_head(&mut file).map_err(|err| OxenError::file_read_error(data_path, err))?;
+    let mime_type = util::fs::mime_type_from_head(&head, file_path);
+    let data_type = util::fs::data_type_from_head(&head, file_path, &mime_type);
+    let metadata = get_file_metadata_with_extension(
+        &mut file,
+        data_path,
+        &data_type,
+        &util::fs::file_extension(file_path),
+    )?;
+    Ok((mime_type, data_type, metadata))
+}
+
 /// Returns the metadata of a file of `data_type`, read from `data` and named with `extension`. A
 /// tabular file's metadata is read from `path` instead, which holds the same bytes as `data`.
-pub fn get_file_metadata_with_extension(
+fn get_file_metadata_with_extension(
     data: &mut (impl Read + Seek),
     path: &Path,
     data_type: &EntryDataType,
@@ -144,8 +163,6 @@ pub fn get_file_metadata_with_extension(
 ) -> Result<Option<GenericMetadata>, OxenError> {
     data.rewind()?;
     match data_type {
-        // dir should not be passed in here
-        EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir::new(vec![])))),
         EntryDataType::Text => match text::get_metadata(data) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
             Err(err) => {
@@ -203,25 +220,6 @@ pub fn get_file_metadata_with_extension(
         },
         _ => Ok(None),
     }
-}
-
-/// Returns metadata based on data_type, or none when the file at `path` cannot be opened
-pub fn get_file_metadata(
-    path: &Path,
-    data_type: &EntryDataType,
-) -> Result<Option<GenericMetadata>, OxenError> {
-    let mut file = match File::open(path) {
-        Ok(file) => file,
-        Err(err) => {
-            tracing::error!(
-                file.path = %path.display(),
-                exception.message = %err,
-                "Could not open a file to compute its metadata"
-            );
-            return Ok(None);
-        }
-    };
-    get_file_metadata_with_extension(&mut file, path, data_type, &util::fs::file_extension(path))
 }
 
 #[cfg(test)]

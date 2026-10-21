@@ -541,11 +541,9 @@ async fn compute_staged_merkle_tree_node(
             let num_bytes = metadata.len();
             let hash = MerkleHash::new(hash);
 
-            // Use the committed node's data type for the guard below: an empty export
-            // can mime-detect as non-tabular.
-            let mime_type = util::fs::file_mime_type(&path);
             log::debug!("compute_staged_merkle_tree_node path: {path:?}");
-            let mut metadata = repositories::metadata::get_file_metadata(&path, &data_type)?;
+            // The guard below keys on the committed node's data type, not the one detected here.
+            let (mime_type, _, mut metadata) = repositories::metadata::inspect_file(&path, &path)?;
             log::debug!("compute_staged_merkle_tree_node metadata: {metadata:?}");
 
             // A tabular file we cannot parse must never be committed: a FileNode with

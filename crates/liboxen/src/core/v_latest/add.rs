@@ -4,7 +4,6 @@ use par_stream::prelude::*;
 use parking_lot::Mutex;
 use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fs::File;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -873,7 +872,7 @@ fn process_add_file(
     }
 
     let (mime_type, data_type, metadata) =
-        inspect_file(&full_path, path, file_status.previous_metadata.as_ref())?;
+        inspect_file_for_staging(&full_path, path, file_status.previous_metadata.as_ref())?;
 
     let file_extension = relative_path
         .extension()
@@ -953,7 +952,7 @@ pub fn process_add_file_with_staged_db_manager(
     }
 
     let (mime_type, data_type, metadata) =
-        inspect_file(&full_path, path, file_status.previous_metadata.as_ref())?;
+        inspect_file_for_staging(&full_path, path, file_status.previous_metadata.as_ref())?;
 
     let file_extension = relative_path
         .extension()
@@ -1138,7 +1137,7 @@ pub fn generate_file_node(
     );
 
     // version_path is where the file is stored, relative_path is the working directory path that contains the file extension
-    let (mime_type, data_type, metadata) = inspect_file(
+    let (mime_type, data_type, metadata) = inspect_file_for_staging(
         version_path,
         &relative_path,
         file_status.previous_metadata.as_ref(),
@@ -1170,23 +1169,15 @@ pub fn generate_file_node(
     Ok(Some(file_node))
 }
 
-/// Reads the MIME type, data type, and metadata of the file at `data_path`, named by `file_path`,
-/// keeping the column metadata `previous_metadata` records for a tabular file.
-fn inspect_file(
+/// Reads the MIME type, data type, and metadata to stage for the file at `data_path`, whose name is
+/// `file_path`, keeping the column metadata `previous_metadata` records for a tabular file.
+fn inspect_file_for_staging(
     data_path: &Path,
     file_path: &Path,
     previous_metadata: Option<&GenericMetadata>,
 ) -> Result<(String, EntryDataType, Option<GenericMetadata>), OxenError> {
-    let mut file = File::open(data_path)?;
-    let head = util::fs::read_head(&mut file)?;
-    let mime_type = util::fs::mime_type_from_head(&head, file_path);
-    let mut data_type = util::fs::data_type_from_head(&head, file_path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata_with_extension(
-        &mut file,
-        data_path,
-        &data_type,
-        &util::fs::file_extension(file_path),
-    )?;
+    let (mime_type, mut data_type, metadata) =
+        repositories::metadata::inspect_file(data_path, file_path)?;
     let metadata = match previous_metadata {
         Some(previous_oxen_metadata) => {
             maybe_construct_generic_metadata_for_tabular(metadata, previous_oxen_metadata)

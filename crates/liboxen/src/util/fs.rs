@@ -1602,10 +1602,7 @@ pub(crate) fn classify_modified_from_node_with_metadata(
     // Mtime drifted but size matches — fall back to metadata hash, then content hash.
     let node_metadata_hash = node.metadata_hash();
     let file_metadata_hash = {
-        let mime_type = util::fs::file_mime_type(path);
-        let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
-
-        let file_metadata = repositories::metadata::get_file_metadata(path, &data_type)?;
+        let (_, _, file_metadata) = repositories::metadata::inspect_file(path, path)?;
         util::hasher::maybe_get_metadata_hash(&file_metadata)?
     };
 
