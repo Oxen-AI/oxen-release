@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 use utoipa::ToSchema;
 
 use crate::errors::OxenHttpError;
-use crate::helpers::{create_user_from_options, get_repo};
-use crate::params::{app_data, parse_resource, path_param, resource_param};
+use crate::helpers::{create_user_from_options, get_repo_async};
+use crate::params::{app_data, parse_resource_async, path_param, resource_param};
+use crate::tasks;
 
 use liboxen::core::repo_locks;
 use liboxen::core::v_latest::workspaces::files::decompress_zip;
@@ -16,6 +17,10 @@ use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
 use liboxen::model::file::TempFilePathNew;
 use liboxen::repositories;
+use liboxen::repositories::add::add_all;
+use liboxen::repositories::branches;
+use liboxen::repositories::commits::{commit_with_user, head_commit_maybe_async};
+use liboxen::repositories::tree::get_node_by_path_async;
 use liboxen::view::{CommitResponse, StatusMessage};
 
 #[derive(ToSchema, Deserialize)]
@@ -103,9 +108,9 @@ pub async fn import(
     let allow_loopback = app_data.test_mode;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repo = get_repo(app_data, namespace, &repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
-    let resource = parse_resource(&req, &repo)?;
+    let resource = parse_resource_async(&req, &repo).await?;
 
     // Resource must specify branch for committing the workspace
     let branch = resource
@@ -139,8 +144,9 @@ pub async fn import(
     );
 
     // Make sure the resource path is not already a file
-    let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
-    if node.is_some() && node.unwrap().is_file() {
+    if let Some(node) = get_node_by_path_async(&repo, &commit, &resource.path).await?
+        && node.is_file()
+    {
         return Err(OxenHttpError::BasicError(
             format!(
                 "Target path must be a directory: {}",
@@ -239,20 +245,15 @@ pub async fn upload_zip(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
     let repo_name = path_param(&req, "repo_name")?.to_string();
-    let repo = get_repo(app_data, &namespace, &repo_name)?;
+    let repo = get_repo_async(app_data, &namespace, &repo_name).await?;
     let _write = repo_locks::begin_write(&repo)?;
 
     // If there's no head commit, handle initial upload
-    if repositories::commits::head_commit_maybe(&repo)?.is_none() {
+    if head_commit_maybe_async(&repo).await?.is_none() {
         return handle_initial_upload_zip_empty_repo(req, payload, &repo).await;
     }
 
-    let resource = match parse_resource(&req, &repo) {
-        Ok(res) => res,
-        Err(parse_err) => {
-            return Err(parse_err);
-        }
-    };
+    let resource = parse_resource_async(&req, &repo).await?;
 
     let branch = resource
         .branch
@@ -269,8 +270,9 @@ pub async fn upload_zip(
     let user = create_user_from_options(name.clone(), email.clone())?;
 
     // Make sure the resource path is not already a file
-    let node = repositories::tree::get_node_by_path(&repo, &commit, &resource.path)?;
-    if node.is_some() && node.unwrap().is_file() {
+    if let Some(node) = get_node_by_path_async(&repo, &commit, &resource.path).await?
+        && node.is_file()
+    {
         return Err(OxenHttpError::BasicError(
             format!(
                 "Target path must be a directory: {}",
@@ -323,17 +325,29 @@ async fn handle_initial_upload_zip_empty_repo(
     let commit_message = message.unwrap_or("Upload zip file".to_string());
 
     // Unzip the files and add
-
-    for temp_file in temp_files {
-        let files = decompress_zip(&temp_file.temp_file_path)?;
-        repositories::add::add_all(repo, &files).await?;
+    let unzipped = tasks::spawn_blocking(move || {
+        temp_files
+            .iter()
+            .map(|temp_file| decompress_zip(&temp_file.temp_file_path))
+            .collect::<Result<Vec<_>, OxenError>>()
+    })
+    .await
+    .map_err(OxenError::from)??;
+    for files in &unzipped {
+        add_all(repo, files).await?;
     }
 
-    // Commit the files
-    let commit = repositories::commits::commit_with_user(repo, &commit_message, &user)?;
-
-    // Create the branch
-    repositories::branches::create(repo, &branch_name, &commit.id)?;
+    // Commit the files and create the branch
+    let commit = {
+        let repo = repo.clone();
+        tasks::spawn_blocking(move || -> Result<_, OxenError> {
+            let commit = commit_with_user(&repo, &commit_message, &user)?;
+            branches::create(&repo, &branch_name, &commit.id)?;
+            Ok(commit)
+        })
+        .await
+        .map_err(OxenError::from)??
+    };
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_created(),
