@@ -80,8 +80,8 @@ pub async fn prune(remote_repo: &RemoteRepository, dry_run: bool) -> Result<Prun
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
-
+    use super::prune;
+    use crate::api::client::branches;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
@@ -89,78 +89,41 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_remote_prune_dry_run() -> Result<(), OxenError> {
+    async fn test_remote_prune() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
-            let repo_dir = &local_repo.path;
-            let train_dir = repo_dir.join("train");
+            let train_dir = local_repo.path.join("train");
             util::fs::create_dir_all(&train_dir)?;
-            let file1 = train_dir.join("file1.txt");
-            test::write_txt_file_to_path(&file1, "file1")?;
-
-            repositories::add(&local_repo, &file1).await?;
-            repositories::commit(&local_repo, "add file1.txt")?;
-
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            // Push the repo
-            repositories::push(&local_repo).await?;
-
-            // Run prune dry-run
-            let stats = api::client::prune::prune(&remote_repo, true).await?;
-
-            // Should not remove anything since all files are referenced
-            assert_eq!(stats.nodes_removed, 0);
-            assert_eq!(stats.versions_removed, 0);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_prune_removes_dangling_branch() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut local_repo| async move {
-            let repo_dir = &local_repo.path;
-            let train_dir = repo_dir.join("train");
-            util::fs::create_dir_all(&train_dir)?;
-
-            // Create initial commit on main
             let file1 = train_dir.join("file1.txt");
             test::write_txt_file_to_path(&file1, "file1")?;
             repositories::add(&local_repo, &file1).await?;
             let initial_commit = repositories::commit(&local_repo, "add file1.txt")?;
 
-            // Create the remote repo and point the local one at it
             let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            // Push the repo
             repositories::push(&local_repo).await?;
 
-            // Create a feature branch locally
+            let stats = prune(&remote_repo, true).await?;
+            assert_eq!(stats.nodes_removed, 0, "every node is referenced");
+            assert_eq!(stats.versions_removed, 0, "every version is referenced");
+
+            // A commit on a feature branch, pushed and then deleted on the remote, leaves data that
+            // nothing references.
             let branch_name = "feature-branch";
             repositories::branches::create(&local_repo, branch_name, &initial_commit.id)?;
             repositories::checkout(&local_repo, branch_name).await?;
-
-            // Add a commit to the feature branch
             let file2 = train_dir.join("file2.txt");
             test::write_txt_file_to_path(&file2, "file2")?;
             repositories::add(&local_repo, &file2).await?;
             repositories::commit(&local_repo, "add file2.txt")?;
-
-            // Push the feature branch to remote
             repositories::push(&local_repo).await?;
 
-            // Checkout main and delete the feature branch on remote
             repositories::checkout(&local_repo, "main").await?;
-            api::client::branches::delete(&remote_repo, branch_name).await?;
+            branches::delete(&remote_repo, branch_name).await?;
 
-            // Run prune (not dry-run) - should remove orphaned data from deleted branch
-            let stats = api::client::prune::prune(&remote_repo, false).await?;
-
-            // Should have removed some nodes and versions from the deleted branch
-            assert!(stats.nodes_removed > 0 || stats.versions_removed > 0);
+            let stats = prune(&remote_repo, false).await?;
+            assert!(
+                stats.nodes_removed > 0 || stats.versions_removed > 0,
+                "the deleted branch's data is removed"
+            );
 
             Ok(())
         })

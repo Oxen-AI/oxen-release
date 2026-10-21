@@ -865,35 +865,6 @@ mod tests {
     use crate::repositories;
     use crate::test;
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_remote_commits_all() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-            let commit_history = repositories::commits::list(&local_repo)?;
-            let num_local_commits = commit_history.len();
-
-            // Set the proper remote
-            let _name = local_repo.dirname();
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            // Push it
-            repositories::push(&local_repo).await?;
-
-            // List the remote commits
-            let remote_commits =
-                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
-                    .await?;
-            assert_eq!(remote_commits.len(), num_local_commits);
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
     /* Commented out because it's expensive to find the initial commit id
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
@@ -1028,6 +999,15 @@ mod tests {
             // There should be >= 6 commits here
             let commit_history = repositories::commits::list(&local_repo)?;
             assert!(commit_history.len() >= 6);
+
+            let remote_commits =
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                    .await?;
+            assert_eq!(
+                remote_commits.len(),
+                commit_history.len(),
+                "the remote lists every pushed commit"
+            );
 
             // Log comes out in reverse order, so we want the 5th commit as the base,
             // and will end up with the 1st,2nd,3rd,4th commits (4 commits total inclusive)

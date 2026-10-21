@@ -33,38 +33,34 @@ pub async fn get(
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
+    use super::get;
     use crate::error::OxenError;
-
     use crate::repositories;
     use crate::test;
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_get_revision_from_commit() -> Result<(), OxenError> {
+    async fn test_get_revision() -> Result<(), OxenError> {
         test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
             let commit = repositories::commits::head_commit(&local_repo)?;
+            let revision = get(&remote_repo, &commit.id).await?;
+            assert_eq!(
+                revision
+                    .and_then(|revision| revision.commit)
+                    .map(|commit| commit.id),
+                Some(commit.id),
+                "a commit id resolves to that commit"
+            );
 
-            let revision = api::client::revisions::get(&remote_repo, &commit.id).await?;
-
-            assert!(revision.is_some());
-            assert!(revision.unwrap().commit.unwrap().id == commit.id);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_revision_from_branch() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
             let branch = repositories::branches::current_branch(&local_repo)?.unwrap();
-
-            let revision = api::client::revisions::get(&remote_repo, &branch.name).await?;
-
-            assert!(revision.is_some());
-            assert!(revision.unwrap().commit.unwrap().id == branch.commit_id);
+            let revision = get(&remote_repo, &branch.name).await?;
+            assert_eq!(
+                revision
+                    .and_then(|revision| revision.commit)
+                    .map(|commit| commit.id),
+                Some(branch.commit_id),
+                "a branch name resolves to the branch's commit"
+            );
 
             Ok(remote_repo)
         })

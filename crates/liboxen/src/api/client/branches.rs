@@ -214,447 +214,164 @@ mod tests {
 
     use std::path::Path;
 
-    use crate::api;
-
-    use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
+    use super::{create_from_branch, delete, get_by_name, list, list_entry_versions};
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
     use crate::error::OxenError;
-    use crate::opts::PaginateOpts;
-    use crate::opts::PushOpts;
+    use crate::opts::{PaginateOpts, PushOpts};
     use crate::repositories;
+    use crate::repositories::branches as local_branches;
+    use crate::repositories::push::push_remote_branch;
     use crate::test;
     use crate::util;
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_create_remote_branch() -> Result<(), OxenError> {
+    async fn test_remote_branches() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            // add and commit a file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file).await?;
-            repositories::commit(&local_repo, "Added a new file")?;
+            let new_file = local_repo.path.join("new_file.csv");
+            util::fs::write(&new_file, "a,b\n1,2\n")?;
+            repositories::add(&local_repo, &new_file).await?;
+            let commit_1 = repositories::commit(&local_repo, "Added a new file")?;
+            test::append_line_txt_file(&new_file, "3,4")?;
+            repositories::add(&local_repo, &new_file).await?;
+            let commit_2 = repositories::commit(&local_repo, "Changed the new file")?;
 
             test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // push it
             repositories::push(&local_repo).await?;
 
-            let name = "my-branch";
-            let branch =
-                api::client::branches::create_from_branch(&remote_repo, name, "main").await?;
-            assert_eq!(branch.name, name);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_remote_branch_from_existing() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            // add and commit a file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file).await?;
-            repositories::commit(&local_repo, "Added a new file")?;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // push it
-            repositories::push(&local_repo).await?;
-
-            let name = "my-branch";
-            let from = "old-branch";
-            api::client::branches::create_from_branch(&remote_repo, from, DEFAULT_BRANCH_NAME)
-                .await?;
-            let branch =
-                api::client::branches::create_from_branch(&remote_repo, name, from).await?;
-            assert_eq!(branch.name, name);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_branch_by_name() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            // add and commit a file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file).await?;
-            repositories::commit(&local_repo, "Added a new file")?;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // push it
-            repositories::push(&local_repo).await?;
-
-            let branch_name = "my-branch";
-            api::client::branches::create_from_branch(&remote_repo, branch_name, "main").await?;
-
-            let branch = api::client::branches::get_by_name(&remote_repo, branch_name).await?;
-            assert!(branch.is_some());
-            assert_eq!(branch.unwrap().name, branch_name);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_remote_branches() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            // Create and push the main branch
-            // add a file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file).await?;
-            repositories::commit(&local_repo, "Added a new file")?;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // Push it
-            repositories::push(&local_repo).await?;
-
-            api::client::branches::create_from_branch(
-                &remote_repo,
-                "branch-1",
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            api::client::branches::create_from_branch(
-                &remote_repo,
-                "branch-2",
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-
-            let branches = api::client::branches::list(&remote_repo).await?;
-            assert_eq!(branches.len(), 3);
-
-            assert!(branches.iter().any(|b| b.name == "branch-1"));
-            assert!(branches.iter().any(|b| b.name == "branch-2"));
-            assert!(branches.iter().any(|b| b.name == DEFAULT_BRANCH_NAME));
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_branch() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
-            // add and commit a file
-            let new_file = local_repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&local_repo, new_file).await?;
-            repositories::commit(&local_repo, "Added a new file")?;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // push it
-            repositories::push(&local_repo).await?;
-
-            let branch_name = "my-branch";
-            api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-
-            let branch = api::client::branches::get_by_name(&remote_repo, branch_name).await?;
-            assert!(branch.is_some());
-            let branch = branch.unwrap();
-            assert_eq!(branch.name, branch_name);
-
-            api::client::branches::delete(&remote_repo, branch_name).await?;
-
-            let deleted_branch =
-                api::client::branches::get_by_name(&remote_repo, branch_name).await?;
-            assert!(deleted_branch.is_none());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_rename_current_branch() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            // add and commit a file
-            let new_file = repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&repo, new_file).await?;
-            repositories::commit(&repo, "Added a new file")?;
-
-            // Create and checkout branch
-            let og_branch_name = "feature/world-explorer";
-            repositories::branches::create_checkout(&repo, og_branch_name)?;
-
-            // Rename branch
-            let new_branch_name = "feature/brave-new-world";
-            repositories::branches::rename_current_branch(&repo, new_branch_name)?;
-
-            // Check that the branch name has changed
-            let current_branch = repositories::branches::current_branch(&repo)?.unwrap();
-            assert_eq!(current_branch.name, new_branch_name);
-
-            // Check that old branch no longer exists
-            repositories::branches::list(&repo)
-                .await?
-                .iter()
-                .for_each(|branch| {
-                    assert_ne!(branch.name, og_branch_name);
-                });
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_remote_branch() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
-
-            // Push it
-            repositories::push(&repo).await?;
-
-            // Create new branch
-            let new_branch_name = "my-branch";
-            repositories::branches::create_checkout(&repo, new_branch_name)?;
-
-            let opts = PushOpts {
-                remote: constants::DEFAULT_REMOTE_NAME.to_string(),
-                branch: new_branch_name.to_string(),
-                ..Default::default()
-            };
-
-            // Push new branch
-            repositories::push::push_remote_branch(&repo, &opts).await?;
-
-            // Delete the branch
-            api::client::branches::delete(&remote_repo, new_branch_name).await?;
-
-            let remote_branches = api::client::branches::list(&remote_repo).await?;
-            assert_eq!(1, remote_branches.len());
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
-            let opts = PushOpts {
-                remote: constants::DEFAULT_REMOTE_NAME.to_string(),
-                branch: "main".to_string(),
-                ..Default::default()
-            };
-
-            // Push main branch first
-            if repositories::push::push_remote_branch(&repo, &opts)
-                .await
-                .is_err()
-            {
-                panic!("Pushing main branch should work");
-            }
-            let opts = PushOpts {
-                remote: constants::DEFAULT_REMOTE_NAME.to_string(),
-                branch: "branch-does-not-exist".to_string(),
-                ..Default::default()
-            };
-
-            // Then try to push branch that doesn't exist
-            if repositories::push::push_remote_branch(&repo, &opts)
-                .await
-                .is_ok()
-            {
-                panic!("Should not be able to push branch that does not exist");
-            }
-
-            let remote_branches = api::client::branches::list(&remote_repo).await?;
-            assert_eq!(1, remote_branches.len());
-
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
-            // add and commit a file
-            let new_file = repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&repo, new_file).await?;
-            repositories::commit(&repo, "Added a new file")?;
-
-            let branch_name = "my-branch";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-
-            // Add another commit on this branch that moves us ahead of main
-            if repositories::branches::delete(&repo, branch_name).is_ok() {
-                panic!("Should not be able to delete the branch you are on");
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async move {
-            // add and commit a file
-            let new_file = repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&repo, new_file).await?;
-            repositories::commit(&repo, "Added a new file")?;
-
-            let branch_name = "my-branch";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-
-            // Add another commit on this branch that moves us ahead of main
-            if repositories::branches::force_delete(&repo, branch_name).is_ok() {
-                panic!("Should not be able to force delete the branch you are on");
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
-            // add and commit a file
-            let new_file = repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&repo, new_file).await?;
-            repositories::commit(&repo, "Added a new file")?;
-
-            let og_branches = repositories::branches::list(&repo).await?;
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-            let branch_name = "my-branch";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-
-            // Add another commit on this branch
-            let labels_path = repo.path.join("labels.txt");
-            repositories::add(&repo, labels_path).await?;
-            repositories::commit(&repo, "adding initial labels file")?;
-
-            // Checkout main again
-            repositories::checkout(&repo, og_branch.name).await?;
-
-            // Should not be able to delete `my-branch` because it is ahead of `main`
-            if repositories::branches::delete(&repo, branch_name).is_ok() {
-                panic!(
-                    "Should not be able to delete the branch that is ahead of the one you are on"
-                );
-            }
-
-            // Should be one less branch
-            let leftover_branches = repositories::branches::list(&repo).await?;
-            assert_eq!(og_branches.len(), leftover_branches.len() - 1);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
-            // add and commit a file
-            let new_file = repo.path.join("new_file.txt");
-            util::fs::write(&new_file, "I am a new file")?;
-            repositories::add(&repo, new_file).await?;
-            repositories::commit(&repo, "Added a new file")?;
-
-            let og_branches = repositories::branches::list(&repo).await?;
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
-            let branch_name = "my-branch";
-            repositories::branches::create_checkout(&repo, branch_name)?;
-
-            // Add another commit on this branch
-            let labels_path = repo.path.join("labels.txt");
-            repositories::add(&repo, labels_path).await?;
-            repositories::commit(&repo, "adding initial labels file")?;
-
-            // Checkout main again
-            repositories::checkout(&repo, og_branch.name).await?;
-
-            // Force delete
-            repositories::branches::force_delete(&repo, branch_name)?;
-
-            // Should be one less branch
-            let leftover_branches = repositories::branches::list(&repo).await?;
-            assert_eq!(og_branches.len(), leftover_branches.len());
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_entry_versions() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_committed_async("annotations", |mut repo| async move {
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
-
-            // Get path to existing annotations file
-            let file_path = Path::new("annotations")
-                .join("test")
-                .join("annotations.csv");
-            let file_repo_path = repo.path.join(&file_path);
-
-            // Store initial commit id
-            let commit_1 = repositories::commits::head_commit(&repo)?;
-
-            // Modify annotations file with new line
-            test::append_line_txt_file(&file_repo_path, "test/new_image.jpg,unknown,1.0,1.0,1,1")?;
-            repositories::add(&repo, &file_repo_path).await?;
-            let commit_2 = repositories::commit(&repo, "adding new annotation")?;
-
-            // Push to remote
-            repositories::push(&repo).await?;
-
-            // Get paginated versions from API
-            let result = api::client::branches::list_entry_versions(
+            let result = list_entry_versions(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &file_path,
+                Path::new("new_file.csv"),
                 &PaginateOpts::default(),
             )
             .await?;
-
-            // Verify results
             assert_eq!(result.versions.len(), 2);
-
-            // Most recent version should be first
-            assert_eq!(result.versions[0].commit.id, commit_2.id);
+            assert_eq!(
+                result.versions[0].commit.id, commit_2.id,
+                "the newest version comes first"
+            );
             assert_eq!(result.versions[1].commit.id, commit_1.id);
+
+            let branch = create_from_branch(&remote_repo, "my-branch", DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, "my-branch");
+            let found = get_by_name(&remote_repo, "my-branch").await?;
+            assert_eq!(
+                found.map(|branch| branch.name).as_deref(),
+                Some("my-branch")
+            );
+
+            create_from_branch(&remote_repo, "old-branch", DEFAULT_BRANCH_NAME).await?;
+            let branch = create_from_branch(&remote_repo, "from-old-branch", "old-branch").await?;
+            assert_eq!(
+                branch.name, "from-old-branch",
+                "a branch can start from another branch"
+            );
+
+            let names: Vec<String> = list(&remote_repo)
+                .await?
+                .into_iter()
+                .map(|branch| branch.name)
+                .collect();
+            assert_eq!(names.len(), 4, "{names:?}");
+            for name in [
+                DEFAULT_BRANCH_NAME,
+                "my-branch",
+                "old-branch",
+                "from-old-branch",
+            ] {
+                assert!(
+                    names.iter().any(|n| n == name),
+                    "{name} is listed: {names:?}"
+                );
+            }
+
+            delete(&remote_repo, "my-branch").await?;
+            assert!(get_by_name(&remote_repo, "my-branch").await?.is_none());
+
+            // A branch pushed from a local repo deletes the same way.
+            local_branches::create_checkout(&local_repo, "pushed-branch")?;
+            let opts = PushOpts {
+                remote: DEFAULT_REMOTE_NAME.to_string(),
+                branch: "pushed-branch".to_string(),
+                ..Default::default()
+            };
+            push_remote_branch(&local_repo, &opts).await?;
+            delete(&remote_repo, "pushed-branch").await?;
+
+            let opts = PushOpts {
+                branch: "branch-does-not-exist".to_string(),
+                ..opts
+            };
+            assert!(
+                push_remote_branch(&local_repo, &opts).await.is_err(),
+                "a branch that does not exist cannot be pushed"
+            );
+
+            assert_eq!(
+                list(&remote_repo).await?.len(),
+                3,
+                "the deleted branches are gone from the list"
+            );
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_local_branch_delete_and_rename() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            let new_file = repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            repositories::add(&repo, new_file).await?;
+            repositories::commit(&repo, "Added a new file")?;
+            let og_branches = local_branches::list(&repo).await?;
+            let og_branch = local_branches::current_branch(&repo)?.unwrap();
+
+            let branch_name = "my-branch";
+            local_branches::create_checkout(&repo, branch_name)?;
+            assert!(
+                local_branches::delete(&repo, branch_name).is_err(),
+                "the branch you are on cannot be deleted"
+            );
+            assert!(
+                local_branches::force_delete(&repo, branch_name).is_err(),
+                "the branch you are on cannot be force deleted"
+            );
+
+            // A commit on my-branch moves it ahead of the original branch.
+            repositories::add(&repo, repo.path.join("labels.txt")).await?;
+            repositories::commit(&repo, "adding initial labels file")?;
+            repositories::checkout(&repo, og_branch.name).await?;
+            assert!(
+                local_branches::delete(&repo, branch_name).is_err(),
+                "a branch ahead of the current one cannot be deleted"
+            );
+            assert_eq!(
+                local_branches::list(&repo).await?.len(),
+                og_branches.len() + 1
+            );
+            local_branches::force_delete(&repo, branch_name)?;
+            assert_eq!(
+                local_branches::list(&repo).await?.len(),
+                og_branches.len(),
+                "a force delete removes a branch ahead of the current one"
+            );
+
+            let og_branch_name = "feature/world-explorer";
+            local_branches::create_checkout(&repo, og_branch_name)?;
+            let new_branch_name = "feature/brave-new-world";
+            local_branches::rename_current_branch(&repo, new_branch_name)?;
+            let current = local_branches::current_branch(&repo)?.unwrap();
+            assert_eq!(current.name, new_branch_name);
+            assert!(
+                local_branches::list(&repo)
+                    .await?
+                    .iter()
+                    .all(|branch| branch.name != og_branch_name),
+                "the old name is gone"
+            );
 
             Ok(())
         })

@@ -117,11 +117,11 @@ pub async fn get_dir(
 
 #[cfg(test)]
 mod tests {
+    use super::{get_dir, list, list_with_opts};
     use crate::api;
-
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::StagedEntryStatus;
+    use crate::model::{MetadataEntry, StagedEntryStatus};
     use crate::opts::{SortBy, SortOpts};
     use crate::repositories;
     use crate::test;
@@ -131,302 +131,99 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    /// The listed entry called `name`, which must be a committed entry.
+    fn committed_entry<'a>(entries: &'a [EMetadataEntry], name: &str) -> &'a MetadataEntry {
+        match entries.iter().find(|entry| entry.filename() == name) {
+            Some(EMetadataEntry::MetadataEntry(meta)) => meta,
+            other => panic!("expected a committed entry called {name}, got {other:?}"),
+        }
+    }
+
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_list_dir_has_correct_commits() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-
-            // Set the proper remote
-            let _name = local_repo.dirname();
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            // Push it
-            repositories::push(&local_repo).await?;
-
-            // Make sure we have one entry
+    async fn test_list_dir() -> Result<(), OxenError> {
+        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let readme_commit = repositories::commits::head_commit(&local_repo)?;
             let root_path = Path::new("");
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            let root_entries = list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 1);
+            let readme = committed_entry(&root_entries.entries, "README.md");
+            assert_eq!(readme.latest_commit.as_ref().unwrap().id, readme_commit.id);
+            let resource = readme.resource.as_ref().unwrap();
+            assert!(resource.branch.is_some(), "the resource records its branch");
+            assert_eq!(resource.path, Path::new("README.md"));
 
-            // Add a file
-            let file_name = Path::new("file.txt");
-            let file_path = local_repo.path.join(file_name);
-            let file_content = "Hello, World!";
-            util::fs::write_to_path(&file_path, file_content)?;
+            // Each entry reports the latest commit that changed it.
+            let file_path = local_repo.path.join("file.txt");
+            util::fs::write_to_path(&file_path, "Hello, World!")?;
             repositories::add(&local_repo, file_path).await?;
-
-            // Commit it
-            let first_commit = repositories::commit(&local_repo, "Add file.txt")?;
-
-            // Push it
+            let file_commit = repositories::commit(&local_repo, "Add file.txt")?;
             repositories::push(&local_repo).await?;
-
-            // Make sure we have two entries
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            let root_entries = list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 2);
 
-            // Add a dir
-            let dir_name = Path::new("data");
-            let dir_path = local_repo.path.join(dir_name);
-            util::fs::create_dir_all(&dir_path)?;
-
-            // Write some files to the dir
-            let file1_path = dir_path.join("file1.txt");
-            let file2_path = dir_path.join("file2.txt");
-            let file1_content = "Hello, World 1!";
-            let file2_content = "Hello, World 2!";
-            util::fs::write_to_path(&file1_path, file1_content)?;
-            util::fs::write_to_path(&file2_path, file2_content)?;
-            repositories::add(&local_repo, &dir_path).await?;
-
-            // Commit it
-            let second_commit = repositories::commit(&local_repo, "Add data dir")?;
-
-            // Push it
+            let data_dir = local_repo.path.join("data");
+            util::fs::create_dir_all(&data_dir)?;
+            util::fs::write_to_path(data_dir.join("file1.txt"), "Hello, World 1!")?;
+            util::fs::write_to_path(data_dir.join("file2.txt"), "Hello, World 2!")?;
+            repositories::add(&local_repo, &data_dir).await?;
+            let data_commit = repositories::commit(&local_repo, "Add data dir")?;
             repositories::push(&local_repo).await?;
-
-            // Make sure we have three entries
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            let root_entries = list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 3);
+            let data = committed_entry(&root_entries.entries, "data");
+            assert_eq!(data.latest_commit.as_ref().unwrap().id, data_commit.id);
+            let file = committed_entry(&root_entries.entries, "file.txt");
+            assert_eq!(file.latest_commit.as_ref().unwrap().id, file_commit.id);
 
-            for entry in &root_entries.entries {
-                println!("entry: {entry:?}");
-            }
-            println!("----------------------");
-
-            // Make sure the commit hashes are correct for "data"
-            let data_entry = root_entries
-                .entries
-                .iter()
-                .find(|entry| match entry {
-                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "data",
-                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "data",
-                })
-                .expect("data entry not found");
-            if let EMetadataEntry::MetadataEntry(data) = data_entry {
-                assert_eq!(
-                    data.latest_commit.as_ref().unwrap().id,
-                    second_commit.id,
-                    "data commit id mismatch"
-                );
-            } else {
-                panic!("Expected 'data' entry to be a MetadataEntry");
-            }
-
-            // Make sure the commit hashes are correct for "file.txt"
-            let file_entry = root_entries
-                .entries
-                .iter()
-                .find(|entry| match entry {
-                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "file.txt",
-                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "file.txt",
-                })
-                .expect("file.txt entry not found");
-            if let EMetadataEntry::MetadataEntry(file) = file_entry {
-                assert_eq!(
-                    file.latest_commit.as_ref().unwrap().id,
-                    first_commit.id,
-                    "file.txt commit id mismatch"
-                );
-            } else {
-                panic!("Expected 'file.txt' entry to be a MetadataEntry");
-            }
-
-            // Add a second dir
-            let dir2_name = Path::new("a_data");
-            let dir2_path = local_repo.path.join(dir2_name);
-            util::fs::create_dir_all(&dir2_path)?;
-
-            // Write some files to the dir
-            let file3_path = dir2_path.join("file3.txt");
-            let file4_path = dir2_path.join("file4.txt");
-            let file3_content = "Hello, World 3!";
-            let file4_content = "Hello, World 4!";
-            util::fs::write_to_path(&file3_path, file3_content)?;
-            util::fs::write_to_path(&file4_path, file4_content)?;
-            repositories::add(&local_repo, &dir2_path).await?;
-
-            // Commit it
-            let third_commit = repositories::commit(&local_repo, "Add a_data dir")?;
-
-            // Push it
+            let a_data_name = Path::new("a_data");
+            let a_data_dir = local_repo.path.join(a_data_name);
+            util::fs::create_dir_all(&a_data_dir)?;
+            util::fs::write_to_path(a_data_dir.join("file3.txt"), "Hello, World 3!")?;
+            util::fs::write_to_path(a_data_dir.join("file4.txt"), "Hello, World 4!")?;
+            repositories::add(&local_repo, &a_data_dir).await?;
+            let a_data_commit = repositories::commit(&local_repo, "Add a_data dir")?;
             repositories::push(&local_repo).await?;
-
-            // Make sure we have four entries
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            let root_entries = list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 4);
+            let a_data = committed_entry(&root_entries.entries, "a_data");
+            assert_eq!(a_data.latest_commit.as_ref().unwrap().id, a_data_commit.id);
 
-            for entry in &root_entries.entries {
-                println!("entry: {entry:?}");
-            }
-
-            // Make sure the commit hash for "a_data" is correct.
-            let a_data_entry = root_entries
-                .entries
-                .iter()
-                .find(|entry| match entry {
-                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "a_data",
-                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "a_data",
-                })
-                .expect("a_data entry not found");
-            if let EMetadataEntry::MetadataEntry(a_data) = a_data_entry {
-                assert_eq!(
-                    a_data.latest_commit.as_ref().unwrap().id,
-                    third_commit.id,
-                    "a_data commit id mismatch"
-                );
-            } else {
-                panic!("Expected 'a_data' entry to be a MetadataEntry");
-            }
-
-            // Add a sub directory to the second dir
-            let dir3_name = Path::new("sub_data");
-            let dir3_path = dir2_path.join(dir3_name);
-            util::fs::create_dir_all(&dir3_path)?;
-
-            // Write some files to the dir
-            let file5_path = dir3_path.join("file5.txt");
-            let file6_path = dir3_path.join("file6.txt");
-            let file5_content = "Hello, World 5!";
-            let file6_content = "Hello, World 6!";
-            util::fs::write_to_path(&file5_path, file5_content)?;
-            util::fs::write_to_path(&file6_path, file6_content)?;
-            repositories::add(&local_repo, &dir3_path).await?;
-
-            // Commit it
-            let fourth_commit = repositories::commit(&local_repo, "Add sub_data dir")?;
-
-            // Push it
+            let sub_data_dir = a_data_dir.join("sub_data");
+            util::fs::create_dir_all(&sub_data_dir)?;
+            util::fs::write_to_path(sub_data_dir.join("file5.txt"), "Hello, World 5!")?;
+            util::fs::write_to_path(sub_data_dir.join("file6.txt"), "Hello, World 6!")?;
+            repositories::add(&local_repo, &sub_data_dir).await?;
+            let sub_data_commit = repositories::commit(&local_repo, "Add sub_data dir")?;
             repositories::push(&local_repo).await?;
+            let sub_entries = list(&remote_repo, DEFAULT_BRANCH_NAME, a_data_name, 1, 10).await?;
+            let sub_data = committed_entry(&sub_entries.entries, "sub_data");
+            assert_eq!(
+                sub_data.latest_commit.as_ref().unwrap().id,
+                sub_data_commit.id
+            );
 
-            // Make sure the sub directory has the correct commit id
-            let sub_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, dir2_name, 1, 10).await?;
-            println!("sub_entries: {:?}", sub_entries.entries.len());
-            for entry in &sub_entries.entries {
-                match entry {
-                    EMetadataEntry::MetadataEntry(meta) => println!("entry: {:?}", meta.filename),
-                    EMetadataEntry::WorkspaceMetadataEntry(ws) => {
-                        println!("entry: {:?}", ws.filename)
-                    }
-                }
-            }
-            let sub_data_entry = sub_entries
-                .entries
-                .iter()
-                .find(|entry| match entry {
-                    EMetadataEntry::MetadataEntry(meta) => meta.filename == "sub_data",
-                    EMetadataEntry::WorkspaceMetadataEntry(ws) => ws.filename == "sub_data",
-                })
-                .expect("sub_data entry not found");
-            if let EMetadataEntry::MetadataEntry(sub_data) = sub_data_entry {
-                assert_eq!(
-                    sub_data.latest_commit.as_ref().unwrap().id,
-                    fourth_commit.id,
-                    "sub_data commit id mismatch"
-                );
-            } else {
-                panic!("Expected 'sub_data' entry to be a MetadataEntry");
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_dir_has_populates_resource_path() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            let first_commit = repositories::commits::head_commit(&local_repo)?;
-
-            // Make sure we have one entry
-            let root_path = Path::new("");
-            let root_entries =
-                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
-            assert_eq!(root_entries.entries.len(), 1);
-
-            for entry in &root_entries.entries {
-                println!("entry: {entry:?}");
-            }
-
-            // Find the README.md entry among the metadata entries.
-            let readme_entry = root_entries
-                .entries
-                .iter()
-                .find(|entry| {
-                    if let EMetadataEntry::MetadataEntry(meta) = entry {
-                        meta.filename == "README.md"
-                    } else {
-                        false
-                    }
-                })
-                .expect("README.md entry not found");
-
-            if let EMetadataEntry::MetadataEntry(entry) = readme_entry {
-                assert_eq!(entry.latest_commit.as_ref().unwrap().id, first_commit.id);
-                assert!(entry.resource.as_ref().unwrap().branch.is_some());
-                assert_eq!(
-                    entry.resource.as_ref().unwrap().path,
-                    Path::new("README.md")
-                );
-            } else {
-                panic!("README.md entry is not a MetadataEntry");
-            }
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_dir_encoding() -> Result<(), OxenError> {
-        test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            let mut local_repo = local_repo;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-            let repo_path = local_repo.path.join("dir=dir");
-            util::fs::create_dir_all(&repo_path)?;
-            let file_path = repo_path.join("file example.txt");
+            // A directory and a file whose names need encoding in a URL.
+            let encoded_dir = local_repo.path.join("dir=dir");
+            util::fs::create_dir_all(&encoded_dir)?;
+            let file_path = encoded_dir.join("file example.txt");
             util::fs::write_to_path(&file_path, "Hello World")?;
             repositories::add(&local_repo, &file_path).await?;
-            repositories::commit(&local_repo, "Adding README")?;
+            repositories::commit(&local_repo, "Adding dir=dir")?;
             repositories::push(&local_repo).await?;
 
-            let dir_response =
-                api::client::dir::get_dir(&remote_repo, DEFAULT_BRANCH_NAME, "dir=dir").await?;
+            let dir_response = get_dir(&remote_repo, DEFAULT_BRANCH_NAME, "dir=dir").await?;
             assert_eq!(dir_response.status.status, "success");
-
-            // Assert the directory is present and named "dir=dir"
-            if let Some(EMetadataEntry::MetadataEntry(ref dir)) = dir_response.entries.dir {
-                assert_eq!(dir.filename, "dir=dir");
-                assert!(dir.is_dir);
-            } else {
-                panic!("Directory 'dir=dir' not found, or is not a MetadataEntry");
-            }
-
-            // Assert the file "file example.txt" is present in the entries
-            let file_entry = dir_response.entries.entries.iter().find(|entry| {
-                if let EMetadataEntry::MetadataEntry(meta) = entry {
-                    meta.filename == "file example.txt"
-                } else {
-                    false
+            match &dir_response.entries.dir {
+                Some(EMetadataEntry::MetadataEntry(dir)) => {
+                    assert_eq!(dir.filename, "dir=dir");
+                    assert!(dir.is_dir);
                 }
-            });
-            match file_entry {
-                Some(EMetadataEntry::MetadataEntry(file)) => {
-                    assert_eq!(file.filename, "file example.txt");
-                    assert!(!file.is_dir);
-                }
-                _ => panic!("File 'file example.txt' not found, or is not a MetadataEntry"),
+                other => panic!("expected the dir=dir entry, got {other:?}"),
             }
+            let file = committed_entry(&dir_response.entries.entries, "file example.txt");
+            assert!(!file.is_dir);
+
             Ok(remote_repo)
         })
         .await
@@ -513,104 +310,61 @@ mod tests {
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
     async fn test_list_dir_sort_opts() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-
-            let _name = local_repo.dirname();
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            let file_a = local_repo.path.join("a_file.txt");
-            util::fs::write_to_path(&file_a, "content a")?;
-            repositories::add(&local_repo, &file_a).await?;
-            repositories::commit(&local_repo, "adding a_file")?;
-            repositories::push(&local_repo).await?;
-
-            let file_b = local_repo.path.join("b_file.txt");
-            util::fs::write_to_path(&file_b, "content b")?;
-            repositories::add(&local_repo, &file_b).await?;
-            repositories::commit(&local_repo, "adding b_file")?;
-            repositories::push(&local_repo).await?;
-
-            let root_entries = api::client::dir::list_with_opts(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                Path::new(""),
-                1,
-                10,
-                Some(&SortOpts {
-                    sort_by: SortBy::Date,
-                    reverse: true,
-                }),
-                None,
-            )
-            .await?;
-
-            let filenames: Vec<&str> = root_entries.entries.iter().map(|e| e.filename()).collect();
-            assert_eq!(filenames, vec!["b_file.txt", "a_file.txt"]);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_dir_depth_and_nested_sort_opts() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let mut local_repo = local_repo;
-
-            let _name = local_repo.dirname();
-            // Create the remote repo and point the local one at it
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
 
             let dir_a = local_repo.path.join("dir_a");
             let dir_a_subdir = dir_a.join("subdir");
             let dir_b = local_repo.path.join("dir_b");
-
-            util::fs::create_dir_all(&dir_a)?;
             util::fs::create_dir_all(&dir_a_subdir)?;
             util::fs::create_dir_all(&dir_b)?;
-
-            util::fs::write(local_repo.path.join("root_file.txt"), "root content")?;
+            util::fs::write(local_repo.path.join("a_file.txt"), "content a")?;
             util::fs::write(dir_a.join("file_a1.txt"), "a1 content")?;
             util::fs::write(dir_a_subdir.join("file_sub.txt"), "sub content")?;
             util::fs::write(dir_b.join("file_b1.txt"), "b1 content")?;
-
             repositories::add(&local_repo, &local_repo.path).await?;
             repositories::commit(&local_repo, "Adding nested structure")?;
             repositories::push(&local_repo).await?;
 
-            let newer_nested_file = dir_a.join("file_a2.txt");
-            util::fs::write(newer_nested_file.clone(), "a2 content")?;
-            repositories::add(&local_repo, newer_nested_file).await?;
-            repositories::commit(&local_repo, "Adding newer nested file")?;
+            util::fs::write(dir_a.join("file_a2.txt"), "a2 content")?;
+            util::fs::write(local_repo.path.join("b_file.txt"), "content b")?;
+            repositories::add(&local_repo, &local_repo.path).await?;
+            repositories::commit(&local_repo, "Adding newer files")?;
             repositories::push(&local_repo).await?;
 
-            let paginated = api::client::dir::list_with_opts(
+            let newest_first = SortOpts {
+                sort_by: SortBy::Date,
+                reverse: true,
+            };
+            let root = Path::new("");
+            let entries = list_with_opts(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                Path::new(""),
+                root,
+                1,
+                10,
+                Some(&newest_first),
+                None,
+            )
+            .await?;
+            let names: Vec<&str> = entries.entries.iter().map(|e| e.filename()).collect();
+            let position = |name: &str| names.iter().position(|n| *n == name);
+            assert!(
+                position("b_file.txt").is_some() && position("b_file.txt") < position("a_file.txt"),
+                "the newer file sorts first: {names:?}"
+            );
+
+            let nested = list_with_opts(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                root,
                 1,
                 100,
-                Some(&SortOpts {
-                    sort_by: SortBy::Date,
-                    reverse: true,
-                }),
+                Some(&newest_first),
                 Some(1),
             )
             .await?;
-
-            let dir_a_entry = paginated
-                .entries
-                .iter()
-                .find(|e| e.filename() == "dir_a")
-                .expect("dir_a entry not found");
-
-            let EMetadataEntry::MetadataEntry(dir_a) = dir_a_entry else {
-                panic!("Expected dir_a to be a MetadataEntry");
-            };
-
+            let dir_a = committed_entry(&nested.entries, "dir_a");
             let children = dir_a
                 .children
                 .as_ref()
@@ -620,7 +374,10 @@ mod tests {
                 .map(|child| child.filename.as_str())
                 .collect();
             assert_eq!(child_names, vec!["subdir", "file_a2.txt", "file_a1.txt"]);
-            assert!(children[0].children.is_none());
+            assert!(
+                children[0].children.is_none(),
+                "a depth of 1 lists one level of children"
+            );
 
             Ok(())
         })

@@ -621,8 +621,8 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_upload_large_file_in_parts() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
+    async fn test_upload_in_parts_and_bulk_download() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
             let path = test::test_30k_parquet();
             let hash = MerkleHash::new(u128_hash_file_contents(&path)?);
             api::client::versions::parallel_large_file_upload(
@@ -641,20 +641,8 @@ mod tests {
                 "the server stores the whole file"
             );
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    /// When the bulk versions download endpoint is asked for hashes that don't exist
-    /// on the server, the server's pre-flight check returns a structured 404 and the
-    /// client's retry loop short-circuits — instead of paying multiple rounds of
-    /// exponential backoff that won't change the outcome.
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_bulk_download_short_circuits_on_missing_blob_on_server() -> Result<(), OxenError>
-    {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|local_repo, remote_repo| async move {
+            // Asked for a hash the server does not have, the bulk download's pre-flight check returns
+            // a structured 404 and the client's retry loop stops rather than backing off and retrying.
             // A well-formed 32-char hex string that can't possibly exist on the server.
             let bogus_hash = "deadbeefdeadbeefdeadbeefdeadbeef".to_string();
             let entries = vec![(bogus_hash.clone(), PathBuf::from("does-not-exist.txt"))];
