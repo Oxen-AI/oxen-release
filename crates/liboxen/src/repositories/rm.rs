@@ -717,7 +717,7 @@ mod tests {
             let result = repositories::rm(&repo, &opts).await;
             assert!(
                 matches!(result, Err(OxenError::RmWouldLoseStagedContent(_))),
-                "--staged refuses to unstage content only the staged db holds: {result:?}"
+                "--staged refuses to unstage content found only in the staged db: {result:?}"
             );
             test::modify_txt_file(repo.path.join(path), &staged_content)?;
             repositories::rm(&repo, &opts).await?;

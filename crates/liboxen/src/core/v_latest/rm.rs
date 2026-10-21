@@ -295,9 +295,9 @@ fn staged_entries_under(
     Ok(entries)
 }
 
-/// Refuses, unless `opts.force`, to remove `paths` when that would lose content HEAD does not hold:
-/// without `--staged`, a working copy that differs from HEAD or a file staged as added or edited at
-/// or under a path, and with it, a staged file whose content the working copy does not also hold.
+/// Refuses, unless `opts.force`, to remove `paths` when that would lose content HEAD lacks: without
+/// `--staged`, a working copy that differs from HEAD or a file staged as added or edited at or
+/// under a path, and with it, a staged file whose content the working copy lacks too.
 async fn refuse_lost_changes(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,

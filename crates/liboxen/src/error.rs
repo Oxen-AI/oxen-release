@@ -236,7 +236,7 @@ pub enum OxenError {
     #[error("{0} has changes that `oxen rm` would delete")]
     RmWouldLoseChanges(PathBufError),
 
-    /// `oxen rm --staged` would drop staged content that neither the working copy nor HEAD holds.
+    /// `oxen rm --staged` would drop staged content found in neither the working copy nor HEAD.
     #[error("The content staged for {0} differs from both the file and HEAD")]
     RmWouldLoseStagedContent(PathBufError),
 
