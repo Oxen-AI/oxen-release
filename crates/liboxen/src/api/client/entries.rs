@@ -928,8 +928,8 @@ mod tests {
         }
 
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
-            let root = get_entry(&remote_repo, Path::new(""), DEFAULT_BRANCH_NAME).await;
-            assert!(root.is_ok(), "the root entry resolves: {root:?}");
+            let root = get_entry(&remote_repo, Path::new(""), DEFAULT_BRANCH_NAME).await?;
+            assert!(root.is_some(), "the root entry resolves");
 
             // Add a tabular file at the root and one in a directory
             let revision = DEFAULT_BRANCH_NAME;
