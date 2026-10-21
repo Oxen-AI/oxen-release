@@ -1088,9 +1088,10 @@ mod tests {
 
             // A different mtime on models/a.toml and on an untracked copy of the file B adds, so the
             // merge compares their content and metadata with the commits'
-            set_file_mtime(&a_path, FileTime::zero())?;
+            let past = FileTime::from_unix_time(1_000_000_000, 0);
+            set_file_mtime(&a_path, past)?;
             util::fs::write_to_path(&new_path, "new")?;
-            set_file_mtime(&new_path, FileTime::zero())?;
+            set_file_mtime(&new_path, past)?;
 
             // Merge branch B into main — this should succeed without conflict
             let merge_commit = repositories::merge::merge(&repo, merge_branch_name).await?;
