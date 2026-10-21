@@ -3,23 +3,15 @@
 
 use crate::{error::OxenError, model::metadata::MetadataVideo};
 
-use mp4::{Mp4Track, TrackType};
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
+use mp4::{Mp4Reader, Mp4Track, TrackType};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 
-/// Detects the video metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> {
-    let path = path.as_ref();
-    let f = match File::open(path) {
-        Ok(f) => f,
-        Err(e) => return Err(OxenError::file_error(path, e)),
-    };
+/// Detects the video metadata of the file `data` reads.
+pub fn get_metadata(mut data: impl Read + Seek) -> Result<MetadataVideo, OxenError> {
+    let size = data.seek(SeekFrom::End(0))?;
+    data.rewind()?;
 
-    let size = f.metadata()?.len();
-    let reader = BufReader::new(f);
-
-    match mp4::Mp4Reader::read_header(reader, size) {
+    match Mp4Reader::read_header(BufReader::new(data), size) {
         Ok(video) => {
             let duration = video.duration().as_secs_f64();
 

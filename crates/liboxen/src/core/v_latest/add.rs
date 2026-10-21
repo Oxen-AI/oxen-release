@@ -4,6 +4,7 @@ use par_stream::prelude::*;
 use parking_lot::Mutex;
 use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fs::File;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -842,7 +843,6 @@ fn process_add_file(
     let num_bytes = file_status.num_bytes;
     let mtime = file_status.mtime;
     let maybe_file_node = file_status.previous_file_node.clone();
-    let previous_metadata = file_status.previous_metadata.clone();
 
     log::debug!(
         "status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}"
@@ -872,25 +872,8 @@ fn process_add_file(
         return Ok(AddOutcome::Unstaged(relative_path));
     }
 
-    // Get the data type of the file
-    let mime_type = util::fs::file_mime_type(path);
-    let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = match &previous_metadata {
-        Some(previous_oxen_metadata) => {
-            let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
-            maybe_construct_generic_metadata_for_tabular(
-                df_metadata,
-                previous_oxen_metadata.clone(),
-            )
-        }
-        None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
-    };
-
-    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
-    // because this means we failed to parse the metadata from the file
-    if metadata.is_none() && data_type == EntryDataType::Tabular {
-        data_type = EntryDataType::Binary;
-    }
+    let (mime_type, data_type, metadata) =
+        inspect_file(&full_path, path, file_status.previous_metadata.as_ref())?;
 
     let file_extension = relative_path
         .extension()
@@ -952,7 +935,6 @@ pub fn process_add_file_with_staged_db_manager(
     let num_bytes = file_status.num_bytes;
     let mtime = file_status.mtime;
     let maybe_file_node = file_status.previous_file_node.clone();
-    let previous_metadata = file_status.previous_metadata.clone();
 
     log::debug!(
         "status {status:?} hash {hash:?} num_bytes {num_bytes:?} mtime {mtime:?} file_node {maybe_file_node:?}"
@@ -970,25 +952,8 @@ pub fn process_add_file_with_staged_db_manager(
         return Ok(());
     }
 
-    // Get the data type of the file
-    let mime_type = util::fs::file_mime_type(path);
-    let mut data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = match &previous_metadata {
-        Some(previous_oxen_metadata) => {
-            let df_metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
-            maybe_construct_generic_metadata_for_tabular(
-                df_metadata,
-                previous_oxen_metadata.clone(),
-            )
-        }
-        None => repositories::metadata::get_file_metadata(&full_path, &data_type)?,
-    };
-
-    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
-    // because this means we failed to parse the metadata from the file
-    if metadata.is_none() && data_type == EntryDataType::Tabular {
-        data_type = EntryDataType::Binary;
-    }
+    let (mime_type, data_type, metadata) =
+        inspect_file(&full_path, path, file_status.previous_metadata.as_ref())?;
 
     let file_extension = relative_path
         .extension()
@@ -1160,7 +1125,6 @@ pub fn generate_file_node(
     let num_bytes = file_status.num_bytes;
     let mtime = file_status.mtime;
     let maybe_file_node = file_status.previous_file_node.clone();
-    let previous_metadata = file_status.previous_metadata.clone();
 
     // Normalize the path
     let relative_path = util::fs::path_relative_to_dir(dst_path, &repo.path)?;
@@ -1174,33 +1138,11 @@ pub fn generate_file_node(
     );
 
     // version_path is where the file is stored, relative_path is the working directory path that contains the file extension
-    let mime_type = util::fs::file_mime_type_from_extension(version_path, &relative_path);
-    let mut data_type =
-        util::fs::datatype_from_mimetype_from_extension(version_path, &relative_path, &mime_type);
-    let metadata = match &previous_metadata {
-        Some(previous_oxen_metadata) => {
-            let df_metadata = repositories::metadata::get_file_metadata_with_extension(
-                version_path,
-                &data_type,
-                &util::fs::file_extension(&relative_path),
-            )?;
-            maybe_construct_generic_metadata_for_tabular(
-                df_metadata,
-                previous_oxen_metadata.clone(),
-            )
-        }
-        None => repositories::metadata::get_file_metadata_with_extension(
-            version_path,
-            &data_type,
-            &util::fs::file_extension(&relative_path),
-        )?,
-    };
-
-    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
-    // because this means we failed to parse the metadata from the file
-    if metadata.is_none() && data_type == EntryDataType::Tabular {
-        data_type = EntryDataType::Binary;
-    }
+    let (mime_type, data_type, metadata) = inspect_file(
+        version_path,
+        &relative_path,
+        file_status.previous_metadata.as_ref(),
+    )?;
 
     let (hash, metadata_hash, combined_hash) = if let Some(metadata) = &metadata {
         let metadata_hash = util::hasher::get_metadata_hash(&Some(metadata.clone()))?;
@@ -1228,25 +1170,60 @@ pub fn generate_file_node(
     Ok(Some(file_node))
 }
 
-pub fn maybe_construct_generic_metadata_for_tabular(
+/// Reads the MIME type, data type, and metadata of the file at `data_path`, named by `file_path`,
+/// keeping the column metadata `previous_metadata` records for a tabular file.
+fn inspect_file(
+    data_path: &Path,
+    file_path: &Path,
+    previous_metadata: Option<&GenericMetadata>,
+) -> Result<(String, EntryDataType, Option<GenericMetadata>), OxenError> {
+    let mut file = File::open(data_path)?;
+    let head = util::fs::read_head(&mut file)?;
+    let mime_type = util::fs::mime_type_from_head(&head, file_path);
+    let mut data_type = util::fs::data_type_from_head(&head, file_path, &mime_type);
+    let metadata = repositories::metadata::get_file_metadata_with_extension(
+        &mut file,
+        data_path,
+        &data_type,
+        &util::fs::file_extension(file_path),
+    )?;
+    let metadata = match previous_metadata {
+        Some(previous_oxen_metadata) => {
+            maybe_construct_generic_metadata_for_tabular(metadata, previous_oxen_metadata)
+        }
+        None => metadata,
+    };
+
+    // If the metadata is None, but the data type is tabular, we need to set the data type to binary
+    // because this means we failed to parse the metadata from the file
+    if metadata.is_none() && data_type == EntryDataType::Tabular {
+        data_type = EntryDataType::Binary;
+    }
+    Ok((mime_type, data_type, metadata))
+}
+
+fn maybe_construct_generic_metadata_for_tabular(
     df_metadata: Option<GenericMetadata>,
-    previous_oxen_metadata: GenericMetadata,
+    previous_oxen_metadata: &GenericMetadata,
 ) -> Option<GenericMetadata> {
     log::debug!("maybe_construct_generic_metadata_for_tabular {df_metadata:?}");
     log::debug!("previous_oxen_metadata {previous_oxen_metadata:?}");
 
-    if let Some(GenericMetadata::MetadataTabular(mut df_metadata)) = df_metadata.clone()
-        && let GenericMetadata::MetadataTabular(ref previous_oxen_metadata) = previous_oxen_metadata
-    {
-        // Combine the two by using previous_oxen_metadata as the source of truth for metadata,
-        // but keeping df_metadata's fields
-        df_metadata
-            .tabular
-            .schema
-            .update_metadata_from_schema(&previous_oxen_metadata.tabular.schema);
-        return Some(GenericMetadata::MetadataTabular(df_metadata));
+    match (df_metadata, previous_oxen_metadata) {
+        (
+            Some(GenericMetadata::MetadataTabular(mut df_metadata)),
+            GenericMetadata::MetadataTabular(previous_oxen_metadata),
+        ) => {
+            // Combine the two by using previous_oxen_metadata as the source of truth for metadata,
+            // but keeping df_metadata's fields
+            df_metadata
+                .tabular
+                .schema
+                .update_metadata_from_schema(&previous_oxen_metadata.tabular.schema);
+            Some(GenericMetadata::MetadataTabular(df_metadata))
+        }
+        (df_metadata, _) => df_metadata,
     }
-    df_metadata
 }
 
 fn p_add_file_node_to_staged_db(

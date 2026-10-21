@@ -1452,7 +1452,7 @@ fn p_get_size_with_extension(
                 opts.remove_trailing_blank_line = true;
 
                 // Remove one line to account for CSV/TSV headers
-                let (mut height, _) = fs::count_lines(path, opts)?;
+                let (mut height, _) = fs::count_lines(File::open(input_path)?, opts)?;
                 height -= 1; // Adjusting for header
 
                 Ok(DataFrameSize { width, height })
@@ -1461,7 +1461,7 @@ fn p_get_size_with_extension(
                 let mut opts = CountLinesOpts::empty();
                 opts.remove_trailing_blank_line = true;
 
-                let (height, _) = fs::count_lines(path, opts)?;
+                let (height, _) = fs::count_lines(File::open(input_path)?, opts)?;
 
                 Ok(DataFrameSize { width, height })
             }

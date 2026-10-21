@@ -5,40 +5,32 @@ use crate::{error::OxenError, model::metadata::MetadataAudio};
 
 use lofty::file::{AudioFile, FileType};
 use lofty::probe::Probe;
-use std::path::Path;
+use std::io::{BufReader, Read, Seek};
 
-/// Detects the audio metadata for the file at `path`, read as the format `extension` indicates.
-pub fn get_metadata(path: &Path, extension: &str) -> Result<MetadataAudio, OxenError> {
-    match Probe::open(path) {
-        Ok(probe) => {
-            let probe = match FileType::from_ext(extension) {
-                Some(file_type) => probe.set_file_type(file_type),
-                None => probe,
-            };
-            match probe.read() {
-                Ok(tagged_file) => {
-                    let properties = tagged_file.properties();
-                    let duration = properties.duration();
-                    let seconds = duration.as_secs_f64();
-                    let rate = properties.sample_rate().unwrap_or(0);
-                    let channels = properties.channels().unwrap_or(0);
+/// Detects the audio metadata of the file `data` reads, in the format `extension` indicates.
+pub fn get_metadata(data: impl Read + Seek, extension: &str) -> Result<MetadataAudio, OxenError> {
+    let data = BufReader::new(data);
+    let probe = match FileType::from_ext(extension) {
+        Some(file_type) => Probe::with_file_type(data, file_type),
+        None => Probe::new(data),
+    };
+    match probe.read() {
+        Ok(tagged_file) => {
+            let properties = tagged_file.properties();
+            let duration = properties.duration();
+            let seconds = duration.as_secs_f64();
+            let rate = properties.sample_rate().unwrap_or(0);
+            let channels = properties.channels().unwrap_or(0);
 
-                    Ok(MetadataAudio::new(
-                        seconds,
-                        channels as usize,
-                        rate as usize,
-                    ))
-                }
-                Err(err) => {
-                    let error_str = format!("Could not read audio stream from {path:?} {err}");
-                    Err(OxenError::basic_str(error_str))
-                }
-            }
+            Ok(MetadataAudio::new(
+                seconds,
+                channels as usize,
+                rate as usize,
+            ))
         }
-        Err(err) => {
-            let error_str = format!("Could not probe audio stream from {path:?}: {err}");
-            Err(OxenError::basic_str(error_str))
-        }
+        Err(err) => Err(OxenError::internal_error(format!(
+            "Could not read audio stream as {extension}: {err}"
+        ))),
     }
 }
 
@@ -52,6 +44,7 @@ mod tests {
     use crate::util;
 
     use approx::assert_relative_eq;
+    use std::fs::File;
 
     #[test]
     fn test_get_metadata_audio_flac() {
@@ -100,6 +93,7 @@ mod tests {
             let version_file = dir.join("data");
             util::fs::copy(&file, &version_file)?;
             let staged = repositories::metadata::get_file_metadata_with_extension(
+                &mut File::open(&version_file)?,
                 &version_file,
                 &EntryDataType::Audio,
                 "wav",
@@ -109,6 +103,15 @@ mod tests {
             };
             assert_eq!(staged.audio.sample_rate, metadata.audio.sample_rate);
             assert_eq!(staged.audio.num_channels, metadata.audio.num_channels);
+
+            let missing = repositories::metadata::get_file_metadata(
+                &dir.join("missing.wav"),
+                &EntryDataType::Audio,
+            )?;
+            assert!(
+                missing.is_none(),
+                "a file that cannot be opened has no metadata"
+            );
             Ok(())
         })
         .expect("the extensionless copy's metadata matches the named file's");
