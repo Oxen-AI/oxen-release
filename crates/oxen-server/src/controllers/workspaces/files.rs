@@ -456,7 +456,11 @@ async fn save_parts(
             match spool_to_temp_file(field, dir.to_path_buf(), MAX_FILE_SIZE, encoding).await? {
                 Ok(spooled) => spooled,
                 Err(e) => {
-                    log::error!("Failed to receive {dst_path:?}: {e}");
+                    tracing::error!(
+                        oxen.file_path = %dst_path.display(),
+                        exception.message = %e,
+                        "Failed to receive an uploaded file"
+                    );
                     continue;
                 }
             };
@@ -482,7 +486,12 @@ async fn save_parts(
                     part_index,
                 }),
                 Err(e) => {
-                    log::error!("Failed to store {dst_path:?} as version {hash}: {e}");
+                    tracing::error!(
+                        oxen.file_path = %dst_path.display(),
+                        oxen.file_hash = %hash,
+                        exception.message = %e,
+                        "Failed to store an uploaded file"
+                    );
                     None
                 }
             }
@@ -504,10 +513,8 @@ async fn save_parts(
 fn store_task_result(
     result: Result<Option<ReceivedFile>, JoinError>,
 ) -> Result<Option<ReceivedFile>, OxenHttpError> {
-    result.map_err(|e| {
-        log::error!("version store task panicked: {e}");
-        OxenError::internal_error(format!("version store task panicked: {e}")).into()
-    })
+    result
+        .map_err(|e| OxenError::internal_error(format!("version store task panicked: {e}")).into())
 }
 
 #[cfg(test)]
