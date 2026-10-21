@@ -105,7 +105,7 @@ mod tests {
                 "wav",
             )?;
             let Some(GenericMetadata::MetadataAudio(staged)) = staged else {
-                panic!("a copy with no extension reads as the extension given, got {staged:?}");
+                panic!("a copy with no extension is probed in the format given, got {staged:?}");
             };
             assert_eq!(staged.audio.sample_rate, metadata.audio.sample_rate);
             assert_eq!(staged.audio.num_channels, metadata.audio.num_channels);
