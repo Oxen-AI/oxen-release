@@ -34,17 +34,9 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
             working_dir: false,
             walk_dirs: false,
         };
-        let mut matches = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
-        // A path given outright is refused even when a glob also matches it
-        matches.retain(|path| !paths.contains(path));
+        let matches = util::glob::parse_glob_paths(&glob_opts, Some(repo)).await?;
         glob_matches.push((relative_glob, matches));
     }
-    paths.extend(
-        glob_matches
-            .iter()
-            .flat_map(|(_, matches)| matches)
-            .cloned(),
-    );
 
     core::v_latest::rm::rm(&paths, &glob_matches, repo, opts).await
 }
@@ -665,6 +657,20 @@ mod tests {
                 matches!(&result, Err(err @ OxenError::RemovalAlreadyStaged(_))
                     if err.to_string().contains(&glob)),
                 "a staged glob whose every match already has its removal staged fails: {result:?}"
+            );
+
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(&cat_3)).await?;
+            let rm_opts = RmOpts {
+                paths: vec![PathBuf::from("images/*"), cat_3.clone()],
+                staged: true,
+                ..Default::default()
+            };
+            repositories::rm(&repo, &rm_opts).await?;
+            let status = repositories::status(&repo).await?;
+            assert_eq!(
+                status.paths_with_status(StagedEntryStatus::Removed).count(),
+                7,
+                "a glob also matching a path given outright has that path left to remove"
             );
 
             Ok(())

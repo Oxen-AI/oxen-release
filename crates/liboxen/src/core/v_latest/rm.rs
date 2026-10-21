@@ -41,9 +41,9 @@ use rocksdb::DB;
 
 use std::sync::Arc;
 
-/// Removes `paths`. `glob_matches` pairs each glob given with its matches that no path given
-/// outright also names: under `--staged`, those are skipped rather than refused when their removal
-/// is already staged, and a glob whose every match is skipped fails.
+/// Removes the `paths` given outright and every match in `glob_matches`, which pairs each glob given
+/// with its matches. Under `--staged`, a match whose removal is already staged is skipped rather than
+/// refused unless it is also given outright, and a glob whose every match is skipped fails.
 pub async fn rm(
     paths: &HashSet<PathBuf>,
     glob_matches: &[(PathBuf, HashSet<PathBuf>)],
@@ -54,13 +54,21 @@ pub async fn rm(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DB = DB::open(&db_opts, dunce::simplified(&db_path))?;
 
+    let mut targets = paths.clone();
+    targets.extend(
+        glob_matches
+            .iter()
+            .flat_map(|(_, matches)| matches)
+            .cloned(),
+    );
+
     // `--staged` keeps the working copy, so a modification there is never lost
-    if !opts.staged && !list_modified_files(repo, paths).await?.is_empty() {
+    if !opts.staged && !list_modified_files(repo, &targets).await?.is_empty() {
         let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
         return Err(OxenError::basic_str(error));
     }
 
-    remove_inner(paths, glob_matches, repo, opts, &staged_db)?;
+    remove_inner(&targets, paths, glob_matches, repo, opts, &staged_db)?;
     Ok(())
 }
 
@@ -513,7 +521,8 @@ fn process_remove_file_and_parents(
 }
 
 fn remove_inner(
-    paths: &HashSet<PathBuf>,
+    targets: &HashSet<PathBuf>,
+    given: &HashSet<PathBuf>,
     glob_matches: &[(PathBuf, HashSet<PathBuf>)],
     repo: &LocalRepository,
     opts: &RmOpts,
@@ -537,15 +546,11 @@ fn remove_inner(
     };
 
     // Look every path up before changing anything, so a refused path leaves the others untouched
-    let only_glob_matched: HashSet<&PathBuf> = glob_matches
-        .iter()
-        .flat_map(|(_, matches)| matches)
-        .collect();
     let mut skipped = HashSet::new();
     let mut parent_nodes = HashMap::new();
-    let mut committed = Vec::with_capacity(paths.len());
+    let mut committed = Vec::with_capacity(targets.len());
     let mut uncommitted = HashSet::new();
-    for path in paths {
+    for path in targets {
         let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
 
         let parent_path = relative_path.parent().unwrap_or(Path::new(""));
@@ -579,7 +584,7 @@ fn remove_inner(
                 }
                 if opts.staged && is_removal_staged(&relative_path, &node, staged_db)? {
                     // A glob passes over its matches whose removal is staged and removes the rest
-                    if only_glob_matched.contains(path) {
+                    if !given.contains(path) {
                         skipped.insert(path.clone());
                         continue;
                     }
@@ -629,7 +634,7 @@ fn remove_inner(
 
     // Stop the timer, and round the duration to the nearest second
     let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
-    log::debug!("---END--- oxen rm: {paths:?} duration: {duration:?}");
+    log::debug!("---END--- oxen rm: {targets:?} duration: {duration:?}");
 
     // TODO: Add function to CumulativeStats to output that print statement
     println!(
