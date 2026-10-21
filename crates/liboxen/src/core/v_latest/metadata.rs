@@ -12,7 +12,7 @@ use std::path::Path;
 
 use super::index::CommitMerkleTree;
 
-/// Returns metadata with latest commit information. Less efficient than get().
+/// Returns metadata with latest commit information.
 pub fn get_cli(
     repo: &LocalRepository,
     entry_path: impl AsRef<Path>,

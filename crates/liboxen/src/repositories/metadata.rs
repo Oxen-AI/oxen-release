@@ -97,7 +97,7 @@ pub fn from_dir_node(
     })
 }
 
-/// Returns metadata with latest commit information. Less efficient than get().
+/// Returns metadata with latest commit information.
 pub use crate::core::v_latest::metadata::get_cli;
 
 /// Returns CLI metadata for `path` as it existed at `revision`, sourced from the merkle tree
