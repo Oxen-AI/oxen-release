@@ -253,10 +253,21 @@ impl AtomicFile {
         mut tmp: AtomicTempFile,
         actual_hash: Option<MerkleHash>,
     ) -> Result<(), OxenError> {
+        self.verify_and_stamp(&mut tmp, actual_hash)?;
+        tmp.commit()
+    }
+
+    /// Hash-check when a digest was set, and stamp the mtime on the scratch. `actual_hash` must be
+    /// `Some` whenever [`with_hash`][Self::with_hash] was set.
+    fn verify_and_stamp(
+        &self,
+        tmp: &mut AtomicTempFile,
+        actual_hash: Option<MerkleHash>,
+    ) -> Result<(), OxenError> {
         match (self.expected_hash, actual_hash) {
             (Some(expected), Some(actual)) if actual != expected => {
                 return Err(OxenError::HashMismatch {
-                    path: self.target,
+                    path: self.target.clone(),
                     expected,
                     actual,
                 });
@@ -273,7 +284,7 @@ impl AtomicFile {
         if let Some(mtime) = self.mtime {
             tmp.set_mtime(mtime)?;
         }
-        tmp.commit()
+        Ok(())
     }
 
     /// Publish whatever `fill` writes to the target path. The fit for encoders that take ownership
@@ -493,23 +504,12 @@ impl AtomicFile {
         file: tempfile::NamedTempFile,
         file_hash: MerkleHash,
     ) -> Result<(), OxenError> {
-        if let Some(expected) = self.expected_hash
-            && expected != file_hash
-        {
-            return Err(OxenError::HashMismatch {
-                path: self.target,
-                expected,
-                actual: file_hash,
-            });
-        }
-        create_parent_dir(&self.target)?;
         let mut tmp = AtomicTempFile {
             tmp: file,
             target: self.target.clone(),
         };
-        if let Some(mtime) = self.mtime {
-            tmp.set_mtime(mtime)?;
-        }
+        self.verify_and_stamp(&mut tmp, Some(file_hash))?;
+        create_parent_dir(&self.target)?;
         tmp.tmp.as_file().sync_all()?;
         match tmp.rename_into_place() {
             Ok(()) => Ok(()),
