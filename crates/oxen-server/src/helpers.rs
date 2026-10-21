@@ -237,7 +237,7 @@ const SPOOL_CHANNEL_CAPACITY: usize = 8;
 /// Write `body` to a new temporary file in `dir`, gunzipping it on the way when it is gzipped, and
 /// hash what is written. The outer error is a failure to read the body, or a body of more than
 /// `max_len` bytes. The inner one is a failure to gunzip the body or to write the file.
-pub(crate) async fn spool_to_temp_file<E>(
+pub(crate) async fn spool_to_temp_file<E: Into<actix_web::Error>>(
     mut body: impl Stream<Item = Result<Bytes, E>> + Unpin,
     dir: PathBuf,
     max_len: u64,
@@ -270,7 +270,7 @@ pub(crate) async fn spool_to_temp_file<E>(
     });
     let mut received: u64 = 0;
     while let Some(chunk) = body.next().await {
-        let chunk = chunk.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?;
+        let chunk = chunk.map_err(Into::<actix_web::Error>::into)?;
         received += chunk.len() as u64;
         if received > max_len {
             return Err(OxenHttpError::BadRequest(

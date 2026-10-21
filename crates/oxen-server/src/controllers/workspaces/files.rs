@@ -413,11 +413,7 @@ async fn save_parts(
     let mut received = vec![];
     let mut part_count = 0;
 
-    while let Some(field) = payload
-        .try_next()
-        .await
-        .map_err(|_| OxenHttpError::FailedToReadRequestPayload)?
-    {
+    while let Some(field) = payload.try_next().await.map_err(actix_web::Error::from)? {
         let Some(content_disposition) = field.content_disposition().cloned() else {
             continue;
         };
@@ -1140,7 +1136,7 @@ mod tests {
                 header::CONTENT_TYPE,
                 format!("multipart/form-data; boundary={boundary}"),
             ))
-            .set_payload(body)
+            .set_payload(body.clone())
             .to_request();
 
         let app = actix_web::test::init_service(
@@ -1187,6 +1183,30 @@ mod tests {
         assert!(
             !repo.version_store().version_exists(&bomb_hash).await?,
             "gzip bomb contents should not have been stored"
+        );
+
+        // Cut the body one byte into the first part's data, so no part is stored.
+        let first_data = body
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .expect("the body has a part header")
+            + 4;
+        let req = actix_web::test::TestRequest::post()
+            .uri(&uri)
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
+            .insert_header((
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={boundary}"),
+            ))
+            .set_payload(body[..first_data + 1].to_vec())
+            .to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let response: serde_json::Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(
+            response["error"]["detail"], "Multipart stream is incomplete",
+            "a truncated body reports the multipart error's own reason"
         );
 
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
