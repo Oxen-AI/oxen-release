@@ -44,9 +44,9 @@ pub enum LocalFilePath {
     /// blob inside the content-addressed version store, so callers must treat it as read-only:
     /// mutating it corrupts the stored content for every reference to that hash.
     Stable(PathBuf),
-    /// A temporary file that is deleted when this value is dropped. Callers must treat it as
-    /// read-only.
-    Temp(tempfile::NamedTempFile),
+    /// A temporary file that is deleted when this value is dropped, and that this value keeps no
+    /// handle open on. Callers must treat it as read-only.
+    Temp(tempfile::TempPath),
 }
 
 impl Deref for LocalFilePath {
@@ -55,7 +55,7 @@ impl Deref for LocalFilePath {
     fn deref(&self) -> &Path {
         match self {
             LocalFilePath::Stable(p) => p.as_path(),
-            LocalFilePath::Temp(t) => t.path(),
+            LocalFilePath::Temp(t) => t,
         }
     }
 }
@@ -70,7 +70,7 @@ impl std::fmt::Debug for LocalFilePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LocalFilePath::Stable(p) => write!(f, "Stable({p:?})"),
-            LocalFilePath::Temp(t) => write!(f, "Temp({:?})", t.path()),
+            LocalFilePath::Temp(t) => write!(f, "Temp({t:?})"),
         }
     }
 }
@@ -250,7 +250,7 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
         let reader = tokio::fs::File::from_std(file.reopen()?);
         self.store_version_from_reader(&hash.to_string(), Box::new(reader), size)
             .await?;
-        Ok(LocalFilePath::Temp(file))
+        Ok(LocalFilePath::Temp(file.into_temp_path()))
     }
 
     /// Store a version file from bytes.
@@ -472,7 +472,7 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
                 // / similar). Mtime is irrelevant for read-only consumers, so stamp with `now`.
                 self.copy_version_to_path(hash, temp.path(), SystemTime::now())
                     .await?;
-                Ok(LocalFilePath::Temp(temp))
+                Ok(LocalFilePath::Temp(temp.into_temp_path()))
             }
         }
     }
