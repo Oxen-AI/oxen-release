@@ -476,231 +476,121 @@ async fn action_hook(
 mod tests {
     use std::path::PathBuf;
 
-    use tokio::time::sleep;
-
-    use super::get_default_remote;
-    use crate::api;
+    use super::{
+        create, create_from_local, delete, get_by_remote_repo, get_default_remote, post_clone,
+        post_push, pre_clone, pre_push, transfer_namespace,
+    };
+    use crate::api::client::dir;
     use crate::api::requests::RepoNew;
     use crate::config::UserConfig;
-    use crate::constants;
-    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_NAMESPACE};
     use crate::error::OxenError;
-    use crate::model::file::FileContents;
-    use crate::model::file::FileNew;
-    use crate::repositories;
+    use crate::model::Branch;
+    use crate::model::file::{FileContents, FileNew};
     use crate::test;
     use crate::view::entries::EMetadataEntry;
     use uuid::Uuid;
 
-    /// Every operation that reaches the server for an existing repository resolves through
-    /// `get_by_remote`, so a URL that has come to point at a different repository is refused there
-    /// rather than addressing the other repository's storage.
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_resolving_a_remote_pointing_at_a_different_repo_is_refused()
-    -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|mut repo, remote_repo| async move {
+    async fn test_remote_repository_lifecycle() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let namespace = DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+
+            let repo_new =
+                RepoNew::from_namespace_name_host(namespace, &name, test::test_host(), None);
+            let remote_repo = create_from_local(&local_repo, repo_new).await?;
+            assert_eq!(
+                remote_repo.name, name,
+                "the remote takes the local repo's name"
+            );
+
+            let by_name = get_by_remote_repo(&remote_repo).await?;
+            assert_eq!(by_name.namespace, remote_repo.namespace);
+            assert_eq!(by_name.name, remote_repo.name);
+
+            // The clone and push hooks each post to their action endpoint.
+            let mut server = mockito::Server::new_async().await;
+            let mut mocked = remote_repo.clone();
+            mocked.remote.url = format!("{}/{namespace}/{name}", server.url());
+            let actions = format!("/api/repos/{namespace}/{name}/action");
+            let branch = Branch {
+                name: DEFAULT_BRANCH_NAME.to_string(),
+                commit_id: "1".to_string(),
+            };
+
+            let hook = server
+                .mock("POST", format!("{actions}/started/clone").as_str())
+                .create_async()
+                .await;
+            pre_clone(&mocked).await?;
+            hook.assert();
+
+            let hook = server
+                .mock("POST", format!("{actions}/completed/clone").as_str())
+                .create_async()
+                .await;
+            post_clone(&mocked).await?;
+            hook.assert();
+
+            let hook = server
+                .mock("POST", format!("{actions}/started/push").as_str())
+                .create_async()
+                .await;
+            pre_push(&mocked, &branch, &branch.commit_id).await?;
+            hook.assert();
+
+            let hook = server
+                .mock("POST", format!("{actions}/completed/push").as_str())
+                .create_async()
+                .await;
+            post_push(&mocked, &branch, &branch.commit_id).await?;
+            hook.assert();
+
+            // Every operation on an existing repository resolves through `get_by_remote`, so a URL
+            // that has come to point at a different repository is refused there rather than
+            // addressing the other repository's storage.
             let mut attached = remote_repo.clone();
             attached.remote.repo_uuid = Some(Uuid::new_v4());
-            test::attach_remote_repo(&mut repo, &attached)?;
-
-            let result = get_default_remote(&repo).await;
-
+            test::attach_remote_repo(&mut local_repo, &attached)?;
+            let result = get_default_remote(&local_repo).await;
             assert!(
                 matches!(result, Err(OxenError::RemotePointsAtDifferentRepo { .. })),
                 "expected a refusal, got: {result:?}"
             );
-            Ok(remote_repo)
-        })
-        .await
-    }
 
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_repo_pre_and_post_clone() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let mut server = mockito::Server::new_async().await;
-            let server_url = server.url();
+            let transferred = transfer_namespace(&remote_repo, "new-namespace", None).await?;
+            assert_eq!(transferred.namespace, "new-namespace");
+            assert_eq!(transferred.name, remote_repo.name);
 
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
+            delete(&transferred).await?;
+            test::wait_until_remote_repo_deleted(&transferred.remote.url).await?;
 
-            let mut remote_repo = test::create_remote_repo(&local_repo).await?;
-            let original_remote_url = remote_repo.remote.url;
-            remote_repo.remote.url = format!("{server_url}/{namespace}/{name}");
-
-            let path = format!("/api/repos/{namespace}/{name}/action/started/clone");
-            let mock_pre_clone = server.mock("POST", &path[..]).create_async().await;
-
-            api::client::repositories::pre_clone(&remote_repo).await?;
-            mock_pre_clone.assert();
-
-            let path = format!("/api/repos/{namespace}/{name}/action/completed/clone");
-            let mock_post_clone = server.mock("POST", &path[..]).create_async().await;
-
-            api::client::repositories::post_clone(&remote_repo).await?;
-            mock_post_clone.assert();
-
-            // cleanup
-            remote_repo.remote.url = original_remote_url;
-
-            api::client::repositories::delete(&remote_repo).await?;
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_repo_pre_and_post_push() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test_async(|local_repo| async move {
-            let mut server = mockito::Server::new_async().await;
-            let server_url = server.url();
-
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-
-            let mut remote_repo = test::create_remote_repo(&local_repo).await?;
-            let original_remote_url = remote_repo.remote.url;
-            remote_repo.remote.url = format!("{server_url}/{namespace}/{name}");
-
-            let path = format!("/api/repos/{namespace}/{name}/action/started/push");
-            let mock_pre_push = server.mock("POST", &path[..]).create_async().await;
-
-            // Branch and commit id we're pushing
-            let branch = repositories::branches::get_by_name(&local_repo, DEFAULT_BRANCH_NAME)?;
-            let commit_id = branch.commit_id.clone();
-
-            api::client::repositories::pre_push(&remote_repo, &branch, &commit_id).await?;
-            mock_pre_push.assert();
-
-            let path = format!("/api/repos/{namespace}/{name}/action/completed/push");
-            let mock_post_push = server.mock("POST", &path[..]).create_async().await;
-
-            api::client::repositories::post_push(&remote_repo, &branch, &commit_id).await?;
-            mock_post_push.assert();
-
-            // cleanup
-            remote_repo.remote.url = original_remote_url;
-
-            api::client::repositories::delete(&remote_repo).await?;
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_remote_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new =
-                RepoNew::from_namespace_name_host(namespace, &name, test::test_host(), None);
-            let repository =
-                api::client::repositories::create_from_local(&local_repo, repo_new).await?;
-            println!("got repository: {repository:?}");
-            assert_eq!(repository.name, name);
-
-            // cleanup
-            api::client::repositories::delete(&repository).await?;
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_create_remote_repository_with_readme() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-
-            // Create a README on the remote repo
-            let user = UserConfig::get()?.to_user();
-            let files: Vec<FileNew> = vec![FileNew {
+            // The transfer freed the name, so a repository created from files can take it.
+            let files = vec![FileNew {
                 path: PathBuf::from("README"),
                 contents: FileContents::Text(String::from("Hello world!")),
-                user,
+                user: UserConfig::get()?.to_user(),
             }];
             let mut repo_new =
                 RepoNew::from_files(namespace, &name, &test::test_host(), files, None);
             repo_new.scheme = Some("http".to_string());
-            let repository = api::client::repositories::create(repo_new).await?;
-            println!("got repository: {repository:?}");
-            assert_eq!(repository.name, name);
+            let with_readme = create(repo_new).await?;
+            assert_eq!(with_readme.name, name);
 
-            // list the files in the repo
-            let entries = api::client::dir::list_root(&repository).await?;
-            assert_eq!(entries.entries.len(), 1);
+            let entries = dir::list_root(&with_readme).await?;
+            assert_eq!(
+                entries.entries.len(),
+                1,
+                "the repository holds only the file it was given"
+            );
             match &entries.entries[0] {
                 EMetadataEntry::MetadataEntry(meta) => assert_eq!(meta.filename, "README"),
                 _ => panic!("Expected a MetadataEntry"),
             }
 
-            // cleanup
-            api::client::repositories::delete(&repository).await?;
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_get_by_name() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-            let url_repo = api::client::repositories::get_by_remote_repo(&remote_repo).await?;
-
-            assert_eq!(remote_repo.namespace, url_repo.namespace);
-            assert_eq!(remote_repo.name, url_repo.name);
-
-            // cleanup
-            api::client::repositories::delete(&remote_repo).await?;
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_delete_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            // Create a remote repo
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            // Delete it
-            api::client::repositories::delete(&remote_repo).await?;
-
-            // We delete in a background thread, so give it a second
-            sleep(std::time::Duration::from_secs(1)).await;
-
-            let result = api::client::repositories::get_by_remote_repo(&remote_repo).await;
-            assert!(matches!(result, Err(OxenError::RemoteRepoNotFound(_))));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_transfer_remote_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|local_repo| async move {
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            let new_namespace = "new-namespace";
-            let new_repository =
-                api::client::repositories::transfer_namespace(&remote_repo, new_namespace, None)
-                    .await?;
-
-            assert_eq!(new_repository.namespace, new_namespace);
-            assert_eq!(new_repository.name, remote_repo.name);
-
-            // Delete repo - cleanup + check for correct remote namespace transfer
-            api::client::repositories::delete(&new_repository).await?;
-
+            delete(&with_readme).await?;
             Ok(())
         })
         .await

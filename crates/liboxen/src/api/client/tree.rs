@@ -493,7 +493,7 @@ pub async fn mark_nodes_as_synced(
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
+    use super::{download_tree_from_path, download_trees_from, has_node, list_missing_node_hashes};
     use crate::error::OxenError;
     use crate::model::LocalRepository;
     use crate::opts::FetchOpts;
@@ -523,128 +523,18 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_has_node() -> Result<(), OxenError> {
+    async fn test_has_node_and_list_missing_node_hashes() -> Result<(), OxenError> {
         test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
             let commit = repositories::commits::head_commit(&local_repo)?;
             let commit_hash = commit.id.parse()?;
-            let has_node = api::client::tree::has_node(&remote_repo, commit_hash).await?;
-            assert!(has_node);
+            assert!(
+                has_node(&remote_repo, commit_hash).await?,
+                "the pushed commit's node is there"
+            );
 
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_tree_from_path() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let commit = repositories::commits::head_commit(&local_repo)?;
-            let remote_repo_clone = remote_repo.clone();
-            let download_repo_path_1 = local_repo.path.join("download_repo_test_1");
-            let download_repo_path_2 = local_repo.path.join("download_repo_test_2");
-            let download_local_repo_1 = repositories::init(&download_repo_path_1)?;
-            let download_local_repo_2 = repositories::init(&download_repo_path_2)?;
-            api::client::tree::download_tree_from_path(
-                &download_local_repo_1,
-                &remote_repo_clone,
-                &commit.id,
-                "",
-                true,
-            )
-            .await?;
-
-            let dir_count = node_prefix_count(&download_local_repo_1)?;
-
-            assert!(dir_count > 16);
-
-            api::client::tree::download_tree_from_path(
-                &download_local_repo_2,
-                &remote_repo_clone,
-                &commit.id,
-                "annotations/test",
-                true,
-            )
-            .await?;
-
-            let dir_count = node_prefix_count(&download_local_repo_2)?;
-
-            // Here we expect very few nodes (but more than on the download_tree_from_path function) because we only download the nodes that actually
-            // contain the files in the subtree path, no parents, no siblings.
-            assert!(dir_count < 4);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_trees_from() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let commit = repositories::commits::head_commit(&local_repo)?;
-            let remote_repo_clone = remote_repo.clone();
-            let download_repo_path = local_repo.path.join("download_repo_test_1");
-            let download_local_repo = repositories::init(&download_repo_path)?;
-            let mut fetch_opts = FetchOpts::new();
-            fetch_opts.remote = remote_repo_clone.url().to_string();
-            api::client::tree::download_trees_from(
-                &download_local_repo,
-                &remote_repo_clone,
-                &commit.id,
-                &fetch_opts,
-            )
-            .await?;
-
-            let dir_count = node_prefix_count(&download_local_repo)?;
-
-            log::debug!("dir_count: {dir_count}");
-            assert!(dir_count > 33);
-
-            let download_repo_path_2 = local_repo.path.join("download_repo_test_2");
-            let download_local_repo_2 = repositories::init(&download_repo_path_2)?;
-            let fetch_opts = FetchOpts {
-                subtree_paths: Some(vec![PathBuf::from("annotations/test")]),
-                depth: Some(1),
-                all: false,
-                remote: remote_repo_clone.url().to_string(),
-                branch: "main".to_string(),
-                should_update_branch_head: true,
-                missing_files: false,
-            };
-            api::client::tree::download_trees_from(
-                &download_local_repo_2,
-                &remote_repo_clone,
-                &commit.id,
-                &fetch_opts,
-            )
-            .await?;
-
-            let dir_count = node_prefix_count(&download_local_repo_2)?;
-
-            // Here we expect few nodes (but more than on the download_tree_from_path function) because we download the nodes that
-            // contain the files in the subtree path, with the parents. This allows us to keep the remote repo intact when we push
-            // back the changes applied to this subset of files.
-            assert!(dir_count < 8);
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_list_missing_node_hashes() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|local_repo, remote_repo| async move {
-            let commit = repositories::commits::head_commit(&local_repo)?;
-            let commit_hash = commit.id.parse()?;
-            let _missing_node_hashes = api::client::tree::list_missing_node_hashes(
-                &remote_repo,
-                HashSet::from([commit_hash]),
-            )
-            .await?;
             // This *should* be 0, but won't be until dir-level sync is re-implemented
-            // assert_eq!(missing_node_hashes.len(), 0);
+            let _missing_node_hashes =
+                list_missing_node_hashes(&remote_repo, HashSet::from([commit_hash])).await?;
 
             // Add and commit a new file
             let file_path = local_repo.path.join("test.txt");
@@ -653,13 +543,55 @@ mod tests {
             let commit = repositories::commit(&local_repo, "test")?;
             let commit_hash = commit.id.parse()?;
 
-            let missing_node_hashes = api::client::tree::list_missing_node_hashes(
-                &remote_repo,
-                HashSet::from([commit_hash]),
-            )
-            .await?;
+            let missing_node_hashes =
+                list_missing_node_hashes(&remote_repo, HashSet::from([commit_hash])).await?;
             assert_eq!(missing_node_hashes.len(), 1);
             assert!(missing_node_hashes.contains(&commit_hash));
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
+    #[tokio::test]
+    async fn test_download_trees() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let commit = repositories::commits::head_commit(&local_repo)?;
+            let init = |name: &str| repositories::init(local_repo.path.join(name));
+
+            let whole = init("download_tree_from_path")?;
+            download_tree_from_path(&whole, &remote_repo, &commit.id, "", true).await?;
+            assert!(node_prefix_count(&whole)? > 16);
+
+            // Only the nodes that hold the subtree's files download, with no parents or siblings.
+            let subtree = init("download_tree_from_path_subtree")?;
+            download_tree_from_path(&subtree, &remote_repo, &commit.id, "annotations/test", true)
+                .await?;
+            assert!(node_prefix_count(&subtree)? < 4);
+
+            let mut fetch_opts = FetchOpts::new();
+            fetch_opts.remote = remote_repo.url().to_string();
+            let whole = init("download_trees_from")?;
+            download_trees_from(&whole, &remote_repo, &commit.id, &fetch_opts).await?;
+            let dir_count = node_prefix_count(&whole)?;
+            log::debug!("dir_count: {dir_count}");
+            assert!(dir_count > 33);
+
+            // The subtree's nodes download with their parents, which lets a push of changes to the
+            // subset of files keep the remote repo intact.
+            let fetch_opts = FetchOpts {
+                subtree_paths: Some(vec![PathBuf::from("annotations/test")]),
+                depth: Some(1),
+                all: false,
+                remote: remote_repo.url().to_string(),
+                branch: "main".to_string(),
+                should_update_branch_head: true,
+                missing_files: false,
+            };
+            let subtree = init("download_trees_from_subtree")?;
+            download_trees_from(&subtree, &remote_repo, &commit.id, &fetch_opts).await?;
+            assert!(node_prefix_count(&subtree)? < 8);
 
             Ok(remote_repo)
         })

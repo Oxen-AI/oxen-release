@@ -235,7 +235,7 @@ pub async fn create_or_clear_remote_repo(
 
 /// Returns once the remote repo at `url` reports 404, so a recreate cannot race a slow delete.
 /// Errors if the repo is still there after 30s, or if the existence check itself fails.
-async fn wait_until_remote_repo_deleted(url: &str) -> Result<(), OxenError> {
+pub(crate) async fn wait_until_remote_repo_deleted(url: &str) -> Result<(), OxenError> {
     const TIMEOUT: Duration = Duration::from_secs(30);
     const POLL_INTERVAL: Duration = Duration::from_millis(25);
 

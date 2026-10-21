@@ -911,9 +911,10 @@ pub async fn try_download_data_from_version_paths(
 #[cfg(test)]
 mod tests {
 
+    use super::{download_entry, download_small_entry, get_entry};
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::EntryDataType;
+    use crate::model::{EntryDataType, MerkleHash};
     use crate::{api, util};
     use crate::{repositories, test};
 
@@ -927,6 +928,9 @@ mod tests {
         }
 
         test::run_readme_remote_repo_test(|local_repo, remote_repo| async move {
+            let root = get_entry(&remote_repo, Path::new(""), DEFAULT_BRANCH_NAME).await?;
+            assert!(root.is_some(), "the root entry resolves");
+
             // Add a tabular file at the root and one in a directory
             let revision = DEFAULT_BRANCH_NAME;
             let root_path = Path::new("");
@@ -999,124 +1003,28 @@ mod tests {
     async fn test_download_file_large() -> Result<(), OxenError> {
         test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
+            let revision = DEFAULT_BRANCH_NAME;
+
             let local_path = local_repo.path.join("data.csv");
-            let revision = DEFAULT_BRANCH_NAME;
-            api::client::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
-                .await?;
-
-            assert!(local_path.exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_file_large_to_dir() -> Result<(), OxenError> {
-        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("large_files").join("test.csv");
-            let local_path = local_repo.path.join("train_data");
-            let revision = DEFAULT_BRANCH_NAME;
-            // mkdir train_data
-            util::fs::create_dir_all(&local_path)?;
-            api::client::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
-                .await?;
-
-            assert!(local_path.join("test.csv").exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_file_large_to_dir_does_not_exist() -> Result<(), OxenError> {
-        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("large_files").join("test.csv");
-            let local_path = local_repo.path.join("I_DO_NOT_EXIST").join("put_it_here");
-            let revision = DEFAULT_BRANCH_NAME;
-            let result = api::client::entries::download_entry(
-                &remote_repo,
-                &remote_path,
-                &local_path,
-                revision,
-            )
-            .await;
-
-            assert!(result.is_err());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_file_large_to_dir_does_exist() -> Result<(), OxenError> {
-        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("large_files").join("test.csv");
-            let local_path = local_repo.path.join("I_DO_EXIST");
-            util::fs::create_dir_all(&local_path)?;
-            let revision = DEFAULT_BRANCH_NAME;
-            let result = api::client::entries::download_entry(
-                &remote_repo,
-                &remote_path,
-                &local_path,
-                revision,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            assert!(local_path.join("test.csv").exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_small_file_to_dir_does_exist() -> Result<(), OxenError> {
-        test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("annotations").join("README.md");
-            let local_path = local_repo.path.join("I_DO_EXIST");
-            util::fs::create_dir_all(&local_path)?;
-            let revision = DEFAULT_BRANCH_NAME;
-            let result = api::client::entries::download_entry(
-                &remote_repo,
-                &remote_path,
-                &local_path,
-                revision,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            assert!(local_path.join("README.md").exists());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_different_dir() -> Result<(), OxenError> {
-        test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("annotations");
-            let local_path = local_repo.path.join("data");
-            let revision = DEFAULT_BRANCH_NAME;
-            api::client::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
-                .await?;
-            assert!(local_path.exists());
-            assert!(local_path.join("annotations").join("README.md").exists());
+            download_entry(&remote_repo, &remote_path, &local_path, revision).await?;
             assert!(
-                local_path
-                    .join("annotations")
-                    .join("train")
-                    .join("bounding_box.csv")
-                    .exists()
+                local_path.exists(),
+                "a download to a file path writes that file"
+            );
+
+            let local_dir = local_repo.path.join("I_DO_EXIST");
+            util::fs::create_dir_all(&local_dir)?;
+            download_entry(&remote_repo, &remote_path, &local_dir, revision).await?;
+            assert!(
+                local_dir.join("test.csv").exists(),
+                "a download into an existing directory keeps the file's name"
+            );
+
+            let missing_dir = local_repo.path.join("I_DO_NOT_EXIST").join("put_it_here");
+            let result = download_entry(&remote_repo, &remote_path, &missing_dir, revision).await;
+            assert!(
+                result.is_err(),
+                "a download under a missing directory fails"
             );
 
             Ok(remote_repo)
@@ -1126,41 +1034,37 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_get_root_entry_metadata() -> Result<(), OxenError> {
-        test::run_one_commit_sync_repo_test(|_local_repo, remote_repo| async move {
-            let entry =
-                api::client::entries::get_entry(&remote_repo, Path::new(""), DEFAULT_BRANCH_NAME)
-                    .await;
-            println!("entry: {entry:?}");
-            assert!(entry.is_ok());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_download_small_entry_hash_mismatch_skips_publish() -> Result<(), OxenError> {
-        // download_small_entry: pass a deliberately-wrong `expected_hash` and verify the
-        // canonical destination is never written (the verified atomic-write helper aborts
-        // before renaming) and the error variant is `HashMismatch` carrying both expected
-        // and actual.
+    async fn test_download_annotations() -> Result<(), OxenError> {
         test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
-            let remote_path = Path::new("annotations").join("README.md");
+            let readme = Path::new("annotations").join("README.md");
+            let revision = DEFAULT_BRANCH_NAME;
+
+            let local_dir = local_repo.path.join("I_DO_EXIST");
+            util::fs::create_dir_all(&local_dir)?;
+            download_entry(&remote_repo, &readme, &local_dir, revision).await?;
+            assert!(
+                local_dir.join("README.md").exists(),
+                "a small file downloads into an existing directory under its own name"
+            );
+
+            let data_dir = local_repo.path.join("data");
+            download_entry(&remote_repo, Path::new("annotations"), &data_dir, revision).await?;
+            let annotations = data_dir.join("annotations");
+            assert!(
+                annotations.join("README.md").exists(),
+                "a directory downloads whole"
+            );
+            assert!(
+                annotations.join("train").join("bounding_box.csv").exists(),
+                "a directory download includes its subdirectories"
+            );
+
+            // A wrong expected hash leaves the destination unwritten and reports both hashes.
             let local_path = local_repo.path.join("never-published.md");
-
-            let bogus_expected =
-                crate::model::MerkleHash::new(0xdead_beef_dead_beef_dead_beef_dead_beefu128);
-            let result = api::client::entries::download_small_entry(
-                &remote_repo,
-                &remote_path,
-                &local_path,
-                DEFAULT_BRANCH_NAME,
-                bogus_expected,
-            )
-            .await;
-
+            let bogus_expected = MerkleHash::new(0xdead_beef_dead_beef_dead_beef_dead_beefu128);
+            let result =
+                download_small_entry(&remote_repo, &readme, &local_path, revision, bogus_expected)
+                    .await;
             match result {
                 Err(OxenError::HashMismatch {
                     path,
@@ -1173,9 +1077,6 @@ mod tests {
                 }
                 other => panic!("expected HashMismatch, got {other:?}"),
             }
-
-            // Canonical destination must be absent — verify-before-publish means the rename
-            // never happened. The `AtomicTempFile` scratch dropped cleanly too.
             assert!(
                 !local_path.exists(),
                 "destination should not have been published"

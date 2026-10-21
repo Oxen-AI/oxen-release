@@ -103,71 +103,11 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::NewCommitBody;
 
+    use super::{import_url, upload_zip};
     use crate::api;
+    use crate::api::client::{branches, file};
 
     use std::io::Write;
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_upload_zip_file() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = "upload-zip-test";
-            api::client::branches::create_from_branch(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-
-            // Create a test ZIP file
-            let temp_dir = tempfile::tempdir()?;
-            let zip_path = temp_dir.path().join("test.zip");
-            let zip_file = std::fs::File::create(&zip_path)?;
-            let mut zip = zip::ZipWriter::new(&zip_file);
-
-            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default();
-            zip.start_file("image1.png", options).unwrap();
-            zip.write_all(b"fake png data 1")?;
-            zip.start_file("image2.png", options).unwrap();
-            zip.write_all(b"fake png data 2")?;
-            zip.finish().unwrap();
-            drop(zip_file);
-
-            // Upload the ZIP
-            let result = api::client::import::upload_zip(
-                &remote_repo,
-                branch_name,
-                "images",
-                &zip_path,
-                "Test User",
-                "test@oxen.ai",
-                Some("Upload test ZIP"),
-            )
-            .await;
-
-            assert!(result.is_ok());
-            let commit = result.unwrap();
-            assert!(commit.message.contains("Upload test ZIP"));
-
-            let mut stream = api::client::file::get_file(
-                &remote_repo,
-                branch_name,
-                Path::new("images/image1.png"),
-                api::client::file::GetFileOpts::default(),
-            )
-            .await?;
-            let mut bytes = Vec::new();
-            while let Some(chunk) = stream.next().await {
-                bytes.extend_from_slice(&chunk?);
-            }
-
-            assert!(!bytes.is_empty());
-            assert_eq!(bytes, Bytes::from_static(b"fake png data 1"));
-
-            Ok(remote_repo)
-        })
-        .await
-    }
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
@@ -267,10 +207,8 @@ mod tests {
 
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_import_url_reupload_unchanged_is_noop() -> Result<(), OxenError> {
+    async fn test_import_url_and_upload_zip() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|_local_repo, remote_repo| async move {
-            let branch_name = DEFAULT_BRANCH_NAME;
-
             // Serve stable, identical bytes from a local mock server so both imports below hash to
             // the same version, exercising re-import dedup. The oxen-server process performs the
             // fetch, so it must run in test mode to permit the loopback target. The mock and server
@@ -293,9 +231,9 @@ mod tests {
             };
 
             // First import
-            let first_commit = api::client::import::import_url(
+            let first_commit = import_url(
                 &remote_repo,
-                branch_name,
+                DEFAULT_BRANCH_NAME,
                 "imported",
                 download_url,
                 &commit_body,
@@ -304,9 +242,9 @@ mod tests {
             assert!(!first_commit.id.is_empty());
 
             // Second import of the same file should fail (no changes to commit)
-            let result = api::client::import::import_url(
+            let result = import_url(
                 &remote_repo,
-                branch_name,
+                DEFAULT_BRANCH_NAME,
                 "imported",
                 download_url,
                 &NewCommitBody {
@@ -319,6 +257,54 @@ mod tests {
                 result.is_err(),
                 "Expected import to fail with no changes: {result:?}"
             );
+
+            let branch_name = "upload-zip-test";
+            branches::create_from_branch(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+
+            // Create a test ZIP file
+            let temp_dir = tempfile::tempdir()?;
+            let zip_path = temp_dir.path().join("test.zip");
+            let zip_file = std::fs::File::create(&zip_path)?;
+            let mut zip = zip::ZipWriter::new(&zip_file);
+
+            let options: zip::write::FileOptions<()> = zip::write::FileOptions::default();
+            zip.start_file("image1.png", options).unwrap();
+            zip.write_all(b"fake png data 1")?;
+            zip.start_file("image2.png", options).unwrap();
+            zip.write_all(b"fake png data 2")?;
+            zip.finish().unwrap();
+            drop(zip_file);
+
+            // Upload the ZIP
+            let result = upload_zip(
+                &remote_repo,
+                branch_name,
+                "images",
+                &zip_path,
+                "Test User",
+                "test@oxen.ai",
+                Some("Upload test ZIP"),
+            )
+            .await;
+
+            assert!(result.is_ok());
+            let commit = result.unwrap();
+            assert!(commit.message.contains("Upload test ZIP"));
+
+            let mut stream = file::get_file(
+                &remote_repo,
+                branch_name,
+                Path::new("images/image1.png"),
+                file::GetFileOpts::default(),
+            )
+            .await?;
+            let mut bytes = Vec::new();
+            while let Some(chunk) = stream.next().await {
+                bytes.extend_from_slice(&chunk?);
+            }
+
+            assert!(!bytes.is_empty());
+            assert_eq!(bytes, Bytes::from_static(b"fake png data 1"));
 
             Ok(remote_repo)
         })

@@ -86,13 +86,12 @@ pub async fn get(
 
 #[cfg(test)]
 mod tests {
-
-    use crate::api;
-
+    use super::{get, list};
     use crate::constants::DEFAULT_BRANCH_NAME;
-
     use crate::error::OxenError;
+    use crate::model::Schema;
     use crate::repositories;
+    use crate::repositories::data_frames::schemas;
     use crate::test;
     use crate::util;
 
@@ -100,236 +99,97 @@ mod tests {
 
     use serde_json::json;
 
+    /// Asserts the columns of `mixed_data_types.csv`: prompt,response,is_correct,response_time,difficulty
+    fn assert_mixed_data_types(schema: &Schema) {
+        let fields: Vec<(&str, &str)> = schema
+            .fields
+            .iter()
+            .map(|field| (field.name.as_str(), field.dtype.as_str()))
+            .collect();
+        assert_eq!(
+            fields,
+            [
+                ("prompt", "str"),
+                ("response", "str"),
+                ("is_correct", "bool"),
+                ("response_time", "f64"),
+                ("difficulty", "i64"),
+            ]
+        );
+    }
+
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
-    async fn test_remote_list_schemas() -> Result<(), OxenError> {
+    async fn test_remote_schemas() -> Result<(), OxenError> {
         test::run_one_commit_local_repo_test_async(|mut local_repo| async move {
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            test::attach_remote_repo(&mut local_repo, &remote_repo)?;
-
-            // Push the repo
-            repositories::push(&local_repo).await?;
-
-            let large_dir = local_repo.path.join("csvs");
-            util::fs::create_dir_all(&large_dir)?;
-            let csv_file = large_dir.join("test.csv");
-            let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
-            util::fs::copy(from_file, &csv_file)?;
-
-            repositories::add(&local_repo, &csv_file).await?;
-            repositories::commit(&local_repo, "add test.csv")?;
-
-            // List no schemas
-            let schemas = api::client::schemas::list(&remote_repo, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(schemas.len(), 0);
-
-            // Push the repo
-            repositories::push(&local_repo).await?;
-
-            // List the one schema
-            let schemas = api::client::schemas::list(&remote_repo, DEFAULT_BRANCH_NAME).await?;
-            assert_eq!(schemas.len(), 1);
-
-            // prompt,response,is_correct,response_time,difficulty
-            let schema = &schemas[0].schema;
-            assert_eq!(schema.fields.len(), 5);
-            assert_eq!(schema.fields[0].name, "prompt");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "response");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "is_correct");
-            assert_eq!(schema.fields[2].dtype, "bool");
-            assert_eq!(schema.fields[3].name, "response_time");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "difficulty");
-            assert_eq!(schema.fields[4].dtype, "i64");
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_get_schema2() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut local_repo| async move {
-            let repo_dir = &local_repo.path;
-            let large_dir = repo_dir.join("csvs");
-            util::fs::create_dir_all(&large_dir)?;
-            let csv_file = large_dir.join("test.csv");
-            let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
-            util::fs::copy(from_file, &csv_file)?;
-
-            // Add the file
-            repositories::add(&local_repo, &csv_file).await?;
-            repositories::commit(&local_repo, "add test.csv")?;
-
-            // Add some metadata to the schema
-            /*
-            prompt,response,is_correct,response_time,difficulty
-            who is it?,issa me,true,0.5,1
-            */
+            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
             let schema_ref = &PathBuf::from("csvs")
                 .join("test.csv")
                 .to_string_lossy()
                 .to_string();
-
-            let schema_metadata = json!({
-                "task": "chat_bot",
-                "description": "some generic description",
-            });
-
-            let column_name = "difficulty".to_string();
-            let column_metadata = json!(
-                {
-                    "values": [0, 1, 2]
-                }
+            let result = get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
+            assert!(
+                result.is_err(),
+                "a branch the remote does not have yet is not found"
             );
-            repositories::data_frames::schemas::add_schema_metadata(
-                &local_repo,
-                schema_ref,
-                &schema_metadata,
-            )?;
-            repositories::data_frames::schemas::add_column_metadata(
-                &local_repo,
-                schema_ref,
-                &column_name,
-                &column_metadata,
-            )?;
 
-            repositories::commit(&local_repo, "add test.csv schema metadata")?;
-
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
-
-            // Cannot get schema that does not exist
-            let result =
-                api::client::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
-            assert!(result.is_err());
-
-            // Push the repo
             repositories::push(&local_repo).await?;
+            assert_eq!(
+                list(&remote_repo, DEFAULT_BRANCH_NAME).await?.len(),
+                0,
+                "a repo without tabular files has no schemas"
+            );
 
-            // List the one schema
-            let schema =
-                api::client::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
-
-            assert!(schema.is_some());
-            let schema = schema.unwrap().schema;
-
-            // prompt,response,is_correct,response_time,difficulty
-            assert_eq!(schema.fields.len(), 5);
-            assert_eq!(schema.fields[0].name, "prompt");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "response");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "is_correct");
-            assert_eq!(schema.fields[2].dtype, "bool");
-            assert_eq!(schema.fields[3].name, "response_time");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "difficulty");
-            assert_eq!(schema.fields[4].dtype, "i64");
-
-            // Check the metadata
-            assert_eq!(schema.metadata, Some(schema_metadata));
-            assert_eq!(schema.fields[4].metadata, Some(column_metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_get_schema_on_branch() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut local_repo| async move {
-            let repo_dir = &local_repo.path;
-            let large_dir = repo_dir.join("csvs");
-            util::fs::create_dir_all(&large_dir)?;
-            let csv_file = large_dir.join("test.csv");
-            let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
-            util::fs::copy(from_file, &csv_file)?;
-
-            // Add the file
+            let csvs_dir = local_repo.path.join("csvs");
+            util::fs::create_dir_all(&csvs_dir)?;
+            let csv_file = csvs_dir.join("test.csv");
+            util::fs::copy(
+                test::test_csv_file_with_name("mixed_data_types.csv"),
+                &csv_file,
+            )?;
             repositories::add(&local_repo, &csv_file).await?;
             repositories::commit(&local_repo, "add test.csv")?;
 
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut local_repo).await?;
+            let result = get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
+            assert!(
+                result.is_err(),
+                "a schema that is not pushed yet is not found"
+            );
 
-            let schema_ref = &PathBuf::from("csvs")
-                .join("test.csv")
-                .to_string_lossy()
-                .to_string();
-
-            // Cannot get schema that does not exist
-            let result =
-                api::client::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
-            assert!(result.is_err());
-
-            // Push the repo
             repositories::push(&local_repo).await?;
+            let schemas = list(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(schemas.len(), 1);
+            assert_mixed_data_types(&schemas[0].schema);
 
-            // Create a new branch
+            // Metadata committed on a branch reads back on that branch.
             let branch_name = "new_branch";
             repositories::branches::create_checkout(&local_repo, branch_name)?;
-            // Add some metadata to the schema
-            /*
-            prompt,response,is_correct,response_time,difficulty
-            who is it?,issa me,true,0.5,1
-            */
             let schema_metadata = json!({
                 "task": "chat_bot",
                 "description": "some generic description",
             });
-
-            let column_name = "difficulty".to_string();
-            let column_metadata = json!(
-                {
-                    "values": [0, 1, 2]
-                }
-            );
-            repositories::data_frames::schemas::add_schema_metadata(
-                &local_repo,
-                schema_ref,
-                &schema_metadata,
-            )?;
-            repositories::data_frames::schemas::add_column_metadata(
-                &local_repo,
-                schema_ref,
-                &column_name,
-                &column_metadata,
-            )?;
-
+            let column_metadata = json!({ "values": [0, 1, 2] });
+            schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+            schemas::add_column_metadata(&local_repo, schema_ref, "difficulty", &column_metadata)?;
             repositories::commit(&local_repo, "add test.csv schema metadata")?;
-
-            // Push the repo
             repositories::push(&local_repo).await?;
 
-            // List the one schema
-            let schema = api::client::schemas::get(&remote_repo, branch_name, schema_ref).await?;
-
-            assert!(schema.is_some());
-            let schema = schema.unwrap().schema;
-
-            // prompt,response,is_correct,response_time,difficulty
-            assert_eq!(schema.fields.len(), 5);
-            assert_eq!(schema.fields[0].name, "prompt");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "response");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "is_correct");
-            assert_eq!(schema.fields[2].dtype, "bool");
-            assert_eq!(schema.fields[3].name, "response_time");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "difficulty");
-            assert_eq!(schema.fields[4].dtype, "i64");
-
-            // Check the metadata
+            let schema = get(&remote_repo, branch_name, schema_ref)
+                .await?
+                .unwrap()
+                .schema;
+            assert_mixed_data_types(&schema);
             assert_eq!(schema.metadata, Some(schema_metadata));
             assert_eq!(schema.fields[4].metadata, Some(column_metadata));
+
+            let on_main = get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref)
+                .await?
+                .unwrap()
+                .schema;
+            assert_eq!(
+                on_main.metadata, None,
+                "the branch's metadata stays off main"
+            );
 
             Ok(())
         })
