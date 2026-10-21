@@ -136,6 +136,12 @@ fails when you delete the definition too (`assert_eq!(err.x, 1)` fails if you re
 is a necessary property of any useful test, not evidence that a test is useful. Judge by whether
 there is computation to exercise.
 
+**12. Search the clients for a variant's name before renaming it.** The workspace commit endpoint
+answers an error it does not map itself with a 422 whose message is the error's `Debug` text, which
+starts with the variant's name, so a client can recognize a failure by that name. A rename then
+breaks that client without failing anything in this repo. Search every client for the name before
+renaming the variant, and change any client that matches in the same release.
+
 ## Specific Guidance for Modernization of Existing Oxen Code
 
 When you touch existing code that uses `OxenError::Basic` or `OxenError::InternalError`, decide based on
