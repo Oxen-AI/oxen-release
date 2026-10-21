@@ -1475,39 +1475,166 @@ mod tests {
     use crate::test;
     use crate::util;
 
+    use crate::model::Commit;
     use crate::model::diff::{AddRemoveModifyCounts, ChangeType, DiffResult};
     use crate::model::entry::commit_entry::CommitPath;
 
+    // Each case diffs a pair of commits along one history: modify the CSV, add two files, remove
+    // the CSV, then add files in new and existing directories.
     #[tokio::test]
-    async fn test_diff_entries_add_multiple() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_between_commits() -> Result<(), OxenError> {
         test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            // get og commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+            let list_entries = |base: Commit, head: Commit, dir: &'static str| {
+                let repo = repo.clone();
+                async move {
+                    repositories::diffs::list_diff_entries(
+                        &repo,
+                        &base,
+                        &head,
+                        PathBuf::from(dir),
+                        PathBuf::from(dir),
+                        0,
+                        10,
+                    )
+                    .await
+                }
+            };
 
-            // add a new file
+            let initial = repositories::commits::head_commit(&repo)?;
+            let bbox_file = test::modify_txt_file(
+                bbox_file,
+                r"
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/cat_2.jpg,cat,30.5,44.0,333,396
+",
+            )?;
+            repositories::add(&repo, &bbox_file).await?;
+            let modified = repositories::commit(&repo, "Removing a row from train bbox data")?;
+            let entries = list_entries(initial, modified.clone(), "").await?.entries;
+            assert_eq!(
+                3,
+                entries.len(),
+                "the CSV and both parent dirs are modified"
+            );
+            for entry in entries.iter() {
+                assert_eq!(DiffEntryStatus::Modified.to_string(), entry.status);
+            }
+
             let hello_file = repo.path.join("Hello.txt");
             let world_file = repo.path.join("World.txt");
             test::write_txt_file_to_path(&hello_file, "Hello")?;
             test::write_txt_file_to_path(&world_file, "World")?;
-
             repositories::add(&repo, &hello_file).await?;
             repositories::add(&repo, &world_file).await?;
-            let head_commit = repositories::commit(&repo, "Adding two files")?;
-
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-            let entries = entries.entries;
+            let added = repositories::commit(&repo, "Adding two files")?;
+            let entries = list_entries(modified.clone(), added.clone(), "")
+                .await?
+                .entries;
             assert_eq!(2, entries.len());
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[0].status);
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[1].status);
+
+            util::fs::remove_file(&bbox_file)?;
+            repositories::rm(&repo, &RmOpts::from_path(&bbox_filename)).await?;
+            let removed = repositories::commit(&repo, "Removing a the training data file")?;
+            let diff = list_entries(added.clone(), removed.clone(), "").await?;
+            assert_eq!(0, diff.counts.added);
+            assert_eq!(1, diff.counts.removed);
+            assert_eq!(0, diff.counts.modified);
+            let entries = diff.entries;
+            // There should be 2 modifications (directories) and 1 removal (file)
+            assert_eq!(3, entries.len());
+            // Dir is modified because a child was removed
+            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+
+            // Find the entry named "annotations" and check that it's modified
+            let annotations_entry = entries.iter().find(|entry| entry.filename == "annotations");
+            assert_eq!(
+                annotations_entry.unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
+
+            // Ensure the filename is correct across operating systems
+            let annotations_path = Path::new("annotations").join(Path::new("train"));
+            let annotations_filename = annotations_path.to_str().unwrap();
+
+            // Check that "annotations/train" is modified
+            let annotations_train_entry = entries
+                .iter()
+                .find(|entry| entry.filename == annotations_filename);
+            assert_eq!(
+                annotations_train_entry.unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
+
+            // Check that "annotations/train/bounding_box.csv" is removed
+            let bounding_box_filename = bbox_filename.to_str().unwrap();
+            let bounding_box_entry = entries
+                .iter()
+                .find(|entry| entry.filename == bounding_box_filename);
+            assert_eq!(
+                bounding_box_entry.unwrap().status,
+                DiffEntryStatus::Removed.to_string()
+            );
+
+            let entries = list_entries(modified, removed, "").await?.entries;
+            let counts = repositories::diffs::get_add_remove_modify_counts(&entries);
+            assert_eq!(5, entries.len());
+            assert_eq!(2, counts.added);
+            assert_eq!(1, counts.removed);
+
+            let new_bbox_file = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("new_bounding_box.csv");
+            let add_dir = PathBuf::from("annotations").join("schmannotations");
+            let add_root_dir = PathBuf::from("not_annotations");
+            util::fs::create_dir_all(repo.path.join(&add_dir))?;
+            util::fs::create_dir_all(repo.path.join(&add_root_dir))?;
+            test::write_txt_file_to_path(repo.path.join("READMENOW.md"), "Hello,world")?;
+            test::write_txt_file_to_path(&new_bbox_file, "Hello,world")?;
+            test::write_txt_file_to_path(
+                repo.path.join(add_dir).join("added_file.txt"),
+                "Hello,world!!",
+            )?;
+            test::write_txt_file_to_path(
+                repo.path.join(add_root_dir).join("added_file.txt"),
+                "Hello,world!!",
+            )?;
+            repositories::add(&repo, &repo.path).await?;
+            let in_dirs = repositories::commit(&repo, "Adding files in new and existing dirs")?;
+
+            // The CSV's removal plus four added files, three of them in directories
+            let entries = list_entries(added.clone(), in_dirs.clone(), "")
+                .await?
+                .entries;
+            assert_eq!(9, entries.len());
+            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[2].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[3].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[4].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[5].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[6].status, DiffEntryStatus::Removed.to_string());
+            assert_eq!(entries[7].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[8].status, DiffEntryStatus::Added.to_string());
+
+            // 1. Schmannotations dir added
+            // 2. Train dir modified
+            let entries = list_entries(added, in_dirs, "annotations").await?.entries;
+            assert_eq!(5, entries.len());
+            assert_eq!(entries[0].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[2].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[3].status, DiffEntryStatus::Removed.to_string());
+            assert_eq!(entries[4].status, DiffEntryStatus::Added.to_string());
 
             Ok(())
         })
@@ -1568,370 +1695,19 @@ mod tests {
             )
             .await?;
 
-            assert!(
-                two_dot.counts.removed >= 1,
+            assert_eq!(
+                two_dot.counts.removed, 1,
                 "two-dot keeps the base-side file"
             );
+            assert_eq!(two_dot.counts.added, 1, "two-dot shows head's file");
             assert_eq!(
                 three_dot.counts.removed, 0,
                 "three-dot drops the base-side file"
             );
-            assert!(
-                three_dot.counts.added >= 1,
+            assert_eq!(
+                three_dot.counts.added, 1,
                 "three-dot still shows head's file"
             );
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_diff_entries_modify_one_tabular() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(bbox_filename);
-
-            // get og commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
-
-            // Remove a row
-            let bbox_file = test::modify_txt_file(
-                bbox_file,
-                r"
-file,label,min_x,min_y,width,height
-train/dog_1.jpg,dog,101.5,32.0,385,330
-train/dog_2.jpg,dog,7.0,29.5,246,247
-train/cat_2.jpg,cat,30.5,44.0,333,396
-",
-            )?;
-
-            repositories::add(&repo, bbox_file).await?;
-            let head_commit = repositories::commit(&repo, "Removing a row from train bbox data")?;
-
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-            let entries = entries.entries;
-            // Recursively marks parent dirs as modified
-            assert_eq!(3, entries.len());
-            for entry in entries.iter() {
-                println!("==================");
-                println!("entry {entry:?}");
-                println!("==================");
-                assert_eq!(DiffEntryStatus::Modified.to_string(), entry.status);
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_diff_entries_remove_one_tabular_file() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(&bbox_filename);
-
-            // get og commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
-
-            // Remove the file
-            util::fs::remove_file(bbox_file)?;
-
-            let opts = RmOpts::from_path(&bbox_filename);
-            repositories::rm(&repo, &opts).await?;
-            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-
-            let entries = entries.entries;
-            for entry in entries.iter().enumerate() {
-                println!("entry {}: {:?}", entry.0, entry.1);
-            }
-
-            // There should be 2 modifications (directories) and 1 removal (file)
-            assert_eq!(3, entries.len());
-
-            // Find the entry named "annotations" and check that it's modified
-            let annotations_entry = entries.iter().find(|entry| entry.filename == "annotations");
-            assert!(annotations_entry.is_some());
-            assert_eq!(
-                annotations_entry.unwrap().status,
-                DiffEntryStatus::Modified.to_string()
-            );
-
-            // Ensure the filename is correct across operating systems
-            let annotations_path = Path::new("annotations").join(Path::new("train"));
-            let annotations_filename = annotations_path.to_str().unwrap();
-
-            // Check that "annotations/train" is modified
-            let annotations_train_entry = entries
-                .iter()
-                .find(|entry| entry.filename == annotations_filename);
-            assert!(annotations_train_entry.is_some());
-            assert_eq!(
-                annotations_train_entry.unwrap().status,
-                DiffEntryStatus::Modified.to_string()
-            );
-
-            // Check that "annotations/train/bounding_box.csv" is removed
-            let bounding_box_path = Path::new("annotations")
-                .join(Path::new("train"))
-                .join(Path::new("bounding_box.csv"));
-            let bounding_box_filename = bounding_box_path.to_str().unwrap();
-
-            let bounding_box_entry = entries
-                .iter()
-                .find(|entry| entry.filename == bounding_box_filename);
-            assert!(bounding_box_entry.is_some());
-            assert_eq!(
-                bounding_box_entry.unwrap().status,
-                DiffEntryStatus::Removed.to_string()
-            );
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_diff_get_add_remove_modify_counts() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            // Get initial commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
-            // Add two files
-            let hello_file = repo.path.join("Hello.txt");
-            let world_file = repo.path.join("World.txt");
-            test::write_txt_file_to_path(&hello_file, "Hello")?;
-            test::write_txt_file_to_path(&world_file, "World")?;
-
-            repositories::add(&repo, &hello_file).await?;
-            repositories::add(&repo, &world_file).await?;
-            repositories::commit(&repo, "Removing a row from train bbox data")?;
-
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(&bbox_filename);
-
-            // Remove the file
-            util::fs::remove_file(bbox_file)?;
-
-            let opts = RmOpts::from_path(&bbox_filename);
-            repositories::rm(&repo, &opts).await?;
-            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-            let entries = entries.entries;
-            for entry in entries.iter().enumerate() {
-                println!("entry {}: {:?}", entry.0, entry.1);
-            }
-
-            let counts = repositories::diffs::get_add_remove_modify_counts(&entries);
-
-            assert_eq!(5, entries.len());
-            assert_eq!(2, counts.added);
-            assert_eq!(1, counts.removed);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_diff_entries_in_dir_at_root() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(&bbox_filename);
-
-            let new_bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("new_bounding_box.csv");
-            let new_bbox_file = repo.path.join(&new_bbox_filename);
-
-            let new_root_filename = Path::new("READMENOW.md");
-
-            let new_root_file = repo.path.join(new_root_filename);
-
-            let add_dir = PathBuf::from("annotations").join("schmannotations");
-            let add_dir_added_file = PathBuf::from("annotations")
-                .join("schmannotations")
-                .join("added_file.txt");
-
-            let add_root_dir = PathBuf::from("not_annotations");
-            let add_root_dir_added_file = PathBuf::from("not_annotations").join("added_file.txt");
-
-            util::fs::create_dir_all(repo.path.join(add_dir))?;
-            util::fs::create_dir_all(repo.path.join(add_root_dir))?;
-
-            test::write_txt_file_to_path(&new_root_file, "Hello,world")?;
-            test::write_txt_file_to_path(&new_bbox_file, "Hello,world")?;
-            test::write_txt_file_to_path(repo.path.join(add_dir_added_file), "Hello,world!!")?;
-            test::write_txt_file_to_path(repo.path.join(add_root_dir_added_file), "Hello,world!!")?;
-
-            // get og commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
-
-            // Remove the file
-            util::fs::remove_file(bbox_file)?;
-
-            let opts = RmOpts::from_path(&bbox_filename);
-            repositories::rm(&repo, &opts).await?;
-            repositories::add(&repo, &repo.path).await?;
-            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-
-            let entries = entries.entries;
-
-            let annotation_diff_entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from("annotations"),
-                PathBuf::from("annotations"),
-                0,
-                10,
-            )
-            .await?;
-
-            // We should have...
-            // 1. A modification in the `annotations` directory
-            // 2. The addition of the README.md file
-            log::debug!("Got entries: {entries:?}");
-
-            assert_eq!(9, entries.len());
-
-            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
-            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[2].status, DiffEntryStatus::Modified.to_string());
-            assert_eq!(entries[3].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[4].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[5].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[6].status, DiffEntryStatus::Removed.to_string());
-            assert_eq!(entries[7].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[8].status, DiffEntryStatus::Added.to_string());
-
-            // 1. Schmannotations dir added
-            // 2. Train dir modified
-
-            log::debug!(
-                "Got annotation_diff_entries: {:?}",
-                annotation_diff_entries.entries
-            );
-
-            assert_eq!(5, annotation_diff_entries.entries.len());
-
-            assert_eq!(
-                annotation_diff_entries.entries[0].status,
-                DiffEntryStatus::Added.to_string()
-            );
-            assert_eq!(
-                annotation_diff_entries.entries[1].status,
-                DiffEntryStatus::Modified.to_string()
-            );
-            assert_eq!(
-                annotation_diff_entries.entries[2].status,
-                DiffEntryStatus::Added.to_string()
-            );
-            assert_eq!(
-                annotation_diff_entries.entries[3].status,
-                DiffEntryStatus::Removed.to_string()
-            );
-            assert_eq!(
-                annotation_diff_entries.entries[4].status,
-                DiffEntryStatus::Added.to_string()
-            );
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_diff_entries_remove_one_tabular_in_dir() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(&bbox_filename);
-
-            // get og commit
-            let base_commit = repositories::commits::head_commit(&repo)?;
-
-            // Remove the file
-            util::fs::remove_file(bbox_file)?;
-
-            let opts = RmOpts::from_path(&bbox_filename);
-            repositories::rm(&repo, &opts).await?;
-            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
-            let entries = repositories::diffs::list_diff_entries(
-                &repo,
-                &base_commit,
-                &head_commit,
-                PathBuf::from(""),
-                PathBuf::from(""),
-                0,
-                10,
-            )
-            .await?;
-
-            println!("counts: {:?}", entries.counts);
-
-            // Make sure there is one removed file in the counts
-            assert_eq!(0, entries.counts.added);
-            assert_eq!(1, entries.counts.removed);
-            assert_eq!(0, entries.counts.modified);
-
-            let entries = entries.entries;
-            for entry in entries.iter().enumerate() {
-                println!("entry {}: {:?}", entry.0, entry.1);
-            }
-
-            // we removed a file that is in the annotations/train dir, so we should have 3 entries (bounding_box.csv)
-            assert_eq!(3, entries.len());
-
-            // Dir is modified because a child was removed
-            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
 
             Ok(())
         })
