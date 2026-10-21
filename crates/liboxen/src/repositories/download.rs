@@ -79,7 +79,7 @@ mod tests {
     #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
     #[tokio::test]
     async fn test_remote_download_directory() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut repo| async move {
+        test::run_empty_configured_remote_repo_test(|repo, remote_repo| async move {
             // write text files to dir
             let dir = repo.path.join("train");
             util::fs::create_dir_all(&dir)?;
@@ -88,120 +88,53 @@ mod tests {
                 let path = dir.join(format!("file_{i}.txt"));
                 util::fs::write_to_path(&path, format!("lol hi {i}"))?;
             }
-            repositories::add(&repo, &dir).await?;
-            repositories::commit(&repo, "adding text files")?;
-
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            // Now list the remote
-            let branch = repositories::branches::current_branch(&repo)?.unwrap();
-            let dir = Path::new("train");
-
-            // Download the directory
-            let output_dir = repo.path.join("output");
-            download(&remote_repo, &dir, &output_dir, &branch.name).await?;
-
-            // Check that the files are there
-            for i in 0..num_files {
-                let path = output_dir.join("train").join(format!("file_{i}.txt"));
-                println!("checking path: {path:?}");
-                assert!(path.exists());
-            }
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_download_directory_with_large_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut repo| async move {
-            // write text files to dir
-            let large_file_dir = PathBuf::from("train").join("large_file");
-            let dir = repo.path.join(&large_file_dir);
-            util::fs::create_dir_all(&dir)?;
 
             // Create a file several streamed-transfer segments long so the download path
             // exercises the parallel-segment branch.
-            let large_file_path = dir.join("large_file.bin");
+            let large_file_dir = PathBuf::from("large_file");
+            util::fs::create_dir_all(repo.path.join(&large_file_dir))?;
             let large_file_size = 4 * constants::stream_segment_size() + 1024 * 1024;
             let large_file_data = vec![0u8; large_file_size as usize];
-            std::fs::write(&large_file_path, large_file_data)?;
+            std::fs::write(
+                repo.path.join(&large_file_dir).join("large_file.bin"),
+                large_file_data,
+            )?;
 
-            repositories::add(&repo, &dir).await?;
+            repositories::add(&repo, &repo.path).await?;
             repositories::commit(&repo, "adding text files and large file")?;
-
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
 
             // Push it real good
             repositories::push(&repo).await?;
-
-            // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Download the directory
             let output_dir = repo.path.join("output");
-            download(&remote_repo, &large_file_dir, &output_dir, &branch.name).await?;
-
-            // Check that the large file exists and has the correct size
-            let downloaded_large_file = output_dir
-                .join("train")
-                .join("large_file")
-                .join("large_file.bin");
-            println!("downloaded_large_file: {downloaded_large_file:?}");
-            assert!(downloaded_large_file.exists());
-            let metadata = util::fs::metadata(&downloaded_large_file)?;
-            assert_eq!(metadata.len(), large_file_size);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[cfg_attr(windows, ignore = "oxen-server is not supported on Windows")]
-    #[tokio::test]
-    async fn test_remote_download_directory_local_path() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut repo| async move {
-            // write text files to dir
-            let dir = repo.path.join("train");
-            util::fs::create_dir_all(&dir)?;
-            let num_files = 33;
-            for i in 0..num_files {
-                let path = dir.join(format!("file_{i}.txt"));
-                util::fs::write_to_path(&path, format!("lol hi {i}"))?;
-            }
-            repositories::add(&repo, &dir).await?;
-            repositories::commit(&repo, "adding text files")?;
-
-            // Create the remote repo and point the local one at it
-            let remote_repo = test::connect_remote_repo(&mut repo).await?;
-
-            // Push it real good
-            repositories::push(&repo).await?;
-
-            // Now list the remote
-            let branch = repositories::branches::current_branch(&repo)?.unwrap();
-            let dir = Path::new("train");
-
-            // Download the directory
-            let output_dir = Path::new("output");
-            repositories::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
+            download(&remote_repo, Path::new("train"), &output_dir, &branch.name).await?;
 
             // Check that the files are there
             for i in 0..num_files {
                 let path = output_dir.join("train").join(format!("file_{i}.txt"));
-                assert!(path.exists());
+                assert!(path.exists(), "{path:?} was downloaded");
             }
 
+            download(&remote_repo, &large_file_dir, &output_dir, &branch.name).await?;
+
+            // Check that the large file exists and has the correct size
+            let downloaded_large_file = output_dir.join("large_file").join("large_file.bin");
+            let metadata = util::fs::metadata(&downloaded_large_file)?;
+            assert_eq!(metadata.len(), large_file_size);
+
+            // Download the directory to a relative path
+            let output_dir = Path::new("output");
+            repositories::download(&remote_repo, Path::new("train"), output_dir, &branch.name)
+                .await?;
+            for i in 0..num_files {
+                let path = output_dir.join("train").join(format!("file_{i}.txt"));
+                assert!(path.exists(), "{path:?} was downloaded");
+            }
             util::fs::remove_dir_all(output_dir)?;
 
-            Ok(())
+            Ok(remote_repo)
         })
         .await
     }

@@ -100,6 +100,7 @@ pub use crate::core::v_latest::data_frames::schemas::add_column_metadata;
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
+    use crate::model::Schema;
     use crate::test;
     use crate::util;
     use crate::{command, repositories};
@@ -152,19 +153,7 @@ mod tests {
             let schema = repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?
                 .expect("bounding_box.csv carries a schema");
             assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
+            assert_bounding_box_fields(&schema);
 
             Ok(())
         })
@@ -182,15 +171,12 @@ mod tests {
             let bbox_filename = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let bbox_file = repo.path.join(bbox_filename);
+            let bbox_file = repo.path.join(&bbox_filename);
             repositories::add(&repo, bbox_file).await?;
 
             // Make sure it is staged
             let status = repositories::status(&repo).await?;
             assert_eq!(status.staged_schemas.len(), 1);
-            for (path, schema) in status.staged_schemas.iter() {
-                println!("GOT SCHEMA {path:?} -> {schema:?}");
-            }
 
             // Schema should be committed after commit
             let commit = repositories::commit(&repo, "Adding bounding box schema")?;
@@ -198,196 +184,180 @@ mod tests {
             // Make sure no schemas are staged after commit
             let status = repositories::status(&repo).await?;
             assert_eq!(status.staged_schemas.len(), 0);
-            let path = PathBuf::from("annotations")
-                .join("train")
-                .join("bounding_box.csv");
 
             // Fetch schema from HEAD commit
             let schema =
-                repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?.unwrap();
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &bbox_filename)?
+                    .expect("the committed csv carries a schema");
             assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_copy_schemas_from_parent() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits_async(|repo| async move {
-            // Make sure no schemas are staged
-            let status = repositories::status(&repo).await?;
-            assert_eq!(status.staged_schemas.len(), 0);
-
-            // Schema should be staged when added
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(&bbox_filename);
-            repositories::add(&repo, bbox_file).await?;
-
-            // Make sure it is staged
-            let status = repositories::status(&repo).await?;
-            assert_eq!(status.staged_schemas.len(), 1);
-            for (path, schema) in status.staged_schemas.iter() {
-                println!("GOT SCHEMA {path:?} -> {schema:?}");
-            }
-
-            // Schema should be committed after commit
-            repositories::commit(&repo, "Adding bounding box schema")?;
+            assert_bounding_box_fields(&schema);
 
             // Write a new commit that is modifies any file
-            let readme_filename = Path::new("README.md");
-            let readme_file = repo.path.join(readme_filename);
+            let readme_file = repo.path.join("README.md");
             util::fs::write(&readme_file, "Changing the README")?;
             repositories::add(&repo, readme_file).await?;
             let commit = repositories::commit(&repo, "Changing the README")?;
 
             // Fetch schema from HEAD commit, it should still be there in all it's glory
-            let maybe_schema =
-                repositories::data_frames::schemas::get_by_path(&repo, &commit, &bbox_filename)?;
-            assert!(maybe_schema.is_some());
-
-            let schema = maybe_schema.unwrap();
+            let schema =
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &bbox_filename)?
+                    .expect("a commit that leaves the csv alone keeps its parent's schema");
             assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
+            assert_bounding_box_fields(&schema);
 
             Ok(())
         })
         .await
     }
 
+    /// Asserts the columns of `annotations/train/bounding_box.csv`.
+    fn assert_bounding_box_fields(schema: &Schema) {
+        let fields: Vec<(&str, &str)> = schema
+            .fields
+            .iter()
+            .map(|field| (field.name.as_str(), field.dtype.as_str()))
+            .collect();
+        assert_eq!(
+            fields,
+            [
+                ("file", "str"),
+                ("label", "str"),
+                ("min_x", "f64"),
+                ("min_y", "f64"),
+                ("width", "i64"),
+                ("height", "i64"),
+            ]
+        );
+    }
+
+    // Each step starts from the schema the step before it left, staged or committed.
     #[tokio::test]
-    async fn test_schemas_add_staged() -> Result<(), OxenError> {
+    async fn test_schemas_column_and_schema_metadata() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
+            let bbox_file = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
+            let bbox_path = repo.path.join(&bbox_file);
+            let get_staged = || -> Result<Schema, OxenError> {
+                Ok(
+                    repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?
+                        .expect("the csv has a staged schema"),
+                )
+            };
 
-            // Add the file
+            // Stage the file
             repositories::add(&repo, &bbox_path).await?;
+            assert_bounding_box_fields(&get_staged()?);
 
-            // Make sure it is staged
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_path)?.unwrap();
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
+            let file_metadata = json!({
+                "root": "images"
+            });
+            repositories::data_frames::schemas::add_column_metadata(
+                &repo,
+                &bbox_file,
+                "file",
+                &file_metadata,
+            )?;
+            let schema = get_staged()?;
+            assert_bounding_box_fields(&schema);
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
 
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
+            // Commit the schema
+            let commit = repositories::commit(&repo, "Adding bounding box schema")?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
+            assert_eq!(schemas.len(), 1);
+            let schema = schemas.values().next().unwrap();
+            assert_bounding_box_fields(schema);
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
 
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
+            // Add schema metadata to the committed schema
+            let schema_metadata = json!({
+                "task": "bounding_box",
+                "description": "detect some bounding boxes"
+            });
+            repositories::data_frames::schemas::add_schema_metadata(
+                &repo,
+                &bbox_file,
+                &schema_metadata,
+            )?;
+            assert_eq!(get_staged()?.metadata, Some(schema_metadata.to_owned()));
+            // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
+            repositories::data_frames::schemas::add_column_metadata(
+                &repo,
+                &bbox_file,
+                "file",
+                &file_metadata,
+            )?;
+            let schema = get_staged()?;
+            assert_eq!(schema.metadata, Some(schema_metadata.to_owned()));
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
 
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
+            // Adding the unchanged file again keeps its staged schema change
+            repositories::add(&repo, &bbox_path).await?;
+            assert_eq!(get_staged()?.metadata, Some(schema_metadata));
 
             // Update the schema
-            let min_x_meta = json!({
+            let min_x_metadata = json!({
                 "key": "val"
             });
             let updated_schemas = repositories::data_frames::schemas::add_column_metadata(
                 &repo,
-                &bbox_path,
+                &bbox_file,
                 "min_x",
-                &min_x_meta,
+                &min_x_metadata,
             )?;
             let updated_schema = updated_schemas
                 .get(&bbox_file)
                 .expect("Expected to find updated schema");
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_path)?.unwrap();
+            let schema = get_staged()?;
             assert_eq!(updated_schema.hash, schema.hash);
-            assert_eq!(schema.fields.len(), 6);
+            assert_bounding_box_fields(&schema);
+            // this was added in the previous commit, so it should still be there
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
+            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata.to_owned()));
+
+            // Commit the schema again
+            repositories::commit(&repo, "Updating the bounding box schema")?;
+
+            // Update the schema
+            let width_metadata = json!({
+                "metric": "meters"
+            });
+            let updated_schemas = repositories::data_frames::schemas::add_column_metadata(
+                &repo,
+                &bbox_file,
+                "width",
+                &width_metadata,
+            )?;
+            let updated_schema = updated_schemas
+                .get(&bbox_file)
+                .expect("Expected to find updated schema");
+            let schema = get_staged()?;
+            assert_eq!(updated_schema.hash, schema.hash);
+            assert_bounding_box_fields(&schema);
+            // these were added in the previous commits, so they should still be there
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
+            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata));
+            assert_eq!(schema.fields[4].metadata, Some(width_metadata));
+
+            // Commit the schema, then add a new column to the data frame
+            repositories::commit(&repo, "Adding metadata to width column")?;
+            command::df::add_column(&bbox_path, "new_column:0:i32").await?;
+            repositories::add(&repo, &bbox_path).await?;
+
+            // Make sure the metadata persisted
+            let schema = get_staged()?;
+            assert_eq!(schema.fields.len(), 7);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata));
 
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[2].metadata, Some(min_x_meta));
-
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_schema_rm_staged() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-            let schema_ref = bbox_file.to_str().unwrap();
-
-            // Add the schema
-            let min_x_meta = json!({
-                "key": "val"
-            });
-            repositories::add(&repo, &bbox_path).await?;
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo,
-                schema_ref,
-                "min_x",
-                &min_x_meta,
-            )?;
-
-            let schema = repositories::data_frames::schemas::get_staged(&repo, schema_ref)?;
-            assert!(schema.is_some());
-
-            // Remove the schema
-            repositories::data_frames::schemas::rm(&repo, schema_ref, true)?;
-
-            // Make sure none are left
-            let schema = repositories::data_frames::schemas::get_staged(&repo, schema_ref)?;
-            assert!(schema.is_none());
+            // Remove the staged schema
+            repositories::data_frames::schemas::rm(&repo, &bbox_file, true)?;
+            assert!(
+                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.is_none(),
+                "no staged schema is left after removing it"
+            );
 
             Ok(())
         })
@@ -421,364 +391,6 @@ mod tests {
                 .expect("the csv's schema is listed under its repo-relative path");
             let names: Vec<&str> = schema.fields.iter().map(|f| f.name.as_str()).collect();
             assert_eq!(names, vec!["a", "b"]);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_add_schema_metadata() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-
-            // Add and commit the schema
-            repositories::add(&repo, &bbox_path).await?;
-            repositories::commit(&repo, "Adding bounding box file")?;
-
-            // Add the schema
-            let metadata = json!({
-                "task": "bounding_box",
-                "description": "detect some bounding boxes"
-            });
-            repositories::data_frames::schemas::add_schema_metadata(&repo, &bbox_file, &metadata)?;
-
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.metadata, Some(metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_add_schema_metadata_and_col_metadata() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-
-            // Add and commit the schema
-            repositories::add(&repo, &bbox_path).await?;
-            repositories::commit(&repo, "Adding bounding box file")?;
-
-            // Add the schema metadata
-            let schema_metadata = json!({
-                "task": "bounding_box",
-                "description": "detect some bounding boxes"
-            });
-            let column_name = "file".to_string();
-            let column_metadata = json!({
-                "root": "images"
-            });
-            repositories::data_frames::schemas::add_schema_metadata(
-                &repo,
-                &bbox_file,
-                &schema_metadata,
-            )?;
-            // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo,
-                &bbox_file,
-                column_name,
-                &column_metadata,
-            )?;
-
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.metadata, Some(schema_metadata));
-            assert_eq!(schema.fields[0].metadata, Some(column_metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_add_column_metadata() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_file = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_path = repo.path.join(&bbox_file);
-
-            // Stage the file
-            repositories::add(&repo, &bbox_path).await?;
-
-            let status = repositories::status(&repo).await?;
-            println!("status: {status:?}");
-            status.print();
-
-            // Add the schema
-            let metadata = json!({
-                "root": "images"
-            });
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo, &bbox_file, "file", &metadata,
-            )?;
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_add_column_to_committed_schema2() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_file = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_path = repo.path.join(&bbox_file);
-
-            // Add the schema
-            repositories::add(&repo, &bbox_path).await?;
-            let commit = repositories::commit(&repo, "Adding bounding box file")?;
-
-            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-            for (path, schema) in schemas.iter() {
-                println!("GOT SCHEMA {path:?} -> {schema:?}");
-            }
-
-            // Add the schema
-            let metadata = json!({
-                "root": "images"
-            });
-
-            repositories::add(&repo, &bbox_path).await?;
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo, &bbox_file, "file", &metadata,
-            )?;
-            // Adding the unchanged file again keeps its staged schema change
-            repositories::add(&repo, &bbox_path).await?;
-
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata.to_owned()));
-
-            // Commit the schema
-            let commit = repositories::commit(&repo, "Adding metadata to file column")?;
-
-            // List the committed schemas
-            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-            for (path, schema) in schemas.iter() {
-                println!("GOT SCHEMA {path:?} -> {schema:?}");
-            }
-
-            assert_eq!(schemas.len(), 1);
-            // assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
-            let schema = schemas.values().next().unwrap();
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_add_column_to_committed_schema_after_changing_data()
-    -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            // Add the schema
-            repositories::add(&repo, &bbox_path).await?;
-            let commit = repositories::commit(&repo, "Adding bounding box file")?;
-
-            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
-            for (path, schema) in schemas.iter() {
-                println!("GOT SCHEMA {path:?} -> {schema:?}");
-            }
-
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-
-            // Add the schema metadata
-            let metadata = json!({
-                "root": "images"
-            });
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo, &bbox_file, "file", &metadata,
-            )?;
-
-            // Commit the schema
-            repositories::commit(&repo, "Adding metadata to file column")?;
-
-            // Add a new column to the data frame
-            command::df::add_column(&bbox_path, "new_column:0:i32").await?;
-
-            // Stage the file
-            repositories::add(&repo, &bbox_path).await?;
-
-            // Make sure the metadata persisted
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.fields.len(), 7);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata));
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_schemas_persist_schema_types_across_commits() -> Result<(), OxenError> {
-        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Find the bbox csv
-            let bbox_path = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-
-            // Make sure it is staged
-            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
-            let file_metadata = json!({
-                "root": "images"
-            });
-            repositories::add(&repo, &bbox_path).await?;
-            println!("after add initial metadata to: {bbox_file:?}");
-
-            repositories::data_frames::schemas::add_column_metadata(
-                &repo,
-                &bbox_file,
-                "file",
-                &file_metadata,
-            )?;
-
-            println!("staged column metadata to: {bbox_file:?}");
-
-            // Fetch staged
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
-
-            // Commit the schema
-            repositories::commit(&repo, "Adding bounding box schema")?;
-
-            // Update the schema
-            let min_x_metadata = json!({
-                "key": "val"
-            });
-            let updated_schemas = repositories::data_frames::schemas::add_column_metadata(
-                &repo,
-                &bbox_file,
-                "min_x",
-                &min_x_metadata,
-            )?;
-            let updated_schema = updated_schemas
-                .get(&bbox_file)
-                .expect("Expected to find updated schema");
-
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(updated_schema.hash, schema.hash);
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata.to_owned()));
-
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
-
-            // Commit the schema again
-            repositories::commit(&repo, "Updating the bounding box schema")?;
-
-            // Update the schema
-            let width_metadata = json!({
-                "metric": "meters"
-            });
-            let updated_schemas = repositories::data_frames::schemas::add_column_metadata(
-                &repo,
-                &bbox_file,
-                "width",
-                &width_metadata,
-            )?;
-            let updated_schema = updated_schemas
-                .get(&bbox_file)
-                .expect("Expected to find updated schema");
-            let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
-            assert_eq!(updated_schema.hash, schema.hash);
-            assert_eq!(schema.fields.len(), 6);
-            assert_eq!(schema.fields[0].name, "file");
-            assert_eq!(schema.fields[0].dtype, "str");
-            // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
-
-            assert_eq!(schema.fields[1].name, "label");
-            assert_eq!(schema.fields[1].dtype, "str");
-
-            assert_eq!(schema.fields[2].name, "min_x");
-            assert_eq!(schema.fields[2].dtype, "f64");
-            // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata));
-
-            assert_eq!(schema.fields[3].name, "min_y");
-            assert_eq!(schema.fields[3].dtype, "f64");
-
-            assert_eq!(schema.fields[4].name, "width");
-            assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[4].metadata, Some(width_metadata));
-
-            assert_eq!(schema.fields[5].name, "height");
-            assert_eq!(schema.fields[5].dtype, "i64");
 
             Ok(())
         })

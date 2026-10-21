@@ -2638,159 +2638,163 @@ mod tests {
     //
     // --------------------------------------------------------------------------------------------
 
-    /// Pack every node in a repo, unpack into a fresh empty repo, and verify every
-    /// installed hash is readable from the target store.
     #[tokio::test]
-    async fn test_transport_round_trip() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test(|repo| {
-            let mut packed = Vec::new();
-            pack_tree(&repo, &mut packed).expect("pack_tree failed");
-            assert!(!packed.is_empty(), "pack_tree produced empty buffer");
-
-            let tmp = tempfile::TempDir::new()?;
-            let clone = repositories::init(tmp.path())?;
-            let installed = unpack(
-                &clone,
-                &mut &packed[..],
-                UnpackOptions::Overwrite,
-                NodeReport::Collect,
-            )
-            .expect("unpack failed");
-            assert!(!installed.is_empty(), "unpack installed no nodes");
-
-            for hash in &installed {
-                assert!(
-                    clone.merkle_node_store().exists(hash)?,
-                    "expected installed hash {hash} to be readable"
-                );
-            }
-            Ok(())
+    async fn test_pack_and_unpack_nodes() -> Result<(), OxenError> {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
+            check_transport_round_trip(&repo)?;
+            check_compress_nodes_wire_format_unchanged(&repo)?;
+            check_compress_tree_wire_format_unchanged(&repo)?;
+            check_compress_node_wire_format_unchanged(&repo)?;
+            check_compress_commits_wire_format_unchanged(&repo)?;
+            check_unpack_nodes_unchanged(&repo)?;
+            check_unpack_truncated_at_entry_boundary_errors(&repo)?;
+            check_node_download_request_unpack_unchanged(&repo).await?;
+            check_create_nodes_wire_format_unchanged(&repo)?;
+            check_unpack_empty_tarball(&repo)?;
+            check_pack_nodes_skips_absent_hashes(&repo)?;
+            check_pack_nodes_byte_estimate_is_upper_bound(&repo)?;
+            check_unpack_via_vfs_branch(&repo)?;
+            // Rewrites a dir node in place, so it runs last.
+            check_pre_v0_25_dir_node_is_still_readable(&repo)
         })
         .await
+    }
+
+    /// Pack every node in a repo, unpack into a fresh empty repo, and verify every
+    /// installed hash is readable from the target store.
+    fn check_transport_round_trip(repo: &LocalRepository) -> Result<(), OxenError> {
+        let mut packed = Vec::new();
+        pack_tree(repo, &mut packed).expect("pack_tree failed");
+        assert!(!packed.is_empty(), "pack_tree produced empty buffer");
+
+        let tmp = tempfile::TempDir::new()?;
+        let clone = repositories::init(tmp.path())?;
+        let installed = unpack(
+            &clone,
+            &mut &packed[..],
+            UnpackOptions::Overwrite,
+            NodeReport::Collect,
+        )
+        .expect("unpack failed");
+        assert!(!installed.is_empty(), "unpack installed no nodes");
+
+        for hash in &installed {
+            assert!(
+                clone.merkle_node_store().exists(hash)?,
+                "expected installed hash {hash} to be readable"
+            );
+        }
+        Ok(())
     }
 
     /// The tar entry set produced by the `compress_nodes` helper must equal the one
     /// produced by `pack_nodes`. Gzip bytes differ on mtime, but the decompressed tar
     /// payload must be identical.
-    #[tokio::test]
-    async fn test_compress_nodes_wire_format_unchanged() -> Result<(), OxenError> {
+    fn check_compress_nodes_wire_format_unchanged(repo: &LocalRepository) -> Result<(), OxenError> {
         // The reference `compress_nodes` implementation walks the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
 
-            // prior code for packing Merkle nodes into a .tar.gz
-            let old_pack_method =
-                compress_nodes(&repo, &hashes).expect("could not compress Merkle tree nodes");
+        // prior code for packing Merkle nodes into a .tar.gz
+        let old_pack_method =
+            compress_nodes(repo, &hashes).expect("could not compress Merkle tree nodes");
 
-            let new_pack_method = {
-                let mut via_pack = Vec::new();
-                pack_nodes(&repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
-                    .expect("pack_nodes failed");
-                via_pack
-            };
+        let new_pack_method = {
+            let mut via_pack = Vec::new();
+            pack_nodes(repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
+                .expect("pack_nodes failed");
+            via_pack
+        };
 
-            assert_eq!(
-                list_tar_entries(&old_pack_method),
-                list_tar_entries(&new_pack_method),
-                "tar entry set differs between compress_nodes helper and pack_nodes"
-            );
-            Ok(())
-        })
-        .await
+        assert_eq!(
+            list_tar_entries(&old_pack_method),
+            list_tar_entries(&new_pack_method),
+            "tar entry set differs between compress_nodes helper and pack_nodes"
+        );
+        Ok(())
     }
 
     /// Same byte-compat check for the whole-tree path.
-    #[tokio::test]
-    async fn test_compress_tree_wire_format_unchanged() -> Result<(), OxenError> {
+    fn check_compress_tree_wire_format_unchanged(repo: &LocalRepository) -> Result<(), OxenError> {
         // The reference `compress_tree` implementation walks the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            // prior code for packing an entire Merkle tree into a .tar.gz
-            let old_pack_method = compress_tree(&repo)?;
+        write_fs_node_tree(repo)?;
+        // prior code for packing an entire Merkle tree into a .tar.gz
+        let old_pack_method = compress_tree(repo)?;
 
-            let new_pack_method = {
-                let mut via_pack = Vec::new();
-                pack_tree(&repo, &mut via_pack).expect("pack_tree failed");
-                via_pack
-            };
+        let new_pack_method = {
+            let mut via_pack = Vec::new();
+            pack_tree(repo, &mut via_pack).expect("pack_tree failed");
+            via_pack
+        };
 
-            assert_eq!(
-                list_tar_entries(&old_pack_method),
-                list_tar_entries(&new_pack_method),
-                "tar entry set differs between compress_tree helper and pack_tree"
-            );
-            Ok(())
-        })
-        .await
+        assert_eq!(
+            list_tar_entries(&old_pack_method),
+            list_tar_entries(&new_pack_method),
+            "tar entry set differs between compress_tree helper and pack_tree"
+        );
+        Ok(())
     }
 
     /// Byte-compat for the single-hash pack path (`compress_node` vs
     /// `pack_nodes(&{hash})`).
-    #[tokio::test]
-    async fn test_compress_node_wire_format_unchanged() -> Result<(), OxenError> {
+    fn check_compress_node_wire_format_unchanged(repo: &LocalRepository) -> Result<(), OxenError> {
         // The reference `compress_node` implementation walks the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let hash = head.hash().expect("no commit for head");
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let hash = head.hash().expect("no commit for head");
 
-            // prior code for packing a single Merkle node into a .tar.gz
-            let old_pack_method =
-                compress_node(&repo, &hash).expect("could not compress Merkle tree node");
+        // prior code for packing a single Merkle node into a .tar.gz
+        let old_pack_method =
+            compress_node(repo, &hash).expect("could not compress Merkle tree node");
 
-            let new_pack_method = {
-                let hashes = HashSet::from_iter([hash]);
-                let mut via_pack = Vec::new();
-                pack_nodes(&repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
-                    .expect("pack_nodes failed");
-                via_pack
-            };
+        let new_pack_method = {
+            let hashes = HashSet::from_iter([hash]);
+            let mut via_pack = Vec::new();
+            pack_nodes(repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
+                .expect("pack_nodes failed");
+            via_pack
+        };
 
-            assert_eq!(
-                list_tar_entries(&old_pack_method),
-                list_tar_entries(&new_pack_method),
-                "tar entry set differs between compress_node helper and pack_nodes"
-            );
-            Ok(())
-        })
-        .await
+        assert_eq!(
+            list_tar_entries(&old_pack_method),
+            list_tar_entries(&new_pack_method),
+            "tar entry set differs between compress_node helper and pack_nodes"
+        );
+        Ok(())
     }
 
     /// Byte-compat for the commit-set pack path (`compress_commits` vs
     /// `pack_nodes(&{commit hashes})`).
-    #[tokio::test]
-    async fn test_compress_commits_wire_format_unchanged() -> Result<(), OxenError> {
+    fn check_compress_commits_wire_format_unchanged(
+        repo: &LocalRepository,
+    ) -> Result<(), OxenError> {
         // The reference `compress_commits` implementation walks the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let commits: Vec<Commit> = vec![head];
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let commits: Vec<Commit> = vec![head];
 
-            // prior code for packing a set of commit hashes into a .tar.gz
-            let old_pack_method =
-                compress_commits(&repo, &commits).expect("could not compress Merkle tree commits");
+        // prior code for packing a set of commit hashes into a .tar.gz
+        let old_pack_method =
+            compress_commits(repo, &commits).expect("could not compress Merkle tree commits");
 
-            let new_pack_method = {
-                let mut hashes = HashSet::with_capacity(commits.len());
-                for c in &commits {
-                    hashes.insert(c.hash().expect("no hash for commit"));
-                }
-                let mut via_pack = Vec::new();
-                pack_nodes(&repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
-                    .expect("pack_nodes failed");
-                via_pack
-            };
+        let new_pack_method = {
+            let mut hashes = HashSet::with_capacity(commits.len());
+            for c in &commits {
+                hashes.insert(c.hash().expect("no hash for commit"));
+            }
+            let mut via_pack = Vec::new();
+            pack_nodes(repo, &hashes, PackOptions::ServerCanonical, &mut via_pack)
+                .expect("pack_nodes failed");
+            via_pack
+        };
 
-            assert_eq!(
-                list_tar_entries(&old_pack_method),
-                list_tar_entries(&new_pack_method),
-                "tar entry set differs between compress_commits helper and pack_nodes"
-            );
-            Ok(())
-        })
-        .await
+        assert_eq!(
+            list_tar_entries(&old_pack_method),
+            list_tar_entries(&new_pack_method),
+            "tar entry set differs between compress_commits helper and pack_nodes"
+        );
+        Ok(())
     }
 
     /// Build a tarball in the legacy client-push layout (entries begin at
@@ -2822,107 +2826,101 @@ mod tests {
     /// Behavioral parity between `unpack_nodes` and `unpack` on a legacy
     /// client-push-format tarball: same reported hash set, same readability through the
     /// store in both target repos.
-    #[tokio::test]
-    async fn test_unpack_nodes_unchanged() -> Result<(), OxenError> {
+    fn check_unpack_nodes_unchanged(repo: &LocalRepository) -> Result<(), OxenError> {
         // The reference `unpack_nodes` implementation reads and writes the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
 
-            // Produce a legacy client-push-format tarball (the one old `unpack_nodes`
-            // was designed to consume).
-            let bytes = compress_nodes_client_push_format(&repo, &hashes)
-                .expect("client-push-format pack failed");
+        // Produce a legacy client-push-format tarball (the one old `unpack_nodes`
+        // was designed to consume).
+        let bytes = compress_nodes_client_push_format(repo, &hashes)
+            .expect("client-push-format pack failed");
 
-            // Unpack into two fresh repos: one via `unpack_nodes`, which writes the `tree/nodes`
-            // layout, and one via `unpack`, which writes the store.
-            let tmp_old = tempfile::TempDir::new()?;
-            let repo_old = repositories::init(tmp_old.path())?;
-            let old_hashes = unpack_nodes(&repo_old, &bytes[..]).expect("old unpack_nodes failed");
+        // Unpack into two fresh repos: one via `unpack_nodes`, which writes the `tree/nodes`
+        // layout, and one via `unpack`, which writes the store.
+        let tmp_old = tempfile::TempDir::new()?;
+        let repo_old = repositories::init(tmp_old.path())?;
+        let old_hashes = unpack_nodes(&repo_old, &bytes[..]).expect("old unpack_nodes failed");
 
-            let tmp_new = tempfile::TempDir::new()?;
-            let repo_new = repositories::init(tmp_new.path())?;
-            // Old `unpack_nodes` skipped existing files; mirror that with
-            // `UnpackOptions::SkipExisting` so the parity check is semantically faithful.
-            let new_hashes = unpack(
-                &repo_new,
-                &mut &bytes[..],
-                UnpackOptions::SkipExisting,
-                NodeReport::Collect,
-            )
-            .expect("new unpack failed");
+        let tmp_new = tempfile::TempDir::new()?;
+        let repo_new = repositories::init(tmp_new.path())?;
+        // Old `unpack_nodes` skipped existing files; mirror that with
+        // `UnpackOptions::SkipExisting` so the parity check is semantically faithful.
+        let new_hashes = unpack(
+            &repo_new,
+            &mut &bytes[..],
+            UnpackOptions::SkipExisting,
+            NodeReport::Collect,
+        )
+        .expect("new unpack failed");
 
-            assert_eq!(
-                old_hashes, new_hashes,
-                "reported hash sets differ between unpack_nodes helper and unpack"
+        assert_eq!(
+            old_hashes, new_hashes,
+            "reported hash sets differ between unpack_nodes helper and unpack"
+        );
+        assert!(
+            !new_hashes.is_empty(),
+            "no hashes were unpacked — test input was empty"
+        );
+
+        // Every installed hash must be present in both repos.
+        for h in &new_hashes {
+            assert!(
+                node_db_path(&repo_old.path, h).join(NODE_FILE).is_file(),
+                "hash {h} not installed in repo unpacked via legacy unpack_nodes"
             );
             assert!(
-                !new_hashes.is_empty(),
-                "no hashes were unpacked — test input was empty"
+                repo_new.merkle_node_store().exists(h)?,
+                "hash {h} not readable in repo unpacked via unpack"
             );
-
-            // Every installed hash must be present in both repos.
-            for h in &new_hashes {
-                assert!(
-                    node_db_path(&repo_old.path, h).join(NODE_FILE).is_file(),
-                    "hash {h} not installed in repo unpacked via legacy unpack_nodes"
-                );
-                assert!(
-                    repo_new.merkle_node_store().exists(h)?,
-                    "hash {h} not readable in repo unpacked via unpack"
-                );
-            }
-            Ok(())
-        })
-        .await
+        }
+        Ok(())
     }
 
     /// An archive cut at an entry boundary fails instead of reporting a successful partial
     /// install. The cut is placed after the last complete entry, where the tar iterator — not the
     /// blob read — is what surfaces the error.
-    #[tokio::test]
-    async fn test_unpack_truncated_at_entry_boundary_errors() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
-            let packed = super::compress_nodes(&repo, &hashes)?;
+    fn check_unpack_truncated_at_entry_boundary_errors(
+        repo: &LocalRepository,
+    ) -> Result<(), OxenError> {
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
+        let packed = super::compress_nodes(repo, &hashes)?;
 
-            let mut tar_bytes = Vec::new();
-            GzDecoder::new(&packed[..]).read_to_end(&mut tar_bytes)?;
+        let mut tar_bytes = Vec::new();
+        GzDecoder::new(&packed[..]).read_to_end(&mut tar_bytes)?;
 
-            // A finished tar ends with two zero blocks. Drop them so the iterator keeps going past
-            // the last real entry, then leave it a partial header to choke on.
-            let end_marker = tar_bytes.len() - 1024;
-            assert!(
-                tar_bytes[end_marker..].iter().all(|b| *b == 0),
-                "expected 1024 trailing zero bytes; archive layout changed and this test no longer \
-                 cuts where it intends to"
-            );
-            tar_bytes.truncate(end_marker);
-            tar_bytes.extend_from_slice(&[0xAB; 100]);
+        // A finished tar ends with two zero blocks. Drop them so the iterator keeps going past
+        // the last real entry, then leave it a partial header to choke on.
+        let end_marker = tar_bytes.len() - 1024;
+        assert!(
+            tar_bytes[end_marker..].iter().all(|b| *b == 0),
+            "expected 1024 trailing zero bytes; archive layout changed and this test no longer \
+             cuts where it intends to"
+        );
+        tar_bytes.truncate(end_marker);
+        tar_bytes.extend_from_slice(&[0xAB; 100]);
 
-            let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-            encoder.write_all(&tar_bytes)?;
-            let truncated = encoder.finish()?;
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&tar_bytes)?;
+        let truncated = encoder.finish()?;
 
-            let tmp = tempfile::TempDir::new()?;
-            let target = repositories::init(tmp.path())?;
-            let result = unpack(
-                &target,
-                &mut &truncated[..],
-                UnpackOptions::SkipExisting,
-                NodeReport::Collect,
-            );
+        let tmp = tempfile::TempDir::new()?;
+        let target = repositories::init(tmp.path())?;
+        let result = unpack(
+            &target,
+            &mut &truncated[..],
+            UnpackOptions::SkipExisting,
+            NodeReport::Collect,
+        );
 
-            assert!(
-                result.is_err(),
-                "truncated archive reported success: {result:?}"
-            );
-            Ok(())
-        })
-        .await
+        assert!(
+            result.is_err(),
+            "truncated archive reported success: {result:?}"
+        );
+        Ok(())
     }
 
     /// Byte-for-byte compare two directory trees. Used to assert that the old and new
@@ -2955,72 +2953,71 @@ mod tests {
     ///     `unpack_async_tar_archive` install from `main`'s `node_download_request`),
     ///   - the new client unpack: the free `unpack(...)` (overwrite-existing
     ///     default, matching `unpack_async_tar_archive`'s behaviour).
+    ///
     /// The on-disk merkle-node tree under `<oxen_hidden>/tree/nodes/` must be identical
     /// in both target repos. The set of hashes `unpack` reports is also asserted to
     /// cover every installed hash directory.
-    #[tokio::test]
-    async fn test_node_download_request_unpack_unchanged() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            let mut packed = Vec::new();
-            pack_tree(&repo, &mut packed).expect("pack_tree failed");
-            assert!(!packed.is_empty(), "pack_tree produced empty buffer");
+    async fn check_node_download_request_unpack_unchanged(
+        repo: &LocalRepository,
+    ) -> Result<(), OxenError> {
+        let mut packed = Vec::new();
+        pack_tree(repo, &mut packed).expect("pack_tree failed");
+        assert!(!packed.is_empty(), "pack_tree produced empty buffer");
 
-            // Old client install path (mirror of node_download_request on main), which writes the
-            // `tree/nodes` layout.
-            let tmp_old = tempfile::TempDir::new()?;
-            let repo_old = repositories::init(tmp_old.path())?;
-            node_download_request_unpack_old(&repo_old, &packed)
-                .await
-                .expect("old unpack failed");
+        // Old client install path (mirror of node_download_request on main), which writes the
+        // `tree/nodes` layout.
+        let tmp_old = tempfile::TempDir::new()?;
+        let repo_old = repositories::init(tmp_old.path())?;
+        node_download_request_unpack_old(&repo_old, &packed)
+            .await
+            .expect("old unpack failed");
 
-            // New client install path: `unpack`, with download-path overwrite semantics.
-            let tmp_new = tempfile::TempDir::new()?;
-            let repo_new = repositories::init(tmp_new.path())?;
-            let installed = unpack(
-                &repo_new,
-                &mut &packed[..],
-                UnpackOptions::Overwrite,
-                NodeReport::Collect,
-            )
-            .expect("new unpack failed");
-            write_fs_node_tree(&repo_new)?;
+        // New client install path: `unpack`, with download-path overwrite semantics.
+        let tmp_new = tempfile::TempDir::new()?;
+        let repo_new = repositories::init(tmp_new.path())?;
+        let installed = unpack(
+            &repo_new,
+            &mut &packed[..],
+            UnpackOptions::Overwrite,
+            NodeReport::Collect,
+        )
+        .expect("new unpack failed");
+        write_fs_node_tree(&repo_new)?;
 
-            // 1. The installed nodes must be identical.
-            let old_tree = collect_dir_contents(
-                &repo_old
-                    .path
-                    .join(OXEN_HIDDEN_DIR)
-                    .join(TREE_DIR)
-                    .join(NODES_DIR),
-            );
-            let new_tree = collect_dir_contents(
-                &repo_new
-                    .path
-                    .join(OXEN_HIDDEN_DIR)
-                    .join(TREE_DIR)
-                    .join(NODES_DIR),
-            );
+        // 1. The installed nodes must be identical.
+        let old_tree = collect_dir_contents(
+            &repo_old
+                .path
+                .join(OXEN_HIDDEN_DIR)
+                .join(TREE_DIR)
+                .join(NODES_DIR),
+        );
+        let new_tree = collect_dir_contents(
+            &repo_new
+                .path
+                .join(OXEN_HIDDEN_DIR)
+                .join(TREE_DIR)
+                .join(NODES_DIR),
+        );
+        assert!(
+            !old_tree.is_empty(),
+            "no files installed via old node_download_request unpack — test input was empty"
+        );
+        assert_eq!(
+            old_tree, new_tree,
+            "on-disk merkle node trees differ between old node_download_request \
+             unpack and new unpack"
+        );
+
+        // 2. Every installed hash must be readable through the new store.
+        assert!(!installed.is_empty(), "unpack reported no hashes");
+        for h in &installed {
             assert!(
-                !old_tree.is_empty(),
-                "no files installed via old node_download_request unpack — test input was empty"
+                repo_new.merkle_node_store().exists(h)?,
+                "hash {h} not readable in repo unpacked via unpack"
             );
-            assert_eq!(
-                old_tree, new_tree,
-                "on-disk merkle node trees differ between old node_download_request \
-                 unpack and new unpack"
-            );
-
-            // 2. Every installed hash must be readable through the new store.
-            assert!(!installed.is_empty(), "unpack reported no hashes");
-            for h in &installed {
-                assert!(
-                    repo_new.merkle_node_store().exists(h)?,
-                    "hash {h} not readable in repo unpacked via unpack"
-                );
-            }
-            Ok(())
-        })
-        .await
+        }
+        Ok(())
     }
 
     /// Path-traversal guard: an entry whose path resolves above its container must be
@@ -3406,104 +3403,92 @@ mod tests {
     /// `pack_nodes(&hashes, PackOptions::LegacyClientPush, ...)`. The two tar entry sets
     /// must match exactly — that's the proof of zero externally visible change for the
     /// upload wire format.
-    #[tokio::test]
-    async fn test_create_nodes_wire_format_unchanged() -> Result<(), OxenError> {
+    fn check_create_nodes_wire_format_unchanged(repo: &LocalRepository) -> Result<(), OxenError> {
         // The reference `create_nodes_pack_old` implementation walks the `tree/nodes` layout.
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            write_fs_node_tree(&repo)?;
-            let head = repositories::commits::head_commit(&repo)?;
-            let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
+        write_fs_node_tree(repo)?;
+        let head = repositories::commits::head_commit(repo)?;
+        let hashes = HashSet::from_iter([head.hash().expect("no commit for head")]);
 
-            let old_pack =
-                create_nodes_pack_old(&repo, &hashes).expect("legacy create_nodes pack failed");
+        let old_pack =
+            create_nodes_pack_old(repo, &hashes).expect("legacy create_nodes pack failed");
 
-            let new_pack = {
-                let mut buf = Vec::new();
-                pack_nodes(&repo, &hashes, PackOptions::LegacyClientPush, &mut buf)
-                    .expect("new pack failed");
-                buf
-            };
+        let new_pack = {
+            let mut buf = Vec::new();
+            pack_nodes(repo, &hashes, PackOptions::LegacyClientPush, &mut buf)
+                .expect("new pack failed");
+            buf
+        };
 
-            assert_eq!(
-                list_tar_entries(&old_pack),
-                list_tar_entries(&new_pack),
-                "tar entry set differs between create_nodes pack body and new upload pack"
-            );
-            Ok(())
-        })
-        .await
+        assert_eq!(
+            list_tar_entries(&old_pack),
+            list_tar_entries(&new_pack),
+            "tar entry set differs between create_nodes pack body and new upload pack"
+        );
+        Ok(())
     }
 
     // -- Trait edge cases (Finding 5) ------------------------------------------------
 
     /// `unpack` on an empty tar-gz stream (the result of `pack_nodes` with an empty
     /// hash set) returns `Ok(empty hash set)`.
-    #[tokio::test]
-    async fn test_unpack_empty_tarball() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test(|repo| {
-            let mut buf = Vec::new();
-            pack_nodes(
-                &repo,
-                &HashSet::new(),
-                PackOptions::ServerCanonical,
-                &mut buf,
-            )
-            .expect("pack_nodes(empty) must not error");
+    fn check_unpack_empty_tarball(repo: &LocalRepository) -> Result<(), OxenError> {
+        let mut buf = Vec::new();
+        pack_nodes(
+            repo,
+            &HashSet::new(),
+            PackOptions::ServerCanonical,
+            &mut buf,
+        )
+        .expect("pack_nodes(empty) must not error");
 
-            let tmp = tempfile::TempDir::new()?;
-            let target = repositories::init(tmp.path())?;
-            let installed = unpack(
-                &target,
-                &mut &buf[..],
-                UnpackOptions::Overwrite,
-                NodeReport::Collect,
-            )
-            .expect("unpack of empty tarball must not error");
-            assert!(
-                installed.is_empty(),
-                "expected empty hash set from unpacking an empty tarball, got {} entries",
-                installed.len()
-            );
-            Ok(())
-        })
-        .await
+        let tmp = tempfile::TempDir::new()?;
+        let target = repositories::init(tmp.path())?;
+        let installed = unpack(
+            &target,
+            &mut &buf[..],
+            UnpackOptions::Overwrite,
+            NodeReport::Collect,
+        )
+        .expect("unpack of empty tarball must not error");
+        assert!(
+            installed.is_empty(),
+            "expected empty hash set from unpacking an empty tarball, got {} entries",
+            installed.len()
+        );
+        Ok(())
     }
 
     /// `pack_nodes` with a mix of valid and absent hashes silently skips the absent
     /// ones (matches `compress_nodes` semantics from `main`). The output tarball must
     /// contain entries only for the valid hash's prefix.
-    #[tokio::test]
-    async fn test_pack_nodes_skips_absent_hashes() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test(|repo| {
-            let head = repositories::commits::head_commit(&repo).expect("no head commit");
-            let head_hash = head.hash().expect("no commit for head");
-            let absent = MerkleHash::new(0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF_u128);
+    fn check_pack_nodes_skips_absent_hashes(repo: &LocalRepository) -> Result<(), OxenError> {
+        let head = repositories::commits::head_commit(repo).expect("no head commit");
+        let head_hash = head.hash().expect("no commit for head");
+        let absent = MerkleHash::new(0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF_u128);
 
-            let mut hashes = HashSet::with_capacity(2);
-            hashes.insert(head_hash);
-            hashes.insert(absent);
+        let mut hashes = HashSet::with_capacity(2);
+        hashes.insert(head_hash);
+        hashes.insert(absent);
 
-            let mut buf = Vec::new();
-            pack_nodes(&repo, &hashes, PackOptions::ServerCanonical, &mut buf)
-                .expect("pack_nodes failed");
+        let mut buf = Vec::new();
+        pack_nodes(repo, &hashes, PackOptions::ServerCanonical, &mut buf)
+            .expect("pack_nodes failed");
 
-            // tar entry paths always use `/` separators, but `node_db_prefix()`
-            // returns a `PathBuf` that renders with `\` on Windows. Normalize
-            // both sides to forward slashes before substring-matching.
-            let to_fwd = |p: &Path| p.to_string_lossy().replace('\\', "/");
-            let head_prefix = to_fwd(&head_hash.to_hex_hash().node_db_prefix());
-            let absent_prefix = to_fwd(&absent.to_hex_hash().node_db_prefix());
-            let entries = list_tar_entries(&buf);
-            let any_head = entries.keys().any(|p| to_fwd(p).contains(&head_prefix));
-            let any_absent = entries.keys().any(|p| to_fwd(p).contains(&absent_prefix));
-            assert!(any_head, "expected entries for the head hash prefix");
-            assert!(
-                !any_absent,
-                "expected no entries for the absent hash prefix; got at least one matching entry"
-            );
-            Ok(())
-        })
-        .await
+        // tar entry paths always use `/` separators, but `node_db_prefix()`
+        // returns a `PathBuf` that renders with `\` on Windows. Normalize
+        // both sides to forward slashes before substring-matching.
+        let to_fwd = |p: &Path| p.to_string_lossy().replace('\\', "/");
+        let head_prefix = to_fwd(&head_hash.to_hex_hash().node_db_prefix());
+        let absent_prefix = to_fwd(&absent.to_hex_hash().node_db_prefix());
+        let entries = list_tar_entries(&buf);
+        let any_head = entries.keys().any(|p| to_fwd(p).contains(&head_prefix));
+        let any_absent = entries.keys().any(|p| to_fwd(p).contains(&absent_prefix));
+        assert!(any_head, "expected entries for the head hash prefix");
+        assert!(
+            !any_absent,
+            "expected no entries for the absent hash prefix; got at least one matching entry"
+        );
+        Ok(())
     }
 
     /// `pack_nodes_byte_estimate` should be a tight upper bound on the actual
@@ -3513,86 +3498,80 @@ mod tests {
     ///    that the upload won't blow past).
     /// 3. for an absent hash, the estimate contributes 0 beyond the fixed tar trailer
     ///    (matches `pack_nodes`'s skip).
-    #[tokio::test]
-    async fn test_pack_nodes_byte_estimate_is_upper_bound() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test(|repo| {
-            let head = repositories::commits::head_commit(&repo)?;
-            let head_hash = head.hash().expect("no commit for head");
-            let mut hashes = HashSet::new();
-            hashes.insert(head_hash);
+    fn check_pack_nodes_byte_estimate_is_upper_bound(
+        repo: &LocalRepository,
+    ) -> Result<(), OxenError> {
+        let head = repositories::commits::head_commit(repo)?;
+        let head_hash = head.hash().expect("no commit for head");
+        let mut hashes = HashSet::new();
+        hashes.insert(head_hash);
 
-            let estimate = pack_nodes_byte_estimate(&repo, &hashes);
-            assert!(estimate > 0, "estimate must be non-zero for a present hash");
+        let estimate = pack_nodes_byte_estimate(repo, &hashes);
+        assert!(estimate > 0, "estimate must be non-zero for a present hash");
 
-            let mut buf = Vec::new();
-            pack_nodes(&repo, &hashes, PackOptions::ServerCanonical, &mut buf)
-                .expect("pack_nodes failed");
-            assert!(
-                estimate >= buf.len() as u64,
-                "estimate ({estimate}) should be an upper bound on actual gzipped output \
-                 ({} bytes)",
-                buf.len()
-            );
+        let mut buf = Vec::new();
+        pack_nodes(repo, &hashes, PackOptions::ServerCanonical, &mut buf)
+            .expect("pack_nodes failed");
+        assert!(
+            estimate >= buf.len() as u64,
+            "estimate ({estimate}) should be an upper bound on actual gzipped output \
+             ({} bytes)",
+            buf.len()
+        );
 
-            // Absent hash: should contribute 0 beyond the fixed tar trailer (2 × 512).
-            const TAR_TRAILER_BYTES: u64 = 1024;
-            let absent = MerkleHash::new(0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF_u128);
-            let absent_only: HashSet<_> = HashSet::from_iter([absent]);
-            assert_eq!(
-                pack_nodes_byte_estimate(&repo, &absent_only),
-                TAR_TRAILER_BYTES,
-                "absent hash should contribute only the fixed tar trailer to the estimate"
-            );
+        // Absent hash: should contribute 0 beyond the fixed tar trailer (2 × 512).
+        const TAR_TRAILER_BYTES: u64 = 1024;
+        let absent = MerkleHash::new(0xDEAD_BEEF_DEAD_BEEF_DEAD_BEEF_DEAD_BEEF_u128);
+        let absent_only: HashSet<_> = HashSet::from_iter([absent]);
+        assert_eq!(
+            pack_nodes_byte_estimate(repo, &absent_only),
+            TAR_TRAILER_BYTES,
+            "absent hash should contribute only the fixed tar trailer to the estimate"
+        );
 
-            // Mixed: head + absent should equal head-only.
-            let mut mixed = HashSet::new();
-            mixed.insert(head_hash);
-            mixed.insert(absent);
-            assert_eq!(
-                pack_nodes_byte_estimate(&repo, &mixed),
-                pack_nodes_byte_estimate(&repo, &hashes),
-                "absent hash must not change the estimate when added to a present hash"
-            );
-            Ok(())
-        })
-        .await
+        // Mixed: head + absent should equal head-only.
+        let mut mixed = HashSet::new();
+        mixed.insert(head_hash);
+        mixed.insert(absent);
+        assert_eq!(
+            pack_nodes_byte_estimate(repo, &mixed),
+            pack_nodes_byte_estimate(repo, &hashes),
+            "absent hash must not change the estimate when added to a present hash"
+        );
+        Ok(())
     }
 
     /// VFS branch in `unpack`: when `is_vfs()` is true, unpack stages into a tempdir and
     /// copies through `copy_dir_all`. Pack the source repo, flip the target to vfs=true,
     /// unpack, and assert hashes are readable.
-    #[tokio::test]
-    async fn test_unpack_via_vfs_branch() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test(|repo| {
-            let mut packed = Vec::new();
-            pack_tree(&repo, &mut packed).expect("pack_tree failed");
-            assert!(!packed.is_empty(), "pack_tree produced empty buffer");
+    fn check_unpack_via_vfs_branch(repo: &LocalRepository) -> Result<(), OxenError> {
+        let mut packed = Vec::new();
+        pack_tree(repo, &mut packed).expect("pack_tree failed");
+        assert!(!packed.is_empty(), "pack_tree produced empty buffer");
 
-            let tmp = tempfile::TempDir::new()?;
-            let mut clone = repositories::init(tmp.path())?;
-            clone.set_vfs(Some(true));
-            assert!(clone.is_vfs(), "vfs flag should be on for this test");
+        let tmp = tempfile::TempDir::new()?;
+        let mut clone = repositories::init(tmp.path())?;
+        clone.set_vfs(Some(true));
+        assert!(clone.is_vfs(), "vfs flag should be on for this test");
 
-            let installed = unpack(
-                &clone,
-                &mut &packed[..],
-                UnpackOptions::Overwrite,
-                NodeReport::Collect,
-            )
-            .expect("unpack via vfs branch failed");
+        let installed = unpack(
+            &clone,
+            &mut &packed[..],
+            UnpackOptions::Overwrite,
+            NodeReport::Collect,
+        )
+        .expect("unpack via vfs branch failed");
+        assert!(
+            !installed.is_empty(),
+            "vfs unpack reported no installed hashes"
+        );
+        for h in &installed {
             assert!(
-                !installed.is_empty(),
-                "vfs unpack reported no installed hashes"
+                clone.merkle_node_store().exists(h)?,
+                "hash {h} not readable in vfs-cloned repo"
             );
-            for h in &installed {
-                assert!(
-                    clone.merkle_node_store().exists(h)?,
-                    "hash {h} not readable in vfs-cloned repo"
-                );
-            }
-            Ok(())
-        })
-        .await
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -3642,79 +3621,74 @@ mod tests {
     // the decode through `MerkleNodeDB::map`, a different call site than `MerkleNodeDB::node`, and
     // an earlier change here covered only the latter — so exercise the whole tree walk rather than
     // the decoder alone.
-    #[tokio::test]
-    async fn test_pre_v0_25_dir_node_is_still_readable() -> Result<(), OxenError> {
-        test::run_one_commit_local_repo_test_async(|repo| async move {
-            let commit_hash: MerkleHash = repositories::commits::head_commit(&repo)?.id.parse()?;
+    fn check_pre_v0_25_dir_node_is_still_readable(repo: &LocalRepository) -> Result<(), OxenError> {
+        let commit_hash: MerkleHash = repositories::commits::head_commit(repo)?.id.parse()?;
 
-            // Rewrite the first dir node we find into the pre-0.25 shape, in place.
-            let store = repo.merkle_node_store();
-            let mut rewritten_hash: Option<MerkleHash> = None;
-            for hash in store.list_hashes()? {
-                let blob = store.read_node(&hash)?;
-                // [dtype u8][parent_id u128 LE][data_len u32 LE][payload][child entries...]
-                if blob.first() != Some(&MerkleTreeNodeType::Dir.to_u8()) {
-                    continue;
-                }
-                let data_len =
-                    u32::from_le_bytes(blob[17..21].try_into().expect("4 bytes")) as usize;
-                let dir = DirNode::deserialize(&blob[21..21 + data_len])
-                    .expect("fixture dir node should decode before rewriting");
-                let legacy = rmp_serde::to_vec(&LegacyDirNodeData {
-                    node_type: *dir.node_type(),
-                    name: dir.name().to_string(),
-                    hash: *dir.hash(),
-                    num_bytes: dir.num_bytes(),
-                    last_commit_id: *dir.last_commit_id(),
-                    last_modified_seconds: dir.last_modified_seconds(),
-                    last_modified_nanoseconds: dir.last_modified_nanoseconds(),
-                    data_type_counts: dir.data_type_counts().clone(),
-                    data_type_sizes: dir.data_type_sizes().clone(),
-                })
-                .expect("legacy dir node should serialize");
-
-                let mut rewritten = blob[..17].to_vec();
-                rewritten.extend_from_slice(&(legacy.len() as u32).to_le_bytes());
-                rewritten.extend_from_slice(&legacy);
-                rewritten.extend_from_slice(&blob[21 + data_len..]);
-                let children = store.read_children(&hash)?;
-                store.write_nodes(vec![(hash, Bytes::from(rewritten), children)], true)?;
-                rewritten_hash = Some(*dir.hash());
-                break;
+        // Rewrite the first dir node we find into the pre-0.25 shape, in place.
+        let store = repo.merkle_node_store();
+        let mut rewritten_hash: Option<MerkleHash> = None;
+        for hash in store.list_hashes()? {
+            let blob = store.read_node(&hash)?;
+            // [dtype u8][parent_id u128 LE][data_len u32 LE][payload][child entries...]
+            if blob.first() != Some(&MerkleTreeNodeType::Dir.to_u8()) {
+                continue;
             }
-            let rewritten_hash =
-                rewritten_hash.expect("fixture repo should contain a dir node to rewrite");
+            let data_len = u32::from_le_bytes(blob[17..21].try_into().expect("4 bytes")) as usize;
+            let dir = DirNode::deserialize(&blob[21..21 + data_len])
+                .expect("fixture dir node should decode before rewriting");
+            let legacy = rmp_serde::to_vec(&LegacyDirNodeData {
+                node_type: *dir.node_type(),
+                name: dir.name().to_string(),
+                hash: *dir.hash(),
+                num_bytes: dir.num_bytes(),
+                last_commit_id: *dir.last_commit_id(),
+                last_modified_seconds: dir.last_modified_seconds(),
+                last_modified_nanoseconds: dir.last_modified_nanoseconds(),
+                data_type_counts: dir.data_type_counts().clone(),
+                data_type_sizes: dir.data_type_sizes().clone(),
+            })
+            .expect("legacy dir node should serialize");
 
-            let node = repositories::tree::get_node_by_id_with_children(&repo, &commit_hash)?
-                .expect("the commit should still resolve with a pre-0.25 dir node in the tree");
+            let mut rewritten = blob[..17].to_vec();
+            rewritten.extend_from_slice(&(legacy.len() as u32).to_le_bytes());
+            rewritten.extend_from_slice(&legacy);
+            rewritten.extend_from_slice(&blob[21 + data_len..]);
+            let children = store.read_children(&hash)?;
+            store.write_nodes(vec![(hash, Bytes::from(rewritten), children)], true)?;
+            rewritten_hash = Some(*dir.hash());
+            break;
+        }
+        let rewritten_hash =
+            rewritten_hash.expect("fixture repo should contain a dir node to rewrite");
 
-            // The walk has to come back whole, not merely without an error — one that silently
-            // returned nothing would look just as successful from the outside. Reaching the
-            // directory's children is what opens the rewritten blob, which is why this walk
-            // failed outright before the fallback existed.
-            assert!(
-                node.children.iter().any(|child| matches!(&child.node,
-                        EMerkleTreeNode::Directory(dir) if *dir.hash() == rewritten_hash)),
-                "the rewritten dir node should still appear among the commit's children"
-            );
+        let node = repositories::tree::get_node_by_id_with_children(repo, &commit_hash)?
+            .expect("the commit should still resolve with a pre-0.25 dir node in the tree");
 
-            // Read by its own hash to reach the rewritten blob itself. The copy carried in the
-            // commit's `children` is still current-format and keeps the original count, so
-            // asserting on the child above would check the wrong bytes.
-            let recovered = repositories::tree::get_node_by_id(&repo, &rewritten_hash)?
-                .expect("the rewritten dir node should be readable by its own hash");
-            let EMerkleTreeNode::Directory(recovered) = &recovered.node else {
-                panic!("expected a directory, got {:?}", recovered.node);
-            };
+        // The walk has to come back whole, not merely without an error — one that silently
+        // returned nothing would look just as successful from the outside. Reaching the
+        // directory's children is what opens the rewritten blob, which is why this walk
+        // failed outright before the fallback existed.
+        assert!(
+            node.children.iter().any(|child| matches!(&child.node,
+                    EMerkleTreeNode::Directory(dir) if *dir.hash() == rewritten_hash)),
+            "the rewritten dir node should still appear among the commit's children"
+        );
 
-            // The pre-0.25 shape carries no entry count, so the conversion supplies zero. Pinned
-            // deliberately: the migration that rewrites these nodes has to replace it with a
-            // derived value, and this is what tells whoever does that they have changed a
-            // contract rather than an implementation detail.
-            assert_eq!(recovered.num_entries(), 0);
+        // Read by its own hash to reach the rewritten blob itself. The copy carried in the
+        // commit's `children` is still current-format and keeps the original count, so
+        // asserting on the child above would check the wrong bytes.
+        let recovered = repositories::tree::get_node_by_id(repo, &rewritten_hash)?
+            .expect("the rewritten dir node should be readable by its own hash");
+        let EMerkleTreeNode::Directory(recovered) = &recovered.node else {
+            panic!("expected a directory, got {:?}", recovered.node);
+        };
 
-            Ok(())
-        })
-        .await
+        // The pre-0.25 shape carries no entry count, so the conversion supplies zero. Pinned
+        // deliberately: the migration that rewrites these nodes has to replace it with a
+        // derived value, and this is what tells whoever does that they have changed a
+        // contract rather than an implementation detail.
+        assert_eq!(recovered.num_entries(), 0);
+
+        Ok(())
     }
 }
