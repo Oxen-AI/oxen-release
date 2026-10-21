@@ -134,7 +134,7 @@ class Repo:
         """
         self._repo.add_schema_metadata(path, column_name, metadata)
 
-    def rm(self, path: str, recursive=False, staged=False):
+    def rm(self, path: str, recursive=False, staged=False, force=False):
         """
         Delete a file or directory from the working tree and stage the removal.
 
@@ -142,9 +142,15 @@ class Repo:
         committed. To bring the file back, use `oxen restore --staged <path>` to
         unstage the removal and then `oxen restore <path>`.
 
+        A file whose working copy or staged content differs from HEAD is
+        refused, as is a file added under a directory removed recursively.
+        `force=True` removes it anyway.
+
         With `staged=True` the working-tree copy is left in place. A committed
         path is staged for removal and shows as untracked afterward, and a path
-        that has never been committed has what is staged for it unstaged.
+        that has never been committed has what is staged for it unstaged. A file
+        whose staged content differs from both the working copy and HEAD is
+        refused unless `force=True`.
 
         Args:
             path: `str`
@@ -154,8 +160,10 @@ class Repo:
             staged: `bool`
                 Whether to stage the removal and leave the working-tree
                 copy in place. Default: False
+            force: `bool`
+                Whether to remove the path even if uncommitted changes are lost. Default: False
         """
-        self._repo.rm(path, recursive, staged)
+        self._repo.rm(path, recursive, staged, force)
 
     def restore(self, path: str, staged=False, source=None):
         """

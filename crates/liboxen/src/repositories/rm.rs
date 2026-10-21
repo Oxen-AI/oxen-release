@@ -82,6 +82,7 @@ mod tests {
                 paths: vec![rm_dir.to_owned()],
                 recursive: true,
                 staged: false,
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -297,23 +298,12 @@ mod tests {
                 util::fs::remove_file(&repo_filepath)?;
             }
 
-            let added = images_dir.join("cat_4.jpg");
-            util::fs::write_to_path(&added, "cat 4")?;
-            repositories::add(&repo, &added).await?;
-
             let rm_opts = RmOpts {
                 paths: vec![PathBuf::from("images")],
                 recursive: true,
                 ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
-            let status = repositories::status(&repo).await?;
-            assert!(
-                !status
-                    .staged_files
-                    .contains_key(&util::fs::path_relative_to_dir(&added, &repo.path)?),
-                "cat_4.jpg, staged under the removed directory, is unstaged with it"
-            );
             let commit = repositories::commit(&repo, "Removing cat images")?;
 
             for i in 1..=3 {
@@ -688,6 +678,15 @@ mod tests {
             repositories::add(&repo, &path).await?;
             repositories::commit(&repo, "first_commit")?;
 
+            let added = Path::new("dir").join("added.txt");
+            util::fs::write_to_path(repo.path.join(&added), "staged, never committed")?;
+            repositories::add(&repo, &added).await?;
+            let result = repositories::rm(&repo, &RmOpts::from_path(&added)).await;
+            assert!(
+                matches!(&result, Err(err) if err.to_string().contains("must be committed")),
+                "a file only ever staged is refused as uncommitted, not as a lost change: {result:?}"
+            );
+
             // Remove the file and commit
             let opts = RmOpts::from_path(&path);
             repositories::rm(&repo, &opts).await?;
@@ -713,6 +712,14 @@ mod tests {
             assert_eq!(status.staged_files.len(), 1);
             assert!(status.staged_files.contains_key(path));
             let opts = RmOpts::from_staged_path(path);
+            let staged_content = util::fs::read_from_path(repo.path.join(path))?;
+            test::modify_txt_file(repo.path.join(path), "edited after staging")?;
+            let result = repositories::rm(&repo, &opts).await;
+            assert!(
+                matches!(result, Err(OxenError::RmWouldLoseStagedContent(_))),
+                "--staged refuses to unstage content only the staged db holds: {result:?}"
+            );
+            test::modify_txt_file(repo.path.join(path), &staged_content)?;
             repositories::rm(&repo, &opts).await?;
 
             let status = repositories::status(&repo).await?;
@@ -740,6 +747,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: false, // This should be an error
+                ..Default::default()
             };
             let result = repositories::rm(&repo, &opts).await;
             assert!(result.is_err());
@@ -765,6 +773,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -795,6 +804,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -824,6 +834,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                ..Default::default()
             };
             let result = repositories::rm(&repo, &opts).await;
             assert!(result.is_ok());
@@ -849,6 +860,18 @@ mod tests {
             // the edit and leaves the edited file on disk
             test::modify_txt_file(repo.path.join(path), "edited readme")?;
             repositories::add(&repo, repo.path.join(path)).await?;
+            let result = repositories::rm(&repo, &RmOpts::from_path(path)).await;
+            assert!(
+                matches!(result, Err(OxenError::RmWouldLoseChanges(_))),
+                "rm refuses to delete a staged edit: {result:?}"
+            );
+            test::modify_txt_file(repo.path.join(path), "edited again")?;
+            let result = repositories::rm(&repo, &RmOpts::from_staged_path(path)).await;
+            assert!(
+                matches!(result, Err(OxenError::RmWouldLoseStagedContent(_))),
+                "--staged refuses to drop a staged edit no longer on disk: {result:?}"
+            );
+            test::modify_txt_file(repo.path.join(path), "edited readme")?;
             repositories::rm(&repo, &RmOpts::from_staged_path(path)).await?;
             let status = repositories::status(&repo).await?;
             assert_eq!(
@@ -889,6 +912,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: false,
                 recursive: false, // This should be an error
+                ..Default::default()
             };
 
             let result = repositories::rm(&repo, &opts).await;
@@ -909,6 +933,7 @@ mod tests {
                 paths: vec![train_dir.to_path_buf()],
                 staged: false,
                 recursive: true, // Need to specify recursive
+                ..Default::default()
             };
 
             let result = repositories::rm(&repo, &opts).await;
@@ -934,7 +959,17 @@ mod tests {
                 paths: vec![train_dir.to_path_buf()],
                 staged: false,
                 recursive: true, // Need to specify recursive
+                ..Default::default()
             };
+
+            let added = train_dir.join("new.txt");
+            util::fs::write_to_path(repo.path.join(&added), "added since HEAD")?;
+            repositories::add(&repo, repo.path.join(&added)).await?;
+            let result = repositories::rm(&repo, &opts).await;
+            assert!(
+                matches!(result, Err(OxenError::RmWouldLoseChanges(_))),
+                "rm -r refuses a file added under the directory: {result:?}"
+            );
 
             // copy a cat into the dog image
             util::fs::copy(
@@ -957,7 +992,32 @@ mod tests {
             );
 
             let result = repositories::rm(&repo, &opts).await;
-            assert!(result.is_err(), "{result:?}");
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxenError::RmWouldLoseChanges(path))
+                        if path.to_string().ends_with("dog_1.jpg")
+                ),
+                "rm -r refuses the unsaved edit to dog_1.jpg: {result:?}"
+            );
+
+            repositories::rm(
+                &repo,
+                &RmOpts {
+                    force: true,
+                    ..opts
+                },
+            )
+            .await?;
+            assert!(
+                !repo.path.join(train_dir).exists(),
+                "-f deletes the directory"
+            );
+            let status = repositories::status(&repo).await?;
+            assert!(
+                !status.staged_files.contains_key(&added),
+                "-f unstages the file added under the directory"
+            );
 
             Ok(())
         })
@@ -1003,6 +1063,7 @@ mod tests {
                 paths: vec![PathBuf::from("annotations")],
                 staged: false,
                 recursive: true,
+                ..Default::default()
             };
             let result = repositories::rm(&repo, &opts).await;
             assert!(
@@ -1027,6 +1088,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -1042,6 +1104,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true,
+                ..Default::default()
             };
             let result = repositories::rm(&repo, &staged_opts).await;
             assert!(
@@ -1085,6 +1148,7 @@ mod tests {
                 paths: vec![path.to_path_buf()],
                 staged: true,
                 recursive: true, // Must pass in recursive = true
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -1124,6 +1188,7 @@ mod tests {
                 paths: vec![path],
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -1168,6 +1233,7 @@ mod tests {
                 paths: vec![PathBuf::from(".")],
                 staged: false,
                 recursive: true,
+                ..Default::default()
             };
             repositories::rm(&repo, &opts).await?;
 
@@ -1206,6 +1272,7 @@ mod tests {
                 paths: vec![PathBuf::from(OXEN_HIDDEN_DIR)],
                 staged: false,
                 recursive: true,
+                ..Default::default()
             };
             let err = repositories::rm(&repo, &direct_oxen_opts).await;
 
@@ -1290,6 +1357,7 @@ mod tests {
                 paths: vec![PathBuf::from("1/2/3")],
                 recursive: true,
                 staged: false,
+                ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
 

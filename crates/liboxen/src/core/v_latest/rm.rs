@@ -62,13 +62,22 @@ pub async fn rm(
             .cloned(),
     );
 
-    // `--staged` keeps the working copy, so a modification there is never lost
-    if !opts.staged && !list_modified_files(repo, &targets).await?.is_empty() {
-        let error = "There are modified files in the working directory.\n\tUse `oxen status` to see the modified files.".to_string();
-        return Err(OxenError::basic_str(error));
-    }
+    let start = std::time::Instant::now();
+    let removals = look_up_removals(&targets, paths, glob_matches, repo, opts, &staged_db)?;
+    refuse_lost_changes(repo, &removals.paths(), opts, &staged_db).await?;
+    let total = apply_removals(repo, removals, opts, &staged_db)?;
 
-    remove_inner(&targets, paths, glob_matches, repo, opts, &staged_db)?;
+    // Stop the timer, and round the duration to the nearest second
+    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
+    log::debug!("---END--- oxen rm: {targets:?} duration: {duration:?}");
+
+    // TODO: Add function to CumulativeStats to output that print statement
+    println!(
+        "🐂 oxen removed {} files ({}) in {}",
+        total.total_files,
+        bytesize::ByteSize::b(total.total_bytes),
+        humantime::format_duration(duration)
+    );
     Ok(())
 }
 
@@ -156,22 +165,22 @@ fn remove_staged_recursively_inner(
     Ok(())
 }
 
-async fn list_modified_files(
+async fn first_modified_file(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
-) -> Result<Vec<PathBuf>, OxenError> {
+) -> Result<Option<PathBuf>, OxenError> {
     let paths_vec: Vec<PathBuf> = paths.iter().map(|p| repo.path.join(p)).collect();
     let opts = StagedDataOpts::from_paths(&paths_vec);
     let status = repositories::status::status_from_opts(repo, &opts).await?;
     log::debug!("status modified_files: {:?}", status.modified_files);
     log::debug!("paths: {paths:?}");
-    // Keep a modified entry if any requested path is an ancestor (or exact match).
-    let modified: Vec<PathBuf> = status
+    // Keep a modified entry if any requested path is an ancestor (or exact match). A file whose
+    // HEAD content is missing locally is modified too, and status reports it apart.
+    Ok(status
         .modified_files
         .into_iter()
-        .filter(|path| paths.iter().any(|p| path.starts_with(p)))
-        .collect();
-    Ok(modified)
+        .chain(status.unrestorable_files)
+        .find(|path| paths.iter().any(|p| path.starts_with(p))))
 }
 
 // Removes an empty directory from the staged db
@@ -284,6 +293,50 @@ fn staged_entries_under(
         }
     }
     Ok(entries)
+}
+
+/// Refuses, unless `opts.force`, to remove `paths` when that would lose content HEAD does not hold:
+/// without `--staged`, a working copy that differs from HEAD or a file staged as added or edited at
+/// or under a path, and with it, a staged file whose content the working copy does not also hold.
+async fn refuse_lost_changes(
+    repo: &LocalRepository,
+    paths: &HashSet<PathBuf>,
+    opts: &RmOpts,
+    staged_db: &DB,
+) -> Result<(), OxenError> {
+    if opts.force {
+        return Ok(());
+    }
+    // `--staged` keeps the working copy, so a modification there is never lost
+    if !opts.staged
+        && let Some(modified) = first_modified_file(repo, paths).await?
+    {
+        return Err(OxenError::RmWouldLoseChanges(modified.into()));
+    }
+    for path in paths {
+        let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
+        for (entry_path, entry) in staged_entries_under(&relative_path, staged_db)? {
+            let added_or_edited = matches!(
+                entry.status,
+                StagedEntryStatus::Added | StagedEntryStatus::Modified
+            );
+            if !added_or_edited || !entry.node.is_file() {
+                continue;
+            }
+            if !opts.staged {
+                return Err(OxenError::RmWouldLoseChanges(entry_path.into()));
+            }
+            let full_path = repo.path.join(&entry_path);
+            let in_working_copy = full_path.is_file()
+                && !repo
+                    .is_modified_from_node(&full_path, &entry.node.file()?)
+                    .await?;
+            if !in_working_copy {
+                return Err(OxenError::RmWouldLoseStagedContent(entry_path.into()));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn get_staged_entry(
@@ -520,16 +573,30 @@ fn process_remove_file_and_parents(
     Ok(Some(staged_entry))
 }
 
-fn remove_inner(
+/// The paths an `oxen rm` removes: those HEAD has, and under `--staged` those only staged.
+struct Removals {
+    head_commit: Option<Commit>,
+    dir_hashes: HashMap<PathBuf, MerkleHash>,
+    committed: Vec<(PathBuf, MerkleTreeNode)>,
+    uncommitted: HashSet<PathBuf>,
+}
+
+impl Removals {
+    fn paths(&self) -> HashSet<PathBuf> {
+        let committed = self.committed.iter().map(|(path, _)| path.clone());
+        committed.chain(self.uncommitted.iter().cloned()).collect()
+    }
+}
+
+/// Looks every path up before anything changes, so a refused path leaves the others untouched.
+fn look_up_removals(
     targets: &HashSet<PathBuf>,
     given: &HashSet<PathBuf>,
     glob_matches: &[(PathBuf, HashSet<PathBuf>)],
     repo: &LocalRepository,
     opts: &RmOpts,
     staged_db: &DB,
-) -> Result<CumulativeStats, OxenError> {
-    let start = std::time::Instant::now();
-
+) -> Result<Removals, OxenError> {
     let (head_commit, dir_hashes) = match repositories::commits::head_commit_maybe(repo)? {
         Some(head_commit) => {
             let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
@@ -539,13 +606,6 @@ fn remove_inner(
         None => return Err(OxenError::basic_str("Error: head commit not found")),
     };
 
-    let mut total = CumulativeStats {
-        total_files: 0,
-        total_bytes: 0,
-        data_type_counts: HashMap::new(),
-    };
-
-    // Look every path up before changing anything, so a refused path leaves the others untouched
     let mut skipped = HashSet::new();
     let mut parent_nodes = HashMap::new();
     let mut committed = Vec::with_capacity(targets.len());
@@ -614,36 +674,39 @@ fn remove_inner(
         }
     }
 
+    Ok(Removals {
+        head_commit,
+        dir_hashes,
+        committed,
+        uncommitted,
+    })
+}
+
+fn apply_removals(
+    repo: &LocalRepository,
+    removals: Removals,
+    opts: &RmOpts,
+    staged_db: &DB,
+) -> Result<CumulativeStats, OxenError> {
+    let mut total = CumulativeStats::default();
+    let uncommitted = &removals.uncommitted;
     if !uncommitted.is_empty() && opts.recursive {
-        remove_staged_recursively_inner(repo, &uncommitted, staged_db)?;
+        remove_staged_recursively_inner(repo, uncommitted, staged_db)?;
     } else if !uncommitted.is_empty() {
-        remove_staged_inner(repo, &uncommitted, opts, staged_db)?;
+        remove_staged_inner(repo, uncommitted, opts, staged_db)?;
     }
 
     // Every committed path has a HEAD to have been found in
-    if let Some(head_commit) = &head_commit {
+    if let Some(head_commit) = &removals.head_commit {
         total += stage_committed_removals(
             repo,
             head_commit,
-            &dir_hashes,
-            committed,
+            &removals.dir_hashes,
+            removals.committed,
             opts.staged,
             staged_db,
         )?;
     }
-
-    // Stop the timer, and round the duration to the nearest second
-    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
-    log::debug!("---END--- oxen rm: {targets:?} duration: {duration:?}");
-
-    // TODO: Add function to CumulativeStats to output that print statement
-    println!(
-        "🐂 oxen removed {} files ({}) in {}",
-        total.total_files,
-        bytesize::ByteSize::b(total.total_bytes),
-        humantime::format_duration(duration)
-    );
-
     Ok(total)
 }
 

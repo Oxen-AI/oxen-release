@@ -5,7 +5,8 @@ pub struct RmOpts {
     pub paths: Vec<PathBuf>,
     pub staged: bool,
     pub recursive: bool,
-    // TODO: add `force` flag
+    /// Removes the paths even when that loses changes not yet committed.
+    pub force: bool,
 }
 
 impl RmOpts {
@@ -13,8 +14,7 @@ impl RmOpts {
     pub fn from_path<P: AsRef<Path>>(path: P) -> RmOpts {
         RmOpts {
             paths: vec![path.as_ref().to_owned()],
-            staged: false,
-            recursive: false,
+            ..Default::default()
         }
     }
 
@@ -23,7 +23,7 @@ impl RmOpts {
         RmOpts {
             paths: vec![path.as_ref().to_owned()],
             staged: true,
-            recursive: false,
+            ..Default::default()
         }
     }
 
@@ -31,8 +31,8 @@ impl RmOpts {
     pub fn from_path_recursive<P: AsRef<Path>>(path: P) -> RmOpts {
         RmOpts {
             paths: vec![path.as_ref().to_owned()],
-            staged: false,
             recursive: true,
+            ..Default::default()
         }
     }
 }
