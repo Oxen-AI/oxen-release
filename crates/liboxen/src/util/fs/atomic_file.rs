@@ -186,13 +186,15 @@ fn create_parent_dir(target: &Path) -> Result<Option<&Path>, OxenError> {
 /// Build with [`new`][Self::new] and chain `with_*` options; finish with a terminal method —
 /// [`write`][Self::write] for in-memory bytes, [`write_with`][Self::write_with] for an encoder that
 /// owns its writer, [`stream`][Self::stream] for sync `Read`, [`stream_async`][Self::stream_async]
-/// for `AsyncRead`, or [`copy_from`][Self::copy_from] for a source file.
+/// for `AsyncRead`, [`copy_from`][Self::copy_from] for a source file, or `move_from` for a temp
+/// file already written and hashed.
 ///
 /// - `with_hash(h)`: the terminal method hashes the published bytes and refuses to publish if the
 ///   XXH3-128 digest doesn't match — `target` is unchanged on mismatch and
 ///   [`OxenError::HashMismatch`] is returned. [`write`][Self::write] hashes the in-memory bytes
 ///   before any filesystem side effect; the streaming and copy variants hash in-passing and drop
-///   the temp file on mismatch.
+///   the temp file on mismatch. `move_from` compares `h` with the hash its caller computed while
+///   writing the file.
 /// - `with_mtime(t)`: the terminal method stamps the published file with `t` atomically with the
 ///   bytes, so a crash leaves either the prior contents or the new (correctly-stamped) contents
 ///   at `target`, never a wrong-mtime file.
@@ -494,7 +496,9 @@ impl AtomicFile {
     }
 
     /// Publish `file`, whose bytes hash to `file_hash`, by renaming it over the target, which takes
-    /// no copy when `file` is on the target's filesystem. On another filesystem, copy it instead.
+    /// no copy when `file` is on the target's filesystem. On another filesystem, copy it instead. A
+    /// [`with_hash`][Self::with_hash] digest is compared with `file_hash`, which the caller must
+    /// have computed from the file's bytes.
     pub(crate) fn move_from(
         self,
         file: tempfile::NamedTempFile,
