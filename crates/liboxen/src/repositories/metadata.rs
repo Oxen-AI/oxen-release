@@ -22,7 +22,8 @@ pub mod text;
 pub mod video;
 
 /// Returns the metadata given a file path
-pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
+#[cfg(test)]
+fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let path = path.as_ref();
     let base_name = path
         .file_name()
