@@ -90,17 +90,6 @@ impl AtomicTempFile {
         })
     }
 
-    /// Take over `tmp` as the scratch file for `target`, creating `target`'s parent directory if
-    /// needed. `tmp` may live anywhere, but a rename onto `target` only succeeds when both are on one
-    /// filesystem.
-    fn adopt(tmp: tempfile::NamedTempFile, target: &Path) -> Result<Self, OxenError> {
-        create_parent_dir(target)?;
-        Ok(Self {
-            tmp,
-            target: target.to_path_buf(),
-        })
-    }
-
     /// Mutable reference to the underlying sync writer. Use with `write_all`, or pass to
     /// `std::io::copy(&mut reader, tmp.as_writer())` for streamed payloads. The reference derefs
     /// to `std::fs::File`, so `.sync_all()` and other `File` methods are also available when
@@ -513,7 +502,11 @@ impl AtomicFile {
                 actual: file_hash,
             });
         }
-        let mut tmp = AtomicTempFile::adopt(file, &self.target)?;
+        create_parent_dir(&self.target)?;
+        let mut tmp = AtomicTempFile {
+            tmp: file,
+            target: self.target.clone(),
+        };
         if let Some(mtime) = self.mtime {
             tmp.set_mtime(mtime)?;
         }
