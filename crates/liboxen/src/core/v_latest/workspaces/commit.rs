@@ -546,13 +546,17 @@ async fn compute_staged_merkle_tree_node(
             let (mime_type, _, mut metadata) = repositories::metadata::inspect_file(&path, &path)?;
             log::debug!("compute_staged_merkle_tree_node metadata: {metadata:?}");
 
-            // A tabular file we cannot parse must never be committed: a FileNode with
-            // data_type Tabular and no metadata makes every subsequent read of the
-            // file fail with `TabularFileMissingMetadata`. This happens when
-            // the exported data frame is empty (e.g. all rows were staged as removed
-            // — an empty jsonl/csv has no schema to infer). Failing the commit keeps
-            // the last good version readable.
-            if data_type == EntryDataType::Tabular && metadata.is_none() {
+            // A tabular file with no metadata or no columns must never be committed: every
+            // subsequent read of it fails with `TabularFileMissingMetadata` or sees no columns.
+            // An export with no rows produces one (e.g. all rows were staged as removed): an
+            // empty jsonl infers no schema, and an empty json array infers one with no columns.
+            // Failing the commit keeps the last good version readable.
+            let has_columns = matches!(
+                &metadata,
+                Some(GenericMetadata::MetadataTabular(tabular))
+                    if !tabular.tabular.schema.fields.is_empty()
+            );
+            if data_type == EntryDataType::Tabular && !has_columns {
                 return Err(OxenError::TabularExportMissingMetadata(path));
             }
 
