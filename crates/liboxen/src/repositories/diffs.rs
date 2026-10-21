@@ -1695,16 +1695,17 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             )
             .await?;
 
-            assert!(
-                two_dot.counts.removed >= 1,
+            assert_eq!(
+                two_dot.counts.removed, 1,
                 "two-dot keeps the base-side file"
             );
+            assert_eq!(two_dot.counts.added, 1, "two-dot shows head's file");
             assert_eq!(
                 three_dot.counts.removed, 0,
                 "three-dot drops the base-side file"
             );
-            assert!(
-                three_dot.counts.added >= 1,
+            assert_eq!(
+                three_dot.counts.added, 1,
                 "three-dot still shows head's file"
             );
 
