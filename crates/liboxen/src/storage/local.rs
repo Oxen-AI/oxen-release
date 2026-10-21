@@ -7,7 +7,7 @@ use crate::constants::{VERSION_CHUNK_FILE_NAME, VERSION_CHUNKS_DIR, VERSION_FILE
 use crate::error::OxenError;
 use crate::model::MerkleHash;
 use crate::storage::version_store::{
-    BoxedByteStream, VersionLocation, VersionStore, VersionUpload,
+    BoxedByteStream, LocalFilePath, VersionLocation, VersionStore, VersionUpload,
 };
 use crate::util::fs::{AtomicFile, AtomicPartsFile};
 use crate::util::{concurrency, hasher};
@@ -121,6 +121,24 @@ impl VersionStore for LocalVersionStore {
         }
 
         Ok(())
+    }
+
+    async fn store_version_from_temp_file(
+        &self,
+        hash: MerkleHash,
+        file: tempfile::NamedTempFile,
+        _size: u64,
+    ) -> Result<LocalFilePath, OxenError> {
+        let version_path = self.version_path(&hash.to_string());
+        let target = version_path.clone();
+        spawn_blocking(move || {
+            if target.exists() {
+                return Ok(());
+            }
+            AtomicFile::new(&target).move_from(file, hash)
+        })
+        .await??;
+        Ok(LocalFilePath::Stable(version_path))
     }
 
     async fn store_version(&self, hash: &str, data: Bytes) -> Result<(), OxenError> {
@@ -748,7 +766,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_from_reader() {
-        let (_temp_dir, store) = setup().await;
+        let (temp_dir, store) = setup().await;
         let data = b"test data from reader";
         let hash = hasher::hash_buffer(data);
 
@@ -768,6 +786,26 @@ mod tests {
         // Get and verify the data
         let retrieved = store.get_version(&hash).await.unwrap();
         assert_eq!(retrieved, data);
+
+        let moved = b"test data from a temp file";
+        let moved_hash: MerkleHash = hasher::hash_buffer(moved).parse().unwrap();
+        let mut temp = tempfile::NamedTempFile::new_in(temp_dir.path()).unwrap();
+        std::io::Write::write_all(&mut temp, moved).unwrap();
+        let temp_path = temp.path().to_path_buf();
+        let stored = store
+            .store_version_from_temp_file(moved_hash, temp, moved.len() as u64)
+            .await
+            .unwrap();
+        assert_eq!(
+            &*stored,
+            store.version_path(&moved_hash.to_string()).as_path(),
+            "the local store hands back the version file to read"
+        );
+        assert!(
+            !temp_path.exists(),
+            "the temp file is moved into place, not copied"
+        );
+        assert_eq!(std::fs::read(&*stored).unwrap(), moved);
     }
 
     #[tokio::test]

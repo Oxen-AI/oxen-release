@@ -23,7 +23,7 @@ use tempfile::NamedTempFile;
 use uuid::Uuid;
 use xxhash_rust::xxh3::Xxh3;
 
-use crate::constants::stream_segment_size;
+use crate::constants::{MAX_FILE_SIZE, stream_segment_size};
 use crate::core::repo_locks::{self, WriteInFlight};
 use crate::core::v_latest::workspaces::files;
 use crate::error::OxenError;
@@ -32,10 +32,6 @@ use crate::repositories::workspaces;
 use crate::storage::{StorageKind, VersionLocation, VersionUpload, s3};
 use crate::util;
 use crate::view::versions::WorkspaceDestination;
-
-/// The largest file an upload takes, 1 TiB. This is provisional, to be raised when users need
-/// larger files.
-const MAX_FILE_SIZE: u64 = 1024 * 1024 * 1024 * 1024;
 
 /// The most memory one upload's parts take at once, 1 GiB. It always admits one part, the largest
 /// of which is `MAX_FILE_SIZE` split into `s3::MAX_PARTS`.

@@ -1,19 +1,27 @@
 use std::future::Future;
+use std::io::{self, BufWriter, Write};
 use std::panic;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use actix_web::http::header;
 use actix_web::web::Bytes;
 use actix_web::{HttpResponse, HttpResponseBuilder};
-use futures_util::stream;
+use futures_util::stream::{self, Stream, StreamExt as _};
 use liboxen::api::requests::RepoNew;
+use liboxen::constants::STREAMING_BUF_SIZE;
 use liboxen::error::OxenError;
-use liboxen::model::{LocalRepository, User};
+use liboxen::model::{LocalRepository, MerkleHash, User};
 use liboxen::repositories;
+use liboxen::util;
+use liboxen::util::hasher::HashingWriter;
 use liboxen::view::StatusMessage;
 use serde::Serialize;
+use tempfile::NamedTempFile;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{Instant, Interval, interval_at};
+use tokio_util::io::{StreamReader, SyncIoBridge};
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -202,6 +210,83 @@ fn error_status_bytes(message: &str) -> Bytes {
             b"{\"status\":\"error\",\"status_message\":\"internal serialization error\"}",
         ),
     }
+}
+
+/// A request body written to a temporary file, which is deleted when this drops.
+pub(crate) struct SpooledBody {
+    pub(crate) file: NamedTempFile,
+    /// The size of the file, after any gunzipping.
+    pub(crate) len: u64,
+    /// The hash of the file's bytes, after any gunzipping.
+    pub(crate) hash: MerkleHash,
+}
+
+/// How a request body's bytes are encoded.
+pub(crate) enum BodyEncoding {
+    Plain,
+    /// Gzipped, and refused once it inflates past `max_decompressed` bytes.
+    Gzip {
+        max_decompressed: u64,
+    },
+}
+
+/// How many chunks of a request body can wait for the disk while it is written to a file. The bound
+/// slows a fast client to the speed of the disk rather than keeping the body in memory.
+const SPOOL_CHANNEL_CAPACITY: usize = 8;
+
+/// Write `body` to a new temporary file in `dir`, gunzipping it on the way when it is gzipped, and
+/// hash what is written. The outer error is a failure to read the body, or a body of more than
+/// `max_len` bytes. The inner one is a failure to gunzip the body or to write the file.
+pub(crate) async fn spool_to_temp_file<E: Into<actix_web::Error>>(
+    mut body: impl Stream<Item = Result<Bytes, E>> + Unpin,
+    dir: PathBuf,
+    max_len: u64,
+    encoding: BodyEncoding,
+) -> Result<Result<SpooledBody, OxenError>, OxenHttpError> {
+    let (tx, rx) = mpsc::channel::<Bytes>(SPOOL_CHANNEL_CAPACITY);
+    let chunks = stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|chunk| (Ok::<_, io::Error>(chunk), rx))
+    });
+    let mut reader = SyncIoBridge::new(StreamReader::new(Box::pin(chunks)));
+    let writer = tasks::spawn_blocking_per_item(move || -> Result<SpooledBody, OxenError> {
+        util::fs::create_dir_all(&dir)?;
+        let file = NamedTempFile::new_in(&dir)?;
+        let mut buffered = BufWriter::with_capacity(STREAMING_BUF_SIZE, file.as_file());
+        let mut hashing = HashingWriter::new(&mut buffered);
+        let len = match encoding {
+            BodyEncoding::Plain => io::copy(&mut reader, &mut hashing)?,
+            BodyEncoding::Gzip { max_decompressed } => {
+                util::compression::decompress_gzip_capped_into(
+                    &mut reader,
+                    &mut hashing,
+                    max_decompressed,
+                )?
+            }
+        };
+        let hash = MerkleHash::new(hashing.digest128());
+        buffered.flush()?;
+        drop(buffered); // release the borrow of `file` before handing it back
+        Ok(SpooledBody { file, len, hash })
+    });
+    let mut received: u64 = 0;
+    while let Some(chunk) = body.next().await {
+        let chunk = chunk.map_err(Into::<actix_web::Error>::into)?;
+        received += chunk.len() as u64;
+        if received > max_len {
+            return Err(OxenHttpError::BadRequest(
+                format!("The upload is larger than the {max_len} bytes allowed").into(),
+            ));
+        }
+        // A send error means the writer ended early (a write or gunzip failed). Stop reading and
+        // let the join below surface the underlying error.
+        if tx.send(chunk).await.is_err() {
+            break;
+        }
+    }
+    drop(tx); // close the channel so the writer reads to the end
+    writer
+        .await
+        .map_err(|e| OxenError::internal_error(format!("spool task panicked: {e}")).into())
 }
 
 #[cfg(test)]

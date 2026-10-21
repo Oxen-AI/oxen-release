@@ -34,8 +34,8 @@ const ATOMIC_TEMP_INFIX: &str = ".oxentmp.";
 /// Private on purpose: the type carries a "you must call `commit` to publish, or the write is
 /// silently discarded" invariant. External callers use [`AtomicFile`] and its terminal methods
 /// ([`write`][AtomicFile::write] / [`stream`][AtomicFile::stream] /
-/// [`stream_async`][AtomicFile::stream_async] / [`copy_from`][AtomicFile::copy_from]), which
-/// take care of the commit step.
+/// [`stream_async`][AtomicFile::stream_async] / [`copy_from`][AtomicFile::copy_from] /
+/// [`move_from`][AtomicFile::move_from]), which take care of the commit step.
 ///
 /// The scratch filename is `<target_basename>.oxentmp.<random>` so the `.oxentmp.` infix is a
 /// deterministic shape fsck can match on (via a future helper here) for orphans left behind by
@@ -66,12 +66,7 @@ impl AtomicTempFile {
             )
         })?;
 
-        let parent = target.parent().filter(|p| !p.as_os_str().is_empty());
-        if let Some(parent) = parent {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| OxenError::file_create_error(parent, err))?;
-        }
-        let temp_dir = parent.unwrap_or_else(|| Path::new("."));
+        let temp_dir = create_parent_dir(target)?.unwrap_or_else(|| Path::new("."));
 
         // `tempfile::Builder` produces `<prefix><random><suffix>`, so emitting the `.oxentmp.`
         // infix as part of the prefix yields `<target>.oxentmp.<random>`. The random part is
@@ -117,9 +112,19 @@ impl AtomicTempFile {
     /// directory so the rename itself survives a crash. The parent fsync may fail on platforms
     /// that don't support fsync-on-directory (notably Windows), which is fine.
     fn commit(self) -> Result<(), OxenError> {
-        let Self { tmp, target } = self;
+        self.tmp.as_file().sync_all()?;
+        let target = self.target.clone();
+        self.rename_into_place().map_err(|(temp_path, err)| {
+            let _ = std::fs::remove_file(&temp_path);
+            OxenError::file_rename_error(&temp_path, &target, err)
+        })
+    }
 
-        tmp.as_file().sync_all()?;
+    /// Rename the temp file over `target`, then best-effort fsync the parent directory. A failed
+    /// rename returns the temp file's path with the error, and leaves the file there for the
+    /// caller to remove.
+    fn rename_into_place(self) -> Result<(), (PathBuf, std::io::Error)> {
+        let Self { tmp, target } = self;
 
         // Route around `tempfile::NamedTempFile::persist`, which calls `MoveFileExW` directly on
         // Windows and hits transient `ERROR_ACCESS_DENIED` / `ERROR_SHARING_VIOLATION` failures
@@ -131,12 +136,8 @@ impl AtomicTempFile {
         // 1607+ — atomic and immune to that contention. On Linux it's just `rename(2)`.
         let (_file, temp_path) = tmp
             .keep()
-            .map_err(|err| OxenError::file_rename_error(err.file.path(), &target, err.error))?;
-        if let Err(err) = std::fs::rename(&temp_path, &target) {
-            // Auto-cleanup is disabled now, so we unlink the orphaned temp ourselves.
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(OxenError::file_rename_error(&temp_path, &target, err));
-        }
+            .map_err(|err| (err.file.path().to_path_buf(), err.error))?;
+        std::fs::rename(&temp_path, &target).map_err(|err| (temp_path, err))?;
 
         // Best-effort fsync the parent directory. It's okay if it fails. This operation isn't
         // critical, and we know it isn't supported on Windows at all.
@@ -159,19 +160,30 @@ impl AtomicTempFile {
     }
 }
 
+/// Create `target`'s parent directory if it has one, and return it.
+fn create_parent_dir(target: &Path) -> Result<Option<&Path>, OxenError> {
+    let parent = target.parent().filter(|p| !p.as_os_str().is_empty());
+    if let Some(parent) = parent {
+        std::fs::create_dir_all(parent).map_err(|err| OxenError::file_create_error(parent, err))?;
+    }
+    Ok(parent)
+}
+
 /// Atomic publish to a target path via the write-temp-then-rename pattern. A crash at any point
 /// leaves either the prior contents at `target` (if any) or the new contents, never a torn file.
 ///
 /// Build with [`new`][Self::new] and chain `with_*` options; finish with a terminal method —
 /// [`write`][Self::write] for in-memory bytes, [`write_with`][Self::write_with] for an encoder that
 /// owns its writer, [`stream`][Self::stream] for sync `Read`, [`stream_async`][Self::stream_async]
-/// for `AsyncRead`, or [`copy_from`][Self::copy_from] for a source file.
+/// for `AsyncRead`, [`copy_from`][Self::copy_from] for a source file, or `move_from` for a temp
+/// file already written and hashed.
 ///
 /// - `with_hash(h)`: the terminal method hashes the published bytes and refuses to publish if the
 ///   XXH3-128 digest doesn't match — `target` is unchanged on mismatch and
 ///   [`OxenError::HashMismatch`] is returned. [`write`][Self::write] hashes the in-memory bytes
 ///   before any filesystem side effect; the streaming and copy variants hash in-passing and drop
-///   the temp file on mismatch.
+///   the temp file on mismatch. `move_from` compares `h` with the hash its caller computed while
+///   writing the file.
 /// - `with_mtime(t)`: the terminal method stamps the published file with `t` atomically with the
 ///   bytes, so a crash leaves either the prior contents or the new (correctly-stamped) contents
 ///   at `target`, never a wrong-mtime file.
@@ -180,7 +192,7 @@ impl AtomicTempFile {
 /// `std::fs` and run inside a `tokio::task::spawn_blocking` provided by the calling operation.
 /// [`stream_async`][Self::stream_async] is the only `async` terminal, and uses the Channel
 /// hand-off pattern to bridge an async reader to a sync writer.
-#[must_use = "AtomicFile does nothing until a terminal method (write/write_with/stream/stream_from_paths/stream_async/copy_from) is called"]
+#[must_use = "AtomicFile does nothing until a terminal method (write/write_with/stream/stream_from_paths/stream_async/copy_from/move_from) is called"]
 #[derive(Debug, Clone)]
 pub struct AtomicFile {
     target: PathBuf,
@@ -241,10 +253,21 @@ impl AtomicFile {
         mut tmp: AtomicTempFile,
         actual_hash: Option<MerkleHash>,
     ) -> Result<(), OxenError> {
+        self.verify_and_stamp(&mut tmp, actual_hash)?;
+        tmp.commit()
+    }
+
+    /// Hash-check when a digest was set, and stamp the mtime on the scratch. `actual_hash` must be
+    /// `Some` whenever [`with_hash`][Self::with_hash] was set.
+    fn verify_and_stamp(
+        &self,
+        tmp: &mut AtomicTempFile,
+        actual_hash: Option<MerkleHash>,
+    ) -> Result<(), OxenError> {
         match (self.expected_hash, actual_hash) {
             (Some(expected), Some(actual)) if actual != expected => {
                 return Err(OxenError::HashMismatch {
-                    path: self.target,
+                    path: self.target.clone(),
                     expected,
                     actual,
                 });
@@ -261,7 +284,7 @@ impl AtomicFile {
         if let Some(mtime) = self.mtime {
             tmp.set_mtime(mtime)?;
         }
-        tmp.commit()
+        Ok(())
     }
 
     /// Publish whatever `fill` writes to the target path. The fit for encoders that take ownership
@@ -472,6 +495,36 @@ impl AtomicFile {
         self.stream(&mut src_file)
     }
 
+    /// Publish `file`, whose bytes hash to `file_hash`, by renaming it over the target, which takes
+    /// no copy when `file` is on the target's filesystem. On another filesystem, copy it instead. A
+    /// [`with_hash`][Self::with_hash] digest is compared with `file_hash`, which the caller must
+    /// have computed from the file's bytes.
+    pub(crate) fn move_from(
+        self,
+        file: tempfile::NamedTempFile,
+        file_hash: MerkleHash,
+    ) -> Result<(), OxenError> {
+        let mut tmp = AtomicTempFile {
+            tmp: file,
+            target: self.target.clone(),
+        };
+        self.verify_and_stamp(&mut tmp, Some(file_hash))?;
+        create_parent_dir(&self.target)?;
+        tmp.tmp.as_file().sync_all()?;
+        match tmp.rename_into_place() {
+            Ok(()) => Ok(()),
+            Err((temp_path, err)) if err.kind() == std::io::ErrorKind::CrossesDevices => {
+                let copied = self.copy_from(&temp_path);
+                let _ = std::fs::remove_file(&temp_path);
+                copied
+            }
+            Err((temp_path, err)) => {
+                let _ = std::fs::remove_file(&temp_path);
+                Err(OxenError::file_rename_error(&temp_path, &self.target, err))
+            }
+        }
+    }
+
     /// Open a scratch file of `len` bytes for writes at arbitrary offsets, published to the target
     /// by [`AtomicPartsFile::commit`]. Dropping it uncommitted discards everything written.
     pub(crate) fn open_for_parts(self, len: u64) -> Result<AtomicPartsFile, OxenError> {
@@ -507,7 +560,9 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::MerkleHash;
     use crate::test;
+    use std::io::Write;
     use std::time::{Duration, SystemTime};
+    use xxhash_rust::xxh3::xxh3_128;
 
     /// `AtomicFile::new()` (plus the builder chain) must not touch the filesystem — the temp
     /// file is materialized inside the terminal method. This guarantee is what makes the
@@ -549,6 +604,17 @@ mod tests {
 
             let contents = tokio::fs::read(&target).await?;
             assert_eq!(contents, b"hello world");
+
+            let mut temp = tempfile::NamedTempFile::new_in(&dir)?;
+            temp.write_all(b"moved bytes")?;
+            let temp_path = temp.path().to_path_buf();
+            let moved = dir.join("moved").join("file.txt");
+            AtomicFile::new(&moved).move_from(temp, MerkleHash::new(xxh3_128(b"moved bytes")))?;
+            assert_eq!(tokio::fs::read(&moved).await?, b"moved bytes");
+            assert!(
+                !tokio::fs::try_exists(&temp_path).await?,
+                "move_from renames the file rather than copying it"
+            );
             Ok(())
         })
         .await
@@ -707,6 +773,18 @@ mod tests {
             assert!(
                 entries.next_entry().await?.is_none(),
                 "directory should be empty after mismatched verified write"
+            );
+
+            let mut temp = tempfile::NamedTempFile::new_in(&dir)?;
+            temp.write_all(payload)?;
+            let moved = AtomicFile::new(&target)
+                .with_hash(bogus_expected)
+                .move_from(temp, MerkleHash::new(xxh3_128(payload)));
+            assert!(matches!(moved, Err(OxenError::HashMismatch { .. })));
+            let mut entries = tokio::fs::read_dir(&dir).await?;
+            assert!(
+                entries.next_entry().await?.is_none(),
+                "a refused move_from leaves neither the target nor the temp file"
             );
             Ok(())
         })

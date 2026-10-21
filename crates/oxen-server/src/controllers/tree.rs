@@ -22,10 +22,9 @@ use liboxen::util;
 use liboxen::view::tree::nodes::{
     CommitNodeResponse, DirNodeResponse, FileNodeResponse, VNodeResponse,
 };
-use tempfile::NamedTempFile;
 
 use crate::errors::OxenHttpError;
-use crate::helpers::{get_repo_async, stream_with_heartbeat};
+use crate::helpers::{BodyEncoding, get_repo_async, spool_to_temp_file, stream_with_heartbeat};
 use crate::params::TreeDepthQuery;
 use crate::params::parse_resource_async;
 use crate::params::{app_data, maybe_parse_two_dot, path_param};
@@ -35,11 +34,8 @@ use crate::tasks;
 const TREE_DOWNLOAD_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 /// Buffer that batches the sync packer's writes before they cross into the duplex.
 const TREE_PACK_WRITE_BUFFER_SIZE: usize = 10 * 1024 * 1024;
-/// Buffer for spooling an uploaded node tarball to disk and reading it back during unpack.
+/// Buffer for reading a spooled node tarball back during unpack.
 const TREE_UNPACK_SPOOL_BUFFER_SIZE: usize = 10 * 1024 * 1024;
-/// Bounded channel depth bridging the async body reader to the blocking spool writer. The bound
-/// backpressures a fast uploader to disk-write speed rather than buffering the stream in memory.
-const SPOOL_CHANNEL_CAPACITY: usize = 8;
 
 #[tracing::instrument(skip_all)]
 pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -194,7 +190,7 @@ pub async fn mark_nodes_as_synced(
 #[tracing::instrument(skip_all)]
 pub async fn create_nodes(
     req: HttpRequest,
-    mut body: web::Payload,
+    body: web::Payload,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?.to_string();
@@ -207,45 +203,15 @@ pub async fn create_nodes(
 
     // Spool the uploaded node tarball to a temp file instead of buffering the whole compressed
     // archive in memory. The archive carries every dir/vnode/commit node for the pushed commits,
-    // so on a large repo it runs to multiple GB, and several pushes can unpack at once. Streaming
-    // through a temp file keeps peak memory flat regardless of tree size or push concurrency.
-    //
-    // Spool with the Channel hand-off: the request body is async network IO and the disk write is
-    // sync, so the async side forwards chunks over a bounded channel to one long-lived blocking
-    // task that creates the temp file and writes it with std::fs. The channel bound backpressures a
-    // fast uploader to disk-write speed. Draining fully before the response is returned keeps the
-    // connection busy (the client is uploading), leaving the heartbeats below to cover the unpack.
+    // so on a large repo it runs to multiple GB, and several pushes can unpack at once. Draining
+    // fully before the response is returned keeps the connection busy (the client is uploading),
+    // leaving the heartbeats below to cover the unpack.
     let tmp_dir = util::fs::oxen_hidden_dir(&repository.path).join("tmp");
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<web::Bytes>(SPOOL_CHANNEL_CAPACITY);
-    let spool_task = tasks::spawn_blocking(move || -> Result<(NamedTempFile, u64), OxenError> {
-        std::fs::create_dir_all(&tmp_dir)?;
-        let temp = NamedTempFile::new_in(&tmp_dir)?;
-        let mut writer =
-            std::io::BufWriter::with_capacity(TREE_UNPACK_SPOOL_BUFFER_SIZE, temp.as_file());
-        let mut spooled: u64 = 0;
-        while let Some(chunk) = rx.blocking_recv() {
-            spooled += chunk.len() as u64;
-            writer.write_all(&chunk)?;
-        }
-        writer.flush()?;
-        drop(writer); // release the borrow of `temp` before handing it back
-        Ok((temp, spooled))
-    });
-    while let Some(item) = body.next().await {
-        let chunk = item.map_err(|_| OxenHttpError::FailedToReadRequestPayload)?;
-        // A send error means the writer ended early (a write failed); stop reading and let the join
-        // below surface the underlying error.
-        if tx.send(chunk).await.is_err() {
-            break;
-        }
-    }
-    drop(tx); // close the channel so the writer's recv loop returns
-    let (temp, spooled) = spool_task.await.map_err(|e| {
-        OxenError::internal_error(format!("create_nodes spool task panicked: {e}"))
-    })??;
+    let spooled = spool_to_temp_file(body, tmp_dir, u64::MAX, BodyEncoding::Plain).await??;
+    let temp = spooled.file;
     let temp_path = temp.path().to_path_buf();
 
-    log::debug!("create_nodes unpacking {}", ByteSize::b(spooled));
+    log::debug!("create_nodes unpacking {}", ByteSize::b(spooled.len));
 
     // Unpacking decompresses the archive and writes every node to the store. That is blocking CPU
     // and disk work, and it takes longer the bigger the tree is. Run it on the blocking pool so a

@@ -1607,6 +1607,24 @@ pub(crate) mod tests {
 
         let retrieved = store.get_version(&hash).await.unwrap();
         assert_eq!(retrieved, data);
+
+        let uploaded = b"uploaded from a temp file";
+        let uploaded_hash: MerkleHash = hasher::hash_buffer(uploaded).parse().unwrap();
+        let mut temp = tempfile::NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut temp, uploaded).unwrap();
+        let local = store
+            .store_version_from_temp_file(uploaded_hash, temp, uploaded.len() as u64)
+            .await
+            .unwrap();
+        assert_eq!(
+            store.get_version(&uploaded_hash.to_string()).await.unwrap(),
+            uploaded
+        );
+        assert_eq!(
+            std::fs::read(&*local).unwrap(),
+            uploaded,
+            "the S3 store hands back the temp file to read"
+        );
     }
 
     #[tokio::test]

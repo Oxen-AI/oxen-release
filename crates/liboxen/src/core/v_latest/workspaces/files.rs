@@ -12,7 +12,6 @@ use std::io::{Read, Write};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use url::Url;
 use zip::ZipArchive;
 
@@ -110,107 +109,49 @@ pub(crate) async fn add_version_file_from(
     Ok(dst_path.to_path_buf())
 }
 
-/// Stage a batch of version files into the workspace. Each entry is a destination path (already
-/// resolved and validated) paired with the hash of its content, which must already be in the
-/// version store.
-///
-/// Returns the destination paths that staged successfully, plus a per-file error for each that did
-/// not (content missing from the version store, or a staging failure).
-pub async fn add_version_files_at_paths(
-    workspace: &Workspace,
-    files: Vec<(PathBuf, String)>,
-) -> Result<(Vec<PathBuf>, Vec<ErrorFileInfo>), OxenError> {
-    // Materialize files in a background task -- an S3 object download per file, or a zero-IO path
-    // return for the local store -- with bounded concurrency, while staging them serially here:
-    // staging shares one StagedDBManager write lock and one `seen_dirs` set, so it can't run in
-    // parallel. Results arrive in input order over a bounded channel that backpressures the
-    // producer, so materialization keeps running ahead during staging. At most 2 ×
-    // MATERIALIZE_CONCURRENCY temp files exist at once: up to MATERIALIZE_CONCURRENCY in-flight
-    // inside the buffered stream plus up to MATERIALIZE_CONCURRENCY queued in the channel.
-    const MATERIALIZE_CONCURRENCY: usize = 16;
+/// A version file to stage at `dst_path`, whose bytes are in a local copy at `data_path`.
+pub struct VersionFileCopy {
+    pub dst_path: PathBuf,
+    pub hash: MerkleHash,
+    pub data_path: PathBuf,
+}
 
-    let version_store = workspace.base_repo.version_store();
-    let dir = Arc::new(workspace.dir());
+/// Stage a batch of version files into the workspace, reading each one's bytes from its local
+/// copy. The version store must already hold every file.
+///
+/// Returns the destination paths that staged, plus a per-file error for each that did not.
+pub async fn add_version_files_from(
+    workspace: &Workspace,
+    files: Vec<VersionFileCopy>,
+) -> Result<(Vec<PathBuf>, Vec<ErrorFileInfo>), OxenError> {
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
 
-    let num_files = files.len();
-    let (tx, mut rx) = mpsc::channel(MATERIALIZE_CONCURRENCY);
-    let producer = tokio::spawn(async move {
-        let mut materialized = futures::stream::iter(files)
-            .map(move |(dst_path, hash)| {
-                let version_store = version_store.clone();
-                let dir = dir.clone(); // Arc clone — refcount bump, not a heap allocation
-                async move {
-                    // The returned guard keeps any S3-materialized temp file alive until staging
-                    // reads it.
-                    let result = version_store.materialize(&hash, dir.as_path()).await;
-                    (dst_path, hash, result)
-                }
-            })
-            .buffered(MATERIALIZE_CONCURRENCY);
-        while let Some(item) = materialized.next().await {
-            if tx.send(item).await.is_err() {
-                break; // the staging side went away; stop materializing
-            }
-        }
-    });
-
-    let mut staged_paths = Vec::with_capacity(num_files);
+    let mut staged_paths = Vec::with_capacity(files.len());
     let mut err_files = vec![];
-    while let Some((dst_path, hash, materialize_result)) = rx.recv().await {
-        let version_path = match materialize_result {
-            Ok(path) => path,
-            Err(e) => {
-                let error = format!("Failed to resolve version path: {e}");
-                log::error!("{error}");
-                err_files.push(ErrorFileInfo {
-                    hash,
-                    path: Some(dst_path),
-                    error,
-                });
-                continue;
-            }
-        };
-        let staged = match hash.parse() {
-            Ok(file_hash) => {
-                stage_file_with_hash(
-                    workspace,
-                    &version_path,
-                    &dst_path,
-                    file_hash,
-                    &staged_db_manager,
-                    &seen_dirs,
-                )
-                .await
-            }
-            Err(e) => Err(e),
-        };
+    for file in files {
+        let staged = stage_file_with_hash(
+            workspace,
+            &file.data_path,
+            &file.dst_path,
+            file.hash,
+            &staged_db_manager,
+            &seen_dirs,
+        )
+        .await;
         match staged {
-            Ok(_) => staged_paths.push(dst_path),
+            Ok(_) => staged_paths.push(file.dst_path),
             Err(e) => {
                 let error = format!("Failed to add file to staged db: {e}");
                 log::error!("{error}");
                 err_files.push(ErrorFileInfo {
-                    hash,
-                    path: Some(dst_path),
+                    hash: file.hash.to_string(),
+                    path: Some(file.dst_path),
                     error,
                 });
             }
         }
     }
-
-    // The producer drops `tx` once it has materialized every file, which ends the loop above;
-    // join it to surface a panic rather than leaving a detached task.
-    if let Err(e) = producer.await {
-        log::error!("version materialization task failed: {e}");
-    }
-
-    log::debug!(
-        "add_version_files_at_paths complete with {} staged, {} err_files",
-        staged_paths.len(),
-        err_files.len()
-    );
     Ok((staged_paths, err_files))
 }
 
