@@ -90,6 +90,8 @@ mod tests {
 
     use std::path::Path;
 
+    use filetime::{FileTime, set_file_mtime};
+
     use crate::core::df::tabular;
     use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 
@@ -1072,7 +1074,10 @@ mod tests {
             repositories::branches::create_checkout(&repo, merge_branch_name)?;
             util::fs::write_to_path(&a_path, "version = 2")?;
             repositories::add(&repo, &a_path).await?;
-            repositories::commit(&repo, "Update models/a.toml on branch B")?;
+            let new_path = repo.path.join("new.txt");
+            util::fs::write_to_path(&new_path, "new")?;
+            repositories::add(&repo, &new_path).await?;
+            repositories::commit(&repo, "Update models/a.toml and add new.txt on branch B")?;
 
             // Back on main, make a diverging commit (different file, outside models/)
             repositories::checkout(&repo, &main_branch.name).await?;
@@ -1081,11 +1086,19 @@ mod tests {
             repositories::add(&repo, &other_path).await?;
             repositories::commit(&repo, "Add other.txt on main")?;
 
+            // A different mtime on models/a.toml and on an untracked copy of the file B adds, so the
+            // merge compares their content and metadata with the commits'
+            let past = FileTime::from_unix_time(1_000_000_000, 0);
+            set_file_mtime(&a_path, past)?;
+            util::fs::write_to_path(&new_path, "new")?;
+            set_file_mtime(&new_path, past)?;
+
             // Merge branch B into main — this should succeed without conflict
             let merge_commit = repositories::merge::merge(&repo, merge_branch_name).await?;
             assert!(
                 merge_commit.is_some(),
-                "Merge should succeed without conflict"
+                "Merge should succeed without conflict, from outside the repository, over a \
+                 touched models/a.toml and an untracked copy of new.txt"
             );
 
             // Verify the merged file has the updated content from branch B
