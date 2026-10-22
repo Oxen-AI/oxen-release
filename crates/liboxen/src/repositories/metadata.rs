@@ -12,6 +12,8 @@ use crate::model::{Commit, LocalRepository, MetadataEntry};
 use crate::repositories;
 use crate::util;
 
+use std::fs::File;
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 
 pub mod audio;
@@ -132,46 +134,70 @@ pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
     Ok(metadata.len())
 }
 
+/// Returns the metadata of a file of `data_type`, read from `data` and named with `extension`. A
+/// tabular file's metadata is read from `path` instead, which holds the same bytes as `data`.
 pub fn get_file_metadata_with_extension(
-    path: impl AsRef<Path>,
+    data: &mut (impl Read + Seek),
+    path: &Path,
     data_type: &EntryDataType,
     extension: &str,
 ) -> Result<Option<GenericMetadata>, OxenError> {
+    data.rewind()?;
     match data_type {
         // dir should not be passed in here
         EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir::new(vec![])))),
-        EntryDataType::Text => match text::get_metadata(path) {
+        EntryDataType::Text => match text::get_metadata(data) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
             Err(err) => {
-                log::warn!("could not compute text metadata: {err}");
+                tracing::error!(
+                    file.path = %path.display(),
+                    exception.message = %err,
+                    "Could not compute text metadata"
+                );
                 Ok(None)
             }
         },
-        EntryDataType::Image => match image::get_metadata(path) {
+        EntryDataType::Image => match image::get_metadata(data) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataImage(metadata))),
             Err(err) => {
-                log::warn!("could not compute image metadata: {err}");
+                tracing::error!(
+                    file.path = %path.display(),
+                    exception.message = %err,
+                    "Could not compute image metadata"
+                );
                 Ok(None)
             }
         },
-        EntryDataType::Video => match video::get_metadata(path) {
+        EntryDataType::Video => match video::get_metadata(data) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataVideo(metadata))),
             Err(err) => {
-                log::warn!("could not compute video metadata: {err}");
+                tracing::error!(
+                    file.path = %path.display(),
+                    exception.message = %err,
+                    "Could not compute video metadata"
+                );
                 Ok(None)
             }
         },
-        EntryDataType::Audio => match audio::get_metadata(path.as_ref(), extension) {
+        EntryDataType::Audio => match audio::get_metadata(data, extension) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataAudio(metadata))),
             Err(err) => {
-                log::warn!("could not compute audio metadata: {err}");
+                tracing::error!(
+                    file.path = %path.display(),
+                    exception.message = %err,
+                    "Could not compute audio metadata"
+                );
                 Ok(None)
             }
         },
         EntryDataType::Tabular => match tabular::get_metadata_with_extension(path, extension) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataTabular(metadata))),
             Err(err) => {
-                log::warn!("could not compute tabular metadata: {err}");
+                tracing::error!(
+                    file.path = %path.display(),
+                    exception.message = %err,
+                    "Could not compute tabular metadata"
+                );
                 Ok(None)
             }
         },
@@ -179,13 +205,23 @@ pub fn get_file_metadata_with_extension(
     }
 }
 
-/// Returns metadata based on data_type
+/// Returns metadata based on data_type, or none when the file at `path` cannot be opened
 pub fn get_file_metadata(
-    path: impl AsRef<Path>,
+    path: &Path,
     data_type: &EntryDataType,
 ) -> Result<Option<GenericMetadata>, OxenError> {
-    let path = path.as_ref();
-    get_file_metadata_with_extension(path, data_type, &util::fs::file_extension(path))
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(err) => {
+            tracing::error!(
+                file.path = %path.display(),
+                exception.message = %err,
+                "Could not open a file to compute its metadata"
+            );
+            return Ok(None);
+        }
+    };
+    get_file_metadata_with_extension(&mut file, path, data_type, &util::fs::file_extension(path))
 }
 
 #[cfg(test)]

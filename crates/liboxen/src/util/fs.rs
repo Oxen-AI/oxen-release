@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io;
 use std::io::BufReader;
 use std::io::Cursor;
 use std::io::SeekFrom;
@@ -230,13 +231,10 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
 }
 
 pub fn count_lines(
-    path: impl AsRef<Path>,
+    data: impl Read,
     opts: CountLinesOpts,
 ) -> Result<(usize, Option<usize>), OxenError> {
-    let path = path.as_ref();
-    let file = File::open(path)?;
-
-    let mut reader = BufReader::with_capacity(1024 * 32, file);
+    let mut reader = BufReader::with_capacity(1024 * 32, data);
     let mut line_count = 1;
     let mut char_count = 0;
     let mut last_buf: Vec<u8> = Vec::new();
@@ -277,12 +275,11 @@ pub fn count_lines(
     Ok((line_count, char_option))
 }
 
-pub fn read_first_n_bytes(path: impl AsRef<Path>, n: usize) -> Result<Vec<u8>, OxenError> {
-    let mut file = File::open(path.as_ref())?;
-    let mut buffer = vec![0; n];
-    let bytes_read = file.read(&mut buffer)?;
-    buffer.truncate(bytes_read);
-    Ok(buffer)
+/// Reads the first `n` bytes from `data`, or all of it when it is shorter.
+fn read_first_n_bytes(data: &mut impl Read, n: u64) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(n as usize + 1);
+    data.take(n).read_to_end(&mut bytes)?;
+    Ok(bytes)
 }
 
 pub fn read_first_line(path: impl AsRef<Path>) -> Result<String, OxenError> {
@@ -299,14 +296,6 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
             "Could not read line from file: {file:?}"
         )))
     }
-}
-
-pub fn read_first_byte_from_file(path: impl AsRef<Path>) -> Result<char, OxenError> {
-    let mut file = File::open(path)?;
-    let mut buffer = [0; 1]; // Single byte buffer
-    file.read_exact(&mut buffer)?;
-    let first_char = buffer[0] as char;
-    Ok(first_char)
 }
 
 pub fn list_dirs_in_dir(dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
@@ -616,18 +605,21 @@ pub fn metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, OxenError> 
     }
 }
 
-/// Looks at both the extension and the first bytes of the file to determine if it is tabular
-pub fn is_tabular_from_extension(data_path: impl AsRef<Path>, file_path: impl AsRef<Path>) -> bool {
-    let data_path = data_path.as_ref();
-    let file_path = file_path.as_ref();
-    if has_ext(file_path, "json")
-        && let Ok(c) = read_first_byte_from_file(data_path)
-        && "[" == c.to_string()
-    {
-        return true;
-    }
+/// Looks at both the extension of `file_path` and the `head` of its content to determine if it is
+/// tabular
+fn is_tabular_head(head: &[u8], file_path: &Path) -> bool {
+    (has_ext(file_path, "json") && head.first() == Some(&b'[')) || has_tabular_extension(file_path)
+}
 
-    has_tabular_extension(file_path)
+/// The first byte of the file at `path` when it has a `.json` extension, and nothing otherwise.
+fn first_byte_if_json(path: &Path) -> Vec<u8> {
+    if has_ext(path, "json") {
+        File::open(path)
+            .and_then(|mut file| read_first_n_bytes(&mut file, 1))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    }
 }
 
 /// Looks at the extension of the file to determine if it is tabular
@@ -641,7 +633,7 @@ pub fn has_tabular_extension(file_path: impl AsRef<Path>) -> bool {
 }
 
 pub fn is_tabular(path: &Path) -> bool {
-    is_tabular_from_extension(path, path)
+    is_tabular_head(&first_byte_if_json(path), path)
 }
 
 pub fn is_image(path: &Path) -> bool {
@@ -664,19 +656,24 @@ pub fn is_audio(path: &Path) -> bool {
     contains_ext(path, &exts)
 }
 
+/// The most of a file's start that `is_utf8` reads, 4 KiB.
+const UTF8_SAMPLE_SIZE: u64 = 4096;
+
 pub fn is_utf8(path: &Path) -> bool {
-    const SAMPLE_SIZE: usize = 4096;
+    File::open(path)
+        .and_then(|mut file| read_first_n_bytes(&mut file, UTF8_SAMPLE_SIZE))
+        .is_ok_and(|bytes| is_utf8_head(&bytes))
+}
 
-    let bytes = match read_first_n_bytes(path, SAMPLE_SIZE) {
-        Ok(b) => b,
-        Err(_) => return false,
-    };
-
+/// Whether the first `UTF8_SAMPLE_SIZE` bytes of a file's `head` are UTF-8, allowing a character
+/// cut off at their end.
+fn is_utf8_head(head: &[u8]) -> bool {
+    let bytes = &head[..head.len().min(UTF8_SAMPLE_SIZE as usize)];
     if bytes.is_empty() {
         return true;
     }
 
-    match from_utf8(&bytes) {
+    match from_utf8(bytes) {
         Ok(_) => true,
         Err(e) => e.error_len().is_none(),
     }
@@ -726,50 +723,47 @@ pub fn data_type_from_extension(path: &Path) -> EntryDataType {
     }
 }
 
-pub fn file_mime_type(path: &Path) -> String {
-    file_mime_type_from_extension(path, path)
+/// The most of a file's start that its MIME type and data type are read from, 8 KiB.
+const FILE_HEAD_SIZE: u64 = 8192;
+
+/// Reads the start of a file from `data` that `mime_type_from_head` and `data_type_from_head` take:
+/// its first `FILE_HEAD_SIZE` bytes, or all of it when it is shorter.
+pub(crate) fn read_head(data: &mut impl Read) -> io::Result<Vec<u8>> {
+    read_first_n_bytes(data, FILE_HEAD_SIZE)
 }
 
-// We have this split out because we get the mime type from the extension
-// but the data type from the contents
-// and the version path does not always have the extension in newer versions of oxen
-pub fn file_mime_type_from_extension(data_path: &Path, file_path: &Path) -> String {
-    match infer::get_from_path(data_path) {
-        Ok(Some(kind)) => {
-            // log::debug!("file_mime_type {:?} {}", data_path, kind.mime_type());
-            String::from(kind.mime_type())
-        }
-        _ => {
-            if is_markdown(file_path) {
-                String::from("text/markdown")
-            } else if is_utf8(data_path) {
-                String::from("text/plain")
-            } else if data_path.is_dir() {
-                String::from("inode/directory")
-            } else {
-                // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
-                // application/octet-stream is the default value for all other cases.
-                // An unknown file type should use this type.
-                // Browsers are particularly careful when manipulating these files to
-                // protect users from software vulnerabilities and possible dangerous behavior.
-                String::from("application/octet-stream")
-            }
-        }
+pub fn file_mime_type(path: &Path) -> String {
+    match File::open(path).and_then(|mut file| read_head(&mut file)) {
+        Ok(head) => mime_type_from_head(&head, path),
+        Err(_) if is_markdown(path) => String::from("text/markdown"),
+        Err(_) if path.is_dir() => String::from("inode/directory"),
+        Err(_) => String::from("application/octet-stream"),
     }
 }
 
-pub fn datatype_from_mimetype(data_path: &Path, mime_type: &str) -> EntryDataType {
-    datatype_from_mimetype_from_extension(data_path, data_path, mime_type)
+/// The MIME type of a file whose content starts with `head` (from `read_head`) and whose name is
+/// `file_path`, which carries the extension a version file's path does not.
+pub(crate) fn mime_type_from_head(head: &[u8], file_path: &Path) -> String {
+    match infer::get(head) {
+        Some(kind) => String::from(kind.mime_type()),
+        None if is_markdown(file_path) => String::from("text/markdown"),
+        None if is_utf8_head(head) => String::from("text/plain"),
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+        // application/octet-stream is the default value for all other cases.
+        // An unknown file type should use this type.
+        // Browsers are particularly careful when manipulating these files to
+        // protect users from software vulnerabilities and possible dangerous behavior.
+        None => String::from("application/octet-stream"),
+    }
 }
 
-// We have this split out because we get the mime type from the extension
-// but the data type from the contents
-// and the version path does not always have the extension in newer versions of oxen
-pub fn datatype_from_mimetype_from_extension(
-    data_path: &Path,
-    file_path: &Path,
-    mime_type: &str,
-) -> EntryDataType {
+pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
+    data_type_from_head(&first_byte_if_json(path), path, mime_type)
+}
+
+/// The data type of a file of `mime_type` whose content starts with `head` (from `read_head`) and
+/// whose name is `file_path`, which carries the extension a version file's path does not.
+pub(crate) fn data_type_from_head(head: &[u8], file_path: &Path, mime_type: &str) -> EntryDataType {
     match mime_type {
         // Image
         "image/jpeg" => EntryDataType::Image,
@@ -806,14 +800,8 @@ pub fn datatype_from_mimetype_from_extension(
         "audio/x-ape" => EntryDataType::Audio,
 
         mime_type => {
-            // log::debug!(
-            //     "datatype_from_mimetype trying to infer {:?} {:?} {}",
-            //     data_path,
-            //     file_path,
-            //     mime_type
-            // );
             // Catch text and dataframe types from file extension
-            if is_tabular_from_extension(data_path, file_path) {
+            if is_tabular_head(head, file_path) {
                 EntryDataType::Tabular
             } else if mime_type.starts_with("text/") {
                 EntryDataType::Text

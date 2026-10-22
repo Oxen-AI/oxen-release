@@ -4,17 +4,12 @@
 use crate::error::OxenError;
 use crate::model::metadata::metadata_image::MetadataImage;
 
-use std::fs::File;
-
 use image::ImageReader;
-use std::io::BufReader;
-use std::path::Path;
+use std::io::{BufReader, Read, Seek};
 
-/// Detects the image metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-    let reader = ImageReader::new(reader).with_guessed_format()?;
+/// Detects the image metadata of the file `data` reads.
+pub fn get_metadata(data: impl Read + Seek) -> Result<MetadataImage, OxenError> {
+    let reader = ImageReader::new(BufReader::new(data)).with_guessed_format()?;
 
     match reader.into_dimensions() {
         Ok((width, height)) => Ok(MetadataImage::new(width, height)),
