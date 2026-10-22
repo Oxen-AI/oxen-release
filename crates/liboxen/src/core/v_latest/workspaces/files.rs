@@ -1150,8 +1150,8 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
     let staged_file = match staged_db_manager.read_from_staged_db_locked(&db, path)? {
-        // Moving it would restore content the workspace already deleted, as `mv_dir` and edits
-        // to removed paths also refuse.
+        // Moving it would restore content the workspace already deleted, as edits to removed paths
+        // also refuse. A committed directory the workspace removed or moved away is staged so too.
         Some(entry) if entry.status == StagedEntryStatus::Removed => {
             return Err(OxenError::PathStagedForRemoval(path.to_path_buf().into()));
         }

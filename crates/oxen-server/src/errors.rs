@@ -654,7 +654,7 @@ impl error::ResponseError for OxenHttpError {
                             "error": {
                                 "type": MSG_CONFLICT,
                                 "title": "Path is staged for removal",
-                                "detail": format!("Unstage the removal of '{path}' before editing it"),
+                                "detail": format!("Unstage the removal of '{path}' before editing or moving it"),
                             },
                             "status": STATUS_ERROR,
                             "status_message": MSG_CONFLICT,

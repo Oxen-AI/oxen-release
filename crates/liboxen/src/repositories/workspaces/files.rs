@@ -390,6 +390,12 @@ mod tests {
                 staged_status(&workspace, "moved/sub/b.txt"),
                 Some(StagedEntryStatus::Added)
             );
+            let retry =
+                workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await;
+            assert!(
+                matches!(retry, Err(OxenError::PathStagedForRemoval(_))),
+                "retrying the move finds its source staged for removal, got {retry:?}"
+            );
 
             let commit =
                 workspaces::commit(&workspace, &body("Move data"), DEFAULT_BRANCH_NAME).await?;

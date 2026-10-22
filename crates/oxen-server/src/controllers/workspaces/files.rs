@@ -339,7 +339,7 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
         (status = 200, description = "File successfully moved/renamed", body = StatusMessage),
         (status = 400, description = "Invalid request (empty new_path, a file's new_path already exists, or new_path is the source or inside it)"),
         (status = 404, description = "Workspace or file not found"),
-        (status = 409, description = "A directory's new_path already exists, or something is staged at it")
+        (status = 409, description = "A directory's new_path already exists, something is staged at new_path, or the path is staged for removal (including a directory already moved away)")
     )
 )]
 pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
