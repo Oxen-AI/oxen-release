@@ -338,18 +338,7 @@ pub async fn should_restore_file(
             }
 
             // Second, check the combined hashes
-            let file_hash = util::hasher::u128_hash_file_contents(&working_path)?;
-            let file_combined_hash = {
-                let mime_type = util::fs::file_mime_type(&working_path);
-                let data_type = util::fs::datatype_from_mimetype(&working_path, mime_type.as_str());
-
-                let file_metadata =
-                    repositories::metadata::get_file_metadata(&working_path, &data_type)?;
-                let file_metadata_hash = util::hasher::maybe_get_metadata_hash(&file_metadata)?;
-
-                let combined_hash = util::hasher::get_combined_hash(file_metadata_hash, file_hash)?;
-                MerkleHash::new(combined_hash)
-            };
+            let file_combined_hash = combined_hash_of(&working_path)?;
 
             let node_combined_hash = file_node.combined_hash();
             // File already matches the merge target — no-op. Lets an interrupted
@@ -382,18 +371,7 @@ pub async fn should_restore_file(
             }
 
             // Second, check the combined hashes
-            let file_hash = util::hasher::u128_hash_file_contents(&working_path)?;
-            let file_combined_hash = {
-                let mime_type = util::fs::file_mime_type(&working_path);
-                let data_type = util::fs::datatype_from_mimetype(&working_path, mime_type.as_str());
-
-                let file_metadata =
-                    repositories::metadata::get_file_metadata(&working_path, &data_type)?;
-                let file_metadata_hash = util::hasher::maybe_get_metadata_hash(&file_metadata)?;
-
-                let combined_hash = util::hasher::get_combined_hash(file_metadata_hash, file_hash)?;
-                MerkleHash::new(combined_hash)
-            };
+            let file_combined_hash = combined_hash_of(&working_path)?;
 
             let node_combined_hash = file_node.combined_hash();
             if file_combined_hash != *node_combined_hash {
@@ -403,6 +381,15 @@ pub async fn should_restore_file(
     }
 
     Ok(true)
+}
+
+/// The combined hash of the file at `path`, from its content and its metadata.
+fn combined_hash_of(path: &Path) -> Result<MerkleHash, OxenError> {
+    let file_hash = util::hasher::u128_hash_file_contents(path)?;
+    let (_, _, file_metadata) = repositories::metadata::inspect_file(path, path)?;
+    let file_metadata_hash = util::hasher::maybe_get_metadata_hash(&file_metadata)?;
+    let combined_hash = util::hasher::get_combined_hash(file_metadata_hash, file_hash)?;
+    Ok(MerkleHash::new(combined_hash))
 }
 
 fn abs_duration_diff(a: SystemTime, b: SystemTime) -> Duration {

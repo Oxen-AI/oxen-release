@@ -44,7 +44,6 @@ mod tests {
     use crate::util;
 
     use approx::assert_relative_eq;
-    use std::fs::File;
 
     #[test]
     fn test_get_metadata_audio_flac() {
@@ -92,25 +91,19 @@ mod tests {
         test::run_empty_dir_test(|dir| {
             let version_file = dir.join("data");
             util::fs::copy(&file, &version_file)?;
-            let staged = repositories::metadata::get_file_metadata_with_extension(
-                &mut File::open(&version_file)?,
-                &version_file,
-                &EntryDataType::Audio,
-                "wav",
-            )?;
+            let (_, data_type, staged) =
+                repositories::metadata::inspect_file(&version_file, &file)?;
+            assert_eq!(data_type, EntryDataType::Audio);
             let Some(GenericMetadata::MetadataAudio(staged)) = staged else {
-                panic!("a copy with no extension is probed in the format given, got {staged:?}");
+                panic!("a copy with no extension takes the format its name gives, got {staged:?}");
             };
             assert_eq!(staged.audio.sample_rate, metadata.audio.sample_rate);
             assert_eq!(staged.audio.num_channels, metadata.audio.num_channels);
 
-            let missing = repositories::metadata::get_file_metadata(
-                &dir.join("missing.wav"),
-                &EntryDataType::Audio,
-            )?;
+            let missing = dir.join("missing.wav");
             assert!(
-                missing.is_none(),
-                "a file that cannot be opened has no metadata"
+                repositories::metadata::inspect_file(&missing, &missing).is_err(),
+                "a file that cannot be opened fails its inspection"
             );
             Ok(())
         })
