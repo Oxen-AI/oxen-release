@@ -241,10 +241,11 @@ pub enum OxenError {
         source: Box<OxenError>,
     },
 
-    /// A workspace commit's indexed tabular export has no schema to infer
-    /// (e.g. every row was staged for removal), so it carries no metadata.
+    /// A workspace commit's indexed tabular export has no columns to record, either because no
+    /// schema can be inferred from it or because the inferred one has no columns (e.g. every row
+    /// was staged for removal).
     #[error(
-        "Cannot commit data frame {0:?}: the exported file has no tabular metadata (it may be empty after row deletions). Refusing to commit a tabular file without metadata."
+        "Cannot commit data frame {0:?}: the exported file has no tabular columns (it may be empty after row deletions). Refusing to commit a tabular file without columns."
     )]
     TabularExportMissingMetadata(PathBuf),
 

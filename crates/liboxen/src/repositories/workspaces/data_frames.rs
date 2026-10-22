@@ -1652,6 +1652,7 @@ mod tests {
         test::run_empty_local_repo_test_async(|repo| async move {
             let diff_output = Path::new("diff_output.csv");
             let single_row = Path::new("data.jsonl");
+            let single_row_array = Path::new("data.json");
             let media = Path::new("media.jsonl");
             write_to_path(
                 repo.path.join(diff_output),
@@ -1660,6 +1661,10 @@ mod tests {
             write_to_path(
                 repo.path.join(single_row),
                 "{\"prompt\": \"hello\", \"status\": \"bootstrap\"}\n",
+            )?;
+            write_to_path(
+                repo.path.join(single_row_array),
+                "[{\"prompt\": \"hello\", \"status\": \"bootstrap\"}]\n",
             )?;
             // Object values make read_json (and the workspace index) type `error_details` as a
             // JSON column.
@@ -1696,27 +1701,34 @@ mod tests {
             let val = row.column(DIFF_STATUS_COL)?.get(0)?;
             assert_eq!(val.get_str(), Some("changed"), "the update applies");
 
-            // Committing a deletion of a jsonl data frame's only row would export an empty jsonl
-            // file, from which no schema can be inferred, so the commit must fail instead of
-            // writing a Tabular FileNode with no metadata (which would make every subsequent read
-            // fail with `TabularFileMissingMetadata`).
-            let workspace = workspaces::create(&repo, &commit, "empty-jsonl", true)?;
-            index(&repo, &workspace, single_row).await?;
-            let staged = query(&workspace, single_row, &page_opts(0, 10, None))?;
-            rows::delete(&repo, &workspace, single_row, &first_row_id(&staged)?)?;
-            let result =
-                workspaces::commit(&workspace, &body("Delete all rows"), DEFAULT_BRANCH_NAME).await;
-            assert!(
-                result.is_err(),
-                "commit of an empty tabular export must fail, got {result:?}"
-            );
-            // The previously committed version must still be fully readable.
-            let file_node = tree::get_file_by_path(&repo, &commit, single_row)?
-                .expect("original file node should still exist");
-            assert!(
-                file_node.metadata().is_some(),
-                "original committed file node should still have tabular metadata"
-            );
+            // Committing a deletion of a data frame's only row would export a file with no
+            // columns to record: an empty jsonl file infers no schema, and a json array, which
+            // DuckDB writes as `[\n\t\n]` with no rows, infers one with no columns. The commit
+            // must fail instead of writing a Tabular FileNode that every subsequent read fails on
+            // or sees no columns in.
+            for (path, workspace_name) in [
+                (single_row, "empty-jsonl"),
+                (single_row_array, "empty-json"),
+            ] {
+                let workspace = workspaces::create(&repo, &commit, workspace_name, true)?;
+                index(&repo, &workspace, path).await?;
+                let staged = query(&workspace, path, &page_opts(0, 10, None))?;
+                rows::delete(&repo, &workspace, path, &first_row_id(&staged)?)?;
+                let result =
+                    workspaces::commit(&workspace, &body("Delete all rows"), DEFAULT_BRANCH_NAME)
+                        .await;
+                assert!(
+                    matches!(result, Err(OxenError::TabularExportMissingMetadata(_))),
+                    "commit of an empty {path:?} export must fail, got {result:?}"
+                );
+                // The previously committed version must still be fully readable.
+                let file_node = tree::get_file_by_path(&repo, &commit, path)?
+                    .expect("original file node should still exist");
+                assert!(
+                    file_node.metadata().is_some(),
+                    "original committed file node should still have tabular metadata"
+                );
+            }
 
             // The workspace-commit export round-trips a JSON-typed column through its
             // `COPY ... (FORMAT JSON)`. DuckDB 1.5.2 validates JSON on every ingestion path, so a
