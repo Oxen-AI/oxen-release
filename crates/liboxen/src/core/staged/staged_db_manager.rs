@@ -322,7 +322,11 @@ impl StagedDBManager {
                     Ok(entry) => {
                         entries.insert(entry_path, entry);
                     }
-                    Err(e) => log::error!("read_entries_under_with error decoding {key}: {e}"),
+                    Err(e) => tracing::error!(
+                        oxen.file_path = %key,
+                        exception.message = %e,
+                        "Could not decode a pending staged-db write"
+                    ),
                 },
                 None => {
                     entries.remove(&entry_path);

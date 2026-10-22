@@ -1393,7 +1393,12 @@ fn restore_indexes(workspace: &Workspace, moved: &[(&Path, &Path)]) {
     for (path, dest) in moved.iter().rev() {
         if let Err(err) = core::v_latest::workspaces::data_frames::move_index(workspace, dest, path)
         {
-            log::error!("mv_dir: could not move the index for {dest:?} back to {path:?}: {err}");
+            tracing::error!(
+                oxen.file_path = %path.display(),
+                oxen.new_file_path = %dest.display(),
+                exception.message = %err,
+                "Could not move a data frame index back after a failed directory move"
+            );
         }
     }
 }

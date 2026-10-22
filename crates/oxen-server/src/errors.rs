@@ -556,7 +556,10 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::UnprocessableEntity().json(error_json)
                     }
                     OxenError::MoveIntoItself(path) => {
-                        log::warn!("Move refused, destination is the source or inside it: {path}");
+                        tracing::warn!(
+                            oxen.file_path = %path,
+                            "Move refused, destination is the source or inside it"
+                        );
                         let error_json = json!({
                             "error": {
                                 "type": "move_into_itself",
