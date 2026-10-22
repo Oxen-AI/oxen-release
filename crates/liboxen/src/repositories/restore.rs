@@ -376,6 +376,7 @@ mod tests {
                 paths: vec![PathBuf::from("subdir/a.txt")],
                 recursive: false,
                 staged: false,
+                ..Default::default()
             };
             repositories::rm(&repo, &rm_opts).await?;
             repositories::commit(&repo, "Remove subdir/a.txt")?;

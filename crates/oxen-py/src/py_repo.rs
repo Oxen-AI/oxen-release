@@ -115,12 +115,19 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool) -> Result<(), PyOxenError> {
+    pub fn rm(
+        &self,
+        path: PathBuf,
+        recursive: bool,
+        staged: bool,
+        force: bool,
+    ) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let rm_opts = RmOpts {
             paths: vec![path],
             staged,
             recursive,
+            force,
         };
 
         pyo3_async_runtimes::tokio::get_runtime()

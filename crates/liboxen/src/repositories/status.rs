@@ -150,6 +150,13 @@ mod tests {
             assert!(!status_after.is_clean());
             assert!(status_after.has_modified_entries());
 
+            let result = repositories::rm(&repo, &RmOpts::from_path("hello.txt")).await;
+            assert!(
+                matches!(result, Err(OxenError::RmWouldLoseChanges(_))),
+                "rm refuses to delete an edit whose HEAD content is missing locally: {result:?}"
+            );
+            assert_eq!(util::fs::read_from_path(&path)?, "drifted");
+
             Ok(())
         })
         .await

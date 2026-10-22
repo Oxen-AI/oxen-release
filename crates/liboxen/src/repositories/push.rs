@@ -960,6 +960,7 @@ mod tests {
                 paths: vec![PathBuf::from("train")],
                 staged: false,
                 recursive: true,
+                ..Default::default()
             };
 
             repositories::rm(&local_repo, &rm_opts).await?;

@@ -2217,6 +2217,7 @@ mod tests {
                 paths: vec![dir_path],
                 staged: false,
                 recursive: true,
+                ..Default::default()
             };
 
             repositories::rm(&repo, &opts).await?;

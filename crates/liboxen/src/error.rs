@@ -232,6 +232,14 @@ pub enum OxenError {
     #[error("Removal of {0} is already staged")]
     RemovalAlreadyStaged(PathBufError),
 
+    /// `oxen rm` would delete a file whose working copy or staged content differs from HEAD.
+    #[error("{0} has changes that `oxen rm` would delete")]
+    RmWouldLoseChanges(PathBufError),
+
+    /// `oxen rm --staged` would drop staged content found in neither the working copy nor HEAD.
+    #[error("The content staged for {0} differs from both the file and HEAD")]
+    RmWouldLoseStagedContent(PathBufError),
+
     /// The workspace's staged database is in an inconsistent state — the directory
     /// exists but the underlying store cannot be read. Distinct from the clean-empty
     /// case, which yields an empty `StagedData` rather than an error.
@@ -912,6 +920,12 @@ impl OxenError {
             RemovalAlreadyStaged(_) => {
                 "Unstage the removal with `oxen restore --staged <path>`, and bring the file back with `oxen restore <path>`."
             }
+            RmWouldLoseChanges(_) => {
+                "Commit or restore the changes first, keep the file with `oxen rm --staged`, or delete it anyway with `oxen rm -f`."
+            }
+            RmWouldLoseStagedContent(_) => {
+                "Stage the file as it is now with `oxen add <path>`, or drop the staged content anyway with `oxen rm --staged -f`."
+            }
             MergeInProgressMismatch { .. } => {
                 "Run `oxen merge --abort` to abandon the in-progress merge, or retry the original target."
             }
@@ -1075,6 +1089,8 @@ impl OxenError {
             OxenError::HTTP(req_err) => req_err.status().is_some_and(is_fatal_http_status),
             OxenError::VersionsMissingOnServer { .. } => true,
             OxenError::RemovalAlreadyStaged(_) => true,
+            OxenError::RmWouldLoseChanges(_) => true,
+            OxenError::RmWouldLoseStagedContent(_) => true,
             OxenError::ReachableObjectsMissing { .. } => true,
             OxenError::DirHashIndexMissing { .. } => true,
             OxenError::VersionStoreDataMissing { .. } => true,

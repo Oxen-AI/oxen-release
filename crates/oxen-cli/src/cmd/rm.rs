@@ -24,9 +24,13 @@ pub fn rm_args() -> Command {
              instead.\n\n\
              To bring a deleted file back, run `oxen restore --staged <file>` to \
              unstage the removal, then `oxen restore <file>`.\n\n\
+             A file whose working copy or staged content differs from HEAD is refused, as is \
+             a file added under a directory given with `-r`. Pass `-f` to remove it anyway.\n\n\
              With `--staged`, the working-tree copies are left in place. A committed path \
              is staged for removal and shows as untracked afterward, and a path that has \
-             never been committed has what is staged for it unstaged.",
+             never been committed has what is staged for it unstaged. A file whose staged \
+             content differs from both the working copy and HEAD is refused unless `-f` is \
+             given.",
         )
         .arg(
             Arg::new("files")
@@ -45,6 +49,13 @@ pub fn rm_args() -> Command {
                 .long("recursive")
                 .short('r')
                 .help("Recursively removes directory.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("force")
+                .long("force")
+                .short('f')
+                .help("Removes files even when that loses changes not yet committed.")
                 .action(clap::ArgAction::SetTrue),
         )
 }
@@ -74,6 +85,7 @@ impl RunCmd for RmCmd {
             paths,
             staged: args.get_flag("staged"),
             recursive: args.get_flag("recursive"),
+            force: args.get_flag("force"),
         };
 
         let repository = LocalRepository::from_current_dir()?;
