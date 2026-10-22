@@ -182,25 +182,22 @@ fn read_from_db(db: &DB, path: &Path) -> Result<Option<StagedMerkleTreeNode>, Ox
     }
 }
 
-fn read_entries_under_in(
-    db: &DB,
+/// The staged entries at and under `path`, which is relative to the repository.
+pub(crate) fn staged_entries_under(
     path: &Path,
+    staged_db: &DB,
 ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-    let prefix = normalize_key(path);
-    let mut entries = vec![];
-    for item in db.iterator(IteratorMode::From(prefix.as_bytes(), Direction::Forward)) {
-        let (key, value) = item?;
-        if !key.starts_with(prefix.as_bytes()) {
+    let key = path.to_string_lossy();
+    let mut entries = Vec::new();
+    // Every key under `path` begins with its key, as do siblings such as `path.csv`
+    for entry in staged_db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
+        let (entry_key, value) = entry?;
+        if !entry_key.starts_with(key.as_bytes()) {
             break;
         }
-        let key = str::from_utf8(&key).map_err(|e| OxenError::basic_str(e.to_string()))?;
-        let entry_path = PathBuf::from(key);
-        if !entry_path.starts_with(path) {
-            continue;
-        }
-        match rmp_serde::from_slice::<StagedMerkleTreeNode>(&value) {
-            Ok(entry) => entries.push((entry_path, entry)),
-            Err(e) => log::error!("read_entries_under error decoding {key}: {e}"),
+        let entry_path = PathBuf::from(str::from_utf8(&entry_key)?);
+        if entry_path.starts_with(path) {
+            entries.push((entry_path, rmp_serde::from_slice(&value)?));
         }
     }
     Ok(entries)
@@ -319,7 +316,7 @@ impl StagedDBManager {
         batch: &StagedWriteBatch,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
         let mut entries: BTreeMap<PathBuf, StagedMerkleTreeNode> =
-            read_entries_under_in(db, path)?.into_iter().collect();
+            staged_entries_under(path, db)?.into_iter().collect();
         for (key, value) in &batch.ops {
             let entry_path = PathBuf::from(key);
             if !entry_path.starts_with(path) {
@@ -588,12 +585,12 @@ impl StagedDBManager {
         read_from_db(db, path.as_ref())
     }
 
-    /// Every staged entry at or below `path`, with its path. Undecodable entries are skipped.
+    /// Every staged entry at or below `path`, with its path.
     pub fn read_entries_under(
         &self,
         path: &Path,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-        read_entries_under_in(&self.staged_db.read(), path)
+        staged_entries_under(path, &self.staged_db.read())
     }
 
     /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`].
@@ -602,7 +599,7 @@ impl StagedDBManager {
         db: &RwLockWriteGuard<DB>,
         path: &Path,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-        read_entries_under_in(db, path)
+        staged_entries_under(path, db)
     }
 
     /// Read all entries below a path from the staged db
