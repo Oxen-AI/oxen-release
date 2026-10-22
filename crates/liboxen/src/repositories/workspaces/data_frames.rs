@@ -654,107 +654,6 @@ mod tests {
         Ok(workspace)
     }
 
-    /// Moving a directory carries a data frame's staged row edits with it: the edit reads at the
-    /// new path before the commit and is in the committed file after it.
-    #[tokio::test]
-    async fn test_directory_move_keeps_staged_row_edits() -> Result<(), OxenError> {
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
-            let branch_name = "test-move-edited";
-            let branch = repositories::branches::create_checkout(&repo, branch_name)?;
-            let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-            let workspace =
-                repositories::workspaces::create(&repo, &commit, UserConfig::identifier()?, true)?;
-            let train = Path::new("annotations").join("train");
-            let moved = Path::new("annotations").join("moved_train");
-            let file_path = train.join("bounding_box.csv");
-            let moved_path = moved.join("bounding_box.csv");
-
-            workspaces::data_frames::index(&repo, &workspace, &file_path).await?;
-            let row = json!({"file": "dawg1.jpg", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100});
-            workspaces::data_frames::rows::add(&repo, &workspace, &file_path, &row)?;
-            assert_eq!(workspaces::data_frames::count(&workspace, &file_path)?, 7);
-
-            workspaces::files::mv(&workspace, &train, &moved).await?;
-            assert_eq!(workspaces::data_frames::count(&workspace, &moved_path)?, 7);
-
-            let new_commit = NewCommitBody {
-                author: "author".to_string(),
-                email: "email".to_string(),
-                message: "Move the edited data frame".to_string(),
-            };
-            let committed = workspaces::commit(&workspace, &new_commit, branch_name).await?;
-            assert!(repositories::tree::get_file_by_path(&repo, &committed, &file_path)?.is_none());
-
-            let reader =
-                repositories::workspaces::create(&repo, &committed, UserConfig::identifier()?, true)?;
-            workspaces::data_frames::index(&repo, &reader, &moved_path).await?;
-            assert_eq!(workspaces::data_frames::count(&reader, &moved_path)?, 7);
-
-            Ok(())
-        })
-        .await
-    }
-
-    /// A directory move that fails partway moves nothing: an index move that cannot complete
-    /// puts back the indexes already moved and leaves the staged db untouched.
-    #[tokio::test]
-    async fn test_failed_directory_move_moves_nothing() -> Result<(), OxenError> {
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commit = repositories::commits::head_commit(&repo)?;
-            let workspace =
-                repositories::workspaces::create(&repo, &commit, UserConfig::identifier()?, true)?;
-            let train = Path::new("annotations").join("train");
-            let moved = Path::new("annotations").join("moved_train");
-            let first = train.join("bounding_box.csv");
-            let second = train.join("one_shot.csv");
-
-            workspaces::data_frames::index(&repo, &workspace, &first).await?;
-            workspaces::data_frames::index(&repo, &workspace, &second).await?;
-            let row = json!({"file": "dawg1.jpg", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100});
-            workspaces::data_frames::rows::add(&repo, &workspace, &first, &row)?;
-
-            // Indexes move in path order, so `first` moves before `second` hits this file where
-            // its index directory would go.
-            let blocker = duckdb_path(&workspace, &moved.join("one_shot.csv"))
-                .parent()
-                .unwrap()
-                .to_path_buf();
-            util::fs::create_dir_all(blocker.parent().unwrap())?;
-            std::fs::write(&blocker, "not a directory")?;
-
-            let staged_snapshot = || -> Result<Vec<_>, OxenError> {
-                Ok(get_staged_db_manager(&workspace.workspace_repo)?
-                    .read_entries_under(Path::new(""))?
-                    .into_iter()
-                    .map(|(path, entry)| (path, entry.status, entry.node.hash))
-                    .collect())
-            };
-            let before = staged_snapshot()?;
-
-            assert!(workspaces::files::mv(&workspace, &train, &moved).await.is_err());
-
-            assert_eq!(staged_snapshot()?, before);
-            assert!(
-                get_staged_db_manager(&workspace.workspace_repo)?
-                    .read_entries_under(&moved)?
-                    .is_empty()
-            );
-            assert!(duckdb_path(&workspace, &first).exists());
-            assert!(duckdb_path(&workspace, &second).exists());
-            assert!(!duckdb_path(&workspace, &moved.join("bounding_box.csv")).exists());
-            assert_eq!(workspaces::data_frames::count(&workspace, &first)?, 7);
-
-            Ok(())
-        })
-        .await
-    }
-
     /// The `_oxen_id` of the first row of `df`.
     fn first_row_id(df: &DataFrame) -> Result<String, OxenError> {
         Ok(df
@@ -1736,6 +1635,72 @@ mod tests {
             assert!(
                 tree::get_file_by_path(&repo, &removal, &path)?.is_none(),
                 "the removal must survive to the commit"
+            );
+
+            // Moving a directory carries a data frame's staged row edits with it: the edit reads
+            // at the new path before the commit and is in the committed file after it.
+            let train = path.parent().expect("the data frame sits in a directory");
+            let moved = Path::new("annotations").join("moved_train");
+            let moved_path = moved.join("bounding_box.csv");
+            let workspace = indexed_workspace(&repo, &commit, "move-edited").await?;
+            let committed_rows = count(&workspace, &path)?;
+            let row = json!({"file": "dawg1.jpg", "label": "dog", "min_x": 13, "min_y": 14, "width": 100, "height": 100});
+            rows::add(&repo, &workspace, &path, &row)?;
+            files::mv(&workspace, train, &moved).await?;
+            assert_eq!(count(&workspace, &moved_path)?, committed_rows + 1);
+            let moved_commit =
+                workspaces::commit(&workspace, &body("Move the edited data frame"), "move-edited")
+                    .await?;
+            assert!(tree::get_file_by_path(&repo, &moved_commit, &path)?.is_none());
+            let reader = workspaces::create(&repo, &moved_commit, "move-edited-reader", true)?;
+            index(&repo, &reader, &moved_path).await?;
+            assert_eq!(
+                count(&reader, &moved_path)?,
+                committed_rows + 1,
+                "the moved edit is in the committed file"
+            );
+
+            // A directory move that fails partway moves nothing: an index move that cannot
+            // complete puts back the indexes already moved and leaves the staged db untouched.
+            // It needs a second data frame in the directory, so it builds on a commit of its own.
+            let second = train.join("second.csv");
+            write_to_path(repo.path.join(&second), "label,count\ndog,1\ncat,2\n")?;
+            repositories::add(&repo, repo.path.join(&second)).await?;
+            let two_frames = repositories::commit(&repo, "Add a second data frame")?;
+            let workspace = workspaces::create(&repo, &two_frames, "failed-move", true)?;
+            index(&repo, &workspace, &path).await?;
+            index(&repo, &workspace, &second).await?;
+            rows::add(&repo, &workspace, &path, &row)?;
+            // Indexes move in path order, so `path` moves before `second` hits this file where
+            // its index directory would go.
+            let blocker = duckdb_path(&workspace, &moved.join("second.csv"))
+                .parent()
+                .expect("an index sits in a directory")
+                .to_path_buf();
+            util::fs::create_dir_all(blocker.parent().expect("the index directory has a parent"))?;
+            std::fs::write(&blocker, "not a directory")?;
+            let staged_snapshot = || -> Result<Vec<_>, OxenError> {
+                Ok(get_staged_db_manager(&workspace.workspace_repo)?
+                    .read_entries_under(Path::new(""))?
+                    .into_iter()
+                    .map(|(path, entry)| (path, entry.status, entry.node.hash))
+                    .collect())
+            };
+            let before = staged_snapshot()?;
+            assert!(files::mv(&workspace, train, &moved).await.is_err());
+            assert_eq!(staged_snapshot()?, before);
+            assert!(
+                get_staged_db_manager(&workspace.workspace_repo)?
+                    .read_entries_under(&moved)?
+                    .is_empty()
+            );
+            assert!(duckdb_path(&workspace, &path).exists());
+            assert!(duckdb_path(&workspace, &second).exists());
+            assert!(!duckdb_path(&workspace, &moved_path).exists());
+            assert_eq!(
+                count(&workspace, &path)?,
+                committed_rows + 1,
+                "the edit stays with the index that was moved back"
             );
 
             Ok(())
