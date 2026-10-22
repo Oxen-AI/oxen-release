@@ -103,8 +103,12 @@ RUN strip target/release/oxen
 # Minimal image to run the binary (without Rust toolchain)
 FROM debian:bookworm-slim AS runtime
 
+# ca-certificates before 20250419~deb12u2 still trusts the eMudhra intermediates whose private
+# keys are recoverable from the certificates. The floor fails the build rather than shipping
+# that bundle from a stale package mirror or layer cache.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl curl ca-certificates \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ca-certificates)" ge 20250419~deb12u2 \
     && rm -rfv /var/lib/apt/lists/*
 
 # FFmpeg 9 shared libraries for the `ffmpeg` video-thumbnail feature (see builder stage).
