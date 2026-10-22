@@ -204,16 +204,16 @@ pub(crate) fn staged_entries_under(
 }
 
 /// Staged-db writes collected in memory and applied together by
-/// [`StagedDBManager::write_batch`], so a concurrent reader sees all of them or none. A later
+/// [`StagedDBManager::write_batch_locked`], so a concurrent reader sees all of them or none. A later
 /// write to a key replaces an earlier one. Keys and values match the per-call methods of the same
 /// names on [`StagedDBManager`].
 #[derive(Default)]
-pub struct StagedWriteBatch {
+pub(crate) struct StagedWriteBatch {
     ops: BTreeMap<String, Option<Vec<u8>>>,
 }
 
 impl StagedWriteBatch {
-    pub fn upsert_file_node(
+    pub(crate) fn upsert_file_node(
         &mut self,
         relative_path: impl AsRef<Path>,
         status: StagedEntryStatus,
@@ -228,7 +228,7 @@ impl StagedWriteBatch {
         )
     }
 
-    pub fn upsert_staged_node(
+    pub(crate) fn upsert_staged_node(
         &mut self,
         path: impl AsRef<Path>,
         staged_node: &StagedMerkleTreeNode,
@@ -240,11 +240,11 @@ impl StagedWriteBatch {
         Ok(())
     }
 
-    pub fn delete_entry(&mut self, path: impl AsRef<Path>) {
+    pub(crate) fn delete_entry(&mut self, path: impl AsRef<Path>) {
         self.ops.insert(normalize_key(path), None);
     }
 
-    pub fn add_directory(
+    pub(crate) fn add_directory(
         &mut self,
         directory_path: impl AsRef<Path>,
         seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
@@ -265,7 +265,7 @@ impl StagedWriteBatch {
         Ok(())
     }
 
-    pub fn add_parent_directories(
+    pub(crate) fn add_parent_directories(
         &mut self,
         path: &Path,
         seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
@@ -281,17 +281,12 @@ impl StagedDBManager {
     /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
     /// interleave with. Pass the guard to the `*_locked` methods; calling any other method of this
     /// manager while holding it deadlocks.
-    pub fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
+    pub(crate) fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
         self.staged_db.write()
     }
 
-    /// Apply every write in `batch` atomically.
-    pub fn write_batch(&self, batch: StagedWriteBatch) -> Result<(), OxenError> {
-        self.write_batch_locked(&self.staged_db.write(), batch)
-    }
-
-    /// [`Self::write_batch`] under a guard from [`Self::lock_for_write`].
-    pub fn write_batch_locked(
+    /// Apply every write in `batch` atomically, under a guard from [`Self::lock_for_write`].
+    pub(crate) fn write_batch_locked(
         &self,
         db: &RwLockWriteGuard<DB>,
         batch: StagedWriteBatch,
@@ -309,7 +304,7 @@ impl StagedDBManager {
 
     /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`], as it will read
     /// once `batch` is written.
-    pub fn read_entries_under_with_locked(
+    pub(crate) fn read_entries_under_with_locked(
         &self,
         db: &RwLockWriteGuard<DB>,
         path: &Path,
@@ -577,7 +572,7 @@ impl StagedDBManager {
     }
 
     /// [`Self::read_from_staged_db`] under a guard from [`Self::lock_for_write`].
-    pub fn read_from_staged_db_locked(
+    pub(crate) fn read_from_staged_db_locked(
         &self,
         db: &RwLockWriteGuard<DB>,
         path: impl AsRef<Path>,
@@ -586,7 +581,7 @@ impl StagedDBManager {
     }
 
     /// Every staged entry at or below `path`, with its path.
-    pub fn read_entries_under(
+    pub(crate) fn read_entries_under(
         &self,
         path: &Path,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
@@ -594,7 +589,7 @@ impl StagedDBManager {
     }
 
     /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`].
-    pub fn read_entries_under_locked(
+    pub(crate) fn read_entries_under_locked(
         &self,
         db: &RwLockWriteGuard<DB>,
         path: &Path,

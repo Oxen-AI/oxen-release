@@ -654,7 +654,7 @@ fn move_staged_entry(
 }
 
 /// Move the DuckDB index of the data frame at `path` to `new_path`'s index location.
-pub(crate) fn move_index(
+pub(super) fn move_index(
     workspace: &Workspace,
     path: &Path,
     new_path: &Path,
