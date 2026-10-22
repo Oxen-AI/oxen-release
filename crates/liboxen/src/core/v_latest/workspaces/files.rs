@@ -1320,17 +1320,10 @@ fn mv_dir(
         Ok(new_path.join(relative))
     };
 
-    let mut moves: Vec<(&Path, PathBuf, &FileNode, bool)> = Vec::with_capacity(files.len());
-    for (p, file_node, in_base) in &files {
-        let dest = relocate(p)?;
-        if staged_db_manager
-            .read_from_staged_db_locked(db, &dest)?
-            .is_some()
-        {
-            return Err(OxenError::DestinationAlreadyStaged(dest.into()));
-        }
-        moves.push((p, dest, file_node, *in_base));
-    }
+    let moves = files
+        .iter()
+        .map(|(p, file_node, in_base)| Ok((p.as_path(), relocate(p)?, file_node, *in_base)))
+        .collect::<Result<Vec<_>, OxenError>>()?;
 
     let mut batch = StagedWriteBatch::default();
     for (p, dest, file_node, in_base) in &moves {
