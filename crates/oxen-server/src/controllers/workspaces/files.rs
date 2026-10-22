@@ -636,6 +636,19 @@ mod tests {
             );
         }
 
+        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
+        let req = actix_web::test::TestRequest::patch()
+            .uri(&uri)
+            .set_payload(r#"{"new_path": "renamed/inner"}"#)
+            .to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
+        assert_eq!(
+            body["error"]["type"], "move_into_itself",
+            "a move into its own subdirectory is refused as such: {body}"
+        );
+
         let status = repositories::workspaces::status::status(&workspace)?;
         for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
             assert_eq!(

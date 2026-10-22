@@ -1402,10 +1402,6 @@ mod tests {
                 OxenError::DestinationAlreadyStaged(PathBuf::from("a.txt").into()),
                 StatusCode::CONFLICT,
             ),
-            (
-                OxenError::MoveIntoItself(PathBuf::from("a").into()),
-                StatusCode::BAD_REQUEST,
-            ),
         ];
 
         for (error, expected) in cases {
