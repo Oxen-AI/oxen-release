@@ -653,7 +653,6 @@ fn move_staged_entry(
     util::fs::path_relative_to_dir(new_path, &workspace.workspace_repo.path)
 }
 
-/// The directory holding a data frame's DuckDB database.
 /// Move the DuckDB index of the data frame at `path` to `new_path`'s index location.
 pub(crate) fn move_index(
     workspace: &Workspace,
@@ -679,6 +678,7 @@ pub(crate) fn move_index(
     })
 }
 
+/// The directory holding a data frame's DuckDB database.
 fn db_parent(db_path: &Path) -> Result<&Path, OxenError> {
     db_path
         .parent()
