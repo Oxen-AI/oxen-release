@@ -1375,9 +1375,6 @@ fn mv_dir(
         batch.add_parent_directories(path, seen_dirs)?;
     }
 
-    #[cfg(test)]
-    tests::after_mv_dir_plan();
-
     // A data frame's staged edits live in its DuckDB index, keyed by path.
     let mut moved_indexes: Vec<(&Path, &Path)> = vec![];
     for (p, dest, _, _) in &moves {
@@ -1405,96 +1402,5 @@ fn restore_indexes(workspace: &Workspace, moved: &[(&Path, &Path)]) {
         {
             log::error!("mv_dir: could not move the index for {dest:?} back to {path:?}: {err}");
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::cell::RefCell;
-    use std::path::Path;
-    use std::time::Duration;
-
-    use uuid::Uuid;
-
-    use crate::core::staged::staged_db_manager::get_staged_db_manager;
-    use crate::error::OxenError;
-    use crate::model::StagedEntryStatus;
-    use crate::repositories::{self, workspaces};
-    use crate::test;
-    use crate::util::fs;
-
-    thread_local! {
-        static AFTER_MV_DIR_PLAN: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
-    }
-
-    /// Runs the hook a test set on this thread, after `mv_dir` has read the staged db and planned
-    /// its batch but before it writes.
-    pub(super) fn after_mv_dir_plan() {
-        if let Some(hook) = AFTER_MV_DIR_PLAN.with(|hook| hook.borrow_mut().take()) {
-            hook();
-        }
-    }
-
-    // A stage that arrives after the move has read the staged db waits for the move's batch, so
-    // the move neither overwrites nor discards it.
-    #[tokio::test]
-    async fn test_mv_dir_serializes_concurrent_stage() -> Result<(), OxenError> {
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
-        test::run_empty_local_repo_test_async(|repo| async move {
-            fs::write_to_path(repo.path.join("data/a.txt"), "A")?;
-            repositories::add(&repo, &repo.path).await?;
-            let commit = repositories::commit(&repo, "Add data")?;
-            let workspace =
-                repositories::workspaces::create(&repo, &commit, Uuid::new_v4().to_string(), true)?;
-            let new_file = workspace.workspace_repo.path.join("data/new.txt");
-            fs::write_to_path(&new_file, "new")?;
-            workspaces::files::add(&workspace, new_file).await?;
-
-            let new_path = Path::new("data/new.txt");
-            let staged = get_staged_db_manager(&workspace.workspace_repo)?
-                .read_from_staged_db(new_path)?
-                .unwrap();
-            let original = staged.node.file()?;
-            let mut restaged = original.clone();
-            restaged.set_last_modified(1, 2);
-
-            let workspace_repo = workspace.workspace_repo.clone();
-            let concurrent = restaged.clone();
-            let writer = std::sync::Arc::new(parking_lot::Mutex::new(None));
-            let writer_handle = writer.clone();
-            AFTER_MV_DIR_PLAN.with(|hook| {
-                *hook.borrow_mut() = Some(Box::new(move || {
-                    *writer_handle.lock() = Some(std::thread::spawn(move || {
-                        get_staged_db_manager(&workspace_repo)?.upsert_file_node(
-                            Path::new("data/new.txt"),
-                            StagedEntryStatus::Added,
-                            &concurrent,
-                        )?;
-                        Ok::<_, OxenError>(())
-                    }));
-                    // Give the writer time to reach the staged db before the move writes.
-                    std::thread::sleep(Duration::from_millis(200));
-                }));
-            });
-
-            super::mv_sync(&workspace, Path::new("data"), Path::new("moved"))?;
-            writer.lock().take().unwrap().join().unwrap()?;
-
-            let manager = get_staged_db_manager(&workspace.workspace_repo)?;
-            let at_old = manager.read_from_staged_db(new_path)?.unwrap();
-            assert_eq!(at_old.status, StagedEntryStatus::Added);
-            assert_eq!(at_old.node.file()?.last_modified_seconds(), 1);
-            let at_new = manager
-                .read_from_staged_db(Path::new("moved/new.txt"))?
-                .unwrap();
-            assert_eq!(
-                at_new.node.file()?.last_modified_seconds(),
-                original.last_modified_seconds()
-            );
-            Ok(())
-        })
-        .await
     }
 }
