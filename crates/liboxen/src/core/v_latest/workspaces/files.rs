@@ -967,12 +967,10 @@ fn p_rm(workspace: &Workspace, path: &Path) -> Result<Vec<ErrorFileInfo>, OxenEr
             unstage_entries_under(workspace, &relative_path, &committed)?;
         };
     } else if !unstage_entries_under(workspace, &relative_path, &HashSet::new())? {
-        // If the path has neither a file node or dir node in the tree, it cannot be staged for removal
-        // Return as err_file
         err_files.push(ErrorFileInfo {
             hash: "".to_string(),
             path: Some(path.to_path_buf()),
-            error: "Cannot call `oxen rm` on uncommitted files".to_string(),
+            error: "Nothing is committed or staged at this path".to_string(),
         });
     }
 
