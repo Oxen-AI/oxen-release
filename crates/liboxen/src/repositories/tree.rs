@@ -1700,19 +1700,19 @@ pub type DeclaredSizes = HashMap<u64, PathBuf>;
 
 /// How [`added_objects`] records the version blobs that added files reference.
 pub(crate) trait AddedVersions: Default {
-    /// Whether [`AddedVersions::add`] reads the path it is handed. When false it is handed an
-    /// empty path.
+    /// Whether [`AddedVersions::add`] calls the path it is handed. When false, directory paths are
+    /// not built during the walk.
     const NEEDS_PATHS: bool;
 
     /// Record that the file at `path` references `version` and declares `num_bytes` for it.
-    fn add(&mut self, version: String, num_bytes: u64, path: PathBuf);
+    fn add(&mut self, version: String, num_bytes: u64, path: impl FnOnce() -> PathBuf);
 }
 
 /// Content hashes alone.
 impl AddedVersions for HashSet<String> {
     const NEEDS_PATHS: bool = false;
 
-    fn add(&mut self, version: String, _num_bytes: u64, _path: PathBuf) {
+    fn add(&mut self, version: String, _num_bytes: u64, _path: impl FnOnce() -> PathBuf) {
         self.insert(version);
     }
 }
@@ -1721,11 +1721,11 @@ impl AddedVersions for HashSet<String> {
 impl AddedVersions for HashMap<String, DeclaredSizes> {
     const NEEDS_PATHS: bool = true;
 
-    fn add(&mut self, version: String, num_bytes: u64, path: PathBuf) {
+    fn add(&mut self, version: String, num_bytes: u64, path: impl FnOnce() -> PathBuf) {
         self.entry(version)
             .or_default()
             .entry(num_bytes)
-            .or_insert(path);
+            .or_insert_with(path);
     }
 }
 
@@ -1917,7 +1917,7 @@ fn collect_added_from_dir<V: AddedVersions>(
             EntryKind::File { version, num_bytes } => {
                 // A file node lives inline in its parent vnode's DB (which we just read), not as a
                 // standalone node, so its presence is already covered. Verify its content blob.
-                added.versions.add(version, num_bytes, child_path(&name));
+                added.versions.add(version, num_bytes, || child_path(&name));
             }
             EntryKind::Dir => {
                 let base_sub = base_entries

@@ -353,13 +353,12 @@ pub trait VersionStore: Debug + Send + Sync + 'static {
         &self,
         hashes: Vec<String>,
     ) -> Result<Vec<(String, Result<u64, OxenError>)>, OxenError> {
-        let max_concurrent = MAX_CONCURRENT_VERSION_PROBES.min(hashes.len().max(1));
         Ok(stream::iter(hashes)
             .map(|hash| async move {
                 let size = self.get_version_size(&hash).await;
                 (hash, size)
             })
-            .buffer_unordered(max_concurrent)
+            .buffer_unordered(MAX_CONCURRENT_VERSION_PROBES)
             .collect()
             .await)
     }
