@@ -1,23 +1,31 @@
 //! Helper functions to get metadata from the local filesystem.
 //!
 
+use crate::core::df::tabular::s3_cloud_options;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::parsed_resource::ParsedResourceView;
-use crate::model::{Commit, LocalRepository, MetadataEntry};
+use crate::model::{Commit, LocalRepository, MerkleHash, MetadataEntry};
+use crate::opts::CountLinesOpts;
 use crate::repositories;
+use crate::storage::VersionStore;
 use crate::util;
-use crate::util::fs::{data_type_from_head, file_extension, mime_type_from_head, read_head};
+use crate::util::fs::{
+    LineCounts, data_type_from_head, file_extension, mime_type_from_head, read_head,
+};
 
 use bytes::Bytes;
+use polars::io::cloud::CloudOptions;
 use polars::io::mmap::MmapBytesReader;
 use std::fmt;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::runtime::Handle;
 
 pub mod audio;
 pub mod image;
@@ -136,20 +144,42 @@ pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
     Ok(metadata.len())
 }
 
-/// A file's bytes, in a file at a path or in memory.
+/// A file's bytes, in a file at a path, in memory, or in an S3 version store.
 pub(crate) enum ByteSource<'a> {
     Path(&'a Path),
     Memory(Bytes),
+    Stored(Box<StoredVersion>),
 }
 
 impl ByteSource<'_> {
+    /// A reader of the bytes. A stored version file's reader blocks while it fetches them, so read
+    /// it off the async runtime.
     pub(crate) fn open(&self) -> Result<Box<dyn MmapBytesReader>, OxenError> {
         match self {
             ByteSource::Path(path) => Ok(Box::new(
                 File::open(path).map_err(|err| OxenError::file_open_error(path, err))?,
             )),
             ByteSource::Memory(data) => Ok(Box::new(Cursor::new(data.clone()))),
+            ByteSource::Stored(version) => Ok(Box::new(version.reader())),
         }
+    }
+
+    /// What [`util::fs::count_lines`] gives for `data`, a reader of these bytes, which is left
+    /// unread when the lines were counted as the bytes arrived.
+    pub(crate) fn count_lines(
+        &self,
+        data: impl Read,
+        opts: CountLinesOpts,
+    ) -> Result<(usize, Option<usize>), OxenError> {
+        if let ByteSource::Stored(version) = self
+            && let Some(lines) = version.lines
+        {
+            let (line_count, chars) = lines.lines(opts.remove_trailing_blank_line);
+            if chars.is_some() || !opts.with_chars {
+                return Ok((line_count, chars.filter(|_| opts.with_chars)));
+            }
+        }
+        util::fs::count_lines(data, opts)
     }
 }
 
@@ -158,9 +188,133 @@ impl fmt::Debug for ByteSource<'_> {
         match self {
             ByteSource::Path(path) => write!(f, "{path:?}"),
             ByteSource::Memory(data) => write!(f, "{} bytes in memory", data.len()),
+            ByteSource::Stored(version) => {
+                write!(f, "version file {} at {}", version.hash, version.url)
+            }
         }
     }
 }
+
+/// A version file in an S3 version store, with its line counts when they were taken as it arrived.
+pub(crate) struct StoredVersion {
+    store: Arc<dyn VersionStore>,
+    hash: String,
+    size: u64,
+    pub(crate) url: String,
+    pub(crate) cloud_options: CloudOptions,
+    lines: Option<LineCounts>,
+    runtime: Handle,
+}
+
+impl StoredVersion {
+    /// The version file `hash`, which `store` keeps at `url` in `region`, behind `endpoint_url`
+    /// when the store is not AWS. Call on the async runtime.
+    pub(crate) async fn new(
+        store: Arc<dyn VersionStore>,
+        hash: MerkleHash,
+        url: String,
+        region: &str,
+        endpoint_url: Option<&str>,
+        lines: Option<LineCounts>,
+    ) -> Result<Self, OxenError> {
+        let hash = hash.to_string();
+        let size = store.get_version_size(&hash).await?;
+        let cloud_options = s3_cloud_options(&url, region, endpoint_url)?;
+        Ok(Self {
+            store,
+            hash,
+            size,
+            url,
+            cloud_options,
+            lines,
+            runtime: Handle::current(),
+        })
+    }
+
+    pub(crate) fn size(&self) -> u64 {
+        self.size
+    }
+
+    /// A seekable reader of the file, which fetches the ranges it reads from the store.
+    pub(crate) fn reader(&self) -> VersionReader {
+        VersionReader {
+            store: Arc::clone(&self.store),
+            hash: self.hash.clone(),
+            size: self.size,
+            runtime: self.runtime.clone(),
+            position: 0,
+            fetched: Bytes::new(),
+            fetched_at: 0,
+        }
+    }
+}
+
+/// The fewest bytes a [`VersionReader`] fetches at once, 64 KiB.
+const MIN_FETCH: u64 = 64 * 1024;
+/// The most bytes a [`VersionReader`] fetches at once to read ahead of a run of reads, 8 MiB.
+const MAX_FETCH: u64 = 8 * 1024 * 1024;
+
+/// A blocking, seekable reader of a version file in the store, which fetches the ranges it reads.
+pub(crate) struct VersionReader {
+    store: Arc<dyn VersionStore>,
+    hash: String,
+    size: u64,
+    runtime: Handle,
+    position: u64,
+    fetched: Bytes,
+    fetched_at: u64,
+}
+
+impl Read for VersionReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() || self.position >= self.size {
+            return Ok(0);
+        }
+        let fetched_to = self.fetched_at + self.fetched.len() as u64;
+        if self.position < self.fetched_at || self.position >= fetched_to {
+            let ahead = if self.position == fetched_to && !self.fetched.is_empty() {
+                (self.fetched.len() as u64 * 2).min(MAX_FETCH)
+            } else {
+                MIN_FETCH
+            };
+            let len = ahead.max(buf.len() as u64).min(self.size - self.position);
+            let fetch = self.store.get_version_chunk(&self.hash, self.position, len);
+            let chunk = self.runtime.block_on(fetch).map_err(io::Error::other)?;
+            if chunk.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "the version store returned no bytes before the file's end",
+                ));
+            }
+            self.fetched = Bytes::from(chunk);
+            self.fetched_at = self.position;
+        }
+        let start = (self.position - self.fetched_at) as usize;
+        let n = buf.len().min(self.fetched.len() - start);
+        buf[..n].copy_from_slice(&self.fetched[start..start + n]);
+        self.position += n as u64;
+        Ok(n)
+    }
+}
+
+impl Seek for VersionReader {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let position = match pos {
+            SeekFrom::Start(offset) => Some(offset),
+            SeekFrom::End(offset) => self.size.checked_add_signed(offset),
+            SeekFrom::Current(offset) => self.position.checked_add_signed(offset),
+        };
+        self.position = position.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "seek before the start of the file",
+            )
+        })?;
+        Ok(self.position)
+    }
+}
+
+impl MmapBytesReader for VersionReader {}
 
 /// Reads the MIME type, data type, and metadata of the file at `data_path`, whose name is
 /// `file_path`. Fails when the file cannot be opened or read, and gives no metadata for content
@@ -181,6 +335,16 @@ pub(crate) fn inspect_bytes(
     inspect(&ByteSource::Memory(data), file_path)
 }
 
+/// Reads the MIME type, data type, and metadata of `version`, the bytes of a file named
+/// `file_path`, fetching what it reads from the store. Blocks while it reads them. Gives no
+/// metadata for content that cannot be parsed.
+pub(crate) fn inspect_stored(
+    version: StoredVersion,
+    file_path: &Path,
+) -> Result<(String, EntryDataType, Option<GenericMetadata>), OxenError> {
+    inspect(&ByteSource::Stored(Box::new(version)), file_path)
+}
+
 fn inspect(
     source: &ByteSource,
     file_path: &Path,
@@ -188,7 +352,7 @@ fn inspect(
     let mut reader = source.open()?;
     let head = read_head(&mut reader).map_err(|err| match source {
         ByteSource::Path(data_path) => OxenError::file_read_error(data_path, err),
-        ByteSource::Memory(_) => err.into(),
+        ByteSource::Memory(_) | ByteSource::Stored(_) => err.into(),
     })?;
     let mime_type = mime_type_from_head(&head, file_path);
     let data_type = data_type_from_head(&head, file_path, &mime_type);
@@ -197,7 +361,8 @@ fn inspect(
 }
 
 /// Returns the metadata of `data`, the bytes of a file of `data_type` named `file_path`. A tabular
-/// file's metadata is read from `source` instead, which holds the same bytes as `data`.
+/// file's metadata, and line counts taken as a stored file arrived, come from `source` instead,
+/// which holds the same bytes as `data`.
 fn get_file_metadata(
     data: &mut (impl Read + Seek),
     source: &ByteSource,
@@ -207,7 +372,7 @@ fn get_file_metadata(
     let extension = file_extension(file_path);
     data.rewind()?;
     match data_type {
-        EntryDataType::Text => match text::get_metadata(data) {
+        EntryDataType::Text => match text::get_metadata(data, source) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
             Err(err) => {
                 tracing::error!(

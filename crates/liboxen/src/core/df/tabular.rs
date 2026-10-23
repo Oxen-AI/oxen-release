@@ -26,7 +26,6 @@ use crate::opts::{CountLinesOpts, DFOpts};
 use crate::repositories;
 use crate::repositories::metadata::ByteSource;
 use crate::storage::{VersionLocation, VersionStore};
-use crate::util::fs;
 use crate::util::fs::AtomicFile;
 use crate::util::hasher;
 use std::sync::Arc;
@@ -51,14 +50,25 @@ impl ByteSource<'_> {
             ByteSource::Memory(data) => {
                 Ok(ScanSource::Buffer(Buffer::from_owner(data.clone())).into_sources())
             }
+            ByteSource::Stored(version) => {
+                Ok(ScanSource::Path(PlRefPath::new(&version.url)).into_sources())
+            }
         }
     }
 
-    /// The hive partitioning to scan with: as for any file, or off for bytes in memory.
+    /// The options a scan needs to reach the bytes, for a version file in S3.
+    fn cloud_options(&self) -> Option<CloudOptions> {
+        match self {
+            ByteSource::Stored(version) => Some(version.cloud_options.clone()),
+            ByteSource::Path(_) | ByteSource::Memory(_) => None,
+        }
+    }
+
+    /// The hive partitioning to scan with: as for any file, or off for bytes in memory or in S3.
     fn hive_options(&self) -> HiveOptions {
         match self {
             ByteSource::Path(_) => HiveOptions::default(),
-            ByteSource::Memory(_) => HiveOptions::new_disabled(),
+            ByteSource::Memory(_) | ByteSource::Stored(_) => HiveOptions::new_disabled(),
         }
     }
 
@@ -67,6 +77,9 @@ impl ByteSource<'_> {
             ByteSource::Path(path) => qsv_sniffer::Sniffer::new().sniff_path(path),
             ByteSource::Memory(data) => {
                 qsv_sniffer::Sniffer::new().sniff_reader(Cursor::new(data.clone()))
+            }
+            ByteSource::Stored(version) => {
+                qsv_sniffer::Sniffer::new().sniff_reader(version.reader())
             }
         }
     }
@@ -183,6 +196,7 @@ fn scan_df_csv(
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
     base_lazy_csv_reader(source.scan_sources()?, delimiter, quote_char)
+        .with_cloud_options(source.cloud_options())
         .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::internal_error(format!("{READ_ERROR}: {source:?}")))
@@ -190,6 +204,7 @@ fn scan_df_csv(
 
 fn scan_df_jsonl(source: &ByteSource, total_rows: usize) -> Result<LazyFrame, OxenError> {
     lazy_jsonl_reader(source.scan_sources()?)
+        .with_cloud_options(source.cloud_options())
         .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::internal_error(format!("{READ_ERROR}: {source:?}")))
@@ -199,6 +214,7 @@ fn scan_df_parquet(source: &ByteSource, total_rows: usize) -> Result<LazyFrame, 
     let args = ScanArgsParquet {
         n_rows: Some(total_rows),
         hive_options: source.hive_options(),
+        cloud_options: source.cloud_options(),
         ..Default::default()
     };
     LazyFrame::scan_parquet_sources(source.scan_sources()?, args).map_err(|_| {
@@ -214,7 +230,7 @@ fn scan_df_arrow(source: &ByteSource, total_rows: usize) -> Result<LazyFrame, Ox
         IpcScanOptions::default(),
         UnifiedScanArgs {
             hive_options: source.hive_options(),
-            ..ipc_scan_args(Some(total_rows), None)
+            ..ipc_scan_args(Some(total_rows), source.cloud_options())
         },
     )
     .map_err(|_| OxenError::internal_error(format!("{READ_ERROR}: {source:?}")))
@@ -1234,20 +1250,7 @@ async fn read_s3_version_df(
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     log::debug!("Reading S3 version df {url} with extension {extension}");
-    let cloud_opts = {
-        let region: &str = region;
-        let endpoint_url = endpoint_url.as_deref();
-        let mut config = vec![("aws_region", region.to_string())];
-        if let Some(endpoint) = endpoint_url {
-            config.push(("aws_endpoint_url", endpoint.to_string()));
-            config.push(("aws_allow_http", "true".to_string()));
-            config.push(("aws_virtual_hosted_style_request", "false".to_string()));
-        }
-        CloudOptions::from_untyped_config(
-            CloudScheme::from_path(url),
-            config.iter().map(|(k, v)| (*k, v.as_str())),
-        )
-    }?;
+    let cloud_opts = s3_cloud_options(url, region, endpoint_url.as_deref())?;
     let url = url.to_string();
 
     let df_lazy = match extension {
@@ -1286,6 +1289,25 @@ async fn read_s3_version_df(
     };
 
     collect_with_opts(df_lazy, opts.clone()).await
+}
+
+/// The options a Polars scan of `url` needs to reach an S3 bucket in `region`, behind
+/// `endpoint_url` when the bucket is not on AWS.
+pub(crate) fn s3_cloud_options(
+    url: &str,
+    region: &str,
+    endpoint_url: Option<&str>,
+) -> Result<CloudOptions, OxenError> {
+    let mut config = vec![("aws_region", region)];
+    if let Some(endpoint) = endpoint_url {
+        config.push(("aws_endpoint_url", endpoint));
+        config.push(("aws_allow_http", "true"));
+        config.push(("aws_virtual_hosted_style_request", "false"));
+    }
+    Ok(CloudOptions::from_untyped_config(
+        CloudScheme::from_path(url),
+        config,
+    )?)
 }
 
 /// Resolve the CSV/TSV dialect for an S3 version file: honor explicit `DFOpts` overrides, otherwise
@@ -1465,7 +1487,7 @@ pub(crate) fn get_size_with_extension(
                 opts.remove_trailing_blank_line = true;
 
                 // Remove one line to account for CSV/TSV headers
-                let (mut height, _) = fs::count_lines(source.open()?, opts)?;
+                let (mut height, _) = source.count_lines(source.open()?, opts)?;
                 height -= 1; // Adjusting for header
 
                 Ok(DataFrameSize { width, height })
@@ -1474,7 +1496,7 @@ pub(crate) fn get_size_with_extension(
                 let mut opts = CountLinesOpts::empty();
                 opts.remove_trailing_blank_line = true;
 
-                let (height, _) = fs::count_lines(source.open()?, opts)?;
+                let (height, _) = source.count_lines(source.open()?, opts)?;
 
                 Ok(DataFrameSize { width, height })
             }
@@ -1484,8 +1506,9 @@ pub(crate) fn get_size_with_extension(
                 Ok(DataFrameSize { width, height })
             }
             "arrow" => {
-                // arrow is fast to .finish() so we can just do it here
-                let reader = IpcReader::new(source.open()?);
+                // With no columns projected, the reader counts the rows from the record batches'
+                // headers and reads none of their data.
+                let reader = IpcReader::new(source.open()?).with_projection(Some(vec![]));
                 let height = reader.finish()?.height();
                 Ok(DataFrameSize { width, height })
             }
@@ -1733,6 +1756,7 @@ mod tests {
     use super::*;
     use crate::core::df::{filter, tabular};
     use crate::test::{self, TEST_DATA_DIR};
+    use crate::util::fs;
     use crate::view::JsonDataFrameView;
     use crate::{
         error::OxenError,
