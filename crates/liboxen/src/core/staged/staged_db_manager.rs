@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
@@ -8,9 +9,9 @@ use std::sync::{Arc, LazyLock};
 use std::thread::sleep;
 
 use indicatif::ProgressBar;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
 use rmp_serde::Serializer;
-use rocksdb::{DB, IteratorMode, WriteBatch};
+use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use serde::Serialize;
 
 use crate::constants::STAGED_DIR;
@@ -158,7 +159,154 @@ fn normalize_key(path: impl AsRef<Path>) -> String {
     path.as_ref().to_string_lossy().replace('\\', "/")
 }
 
+fn serialize_staged_node(node: &StagedMerkleTreeNode) -> Result<Vec<u8>, OxenError> {
+    let mut buf = Vec::new();
+    node.serialize(&mut Serializer::new(&mut buf))
+        .map_err(|e| OxenError::basic_str(e.to_string()))?;
+    Ok(buf)
+}
+
+pub(crate) fn read_from_db(
+    db: &DB,
+    path: &Path,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let key = normalize_key(path);
+    let Some(data) = db.get(key.as_bytes())? else {
+        return Ok(None);
+    };
+    match rmp_serde::from_slice(&data) {
+        Ok(val) => Ok(Some(val)),
+        Err(e) => {
+            log::error!("Failed to deserialize data for key {key}: {e}");
+            Err(OxenError::basic_str(format!(
+                "Failed to deserialize staged data: {e}"
+            )))
+        }
+    }
+}
+
+/// The staged entries at and under `path`, which is relative to the repository.
+pub(crate) fn staged_entries_under(
+    path: &Path,
+    staged_db: &DB,
+) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+    let key = path.to_string_lossy();
+    let mut entries = Vec::new();
+    // Every key under `path` begins with its key, as do siblings such as `path.csv`
+    for entry in staged_db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
+        let (entry_key, value) = entry?;
+        if !entry_key.starts_with(key.as_bytes()) {
+            break;
+        }
+        let entry_path = PathBuf::from(str::from_utf8(&entry_key)?);
+        if entry_path.starts_with(path) {
+            entries.push((entry_path, rmp_serde::from_slice(&value)?));
+        }
+    }
+    Ok(entries)
+}
+
+/// Staged-db writes collected in memory and applied together by [`Self::write`], so a concurrent
+/// reader sees all of them or none. A later write to a key replaces an earlier one. Keys and values
+/// match the per-call methods of the same names on [`StagedDBManager`].
+#[derive(Default)]
+pub(crate) struct StagedWriteBatch {
+    ops: BTreeMap<String, Option<StagedMerkleTreeNode>>,
+}
+
+impl StagedWriteBatch {
+    pub(crate) fn upsert_file_node(
+        &mut self,
+        relative_path: impl AsRef<Path>,
+        status: StagedEntryStatus,
+        file_node: &FileNode,
+    ) {
+        self.upsert_staged_node(
+            relative_path,
+            StagedMerkleTreeNode {
+                status,
+                node: MerkleTreeNode::from_file(file_node.clone()),
+            },
+        );
+    }
+
+    pub(crate) fn upsert_staged_node(
+        &mut self,
+        path: impl AsRef<Path>,
+        staged_node: StagedMerkleTreeNode,
+    ) {
+        self.ops.insert(normalize_key(path), Some(staged_node));
+    }
+
+    pub(crate) fn delete_entry(&mut self, path: impl AsRef<Path>) {
+        self.ops.insert(normalize_key(path), None);
+    }
+
+    pub(crate) fn add_directory(&mut self, directory_path: &Path) {
+        self.upsert_staged_node(
+            directory_path,
+            StagedMerkleTreeNode {
+                status: StagedEntryStatus::Added,
+                node: MerkleTreeNode::default_dir_from_path(directory_path),
+            },
+        );
+    }
+
+    pub(crate) fn add_parent_directories(&mut self, path: &Path) {
+        for dir in path.ancestors().skip(1) {
+            self.add_directory(dir);
+        }
+    }
+
+    /// The staged entries at and under `path`, as they will read once this batch is written.
+    pub(crate) fn entries_under(
+        &self,
+        db: &RwLockWriteGuard<DB>,
+        path: &Path,
+    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+        let mut entries: BTreeMap<PathBuf, StagedMerkleTreeNode> =
+            staged_entries_under(path, db)?.into_iter().collect();
+        for (key, value) in &self.ops {
+            let entry_path = PathBuf::from(key);
+            if !entry_path.starts_with(path) {
+                continue;
+            }
+            match value {
+                Some(entry) => {
+                    entries.insert(entry_path, entry.clone());
+                }
+                None => {
+                    entries.remove(&entry_path);
+                }
+            }
+        }
+        Ok(entries.into_iter().collect())
+    }
+
+    /// Apply every write in this batch atomically, under a guard from
+    /// [`StagedDBManager::lock_for_write`].
+    pub(crate) fn write(self, db: &RwLockWriteGuard<DB>) -> Result<(), OxenError> {
+        let mut write_batch = WriteBatch::default();
+        for (key, value) in self.ops {
+            match value {
+                Some(node) => write_batch.put(key.as_bytes(), serialize_staged_node(&node)?),
+                None => write_batch.delete(key.as_bytes()),
+            }
+        }
+        db.write(write_batch)?;
+        Ok(())
+    }
+}
+
 impl StagedDBManager {
+    /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
+    /// interleave with. Read under it with [`staged_entries_under`] and [`read_from_db`], and write
+    /// with [`StagedWriteBatch::write`]. Calling any method of this manager before the guard drops
+    /// deadlocks.
+    pub(crate) fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
+        self.staged_db.write()
+    }
+
     /// Upsert a file node to the staged db
     pub fn upsert_file_node(
         &self,
@@ -395,22 +543,15 @@ impl StagedDBManager {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-        let key = normalize_key(&path);
+        read_from_db(&self.staged_db.read(), path.as_ref())
+    }
 
-        let db_r = self.staged_db.read();
-        let data = match db_r.get(key.as_bytes())? {
-            Some(d) => d,
-            None => return Ok(None),
-        };
-        match rmp_serde::from_slice(&data) {
-            Ok(val) => Ok(Some(val)),
-            Err(e) => {
-                log::error!("Failed to deserialize data for key {key}: {e}");
-                Err(OxenError::basic_str(format!(
-                    "Failed to deserialize staged data: {e}"
-                )))
-            }
-        }
+    /// Every staged entry at or below `path`, with its path.
+    pub(crate) fn read_entries_under(
+        &self,
+        path: &Path,
+    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
+        staged_entries_under(path, &self.staged_db.read())
     }
 
     /// Read all entries below a path from the staged db

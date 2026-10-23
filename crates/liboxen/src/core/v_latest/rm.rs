@@ -13,10 +13,11 @@ use crate::model::merkle_tree::node::FileNode;
 use crate::view::ErrorFileInfo;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use rocksdb::{Direction, IteratorMode, WriteBatch};
+use rocksdb::{IteratorMode, WriteBatch};
 use tokio::time::Duration;
 
 use crate::core::staged::get_staged_db_manager;
+use crate::core::staged::staged_db_manager::staged_entries_under;
 use crate::core::v_latest::add::CumulativeStats;
 use crate::core::v_latest::add::add_file_node_and_parent_dir;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
@@ -272,27 +273,6 @@ fn is_removal_staged(
         }
         _ => Ok(false),
     }
-}
-
-/// The staged entries at and under `path`, which is relative to the repository.
-fn staged_entries_under(
-    path: &Path,
-    staged_db: &DB,
-) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-    let key = path.to_string_lossy();
-    let mut entries = Vec::new();
-    // Every key under `path` begins with its key, as do siblings such as `path.csv`
-    for entry in staged_db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
-        let (entry_key, value) = entry?;
-        if !entry_key.starts_with(key.as_bytes()) {
-            break;
-        }
-        let entry_path = PathBuf::from(str::from_utf8(&entry_key)?);
-        if entry_path.starts_with(path) {
-            entries.push((entry_path, rmp_serde::from_slice(&value)?));
-        }
-    }
-    Ok(entries)
 }
 
 /// Refuses, unless `opts.force`, to remove `paths` when that would lose content HEAD lacks: without

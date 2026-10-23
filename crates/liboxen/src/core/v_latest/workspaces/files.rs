@@ -1,11 +1,12 @@
 use bytes::BytesMut;
 use filetime::FileTime;
 use futures::StreamExt;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLockWriteGuard};
 use reqwest::Client;
 use reqwest::header::HeaderValue;
 use reqwest::redirect;
-use std::collections::HashSet;
+use rocksdb::DB;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -16,13 +17,15 @@ use url::Url;
 use zip::ZipArchive;
 
 use crate::core;
-use crate::core::staged::staged_db_manager::get_staged_db_manager;
+use crate::core::staged::staged_db_manager::{
+    StagedWriteBatch, get_staged_db_manager, read_from_db, staged_entries_under,
+};
 use crate::core::v_latest::add::{
     get_file_node, process_add_file_with_staged_db_manager, stage_file_with_hash,
 };
 use crate::error::OxenError;
 use crate::model::file::TempFilePathNew;
-use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
 use crate::model::merkle_tree::node::{MerkleTreeNode, StagedMerkleTreeNode};
 use crate::model::user::User;
 use crate::model::workspace::Workspace;
@@ -953,23 +956,79 @@ fn p_rm(workspace: &Workspace, path: &Path) -> Result<Vec<ErrorFileInfo>, OxenEr
             // remove_dir_with_db_manager stages every file under the dir for removal, so each of
             // them needs its index dropped too.
             let parent_path = relative_path.parent().unwrap_or(Path::new(""));
+            let mut committed = HashSet::new();
             for (child_path, node) in dir_node.list_files_and_dirs()? {
+                let child_path = parent_path.join(child_path);
                 if let EMerkleTreeNode::File(_) = &node.node {
-                    unindex_if_staged_table(workspace, &parent_path.join(child_path))?;
+                    unindex_if_staged_table(workspace, &child_path)?;
                 }
+                committed.insert(child_path);
             }
+            unstage_entries_under(workspace, &relative_path, &committed)?;
         };
-    } else {
-        // If the path has neither a file node or dir node in the tree, it cannot be staged for removal
-        // Return as err_file
+    } else if !unstage_entries_under(workspace, &relative_path, &HashSet::new())? {
         err_files.push(ErrorFileInfo {
             hash: "".to_string(),
             path: Some(path.to_path_buf()),
-            error: "Cannot call `oxen rm` on uncommitted files".to_string(),
+            error: "Nothing is committed or staged at this path".to_string(),
         });
     }
 
     Ok(err_files)
+}
+
+/// Unstage every staged entry at or below `path` that is not in `committed`, then drop the
+/// staged-only directory markers above `path` left with nothing under them. Returns whether
+/// anything was staged at or below `path`.
+fn unstage_entries_under(
+    workspace: &Workspace,
+    path: &Path,
+    committed: &HashSet<PathBuf>,
+) -> Result<bool, OxenError> {
+    let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
+    // One guard over the reads and the write: `begin_write` doesn't exclude other writers.
+    let db = staged_db_manager.lock_for_write();
+    let entries = staged_entries_under(path, &db)?;
+    if entries.is_empty() {
+        return Ok(false);
+    }
+    let mut batch = StagedWriteBatch::default();
+    for (entry_path, entry) in entries {
+        if committed.contains(&entry_path) {
+            continue;
+        }
+        if entry.node.is_file() {
+            unindex_if_staged_table(workspace, &entry_path)?;
+        }
+        batch.delete_entry(&entry_path);
+    }
+    prune_empty_staged_dirs(workspace, &db, &mut batch, path)?;
+    batch.write(&db)?;
+    Ok(true)
+}
+
+/// Add to `batch` deletions of the staged directory markers above `path` that name no committed
+/// directory and will have no staged entries left under them once `batch` is written, so a commit
+/// does not create them as empty directories.
+fn prune_empty_staged_dirs(
+    workspace: &Workspace,
+    db: &RwLockWriteGuard<DB>,
+    batch: &mut StagedWriteBatch,
+    path: &Path,
+) -> Result<(), OxenError> {
+    for dir in path.ancestors().skip(1) {
+        if dir == Path::new("")
+            || repositories::tree::has_dir(&workspace.base_repo, &workspace.commit, dir)?
+            || batch
+                .entries_under(db, dir)?
+                .iter()
+                .any(|(entry_path, _)| entry_path != dir)
+        {
+            break;
+        }
+        batch.delete_entry(dir);
+    }
+    Ok(())
 }
 
 /// Drop the staged DuckDB table of the data frame at `path`, if it has one. A path staged for
@@ -1043,8 +1102,29 @@ fn has_dir_node(
     }
 }
 
-/// Move or rename a file within a workspace.
-/// This stages the old path as "Removed" and the new path as "Added".
+/// True if `path` is a directory in the workspace: committed as one in the base commit, or holding
+/// staged entries below it.
+pub async fn is_dir(workspace: &Workspace, path: &Path) -> Result<bool, OxenError> {
+    let workspace = workspace.clone();
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        if let Some(node) =
+            repositories::tree::get_node_by_path(&workspace.base_repo, &workspace.commit, &path)?
+            && node.is_dir()
+        {
+            return Ok(true);
+        }
+        Ok(get_staged_db_manager(&workspace.workspace_repo)?
+            .read_entries_under(&path)?
+            .iter()
+            .any(|(entry_path, entry)| entry_path != &path || entry.node.is_dir()))
+    })
+    .await?
+}
+
+/// Move or rename a file or directory within a workspace.
+/// Each moved file's old path is staged as "Removed" (or unstaged, if it exists only in the
+/// workspace) and its new path as "Added". A directory moves every live file under it.
 pub async fn mv(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), OxenError> {
     let workspace = workspace.clone();
     let path = path.to_path_buf();
@@ -1054,76 +1134,263 @@ pub async fn mv(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(
 
 /// The sync core of [`mv`]: Merkle reads and staged-db writes, all under one blocking hop.
 fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), OxenError> {
-    if path == new_path {
-        return Err(OxenError::basic_str(format!(
-            "Source and destination are the same: {path:?}"
-        )));
+    if new_path.starts_with(path) {
+        return Err(OxenError::MoveIntoItself(path.to_path_buf().into()));
     }
 
-    let workspace_repo = &workspace.workspace_repo;
+    let staged_db_manager = get_staged_db_manager(&workspace.workspace_repo)?;
+    // One guard from the first read to the batch write: `begin_write` doesn't exclude other
+    // writers, so a stage landing in between would be overwritten or left behind by the move.
+    let db = staged_db_manager.lock_for_write();
+    refuse_move_under_file(workspace, new_path, |p| read_from_db(&db, p))?;
 
-    let staged_db_manager = get_staged_db_manager(workspace_repo)?;
-
-    // First, try to read existing staged entry for the source path
-    let staged_entry = staged_db_manager.read_from_staged_db(path)?;
-
-    // The committed node at the source path, read once: it is both the fallback for an unstaged
-    // source and what decides whether the source has to be staged for removal below.
+    let staged_file = match read_from_db(&db, path)? {
+        // Moving it would restore content the workspace already deleted, as edits to removed paths
+        // also refuse. A committed directory the workspace removed or moved away is staged so too.
+        Some(entry) if entry.status == StagedEntryStatus::Removed => {
+            return Err(OxenError::PathStagedForRemoval(path.to_path_buf().into()));
+        }
+        Some(entry) if !entry.node.is_dir() => Some(entry.node.file()?),
+        _ => None,
+    };
     let source_in_base =
         repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, path)?;
     let source_exists_in_base = source_in_base.is_some();
 
-    // Get the file node - either from staged_db or from the base repo
-    let file_node = if let Some(entry) = staged_entry {
-        entry.node.file()?
-    } else {
-        // File not staged, get it from the base repo
-        source_in_base.ok_or_else(|| OxenError::path_does_not_exist(path))?
-    };
+    if let Some(file_node) = staged_file.or(source_in_base) {
+        if read_from_db(&db, new_path)?.is_some() {
+            return Err(OxenError::DestinationAlreadyStaged(
+                new_path.to_path_buf().into(),
+            ));
+        }
+        let dest_exists_in_base = repositories::tree::get_file_by_path(
+            &workspace.base_repo,
+            &workspace.commit,
+            new_path,
+        )?
+        .is_some();
+        let mut batch = StagedWriteBatch::default();
+        mv_file_node(
+            &mut batch,
+            path,
+            new_path,
+            &file_node,
+            source_exists_in_base,
+            dest_exists_in_base,
+        );
+        return batch.write(&db);
+    }
 
-    // Create the new file node with updated name (full path for the new location)
+    mv_dir(workspace, &db, path, new_path)
+}
+
+/// Refuse a destination beneath a file: one the workspace stages, or one in the base commit that
+/// the workspace stages nothing over. `staged` reads the workspace's staged entry at a path.
+pub(super) fn refuse_move_under_file(
+    workspace: &Workspace,
+    new_path: &Path,
+    staged: impl Fn(&Path) -> Result<Option<StagedMerkleTreeNode>, OxenError>,
+) -> Result<(), OxenError> {
+    for ancestor in new_path.ancestors().skip(1) {
+        if ancestor.as_os_str().is_empty() {
+            break;
+        }
+        let is_file = match staged(ancestor)? {
+            Some(entry) => entry.status != StagedEntryStatus::Removed && !entry.node.is_dir(),
+            None => repositories::tree::get_file_by_path(
+                &workspace.base_repo,
+                &workspace.commit,
+                ancestor,
+            )?
+            .is_some(),
+        };
+        if is_file {
+            return Err(OxenError::NotADirectory(ancestor.to_path_buf()));
+        }
+    }
+    Ok(())
+}
+
+/// Stage the move of one file, given its resolved node (staged, or else committed). The caller
+/// checks that nothing is staged at `new_path`.
+fn mv_file_node(
+    batch: &mut StagedWriteBatch,
+    path: &Path,
+    new_path: &Path,
+    file_node: &FileNode,
+    source_exists_in_base: bool,
+    dest_exists_in_base: bool,
+) {
     let mut new_file_node = file_node.clone();
     new_file_node.set_name(new_path.to_str().unwrap());
-
-    // Check if a file exists at the new path in the base repo (determines if it's modified or added)
-    let dest_exists_in_base =
-        repositories::tree::get_file_by_path(&workspace.base_repo, &workspace.commit, new_path)?
-            .is_some();
-
     let new_status = if dest_exists_in_base {
         StagedEntryStatus::Modified
     } else {
         StagedEntryStatus::Added
     };
+    batch.upsert_file_node(new_path, new_status, &new_file_node);
 
-    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+    if source_exists_in_base {
+        let mut removed_file_node = file_node.clone();
+        removed_file_node.set_name(path.to_str().unwrap());
+        batch.upsert_file_node(path, StagedEntryStatus::Removed, &removed_file_node);
+        batch.add_parent_directories(path);
+    } else {
+        batch.delete_entry(path);
+    }
 
-    if staged_db_manager.read_from_staged_db(new_path)?.is_some() {
+    batch.add_parent_directories(new_path);
+}
+
+/// Move every live file under the directory `path` (committed in the base commit, staged in the
+/// workspace, or both) to the same relative location under `new_path`.
+///
+/// All or nothing: validation runs before any write, data frame indexes move next (and move back
+/// if one fails), and every staged-db change lands in one atomic batch. `db` is held throughout,
+/// so nothing called here may take the staged db lock again.
+fn mv_dir(
+    workspace: &Workspace,
+    db: &RwLockWriteGuard<DB>,
+    path: &Path,
+    new_path: &Path,
+) -> Result<(), OxenError> {
+    let base_repo = &workspace.base_repo;
+    let commit = &workspace.commit;
+
+    let mut committed: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
+    if let Some(dir_node) =
+        repositories::tree::get_dir_with_children_recursive(base_repo, commit, path, None)?
+    {
+        let parent_path = path.parent().unwrap_or(Path::new(""));
+        for (child_path, node) in dir_node.list_files_and_dirs()? {
+            committed.insert(parent_path.join(child_path), node);
+        }
+    }
+    let staged: HashMap<PathBuf, StagedMerkleTreeNode> =
+        staged_entries_under(path, db)?.into_iter().collect();
+
+    let mut files: Vec<(PathBuf, FileNode, bool)> = vec![];
+    let mut live_dirs: HashSet<PathBuf> = HashSet::new();
+    for (p, node) in &committed {
+        if staged
+            .get(p)
+            .is_some_and(|entry| entry.status == StagedEntryStatus::Removed)
+        {
+            continue;
+        }
+        if node.is_dir() {
+            live_dirs.insert(p.clone());
+        } else if !staged.contains_key(p) {
+            files.push((p.clone(), node.file()?, true));
+        }
+    }
+    for (p, entry) in &staged {
+        if entry.status == StagedEntryStatus::Removed {
+            continue;
+        }
+        if entry.node.is_dir() {
+            live_dirs.insert(p.clone());
+        } else {
+            let in_base = committed.get(p).is_some_and(|node| !node.is_dir());
+            files.push((p.clone(), entry.node.file()?, in_base));
+        }
+    }
+    if files.is_empty() && live_dirs.is_empty() {
+        return Err(OxenError::path_does_not_exist(path));
+    }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // A committed destination staged for removal still has that staged entry, so this refuses it.
+    if repositories::tree::get_node_by_path(base_repo, commit, new_path)?.is_some()
+        || !staged_entries_under(new_path, db)?.is_empty()
+    {
         return Err(OxenError::DestinationAlreadyStaged(
             new_path.to_path_buf().into(),
         ));
     }
-    // Add the file node at the new path
-    staged_db_manager.upsert_file_node(new_path, new_status, &new_file_node)?;
 
-    // A source that exists in the base repo has to be staged for removal
-    if source_exists_in_base {
-        // Create a file node for the removed entry with the full original path as name
-        let mut removed_file_node = file_node.clone();
-        removed_file_node.set_name(path.to_str().unwrap());
+    let relocate =
+        |p: &Path| -> Result<PathBuf, OxenError> { Ok(new_path.join(p.strip_prefix(path)?)) };
 
-        // Stage the original path as removed
-        staged_db_manager.upsert_file_node(path, StagedEntryStatus::Removed, &removed_file_node)?;
+    let moves = files
+        .iter()
+        .map(|(p, file_node, in_base)| Ok((p.as_path(), relocate(p)?, file_node, *in_base)))
+        .collect::<Result<Vec<_>, OxenError>>()?;
 
-        // Add parent directories for the removed path
-        staged_db_manager.add_parent_directories(path, &seen_dirs)?;
-    } else {
-        // Just delete the staged entry if file wasn't in base repo
-        staged_db_manager.delete_entry(path)?;
+    let mut batch = StagedWriteBatch::default();
+    for (p, dest, file_node, in_base) in &moves {
+        mv_file_node(&mut batch, p, dest, file_node, *in_base, false);
     }
 
-    // Add parent directories for the new path
-    staged_db_manager.add_parent_directories(new_path, &seen_dirs)?;
+    // Empty directories have no file to carry their parents across.
+    for dir in &live_dirs {
+        batch.add_directory(&relocate(dir)?);
+    }
+    batch.add_parent_directories(new_path);
 
+    // The moves above stage `Added` markers over the source directories. A committed directory
+    // is staged as removed (as `rm` of a directory does), and a staged-only one is unstaged, so
+    // the source does not survive the commit as an empty directory.
+    for (p, entry) in &staged {
+        if entry.node.is_dir() && !committed.contains_key(p) {
+            batch.delete_entry(p);
+        }
+    }
+    for (p, node) in &committed {
+        if let EMerkleTreeNode::Directory(dir_node) = &node.node {
+            let mut dir_node = dir_node.clone();
+            dir_node.set_name(p.to_string_lossy());
+            batch.upsert_staged_node(
+                p,
+                StagedMerkleTreeNode {
+                    status: StagedEntryStatus::Removed,
+                    node: MerkleTreeNode {
+                        hash: node.hash,
+                        node: EMerkleTreeNode::Directory(dir_node),
+                        parent_id: node.parent_id,
+                        children: vec![],
+                    },
+                },
+            );
+        }
+    }
+    if committed.is_empty() {
+        prune_empty_staged_dirs(workspace, db, &mut batch, path)?;
+    } else {
+        batch.add_parent_directories(path);
+    }
+
+    // A data frame's staged edits live in its DuckDB index, keyed by path.
+    let mut moved_indexes: Vec<(&Path, &Path)> = vec![];
+    for (p, dest, _, _) in &moves {
+        match core::v_latest::workspaces::data_frames::move_index(workspace, p, dest) {
+            Ok(true) => moved_indexes.push((p, dest)),
+            Ok(false) => {}
+            Err(err) => {
+                restore_indexes(workspace, &moved_indexes);
+                return Err(err);
+            }
+        }
+    }
+
+    if let Err(err) = batch.write(db) {
+        restore_indexes(workspace, &moved_indexes);
+        return Err(err);
+    }
     Ok(())
+}
+
+/// Best effort: move each `(source, destination)` index back to its source, newest first.
+fn restore_indexes(workspace: &Workspace, moved: &[(&Path, &Path)]) {
+    for (path, dest) in moved.iter().rev() {
+        if let Err(err) = core::v_latest::workspaces::data_frames::move_index(workspace, dest, path)
+        {
+            tracing::error!(
+                oxen.file_path = %path.display(),
+                oxen.new_file_path = %dest.display(),
+                exception.message = %err,
+                "Could not move a data frame index back after a failed directory move"
+            );
+        }
+    }
 }

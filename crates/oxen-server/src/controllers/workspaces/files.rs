@@ -318,17 +318,17 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
     Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
-/// Move or rename a file within the workspace
+/// Move or rename a file or directory within the workspace
 #[utoipa::path(
     patch,
     path = "/api/repos/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}",
-    description = "Move or rename a file within the workspace.",
+    description = "Move or rename a file or directory within the workspace. A directory moves with everything under it.",
     tag = "Workspace Files",
     params(
         ("namespace" = String, Path, description = "The namespace of the repository", example = "ox"),
         ("repo_name" = String, Path, description = "The name of the repository", example = "ImageNet-1k"),
         ("workspace_id" = String, Path, description = "The UUID of the workspace", example = "580c0587-c157-417b-9118-8686d63d2745"),
-        ("path" = String, Path, description = "The current path to the file to move/rename", example = "images/train/dog_1.jpg")
+        ("path" = String, Path, description = "The current path to the file or directory to move/rename", example = "images/train/dog_1.jpg")
     ),
     request_body(
         content = RenameRequest,
@@ -337,8 +337,9 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
     ),
     responses(
         (status = 200, description = "File successfully moved/renamed", body = StatusMessage),
-        (status = 400, description = "Invalid request (empty new_path or new_path already exists)"),
-        (status = 404, description = "Workspace or file not found")
+        (status = 400, description = "Invalid request (empty new_path, a file's new_path already exists, or new_path is the source or inside it)"),
+        (status = 404, description = "Workspace or file not found"),
+        (status = 409, description = "A directory's new_path already exists, something is staged at new_path, a file is at a parent of new_path, or the path is staged for removal (including a directory already moved away)")
     )
 )]
 pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -366,10 +367,14 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
             .json(StatusMessageDescription::workspace_not_found(workspace_id)));
     };
 
-    // Check if new_path already exists in the workspace or base repo
-    if repositories::tree::get_node_by_path_async(&repo, &workspace.commit, &new_path)
-        .await?
-        .is_some()
+    let is_dir = repositories::workspaces::files::is_dir(&workspace, &path).await?;
+
+    // A file move onto an existing path is a bad request. A directory move checks its
+    // destination itself and refuses an existing one with a 409.
+    if !is_dir
+        && repositories::tree::get_node_by_path_async(&repo, &workspace.commit, &new_path)
+            .await?
+            .is_some()
     {
         return Err(OxenHttpError::BadRequest(
             "new_path already exists in the repository".into(),
@@ -377,7 +382,7 @@ pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttp
     }
 
     // For tabular files, use the data_frames rename instead
-    if util::fs::is_tabular(&path) {
+    if util::fs::is_tabular(&path) && !is_dir {
         repositories::workspaces::data_frames::rename(&workspace, &path, &new_path).await?;
     } else {
         repositories::workspaces::files::mv(&workspace, &path, &new_path).await?;
@@ -536,6 +541,7 @@ mod tests {
         BeginVersionUploadRequest, CompleteVersionUploadRequest, CompletedFileUpload,
         VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
     };
+    use liboxen::view::workspaces::RenameRequest;
     use std::path::{Path, PathBuf};
 
     use actix_multipart::test::create_form_data_payload_and_headers;
@@ -581,6 +587,91 @@ mod tests {
         assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
 
         // cleanup
+        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
+        Ok(())
+    }
+
+    // A directory named like a tabular file moves as a directory, not through the data frame
+    // rename, whether it is committed or exists only as staged files.
+    #[actix_web::test]
+    async fn test_mv_directory_with_tabular_name() -> Result<(), OxenError> {
+        liboxen::test::init_test_env();
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Mv-Tabular-Dir";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+
+        util::fs::write_to_path(repo.path.join("exports.csv/a.txt"), "A")?;
+        util::fs::write_to_path(repo.path.join("exports.csv/b.csv"), "x,y\n1,2\n")?;
+        repositories::add(&repo, &repo.path).await?;
+        let commit = repositories::commit(&repo, "Add exports")?;
+
+        let workspace_id = uuid::Uuid::new_v4().to_string();
+        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, true)?;
+        let fresh = workspace.workspace_repo.path.join("fresh.csv/x.txt");
+        util::fs::write_to_path(&fresh, "X")?;
+        repositories::workspaces::files::add(&workspace, &fresh).await?;
+
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData::new(sync_dir.clone()))
+                .route(
+                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
+                    web::patch().to(controllers::workspaces::files::mv),
+                ),
+        )
+        .await;
+
+        for (path, new_path) in [("exports.csv", "renamed"), ("fresh.csv", "fresh_renamed")] {
+            let uri =
+                format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}");
+            let req = TestRequest::patch()
+                .uri(&uri)
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
+                .to_request();
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::OK, "moving {path} to {new_path}");
+        }
+
+        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
+        for (new_path, status, error_type) in [
+            ("renamed/inner", StatusCode::BAD_REQUEST, "move_into_itself"),
+            (
+                "fresh_renamed/x.txt/inner",
+                StatusCode::CONFLICT,
+                "not_a_directory",
+            ),
+        ] {
+            let req = TestRequest::patch()
+                .uri(&uri)
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
+                .to_request();
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), status, "moving renamed to {new_path}");
+            let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
+            assert_eq!(
+                body["error"]["type"], error_type,
+                "moving renamed to {new_path} is refused as such: {body}"
+            );
+        }
+
+        let status = repositories::workspaces::status::status(&workspace)?;
+        for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
+            assert_eq!(
+                status
+                    .staged_files
+                    .get(Path::new(path))
+                    .map(|entry| entry.status.clone()),
+                Some(liboxen::model::StagedEntryStatus::Added),
+                "{path} should be staged as added"
+            );
+        }
+
+        drop((app, workspace));
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
         Ok(())
     }

@@ -23,11 +23,14 @@ impl RunCmd for WorkspaceRmCmd {
         };
 
         Command::new(NAME)
-            .about("Stage the removal of committed files in a workspace")
+            .about("Stage the removal of files and directories in a workspace")
             .long_about(
-                "Stage the removal of committed files in a workspace.\n\n\
-                 Committing the workspace records the files as removed. In a \
-                 remote-mode repository the local copies are deleted as well.\n\n\
+                "Stage the removal of files and directories in a workspace.\n\n\
+                 A committed path is staged as removed, and committing the workspace \
+                 records the removal. Removing a directory also discards the files added \
+                 under it in the workspace, and a path that exists only in the workspace \
+                 is discarded from it. In a remote-mode repository the local copies are \
+                 deleted as well.\n\n\
                  With `--staged`, the paths are removed from the workspace's staging \
                  area and no local copies are deleted.",
             )

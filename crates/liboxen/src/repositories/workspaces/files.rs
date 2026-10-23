@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 pub use crate::core::v_latest::workspaces::files::exists;
 
+pub use crate::core::v_latest::workspaces::files::is_dir;
+
 pub use crate::core::v_latest::workspaces::files::add;
 
 pub use crate::core::v_latest::workspaces::files::rm;
@@ -38,11 +40,12 @@ pub use crate::core::v_latest::workspaces::files::mv;
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use crate::config::UserConfig;
+    use crate::core::staged::staged_db_manager::get_staged_db_manager;
     use crate::error::OxenError;
-    use crate::model::NewCommitBody;
+    use crate::model::{Commit, LocalRepository, NewCommitBody, StagedEntryStatus, Workspace};
     use crate::repositories::size;
     use crate::repositories::{self, workspaces};
     use crate::test;
@@ -158,71 +161,94 @@ mod tests {
         .await
     }
 
-    /// Workspace created with no files staged; exists() should return Ok(false).
-    #[tokio::test]
-    async fn test_exists_returns_false_when_no_files_staged() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            let file = repo.path.join("hello.txt");
-            crate::util::fs::write_to_path(&file, "hello")?;
-            repositories::add(&repo, &file).await?;
-            let commit = repositories::commit(&repo, "Add hello.txt")?;
-
-            let workspace =
-                repositories::workspaces::create(&repo, &commit, "test-workspace", false)?;
-
-            let result = workspaces::files::exists(&workspace, std::path::Path::new("hello.txt"))?;
-            assert!(!result);
-
-            Ok(())
-        })
-        .await
+    /// An editable workspace called `name` on `commit`, and a branch called `name` at `commit` for
+    /// it to commit to.
+    fn committing_workspace(
+        repo: &LocalRepository,
+        commit: &Commit,
+        name: &str,
+    ) -> Result<Workspace, OxenError> {
+        repositories::branches::create(repo, name, &commit.id)?;
+        repositories::workspaces::create(repo, commit, name, true)
     }
 
-    /// exists() returns Ok(false) for an unstaged path and Ok(true) after staging it.
+    async fn stage_new_file(workspace: &Workspace, path: &str) -> Result<(), OxenError> {
+        let path = workspace.workspace_repo.path.join(path);
+        fs::write_to_path(&path, "new")?;
+        workspaces::files::add(workspace, path).await?;
+        Ok(())
+    }
+
+    fn staged_status(workspace: &Workspace, path: &str) -> Option<StagedEntryStatus> {
+        workspaces::status::status(workspace)
+            .unwrap()
+            .staged_files
+            .get(Path::new(path))
+            .map(|entry| entry.status.clone())
+    }
+
+    fn assert_files(repo: &LocalRepository, commit: &Commit, present: &[&str], absent: &[&str]) {
+        for path in present {
+            assert!(
+                repositories::tree::get_file_by_path(repo, commit, path)
+                    .unwrap()
+                    .is_some(),
+                "{path} should be in the commit"
+            );
+        }
+        for path in absent {
+            assert!(
+                repositories::tree::get_node_by_path(repo, commit, path)
+                    .unwrap()
+                    .is_none(),
+                "{path} should not be in the commit"
+            );
+            assert!(
+                !repositories::tree::has_dir(repo, commit, path).unwrap(),
+                "{path} should not be a directory in the commit"
+            );
+        }
+    }
+
+    /// Each case works in its own workspace on one commit of data/a.txt, data/sub/b.txt, other.txt
+    /// and table.csv. A case that commits does so to its own branch, with its own message, since
+    /// two commits with the same parent, message, and author in the same second get the same id.
     #[tokio::test]
-    async fn test_exists_false_before_staging_true_after() -> Result<(), OxenError> {
+    async fn test_move_and_remove_workspace_files() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
-            let file = repo.path.join("hello.txt");
-            crate::util::fs::write_to_path(&file, "hello")?;
-            repositories::add(&repo, &file).await?;
-            let commit = repositories::commit(&repo, "Add hello.txt")?;
+            for (path, content) in [
+                ("data/a.txt", "A"),
+                ("data/sub/b.txt", "B"),
+                ("other.txt", "Other"),
+                ("table.csv", "x,y\n1,2\n"),
+            ] {
+                fs::write_to_path(repo.path.join(path), content)?;
+            }
+            repositories::add(&repo, &repo.path).await?;
+            let commit = repositories::commit(&repo, "Add data")?;
+            let user = UserConfig::get()?;
+            let other = Path::new("other.txt");
 
-            let workspace =
-                repositories::workspaces::create(&repo, &commit, "test-workspace", false)?;
-
-            // Write modified content so the file is detected as changed
-            let workspace_file = workspace.workspace_repo.path.join("hello.txt");
-            crate::util::fs::write_to_path(&workspace_file, "hello world")?;
-
-            let hello = Path::new("hello.txt");
+            // exists() is false for a path the workspace has not staged, and true once it has.
+            let workspace = repositories::workspaces::create(&repo, &commit, "exists", false)?;
             let nonexistent = Path::new("does_not_exist.txt");
-
-            // Before staging: both should be false
-            assert!(!workspaces::files::exists(&workspace, hello)?);
+            assert!(
+                !workspaces::files::exists(&workspace, other)?,
+                "a committed path the workspace has not staged"
+            );
+            let workspace_file = workspace.workspace_repo.path.join(other);
+            fs::write_to_path(&workspace_file, "Other, changed")?;
+            assert!(
+                !workspaces::files::exists(&workspace, other)?,
+                "a changed working copy is not staged until it is added"
+            );
             assert!(!workspaces::files::exists(&workspace, nonexistent)?);
-
-            // Stage the file in the workspace
             workspaces::files::add(&workspace, &workspace_file).await?;
-
-            // After staging: staged file is true, non-existent file is still false
-            assert!(workspaces::files::exists(&workspace, hello)?);
+            assert!(workspaces::files::exists(&workspace, other)?);
             assert!(!workspaces::files::exists(&workspace, nonexistent)?);
 
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_import_rejects_private_ip() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            let file = repo.path.join("hello.txt");
-            crate::util::fs::write_to_path(&file, "hello")?;
-            repositories::add(&repo, &file).await?;
-            let commit = repositories::commit(&repo, "Add hello.txt")?;
-
+            // Import refuses every URL that does not reach a public HTTP host.
             let workspace = repositories::workspaces::create_temporary(&repo, &commit).await?;
-
             let cases = [
                 ("http://127.0.0.1/secret", "loopback address"),
                 ("http://10.0.0.1/internal", "private address"),
@@ -233,13 +259,12 @@ mod tests {
                 ("http://[::1]/secret", "IPv6 loopback"),
                 ("file:///etc/passwd", "non-HTTP scheme"),
             ];
-
             for (url, label) in cases {
                 // allow_loopback is false, so loopback targets are rejected like other private IPs.
                 let result = workspaces::files::import(
                     url,
                     "",
-                    std::path::PathBuf::from("data"),
+                    PathBuf::from("data"),
                     None,
                     &workspace,
                     false,
@@ -247,45 +272,227 @@ mod tests {
                 .await;
                 assert!(result.is_err(), "should reject {label}");
             }
+            drop(workspace);
 
-            Ok(())
-        })
-        .await
-    }
+            // Skip workspace moves and removals on windows
+            if std::env::consts::OS == "windows" {
+                return Ok(());
+            }
 
-    // A chained rename: the second move's source is staged but absent from the base commit, so it
-    // is unstaged outright rather than staged for removal, and only the original committed path
-    // carries the `Removed` marker.
-    #[tokio::test]
-    async fn test_mv_twice_leaves_one_removed_marker() -> Result<(), OxenError> {
-        // Skip workspace ops on windows
-        if std::env::consts::OS == "windows" {
-            return Ok(());
-        }
+            // A committed directory moves with its nested subdirectory, and retrying the move
+            // finds its source staged for removal.
+            let workspace = committing_workspace(&repo, &commit, "nested")?;
+            workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await?;
+            for (path, status) in [
+                ("data/a.txt", StagedEntryStatus::Removed),
+                ("data/sub/b.txt", StagedEntryStatus::Removed),
+                ("moved/a.txt", StagedEntryStatus::Added),
+                ("moved/sub/b.txt", StagedEntryStatus::Added),
+            ] {
+                assert_eq!(staged_status(&workspace, path), Some(status), "{path}");
+            }
+            let retry =
+                workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await;
+            assert!(
+                matches!(retry, Err(OxenError::PathStagedForRemoval(_))),
+                "retrying the move finds its source staged for removal, got {retry:?}"
+            );
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move data"),
+                "nested",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &committed,
+                &["moved/a.txt", "moved/sub/b.txt", "other.txt"],
+                &["data", "data/sub", "data/a.txt", "data/sub/b.txt"],
+            );
+            assert!(repositories::tree::has_dir(&repo, &committed, "moved/sub")?);
 
-        test::run_empty_local_repo_test_async(|repo| async move {
-            let committed = repo.path.join("first.txt");
-            crate::util::fs::write_to_path(&committed, "hello")?;
-            repositories::add(&repo, &committed).await?;
-            let commit = repositories::commit(&repo, "Add first.txt")?;
+            // Files added in the workspace move with the directory, and a file staged for removal
+            // stays removed rather than reappearing under the new path.
+            let workspace = committing_workspace(&repo, &commit, "mixed")?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+            stage_new_file(&workspace, "data/fresh/deep.txt").await?;
+            workspaces::files::rm(&workspace, &[PathBuf::from("data/a.txt")]).await?;
+            workspaces::files::mv(&workspace, Path::new("data"), Path::new("moved")).await?;
+            assert_eq!(staged_status(&workspace, "data/new.txt"), None);
+            assert_eq!(staged_status(&workspace, "data/fresh/deep.txt"), None);
+            assert_eq!(staged_status(&workspace, "moved/a.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "moved/new.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+            assert_eq!(
+                staged_status(&workspace, "moved/fresh/deep.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move data with added files"),
+                "mixed",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &committed,
+                &["moved/new.txt", "moved/fresh/deep.txt", "moved/sub/b.txt"],
+                &["data", "data/fresh", "moved/a.txt"],
+            );
 
+            // A directory that exists only in the workspace moves, and its emptied parent goes.
+            let workspace = committing_workspace(&repo, &commit, "staged-only")?;
+            stage_new_file(&workspace, "outer/fresh/x.txt").await?;
+            stage_new_file(&workspace, "outer/fresh/deep/y.txt").await?;
+            workspaces::files::mv(&workspace, Path::new("outer/fresh"), Path::new("renamed"))
+                .await?;
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move fresh"),
+                "staged-only",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &committed,
+                &["renamed/x.txt", "renamed/deep/y.txt", "data/a.txt"],
+                &["outer", "outer/fresh"],
+            );
+
+            // Removing a directory also unstages the files added under it in the workspace, so
+            // the commit does not bring the directory back.
+            let workspace = committing_workspace(&repo, &commit, "rm-dir")?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+            stage_new_file(&workspace, "data/fresh/deep.txt").await?;
+            let err_files = workspaces::files::rm(&workspace, &[PathBuf::from("data")]).await?;
+            assert!(err_files.is_empty(), "{err_files:?}");
+            assert_eq!(staged_status(&workspace, "data/new.txt"), None);
+            assert_eq!(staged_status(&workspace, "data/fresh/deep.txt"), None);
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Remove data"),
+                "rm-dir",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &committed,
+                &["other.txt"],
+                &["data", "data/new.txt", "data/fresh"],
+            );
+
+            // A directory move onto an existing or staged path, into itself, or from a missing
+            // source is refused and stages nothing.
+            let workspace = repositories::workspaces::create(&repo, &commit, "refused", true)?;
+            stage_new_file(&workspace, "staged/z.txt").await?;
+            for dest in ["other.txt", "staged"] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new("data"), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::DestinationAlreadyStaged(_))),
+                    "moving onto {dest} should be refused, got {result:?}"
+                );
+            }
+            for dest in ["data", "data/sub/inner"] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new("data"), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::MoveIntoItself(_))),
+                    "moving into {dest} should be refused, got {result:?}"
+                );
+            }
+            let result =
+                workspaces::files::mv(&workspace, Path::new("nope"), Path::new("elsewhere")).await;
+            assert!(
+                matches!(result, Err(OxenError::PathDoesNotExist(_))),
+                "a missing source should be refused, got {result:?}"
+            );
+            // Beneath a committed or a staged file, a move would turn that file into a directory.
+            for (source, dest) in [
+                ("data", "other.txt/inner"),
+                ("data/a.txt", "other.txt/a.txt"),
+                ("data", "staged/z.txt/deep/inner"),
+            ] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new(source), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::NotADirectory(_))),
+                    "moving {source} to {dest} should be refused, got {result:?}"
+                );
+            }
+            let result = repositories::workspaces::data_frames::rename(
+                &workspace,
+                "table.csv",
+                "other.txt/table.csv",
+            )
+            .await;
+            assert!(
+                matches!(result, Err(OxenError::NotADirectory(_))),
+                "renaming a data frame beneath a file should be refused, got {result:?}"
+            );
+            assert_eq!(staged_status(&workspace, "data/a.txt"), None);
+            assert_eq!(staged_status(&workspace, "other.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "staged/z.txt"),
+                Some(StagedEntryStatus::Added)
+            );
+            // A data frame the workspace never indexed renames too.
+            repositories::workspaces::data_frames::rename(&workspace, "table.csv", "renamed.csv")
+                .await?;
+            assert_eq!(
+                staged_status(&workspace, "renamed.csv"),
+                Some(StagedEntryStatus::Added)
+            );
+
+            // Moving or renaming a file the workspace removed would restore its content at the new
+            // path. Tabular files move through the data frame rename, which refuses it too.
+            let workspace = repositories::workspaces::create(&repo, &commit, "removed", true)?;
+            workspaces::files::rm(&workspace, &[PathBuf::from("other.txt")]).await?;
+            let result =
+                workspaces::files::mv(&workspace, Path::new("other.txt"), Path::new("moved.txt"))
+                    .await;
+            assert!(
+                matches!(result, Err(OxenError::PathStagedForRemoval(_))),
+                "{result:?}"
+            );
+            assert_eq!(staged_status(&workspace, "moved.txt"), None);
+            assert_eq!(
+                staged_status(&workspace, "other.txt"),
+                Some(StagedEntryStatus::Removed)
+            );
+            workspaces::files::rm(&workspace, &[PathBuf::from("table.csv")]).await?;
+            let result =
+                repositories::workspaces::data_frames::rename(&workspace, "table.csv", "moved.csv")
+                    .await;
+            assert!(
+                matches!(result, Err(OxenError::PathStagedForRemoval(_))),
+                "{result:?}"
+            );
+            assert_eq!(staged_status(&workspace, "moved.csv"), None);
+            assert_eq!(
+                staged_status(&workspace, "table.csv"),
+                Some(StagedEntryStatus::Removed)
+            );
+
+            // A chained rename: the second move's source is staged but absent from the base
+            // commit, so it is unstaged outright rather than staged for removal, and only the
+            // original committed path carries the `Removed` marker.
             let workspace = repositories::workspaces::create(&repo, &commit, "mv-twice", true)?;
-
-            let first = Path::new("first.txt");
             let second = Path::new("second.txt");
             let third = Path::new("third.txt");
-            super::mv(&workspace, first, second).await?;
+            super::mv(&workspace, other, second).await?;
             workspaces::files::mv(&workspace, second, third).await?;
-
             let status = workspaces::status::status(&workspace)?;
             assert_eq!(
-                status.staged_files.get(first).map(|entry| &entry.status),
-                Some(&crate::model::StagedEntryStatus::Removed),
+                status.staged_files.get(other).map(|entry| &entry.status),
+                Some(&StagedEntryStatus::Removed),
                 "the committed source keeps its Removed marker across both moves"
             );
             assert_eq!(
                 status.staged_files.get(third).map(|entry| &entry.status),
-                Some(&crate::model::StagedEntryStatus::Added),
+                Some(&StagedEntryStatus::Added),
                 "the final destination is staged as Added"
             );
             assert!(
@@ -293,6 +500,57 @@ mod tests {
                 "the intermediate path was never committed, so it is unstaged rather than \
                  staged for removal"
             );
+
+            // Renaming a data frame onto one staged in the workspace is refused, so the staged one
+            // keeps its rows.
+            let workspace = repositories::workspaces::create(&repo, &commit, "df-onto", true)?;
+            let staged_csv = workspace.workspace_repo.path.join("staged.csv");
+            fs::write_to_path(&staged_csv, "x,y\n3,4\n")?;
+            workspaces::files::add(&workspace, &staged_csv).await?;
+            repositories::workspaces::data_frames::index(&repo, &workspace, "table.csv").await?;
+            let result = repositories::workspaces::data_frames::rename(
+                &workspace,
+                "table.csv",
+                "staged.csv",
+            )
+            .await;
+            assert!(
+                matches!(result, Err(OxenError::DestinationAlreadyStaged(_))),
+                "{result:?}"
+            );
+            assert_eq!(
+                staged_status(&workspace, "staged.csv"),
+                Some(StagedEntryStatus::Added)
+            );
+            assert_eq!(staged_status(&workspace, "table.csv"), None);
+
+            // A path that exists only in the workspace is unstaged, and only a path with nothing
+            // at it fails.
+            let workspace = repositories::workspaces::create(&repo, &commit, "rm-staged", true)?;
+            stage_new_file(&workspace, "outer/fresh/x.txt").await?;
+            stage_new_file(&workspace, "outer/fresh/deep/y.txt").await?;
+            stage_new_file(&workspace, "lone.txt").await?;
+            stage_new_file(&workspace, "data/new.txt").await?;
+            let err_files = workspaces::files::rm(
+                &workspace,
+                &[
+                    PathBuf::from("outer/fresh"),
+                    PathBuf::from("lone.txt"),
+                    PathBuf::from("data/new.txt"),
+                ],
+            )
+            .await?;
+            assert!(err_files.is_empty(), "{err_files:?}");
+            // Markers on committed directories may stay; nothing else should.
+            let left: Vec<PathBuf> = get_staged_db_manager(&workspace.workspace_repo)?
+                .read_entries_under(Path::new(""))?
+                .into_iter()
+                .map(|(path, _)| path)
+                .filter(|path| path != Path::new("") && path != Path::new("data"))
+                .collect();
+            assert!(left.is_empty(), "nothing should be left staged: {left:?}");
+            let err_files = workspaces::files::rm(&workspace, &[PathBuf::from("nope")]).await?;
+            assert_eq!(err_files.len(), 1);
 
             Ok(())
         })
