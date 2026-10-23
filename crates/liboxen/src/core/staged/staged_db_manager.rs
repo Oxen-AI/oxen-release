@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;
@@ -10,7 +10,7 @@ use std::thread::sleep;
 use indicatif::ProgressBar;
 use parking_lot::{Mutex, RwLock};
 use rmp_serde::Serializer;
-use rocksdb::{DB, IteratorMode, WriteBatch};
+use rocksdb::{DB, Direction, IteratorMode, WriteBatch};
 use serde::Serialize;
 
 use crate::constants::STAGED_DIR;
@@ -150,6 +150,47 @@ fn open_staged_db(staged_db_dir: &Path) -> Result<Arc<RwLock<DB>>, OxenError> {
 fn staged_db_open_failed(source: rocksdb::Error) -> OxenError {
     log::error!("Failed to open staged db: {source}");
     OxenError::basic_str(format!("Failed to open staged db: {source}"))
+}
+
+/// Deletes the staged entry of each ancestor directory of `paths`, which are relative to the
+/// repository, that has nothing staged under it.
+pub(crate) fn delete_empty_staged_ancestors(
+    staged_db: &DB,
+    paths: &[PathBuf],
+) -> Result<(), OxenError> {
+    let dirs: BTreeSet<&Path> = paths
+        .iter()
+        .flat_map(|path| path.ancestors().skip(1))
+        .collect();
+    let mut unstaged_dirs = HashSet::new();
+    let mut batch = WriteBatch::default();
+    // Paths under a directory sort right after it, and visiting in reverse empties children first
+    for dir in dirs.into_iter().rev() {
+        let key = dir.to_string_lossy();
+        let mut is_staged = false;
+        let mut has_staged_child = false;
+        // Every key under `dir` begins with its key, as do siblings such as `dir.csv`
+        for entry in staged_db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
+            let (entry_key, _) = entry?;
+            if !entry_key.starts_with(key.as_bytes()) {
+                break;
+            }
+            let path = Path::new(str::from_utf8(&entry_key)?);
+            if path == dir {
+                is_staged = true;
+            } else if path.starts_with(dir) && !unstaged_dirs.contains(path) {
+                has_staged_child = true;
+                break;
+            }
+        }
+        if is_staged && !has_staged_child {
+            tracing::debug!(oxen.file_path = %dir.display(), "Unstaging an empty staged directory");
+            batch.delete(key.as_bytes());
+            unstaged_dirs.insert(dir);
+        }
+    }
+    staged_db.write(batch)?;
+    Ok(())
 }
 
 /// Normalizes a path to use forward slashes for use as a DB key.
@@ -302,6 +343,14 @@ impl StagedDBManager {
     /// Delete an entry from the staged db (convenience method)
     pub fn delete_entry(&self, path: impl AsRef<Path>) -> Result<(), OxenError> {
         self.delete_entry_with_lock(path, None)
+    }
+
+    /// Delete the entry staged at `path`, relative to the repository, and the entry of each
+    /// ancestor directory that then has nothing staged under it.
+    pub(crate) fn delete_entry_and_empty_ancestors(&self, path: &Path) -> Result<(), OxenError> {
+        let db = self.staged_db.write();
+        db.delete(normalize_key(path).as_bytes())?;
+        delete_empty_staged_ancestors(&db, &[path.to_path_buf()])
     }
 
     /// Delete each entry in `snapshot` whose staged value is still the one the snapshot read,
