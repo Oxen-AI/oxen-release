@@ -661,13 +661,17 @@ fn move_staged_entry(
     util::fs::path_relative_to_dir(new_path, &workspace.workspace_repo.path)
 }
 
-/// Move the DuckDB index of the data frame at `path` to `new_path`'s index location.
+/// Move the DuckDB index of the data frame at `path` to `new_path`'s index location. Returns false,
+/// moving nothing, when the data frame has no index.
 pub(super) fn move_index(
     workspace: &Workspace,
     path: &Path,
     new_path: &Path,
-) -> Result<(), OxenError> {
+) -> Result<bool, OxenError> {
     let og_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    if !og_db_path.exists() {
+        return Ok(false);
+    }
     let og_db_path_parent = db_parent(&og_db_path)?;
     let new_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, new_path);
     let new_db_path_parent = db_parent(&new_db_path)?;
@@ -681,7 +685,8 @@ pub(super) fn move_index(
             util::fs::remove_dir_all(new_db_path_parent)?;
         }
         util::fs::rename(og_db_path_parent, new_db_path_parent)
-    })
+    })?;
+    Ok(true)
 }
 
 /// The directory holding a data frame's DuckDB database.

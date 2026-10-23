@@ -438,6 +438,13 @@ mod tests {
                 staged_status(&workspace, "staged/z.txt"),
                 Some(StagedEntryStatus::Added)
             );
+            // A data frame the workspace never indexed renames too.
+            repositories::workspaces::data_frames::rename(&workspace, "table.csv", "renamed.csv")
+                .await?;
+            assert_eq!(
+                staged_status(&workspace, "renamed.csv"),
+                Some(StagedEntryStatus::Added)
+            );
 
             // Moving or renaming a file the workspace removed would restore its content at the new
             // path. Tabular files move through the data frame rename, which refuses it too.

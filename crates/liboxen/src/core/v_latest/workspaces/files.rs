@@ -1363,14 +1363,14 @@ fn mv_dir(
     // A data frame's staged edits live in its DuckDB index, keyed by path.
     let mut moved_indexes: Vec<(&Path, &Path)> = vec![];
     for (p, dest, _, _) in &moves {
-        if !repositories::workspaces::data_frames::duckdb_path(workspace, p).exists() {
-            continue;
+        match core::v_latest::workspaces::data_frames::move_index(workspace, p, dest) {
+            Ok(true) => moved_indexes.push((p, dest)),
+            Ok(false) => {}
+            Err(err) => {
+                restore_indexes(workspace, &moved_indexes);
+                return Err(err);
+            }
         }
-        if let Err(err) = core::v_latest::workspaces::data_frames::move_index(workspace, p, dest) {
-            restore_indexes(workspace, &moved_indexes);
-            return Err(err);
-        }
-        moved_indexes.push((p, dest));
     }
 
     if let Err(err) = batch.write(db) {
