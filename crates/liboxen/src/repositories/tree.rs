@@ -1696,7 +1696,7 @@ pub fn print_tree_depth(
 /// The sizes file nodes declare for one version blob, each mapped to a path declaring it. More
 /// than one entry means nodes disagree about the size of the same content, of which at most one
 /// can match the stored blob.
-pub type DeclaredSizes = HashMap<u64, PathBuf>;
+pub(crate) type DeclaredSizes = HashMap<u64, PathBuf>;
 
 /// How [`added_objects`] records the version blobs that added files reference.
 pub(crate) trait AddedVersions: Default {
