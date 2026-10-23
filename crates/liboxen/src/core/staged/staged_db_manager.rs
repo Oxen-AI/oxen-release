@@ -301,7 +301,7 @@ impl StagedWriteBatch {
 impl StagedDBManager {
     /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
     /// interleave with. Read under it with [`staged_entries_under`] and [`read_from_db`], and write
-    /// with [`StagedWriteBatch::write`]; calling any method of this manager while holding it
+    /// with [`StagedWriteBatch::write`]. Calling any method of this manager before the guard drops
     /// deadlocks.
     pub(crate) fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
         self.staged_db.write()

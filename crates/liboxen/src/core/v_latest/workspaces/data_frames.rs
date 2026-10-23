@@ -667,9 +667,10 @@ pub(super) fn move_index(
     let new_db_path = repositories::workspaces::data_frames::duckdb_path(workspace, new_path);
     let new_db_path_parent = db_parent(&new_db_path)?;
 
-    // The source database is closed and held while its directory is renamed, so nothing can
-    // write into it mid-move. Closing checkpoints the WAL into the database file first, so the
-    // moved directory carries a whole database. An index already at the destination is replaced.
+    // The source database stays closed, and its registry entry locked, while its directory is
+    // renamed, so nothing can write into it mid-move. Closing checkpoints the WAL into the database
+    // file first, so the moved directory carries a whole database. An index already at the
+    // destination is replaced.
     with_db_closed(&og_db_path, || -> Result<(), OxenError> {
         if new_db_path_parent.exists() {
             util::fs::remove_dir_all(new_db_path_parent)?;
