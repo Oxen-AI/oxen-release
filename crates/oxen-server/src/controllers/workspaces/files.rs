@@ -541,6 +541,7 @@ mod tests {
         BeginVersionUploadRequest, CompleteVersionUploadRequest, CompletedFileUpload,
         VersionUploadPartResponse, VersionUploadResponse, VersionUploadStart, WorkspaceDestination,
     };
+    use liboxen::view::workspaces::RenameRequest;
     use std::path::{Path, PathBuf};
 
     use actix_multipart::test::create_form_data_payload_and_headers;
@@ -624,25 +625,25 @@ mod tests {
         for (path, new_path) in [("exports.csv", "renamed"), ("fresh.csv", "fresh_renamed")] {
             let uri =
                 format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}");
-            let req = actix_web::test::TestRequest::patch()
+            let req = TestRequest::patch()
                 .uri(&uri)
-                .set_payload(format!(r#"{{"new_path": "{new_path}"}}"#))
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
                 .to_request();
-            let resp = actix_web::test::call_service(&app, req).await;
-            assert_eq!(
-                resp.status(),
-                actix_web::http::StatusCode::OK,
-                "moving {path} to {new_path}"
-            );
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::OK, "moving {path} to {new_path}");
         }
 
         let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
-        let req = actix_web::test::TestRequest::patch()
+        let req = TestRequest::patch()
             .uri(&uri)
-            .set_payload(r#"{"new_path": "renamed/inner"}"#)
+            .set_json(RenameRequest {
+                new_path: "renamed/inner".to_string(),
+            })
             .to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        let resp = call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
         assert_eq!(
             body["error"]["type"], "move_into_itself",
@@ -654,7 +655,7 @@ mod tests {
             assert_eq!(
                 status
                     .staged_files
-                    .get(std::path::Path::new(path))
+                    .get(Path::new(path))
                     .map(|entry| entry.status.clone()),
                 Some(liboxen::model::StagedEntryStatus::Added),
                 "{path} should be staged as added"

@@ -161,14 +161,6 @@ mod tests {
         .await
     }
 
-    fn body(message: &str) -> NewCommitBody {
-        NewCommitBody {
-            message: message.to_string(),
-            author: "Bessie".to_string(),
-            email: "bessie@oxen.ai".to_string(),
-        }
-    }
-
     /// An editable workspace called `name` on `commit`, and a branch called `name` at `commit` for
     /// it to commit to.
     fn committing_workspace(
@@ -234,6 +226,7 @@ mod tests {
             }
             repositories::add(&repo, &repo.path).await?;
             let commit = repositories::commit(&repo, "Add data")?;
+            let user = UserConfig::get()?;
             let other = Path::new("other.txt");
 
             // exists() is false for a path the workspace has not staged, and true once it has.
@@ -304,7 +297,12 @@ mod tests {
                 matches!(retry, Err(OxenError::PathStagedForRemoval(_))),
                 "retrying the move finds its source staged for removal, got {retry:?}"
             );
-            let committed = workspaces::commit(&workspace, &body("Move data"), "nested").await?;
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move data"),
+                "nested",
+            )
+            .await?;
             assert_files(
                 &repo,
                 &committed,
@@ -331,9 +329,12 @@ mod tests {
                 staged_status(&workspace, "moved/fresh/deep.txt"),
                 Some(StagedEntryStatus::Added)
             );
-            let committed =
-                workspaces::commit(&workspace, &body("Move data with added files"), "mixed")
-                    .await?;
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move data with added files"),
+                "mixed",
+            )
+            .await?;
             assert_files(
                 &repo,
                 &committed,
@@ -347,8 +348,12 @@ mod tests {
             stage_new_file(&workspace, "outer/fresh/deep/y.txt").await?;
             workspaces::files::mv(&workspace, Path::new("outer/fresh"), Path::new("renamed"))
                 .await?;
-            let committed =
-                workspaces::commit(&workspace, &body("Move fresh"), "staged-only").await?;
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Move fresh"),
+                "staged-only",
+            )
+            .await?;
             assert_files(
                 &repo,
                 &committed,
@@ -365,7 +370,12 @@ mod tests {
             assert!(err_files.is_empty(), "{err_files:?}");
             assert_eq!(staged_status(&workspace, "data/new.txt"), None);
             assert_eq!(staged_status(&workspace, "data/fresh/deep.txt"), None);
-            let committed = workspaces::commit(&workspace, &body("Remove data"), "rm-dir").await?;
+            let committed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Remove data"),
+                "rm-dir",
+            )
+            .await?;
             assert_files(
                 &repo,
                 &committed,
