@@ -536,7 +536,7 @@ pub async fn rename(
             {
                 return Err(OxenError::PathStagedForRemoval(path.into()));
             }
-            if staged_db_manager.read_from_staged_db(&new_path)?.is_some() {
+            if staged_db_manager.exists(&new_path)? {
                 return Err(OxenError::DestinationAlreadyStaged(new_path.into()));
             }
 

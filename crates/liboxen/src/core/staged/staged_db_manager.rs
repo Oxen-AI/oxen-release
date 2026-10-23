@@ -166,7 +166,10 @@ fn serialize_staged_node(node: &StagedMerkleTreeNode) -> Result<Vec<u8>, OxenErr
     Ok(buf)
 }
 
-fn read_from_db(db: &DB, path: &Path) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+pub(crate) fn read_from_db(
+    db: &DB,
+    path: &Path,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let key = normalize_key(path);
     let Some(data) = db.get(key.as_bytes())? else {
         return Ok(None);
@@ -203,13 +206,12 @@ pub(crate) fn staged_entries_under(
     Ok(entries)
 }
 
-/// Staged-db writes collected in memory and applied together by
-/// [`StagedDBManager::write_batch_locked`], so a concurrent reader sees all of them or none. A later
-/// write to a key replaces an earlier one. Keys and values match the per-call methods of the same
-/// names on [`StagedDBManager`].
+/// Staged-db writes collected in memory and applied together by [`Self::write`], so a concurrent
+/// reader sees all of them or none. A later write to a key replaces an earlier one. Keys and values
+/// match the per-call methods of the same names on [`StagedDBManager`].
 #[derive(Default)]
 pub(crate) struct StagedWriteBatch {
-    ops: BTreeMap<String, Option<Vec<u8>>>,
+    ops: BTreeMap<String, Option<StagedMerkleTreeNode>>,
 }
 
 impl StagedWriteBatch {
@@ -218,121 +220,91 @@ impl StagedWriteBatch {
         relative_path: impl AsRef<Path>,
         status: StagedEntryStatus,
         file_node: &FileNode,
-    ) -> Result<(), OxenError> {
+    ) {
         self.upsert_staged_node(
             relative_path,
-            &StagedMerkleTreeNode {
+            StagedMerkleTreeNode {
                 status,
                 node: MerkleTreeNode::from_file(file_node.clone()),
             },
-        )
+        );
     }
 
     pub(crate) fn upsert_staged_node(
         &mut self,
         path: impl AsRef<Path>,
-        staged_node: &StagedMerkleTreeNode,
-    ) -> Result<(), OxenError> {
-        self.ops.insert(
-            normalize_key(path),
-            Some(serialize_staged_node(staged_node)?),
-        );
-        Ok(())
+        staged_node: StagedMerkleTreeNode,
+    ) {
+        self.ops.insert(normalize_key(path), Some(staged_node));
     }
 
     pub(crate) fn delete_entry(&mut self, path: impl AsRef<Path>) {
         self.ops.insert(normalize_key(path), None);
     }
 
-    pub(crate) fn add_directory(
-        &mut self,
-        directory_path: impl AsRef<Path>,
-        seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-    ) -> Result<(), OxenError> {
-        let directory_path = directory_path.as_ref();
-        if !seen_dirs.lock().insert(directory_path.to_path_buf()) {
-            return Ok(());
-        }
-        let dir_entry = StagedMerkleTreeNode {
-            status: StagedEntryStatus::Added,
-            node: MerkleTreeNode::default_dir_from_path(directory_path),
-        };
-        self.ops.insert(
-            normalize_key(directory_path),
-            Some(serialize_staged_node(&dir_entry)?),
+    pub(crate) fn add_directory(&mut self, directory_path: &Path) {
+        self.upsert_staged_node(
+            directory_path,
+            StagedMerkleTreeNode {
+                status: StagedEntryStatus::Added,
+                node: MerkleTreeNode::default_dir_from_path(directory_path),
+            },
         );
-        Ok(())
     }
 
-    pub(crate) fn add_parent_directories(
-        &mut self,
-        path: &Path,
-        seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-    ) -> Result<(), OxenError> {
+    pub(crate) fn add_parent_directories(&mut self, path: &Path) {
         for dir in path.ancestors().skip(1) {
-            self.add_directory(dir, seen_dirs)?;
+            self.add_directory(dir);
         }
-        Ok(())
-    }
-}
-
-impl StagedDBManager {
-    /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
-    /// interleave with. Pass the guard to the `*_locked` methods; calling any other method of this
-    /// manager while holding it deadlocks.
-    pub(crate) fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
-        self.staged_db.write()
     }
 
-    /// Apply every write in `batch` atomically, under a guard from [`Self::lock_for_write`].
-    pub(crate) fn write_batch_locked(
-        &self,
-        db: &RwLockWriteGuard<DB>,
-        batch: StagedWriteBatch,
-    ) -> Result<(), OxenError> {
-        let mut write_batch = WriteBatch::default();
-        for (key, value) in batch.ops {
-            match value {
-                Some(value) => write_batch.put(key.as_bytes(), value),
-                None => write_batch.delete(key.as_bytes()),
-            }
-        }
-        db.write(write_batch)?;
-        Ok(())
-    }
-
-    /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`], as it will read
-    /// once `batch` is written.
-    pub(crate) fn read_entries_under_with_locked(
+    /// The staged entries at and under `path`, as they will read once this batch is written.
+    pub(crate) fn entries_under(
         &self,
         db: &RwLockWriteGuard<DB>,
         path: &Path,
-        batch: &StagedWriteBatch,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
         let mut entries: BTreeMap<PathBuf, StagedMerkleTreeNode> =
             staged_entries_under(path, db)?.into_iter().collect();
-        for (key, value) in &batch.ops {
+        for (key, value) in &self.ops {
             let entry_path = PathBuf::from(key);
             if !entry_path.starts_with(path) {
                 continue;
             }
             match value {
-                Some(value) => match rmp_serde::from_slice::<StagedMerkleTreeNode>(value) {
-                    Ok(entry) => {
-                        entries.insert(entry_path, entry);
-                    }
-                    Err(e) => tracing::error!(
-                        oxen.file_path = %key,
-                        exception.message = %e,
-                        "Could not decode a pending staged-db write"
-                    ),
-                },
+                Some(entry) => {
+                    entries.insert(entry_path, entry.clone());
+                }
                 None => {
                     entries.remove(&entry_path);
                 }
             }
         }
         Ok(entries.into_iter().collect())
+    }
+
+    /// Apply every write in this batch atomically, under a guard from
+    /// [`StagedDBManager::lock_for_write`].
+    pub(crate) fn write(self, db: &RwLockWriteGuard<DB>) -> Result<(), OxenError> {
+        let mut write_batch = WriteBatch::default();
+        for (key, value) in self.ops {
+            match value {
+                Some(node) => write_batch.put(key.as_bytes(), serialize_staged_node(&node)?),
+                None => write_batch.delete(key.as_bytes()),
+            }
+        }
+        db.write(write_batch)?;
+        Ok(())
+    }
+}
+
+impl StagedDBManager {
+    /// Take the staged db's write lock, for a read-plan-write sequence that other writers must not
+    /// interleave with. Read under it with [`staged_entries_under`] and [`read_from_db`], and write
+    /// with [`StagedWriteBatch::write`]; calling any method of this manager while holding it
+    /// deadlocks.
+    pub(crate) fn lock_for_write(&self) -> RwLockWriteGuard<'_, DB> {
+        self.staged_db.write()
     }
 
     /// Upsert a file node to the staged db
@@ -574,30 +546,12 @@ impl StagedDBManager {
         read_from_db(&self.staged_db.read(), path.as_ref())
     }
 
-    /// [`Self::read_from_staged_db`] under a guard from [`Self::lock_for_write`].
-    pub(crate) fn read_from_staged_db_locked(
-        &self,
-        db: &RwLockWriteGuard<DB>,
-        path: impl AsRef<Path>,
-    ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-        read_from_db(db, path.as_ref())
-    }
-
     /// Every staged entry at or below `path`, with its path.
     pub(crate) fn read_entries_under(
         &self,
         path: &Path,
     ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
         staged_entries_under(path, &self.staged_db.read())
-    }
-
-    /// [`Self::read_entries_under`] under a guard from [`Self::lock_for_write`].
-    pub(crate) fn read_entries_under_locked(
-        &self,
-        db: &RwLockWriteGuard<DB>,
-        path: &Path,
-    ) -> Result<Vec<(PathBuf, StagedMerkleTreeNode)>, OxenError> {
-        staged_entries_under(path, db)
     }
 
     /// Read all entries below a path from the staged db
