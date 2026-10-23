@@ -349,6 +349,19 @@ mod tests {
             repositories::branches::force_delete(&repo, "branch-1")?;
             repositories::branches::force_delete(&repo, "branch-2")?;
 
+            let stats = prune(&repo, true).await?;
+            assert_eq!(
+                stats.versions_removed, 2,
+                "a dry run reports the two branch-only files"
+            );
+            assert!(stats.nodes_removed > 0);
+            for commit in [&branch_1_commit, &branch_2_commit] {
+                assert!(
+                    repositories::commits::get_by_id(&repo, &commit.id)?.is_some(),
+                    "a dry run removes nothing"
+                );
+            }
+
             prune(&repo, false).await?;
             let all_commits = repositories::commits::list_all(&repo)?;
             assert_eq!(all_commits, commits_before);
