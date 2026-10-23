@@ -953,6 +953,13 @@ mod tests {
             // A repository reporting no identity is still attachable.
             let plain = repo.set_remote_repo("origin", &remote_ns_repo());
             assert_eq!(plain.repo_uuid, None);
+            assert_eq!(
+                repo.get_remote("origin")
+                    .and_then(|remote| remote.repo_uuid),
+                None,
+                "re-attaching replaces the stored remote, UUID included"
+            );
+            assert_eq!(repo.remotes().len(), 1, "remotes: {:?}", repo.remotes());
 
             let other_url = "http://0.0.0.0:4000/repositories/OxenData";
             repo.set_remote("other", other_url);
