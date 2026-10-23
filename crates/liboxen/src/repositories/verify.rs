@@ -502,6 +502,14 @@ async fn check_versions(
             }
         }
     }
+
+    // A blob the store answered nothing for was never checked.
+    for hash in versions.into_keys() {
+        report.unchecked_versions.record(UncheckedVersion {
+            hash,
+            error: "the version store returned no size for this blob".to_string(),
+        });
+    }
     Ok(())
 }
 
