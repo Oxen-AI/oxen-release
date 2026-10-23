@@ -549,233 +549,34 @@ mod tests {
     use mime;
 
     #[actix_web::test]
-    async fn test_get_nonexistent_file_returns_404() -> Result<(), OxenError> {
+    async fn test_controllers_workspace_files() -> Result<(), OxenError> {
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use std::io::Write;
+
         liboxen::test::init_test_env();
         let sync_dir = test::get_sync_dir()?;
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
 
-        // Create a file and commit so we have a valid commit for the workspace
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        // Create a workspace
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        // Request a file that does not exist in the workspace or the base repo
-        let file_path = "this_file_does_not_exist.txt";
-        let uri =
-            format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{file_path}");
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::get().to(controllers::workspaces::files::get),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
-
-        // cleanup
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    // A directory named like a tabular file moves as a directory, not through the data frame
-    // rename, whether it is committed or exists only as staged files.
-    #[actix_web::test]
-    async fn test_mv_directory_with_tabular_name() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Mv-Tabular-Dir";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
         util::fs::write_to_path(repo.path.join("exports.csv/a.txt"), "A")?;
         util::fs::write_to_path(repo.path.join("exports.csv/b.csv"), "x,y\n1,2\n")?;
         repositories::add(&repo, &repo.path).await?;
-        let commit = repositories::commit(&repo, "Add exports")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, true)?;
-        let fresh = workspace.workspace_repo.path.join("fresh.csv/x.txt");
-        util::fs::write_to_path(&fresh, "X")?;
-        repositories::workspaces::files::add(&workspace, &fresh).await?;
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::patch().to(controllers::workspaces::files::mv),
-                ),
-        )
-        .await;
-
-        for (path, new_path) in [("exports.csv", "renamed"), ("fresh.csv", "fresh_renamed")] {
-            let uri =
-                format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}");
-            let req = TestRequest::patch()
-                .uri(&uri)
-                .set_json(RenameRequest {
-                    new_path: new_path.to_string(),
-                })
-                .to_request();
-            let resp = call_service(&app, req).await;
-            assert_eq!(resp.status(), StatusCode::OK, "moving {path} to {new_path}");
-        }
-
-        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
-        for (new_path, status, error_type) in [
-            ("renamed/inner", StatusCode::BAD_REQUEST, "move_into_itself"),
-            (
-                "fresh_renamed/x.txt/inner",
-                StatusCode::CONFLICT,
-                "not_a_directory",
-            ),
-        ] {
-            let req = TestRequest::patch()
-                .uri(&uri)
-                .set_json(RenameRequest {
-                    new_path: new_path.to_string(),
-                })
-                .to_request();
-            let resp = call_service(&app, req).await;
-            assert_eq!(resp.status(), status, "moving renamed to {new_path}");
-            let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
-            assert_eq!(
-                body["error"]["type"], error_type,
-                "moving renamed to {new_path} is refused as such: {body}"
-            );
-        }
-
-        let status = repositories::workspaces::status::status(&workspace)?;
-        for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
-            assert_eq!(
-                status
-                    .staged_files
-                    .get(Path::new(path))
-                    .map(|entry| entry.status.clone()),
-                Some(liboxen::model::StagedEntryStatus::Added),
-                "{path} should be staged as added"
-            );
-        }
-
-        drop((app, workspace));
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_workspace_file_get_exposes_content_length() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Get-Headers";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let hello_file = repo.path.join("hello.txt");
-        let file_content = "Hello";
-        util::fs::write_to_path(&hello_file, file_content)?;
-        repositories::add(&repo, &hello_file).await?;
         let commit = repositories::commit(&repo, "First commit")?;
 
         let workspace_id = uuid::Uuid::new_v4().to_string();
         repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
 
-        let uri =
-            format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/hello.txt");
-
+        let files_route = "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}";
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::get().to(controllers::workspaces::files::get),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-        assert_eq!(
-            resp.headers().get(header::CONTENT_LENGTH).unwrap(),
-            file_content.len().to_string().as_str()
-        );
-        assert_eq!(
-            resp.headers()
-                .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
-                .unwrap(),
-            header::CONTENT_LENGTH.as_str()
-        );
-
-        // Drain the body to close the streamed file handle before cleanup; on NFS an
-        // unlinked-but-still-open file lingers as .nfsXXXX and the rmdir fails with ENOTEMPTY.
-        actix_http::body::to_bytes(resp.into_body()).await.unwrap();
-
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_workspace_files_add_stages_multipart_upload() -> Result<(), OxenError>
-    {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Add-Multipart";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // Seed a commit so the workspace has a base commit
-        let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        // Upload a raw (uncompressed) file via multipart; the server hashes the content, stores it
-        // in the version store, and stages it. The form-data filename carries the destination path
-        // within the target directory ("data").
-        let file_content = "uploaded contents";
-        let (body, headers) = create_form_data_payload_and_headers(
-            "file[]",
-            Some("uploaded.txt".to_string()),
-            Some(mime::TEXT_PLAIN),
-            Bytes::from(file_content),
-        );
-
-        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/data");
-
-        let req = actix_web::test::TestRequest::post()
-            .uri(&uri)
-            .app_data(OxenAppData::new(sync_dir.to_path_buf()));
-        let req = headers
-            .into_iter()
-            .fold(req, |req, hdr| req.insert_header(hdr))
-            .set_payload(body)
-            .to_request();
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::post().to(controllers::workspaces::files::add),
-                )
+                .route(files_route, web::get().to(controllers::workspaces::files::get))
+                .route(files_route, web::post().to(controllers::workspaces::files::add))
+                .route(files_route, web::patch().to(controllers::workspaces::files::mv))
                 .route(
                     "/oxen/{namespace}/{repo_name}/versions/uploads",
                     web::post().to(controllers::versions::uploads::begin),
@@ -798,6 +599,60 @@ mod tests {
                 ),
         )
         .await;
+
+        // Request a file that does not exist in the workspace or the base repo
+        let file_path = "this_file_does_not_exist.txt";
+        let uri =
+            format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{file_path}");
+
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
+
+        let uri =
+            format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/hello.txt");
+
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_LENGTH).unwrap(),
+            "Hello".len().to_string().as_str()
+        );
+        assert_eq!(
+            resp.headers()
+                .get(header::ACCESS_CONTROL_EXPOSE_HEADERS)
+                .unwrap(),
+            header::CONTENT_LENGTH.as_str()
+        );
+
+        // Drain the body to close the streamed file handle before cleanup; on NFS an
+        // unlinked-but-still-open file lingers as .nfsXXXX and the rmdir fails with ENOTEMPTY.
+        actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+
+        // Upload a raw (uncompressed) file via multipart; the server hashes the content, stores it
+        // in the version store, and stages it. The form-data filename carries the destination path
+        // within the target directory ("data").
+        let file_content = "uploaded contents";
+        let (body, headers) = create_form_data_payload_and_headers(
+            "file[]",
+            Some("uploaded.txt".to_string()),
+            Some(mime::TEXT_PLAIN),
+            Bytes::from(file_content),
+        );
+
+        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/data");
+
+        let req = actix_web::test::TestRequest::post()
+            .uri(&uri)
+            .app_data(OxenAppData::new(sync_dir.to_path_buf()));
+        let req = headers
+            .into_iter()
+            .fold(req, |req, hdr| req.insert_header(hdr))
+            .set_payload(body)
+            .to_request();
 
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
@@ -978,27 +833,6 @@ mod tests {
             status.staged_files.keys()
         );
 
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_workspace_files_add_preserves_subdirectory() -> Result<(), OxenError>
-    {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Add-Nested";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
         // The multipart filename carries a subdirectory; the server must preserve the nesting under
         // the target directory rather than flattening it to the basename.
         let (body, headers) = create_form_data_payload_and_headers(
@@ -1019,16 +853,6 @@ mod tests {
             .set_payload(body)
             .to_request();
 
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::post().to(controllers::workspaces::files::add),
-                ),
-        )
-        .await;
-
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
 
@@ -1041,27 +865,6 @@ mod tests {
             "expected the subdirectory preserved as data/nested/dog.txt, got {:?}",
             response.paths
         );
-
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_workspace_files_add_rejects_path_traversal() -> Result<(), OxenError>
-    {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Add-Traversal";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
 
         // A multipart filename that escapes the target directory with `..` must be rejected, not
         // staged at an out-of-tree path.
@@ -1083,39 +886,8 @@ mod tests {
             .set_payload(body)
             .to_request();
 
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::post().to(controllers::workspaces::files::add),
-                ),
-        )
-        .await;
-
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
-
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_workspace_files_add_stages_at_root_for_empty_directory()
-    -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Add-Root";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
 
         // An empty target directory stages at the workspace root: the destination is just the
         // (normalized) filename with no directory prefix.
@@ -1138,16 +910,6 @@ mod tests {
             .set_payload(body)
             .to_request();
 
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::post().to(controllers::workspaces::files::add),
-                ),
-        )
-        .await;
-
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
 
@@ -1160,32 +922,6 @@ mod tests {
             "expected staging at the workspace root (root.txt with no prefix), got {:?}",
             response.paths
         );
-
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_workspace_files_add_rejects_gzip_bomb() -> Result<(), OxenError> {
-        use flate2::Compression;
-        use flate2::write::GzEncoder;
-        use liboxen::constants::stream_segment_size;
-        use std::io::Write;
-
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Workspace-Gzip-Bomb";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // Seed a commit so the workspace has a base commit
-        let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        let commit = repositories::commit(&repo, "First commit")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
 
         // Build a gzipped part that inflates to one byte past the decompression cap. Highly
         // compressible zero bytes keep the compressed body tiny while the decompressed size trips
@@ -1236,16 +972,6 @@ mod tests {
             ))
             .set_payload(body.clone())
             .to_request();
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path:.*}",
-                    web::post().to(controllers::workspaces::files::add),
-                ),
-        )
-        .await;
 
         let resp = actix_web::test::call_service(&app, req).await;
         // The endpoint drops the offending part rather than failing the whole request, so the
@@ -1307,6 +1033,65 @@ mod tests {
             "a truncated body reports the multipart error's own reason"
         );
 
+        // A directory named like a tabular file moves as a directory, not through the data frame
+        // rename, whether it is committed or exists only as staged files. These moves run in a
+        // workspace of their own.
+        let workspace_id = uuid::Uuid::new_v4().to_string();
+        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, true)?;
+        let fresh = workspace.workspace_repo.path.join("fresh.csv/x.txt");
+        util::fs::write_to_path(&fresh, "X")?;
+        repositories::workspaces::files::add(&workspace, &fresh).await?;
+
+        for (path, new_path) in [("exports.csv", "renamed"), ("fresh.csv", "fresh_renamed")] {
+            let uri =
+                format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/{path}");
+            let req = TestRequest::patch()
+                .uri(&uri)
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
+                .to_request();
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::OK, "moving {path} to {new_path}");
+        }
+
+        let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
+        for (new_path, status, error_type) in [
+            ("renamed/inner", StatusCode::BAD_REQUEST, "move_into_itself"),
+            (
+                "fresh_renamed/x.txt/inner",
+                StatusCode::CONFLICT,
+                "not_a_directory",
+            ),
+        ] {
+            let req = TestRequest::patch()
+                .uri(&uri)
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
+                .to_request();
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), status, "moving renamed to {new_path}");
+            let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
+            assert_eq!(
+                body["error"]["type"], error_type,
+                "moving renamed to {new_path} is refused as such: {body}"
+            );
+        }
+
+        let status = repositories::workspaces::status::status(&workspace)?;
+        for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
+            assert_eq!(
+                status
+                    .staged_files
+                    .get(Path::new(path))
+                    .map(|entry| entry.status.clone()),
+                Some(liboxen::model::StagedEntryStatus::Added),
+                "{path} should be staged as added"
+            );
+        }
+
+        drop((app, workspace));
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
         Ok(())
     }

@@ -163,7 +163,7 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::model::RepoIdentity;
     use liboxen::repositories::name_table::NameTable;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use uuid::Uuid;
 
     #[actix_web::test]
@@ -240,13 +240,21 @@ mod tests {
         let migration = run(req, web::Bytes::new());
         tokio::pin!(migration);
 
-        // The migration must not complete while the write is in flight.
-        assert!(
-            tokio::time::timeout(Duration::from_millis(150), &mut migration)
-                .await
-                .is_err(),
-            "migration ran while a write was in flight — exclusive lock not wired"
-        );
+        // The migration must not complete while the write is in flight. Once it blocks new
+        // writers it is waiting on the drain, which the write in flight keeps from finishing.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while repo_locks::begin_write(&handler_repo).is_ok() {
+            assert!(
+                tokio::time::timeout(Duration::from_millis(2), &mut migration)
+                    .await
+                    .is_err(),
+                "migration ran while a write was in flight, so the exclusive lock is not wired"
+            );
+            assert!(
+                Instant::now() < deadline,
+                "the migration should be blocking new writers while it drains"
+            );
+        }
 
         // Draining the write lets the migration proceed.
         drop(guard);

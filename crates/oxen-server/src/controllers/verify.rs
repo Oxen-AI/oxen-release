@@ -86,28 +86,6 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_controllers_verify_reports_a_sound_repository() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
-
-        let path = repo.path.join("a.txt");
-        util::fs::write_to_path(&path, "alpha")?;
-        repositories::add(&repo, &path).await?;
-        repositories::commit(&repo, "Add a")?;
-
-        let response = call_verify(&sync_dir, namespace, name).await?;
-
-        assert!(response.report.is_healthy());
-        assert_eq!(response.report.versions_checked, 1);
-
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
     async fn test_controllers_verify_reports_a_missing_version_file() -> Result<(), OxenError> {
         liboxen::test::init_test_env();
         let sync_dir = test::get_sync_dir()?;
@@ -119,6 +97,10 @@ mod tests {
         util::fs::write_to_path(&path, "alpha")?;
         repositories::add(&repo, &path).await?;
         let commit = repositories::commit(&repo, "Add a")?;
+
+        let response = call_verify(&sync_dir, namespace, name).await?;
+        assert!(response.report.is_healthy());
+        assert_eq!(response.report.versions_checked, 1);
 
         let entries = repositories::entries::list_for_commit(&repo, &commit)?;
         let hash = entries.first().expect("one entry").hash.clone();
