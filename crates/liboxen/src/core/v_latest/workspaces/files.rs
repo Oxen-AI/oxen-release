@@ -1309,8 +1309,11 @@ fn mv_dir(
         ));
     }
 
-    let relocate =
-        |p: &Path| -> Result<PathBuf, OxenError> { Ok(new_path.join(p.strip_prefix(path)?)) };
+    // Collecting the components drops the trailing separator `join` appends for `path` itself,
+    // whose remainder is empty: a staged `new_path/` is a second spelling of the directory.
+    let relocate = |p: &Path| -> Result<PathBuf, OxenError> {
+        Ok(new_path.join(p.strip_prefix(path)?).components().collect())
+    };
 
     let moves = files
         .iter()

@@ -39,8 +39,19 @@ impl CommitMerkleTree {
                         // Heal legacy keys written with backslashes by a Windows client: repo
                         // paths are slash-separated, and a backslash key never matches the
                         // slash-based path a lookup asks for.
-                        dir_hashes
-                            .insert(PathBuf::from(crate::util::fs::linux_path_str(key)), hash);
+                        let key = crate::util::fs::linux_path_str(key);
+                        // Heal legacy keys with a trailing slash, which a workspace directory
+                        // move wrote for the moved directory. `PathBuf` compares `dir/` equal to
+                        // `dir`, so when a later commit stored `dir` too, whichever loaded last
+                        // would win; the `dir` key is the one that commit kept current.
+                        match key.strip_suffix('/') {
+                            Some(dir) => {
+                                dir_hashes.entry(PathBuf::from(dir)).or_insert(hash);
+                            }
+                            None => {
+                                dir_hashes.insert(PathBuf::from(key), hash);
+                            }
+                        }
                     }
                     _ => {
                         return Err(OxenError::basic_str(
@@ -1273,6 +1284,7 @@ mod tests {
     /// `test_load_dir_nodes` can't catch this: on Windows both separators collapse in `PathBuf`,
     /// so the assertion passes there too. The break only shows up cross-platform, which is what
     /// this test forces by injecting a backslash key and reading it on the host running the test.
+    /// It also injects a stale `dir/` key beside a current `dir` key, which must not win the load.
     #[tokio::test]
     async fn test_dir_hashes_heal_windows_backslash_keys() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|dir| async move {
@@ -1285,10 +1297,12 @@ mod tests {
             let commit = repositories::commits::commit(&repo, "seed nested dir")?;
 
             let nested = PathBuf::from("assets/characters");
+            let assets = PathBuf::from("assets");
             let healthy = CommitMerkleTree::dir_hashes(&repo, &commit)?;
             let hash = *healthy
                 .get(&nested)
                 .expect("nested dir should be in a healthy dir_hashes");
+            let assets_hash = healthy[&assets];
 
             // Rewrite the slash key as a backslash key, mimicking a Windows-authored index.
             let db_path =
@@ -1305,6 +1319,8 @@ mod tests {
                     "assets\\characters",
                     &hash.to_string(),
                 )?;
+                // A stale second spelling of `assets`, beside the current `assets` key.
+                crate::core::db::key_val::str_val_db::put(&db, "assets/", &hash.to_string())?;
             }
             crate::core::db::dir_hashes::dir_hashes_db::remove_from_cache_with_children(&db_path)?;
 
@@ -1316,6 +1332,10 @@ mod tests {
             assert!(
                 !healed.keys().any(|k| k.to_string_lossy().contains('\\')),
                 "no backslash keys should survive the load"
+            );
+            assert_eq!(
+                healed[&assets], assets_hash,
+                "the `assets` key wins over a stale trailing-slash `assets/` key"
             );
 
             // The browsing endpoint resolves the nested dir again.
