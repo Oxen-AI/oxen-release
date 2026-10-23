@@ -626,7 +626,7 @@ mod tests {
     use actix_web::{App, web};
     use liboxen::core::db::data_frames::df_db::with_df_db_manager;
     use liboxen::error::OxenError;
-    use liboxen::model::{LocalRepository, Schema, Workspace};
+    use liboxen::model::Schema;
     use liboxen::opts::DFOpts;
     use liboxen::repositories;
     use liboxen::util;
@@ -634,42 +634,58 @@ mod tests {
     use serde_json::json;
 
     #[actix_web::test]
-    async fn test_schema_metadata_put_get_round_trip() -> Result<(), OxenError> {
+    async fn test_workspace_data_frames() -> Result<(), OxenError> {
         liboxen::test::init_test_env();
         let sync_dir = test::get_sync_dir()?;
         let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Schema-Metadata-Round-Trip";
+        let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
 
         let csv_dir = repo.path.join("data");
         util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("test.csv");
-        util::fs::write_to_path(&csv_path, "col_a,col_b\n1,2\n3,4\n")?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add CSV")?;
+        for name in ["test.csv", "stale.csv"] {
+            util::fs::write_to_path(csv_dir.join(name), "col_a,col_b\n1,2\n3,4\n")?;
+        }
+        // 25 rows, larger than the page_size of 10 the pagination checks request, so their pages
+        // are real pages.
+        let mut history = String::from("id,label\n");
+        for i in 0..25 {
+            history.push_str(&format!("{i},label_{i}\n"));
+        }
+        util::fs::write_to_path(csv_dir.join("history.csv"), &history)?;
+        util::fs::write_to_path(repo.path.join("README.md"), "# Not a data frame\n")?;
+        repositories::add(&repo, &repo.path).await?;
+        let commit = repositories::commit(&repo, "Add data frames")?;
 
+        // A commit can only have one non-editable workspace, so every case below works on its own
+        // file in this one.
         let workspace_id = uuid::Uuid::new_v4().to_string();
         let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-        let file_path = std::path::Path::new("data/test.csv");
 
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{}",
-            file_path.display()
-        );
+        let workspace_uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}");
+        let schema_route =
+            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}";
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData::new(sync_dir.clone()))
                 .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
+                    schema_route,
                     web::put().to(controllers::workspaces::data_frames::put_schema_metadata),
                 )
                 .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
+                    schema_route,
                     web::get().to(controllers::workspaces::data_frames::get_schema),
+                )
+                .route(
+                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{path:.*}",
+                    web::get().to(controllers::workspaces::data_frames::download),
                 ),
         )
         .await;
 
+        // Schema metadata round-trips on a committed data frame without indexing it.
+        let file_path = std::path::Path::new("data/test.csv");
+        let uri = format!("{workspace_uri}/data_frames/schema/{}", file_path.display());
         let metadata = json!({"task": "classification"});
         let req = actix_web::test::TestRequest::put()
             .uri(&uri)
@@ -687,63 +703,52 @@ mod tests {
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let schema: Schema = serde_json::from_slice(&bytes)?;
-        assert_eq!(schema.metadata, Some(metadata));
+        assert_eq!(schema.metadata, Some(metadata.clone()));
         assert!(
             !repositories::workspaces::data_frames::has_staged_table(&workspace, file_path)?,
             "reading a schema should not build a staged table for an unindexed data frame"
         );
 
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
+        // A committed data frame that is not indexed downloads as JSON reporting it unindexed.
+        let uri = format!("{workspace_uri}/data_frames/download/data/test.csv");
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let response: WorkspaceJsonDataFrameViewResponse = serde_json::from_slice(&bytes)?;
+        assert!(!response.is_indexed);
+        assert!(response.data_frame.is_none());
 
-    /// A data frame the workspace added is editable before it is committed, so
-    /// its schema has to be readable there too — the PUT and the GET have to
-    /// agree on which paths exist.
-    #[actix_web::test]
-    async fn test_schema_metadata_round_trips_on_a_workspace_only_data_frame()
-    -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Schema-Metadata-Workspace-Only";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        // A path in neither the base commit nor the workspace is a 404.
+        let uri = format!("{workspace_uri}/data_frames/download/data/this_does_not_exist.csv");
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
 
-        // The workspace needs a base commit, but the CSV is deliberately not in it.
-        let readme_path = repo.path.join("README.md");
-        util::fs::write_to_path(&readme_path, "# Base commit\n")?;
-        repositories::add(&repo, &readme_path).await?;
-        let commit = repositories::commit(&repo, "Add README")?;
+        // A non-tabular path is a client mistake, not a server fault: it has to come back 4xx so
+        // callers can distinguish it from a real failure.
+        let req = actix_web::test::TestRequest::put()
+            .uri(&format!("{workspace_uri}/data_frames/schema/README.md"))
+            .set_json(json!({"metadata": {"task": "classification"}}))
+            .to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(
+            body["error"]["type"], "not_a_data_frame",
+            "the response must name the cause, not just fail: {body}"
+        );
 
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
+        // A data frame the workspace added is editable before it is committed, so its schema has
+        // to be readable there too: the PUT and the GET have to agree on which paths exist.
         let file_path = std::path::Path::new("data/uncommitted.csv");
-
         let workspace_csv = workspace.workspace_repo.path.join(file_path);
         util::fs::create_dir_all(workspace_csv.parent().unwrap())?;
         util::fs::write_to_path(&workspace_csv, "col_a,col_b\n1,2\n")?;
         repositories::workspaces::files::add(&workspace, &workspace_csv).await?;
 
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{}",
-            file_path.display()
-        );
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
-                    web::put().to(controllers::workspaces::data_frames::put_schema_metadata),
-                )
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::get_schema),
-                ),
-        )
-        .await;
-
-        let metadata = json!({"task": "classification"});
+        let uri = format!("{workspace_uri}/data_frames/schema/{}", file_path.display());
         let req = actix_web::test::TestRequest::put()
             .uri(&uri)
             .set_json(json!({"metadata": metadata}))
@@ -766,77 +771,51 @@ mod tests {
         recomputed.recompute_hash();
         assert_eq!(schema.hash, recomputed.hash);
 
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    /// A non-tabular path is a client mistake, not a server fault: it has to
-    /// come back 4xx so callers can distinguish it from a real failure.
-    #[actix_web::test]
-    async fn test_schema_metadata_put_on_non_tabular_path_is_a_client_error()
-    -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Schema-Metadata-Non-Tabular";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let readme_path = repo.path.join("README.md");
-        util::fs::write_to_path(&readme_path, "# Not a data frame\n")?;
-        repositories::add(&repo, &readme_path).await?;
-        let commit = repositories::commit(&repo, "Add README")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
-                    web::put().to(controllers::workspaces::data_frames::put_schema_metadata),
-                ),
-        )
-        .await;
-        let req = actix_web::test::TestRequest::put()
-            .uri(&format!(
-                "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/README.md"
-            ))
-            .set_json(json!({"metadata": {"task": "classification"}}))
-            .to_request();
+        // A data frame only staged in the workspace, never indexed, downloads as JSON reporting
+        // it unindexed.
+        let workspace_csv_path = workspace.dir().join("data/new.csv");
+        util::fs::create_dir_all(workspace_csv_path.parent().unwrap())?;
+        util::fs::write_to_path(&workspace_csv_path, "x,y\n10,20\n")?;
+        repositories::workspaces::files::add(&workspace, &workspace_csv_path).await?;
+        let uri = format!("{workspace_uri}/data_frames/download/data/new.csv");
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
         let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
-        let body: serde_json::Value = serde_json::from_slice(&bytes)?;
-        assert_eq!(
-            body["error"]["type"], "not_a_data_frame",
-            "the response must name the cause, not just fail: {body}"
-        );
+        let response: WorkspaceJsonDataFrameViewResponse = serde_json::from_slice(&bytes)?;
+        assert!(!response.is_indexed);
+        assert!(response.data_frame.is_none());
 
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_schema_metadata_put_does_not_rebuild_stale_table() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Schema-Metadata-Stale-Table";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let csv_dir = repo.path.join("data");
-        util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("test.csv");
-        util::fs::write_to_path(&csv_path, "col_a,col_b\n1,2\n3,4\n")?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add CSV")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
+        // An indexed data frame downloads as CSV.
         let file_path = std::path::Path::new("data/test.csv");
+        repositories::workspaces::data_frames::index(&repo, &workspace, file_path).await?;
+        let uri = format!(
+            "{workspace_uri}/data_frames/download/{}",
+            file_path.display()
+        );
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let content_type = resp
+            .headers()
+            .get("Content-Type")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(content_type, "text/csv");
+        let declared_size = resp.response().body().size();
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        assert_eq!(
+            declared_size,
+            BodySize::Sized(bytes.len() as u64),
+            "the streamed export declares its length up front"
+        );
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(body.contains("col_a"));
+        assert!(body.contains("col_b"));
+
+        // Writing or reading schema metadata leaves a stale staged table's rows alone.
+        let file_path = std::path::Path::new("data/stale.csv");
         repositories::workspaces::data_frames::index(&repo, &workspace, file_path).await?;
         repositories::workspaces::data_frames::rows::add(
             &repo,
@@ -848,7 +827,6 @@ mod tests {
             repositories::workspaces::data_frames::count(&workspace, file_path)?,
             3
         );
-
         let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, file_path);
         with_df_db_manager(&db_path, |manager| {
             manager.with_conn(|conn| {
@@ -863,30 +841,13 @@ mod tests {
             &workspace, file_path
         )?);
 
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{}",
-            file_path.display()
-        );
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
-                    web::put().to(controllers::workspaces::data_frames::put_schema_metadata),
-                )
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/schema/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::get_schema),
-                ),
-        )
-        .await;
+        let uri = format!("{workspace_uri}/data_frames/schema/{}", file_path.display());
         let req = actix_web::test::TestRequest::put()
             .uri(&uri)
             .set_json(json!({"metadata": {"task": "classification"}}))
             .to_request();
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-
         assert_eq!(
             repositories::workspaces::data_frames::count(&workspace, file_path)?,
             3,
@@ -910,237 +871,122 @@ mod tests {
             &workspace, file_path
         )?);
 
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
+        // An unindexed data frame larger than the requested `page_size` must paginate: each page
+        // returns at most `page_size` rows and an out-of-range page returns zero rows so
+        // pagination terminates. Indexing it afterwards checks the indexed branch paginates
+        // identically, so the two paths stay in lockstep.
+        let file_path = "data/history.csv";
+        let page = |query: DFOpts| {
+            get_data_frame_page(
+                &sync_dir,
+                namespace,
+                repo_name,
+                &workspace_id,
+                file_path,
+                query,
+            )
+        };
 
-    /// CSV committed, workspace created, dataframe indexed.
-    /// Expected: 200 with `text/csv` body containing the data.
-    #[actix_web::test]
-    async fn test_download_indexed_data_frame_returns_csv_content() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let page_1 = page(page_query(1, 10, None)).await;
+        assert!(!page_1.is_indexed);
+        assert_eq!(page_row_count(&page_1), 10);
+        assert_eq!(page_ids(&page_1), (0..10).collect::<Vec<i64>>());
+        let pagination = &page_1.data_frame.as_ref().unwrap().view.pagination;
+        assert_eq!(pagination.total_pages, 3);
+        assert_eq!(pagination.total_entries, 25);
 
-        // Create a CSV file and commit
-        let csv_dir = repo.path.join("data");
-        util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("test.csv");
-        util::fs::write_to_path(&csv_path, "col_a,col_b\n1,2\n3,4\n")?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add CSV")?;
+        // Page 3 → the remaining 5 rows.
+        let page_3 = page(page_query(3, 10, None)).await;
+        assert_eq!(page_row_count(&page_3), 5);
+        assert_eq!(page_ids(&page_3), (20..25).collect::<Vec<i64>>());
 
-        // Create a workspace and index the data frame
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-        let file_path = std::path::Path::new("data/test.csv");
-        repositories::workspaces::data_frames::index(&repo, &workspace, file_path).await?;
+        // Page 4 is past the end → 0 rows. This is the case a pager relies on to terminate.
+        let page_4 = page(page_query(4, 10, None)).await;
+        assert_eq!(page_row_count(&page_4), 0);
+        let pagination = &page_4.data_frame.as_ref().unwrap().view.pagination;
+        assert_eq!(pagination.total_pages, 3);
+        assert_eq!(pagination.total_entries, 25);
 
-        // Request download for the indexed file
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{}",
-            file_path.display()
-        );
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::download),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-
-        // Verify it returned CSV content, not JSON
-        let content_type = resp
-            .headers()
-            .get("Content-Type")
-            .unwrap()
-            .to_str()
-            .unwrap();
-        assert_eq!(content_type, "text/csv");
-
-        let declared_size = resp.response().body().size();
-        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        // Out-of-domain pagination inputs are clamped to the 1-based domain rather than panicking
+        // or returning the whole frame: page 0 is read as page 1 (10 rows)...
+        let page_zero = page(page_query(0, 10, None)).await;
+        assert_eq!(page_row_count(&page_zero), 10);
+        // ...and page_size 0 is read as page_size 1 (a single row), not the full 25-row frame.
+        let zero_page_size = page(page_query(1, 0, None)).await;
+        assert_eq!(page_row_count(&zero_page_size), 1);
         assert_eq!(
-            declared_size,
-            BodySize::Sized(bytes.len() as u64),
-            "the streamed export declares its length up front"
-        );
-        let body = String::from_utf8(bytes.to_vec()).unwrap();
-        assert!(body.contains("col_a"));
-        assert!(body.contains("col_b"));
-
-        // cleanup
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    /// File NOT in base commit, only staged in workspace via `files::add`.
-    /// Expected: 200 JSON with `is_indexed: false`, `data_frame: None`.
-    #[actix_web::test]
-    async fn test_download_unindexed_workspace_only_file_returns_200() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // Create an initial file and commit so we have a valid commit for the workspace
-        let readme = repo.path.join("README.md");
-        util::fs::write_to_path(&readme, "# Test")?;
-        repositories::add(&repo, &readme).await?;
-        let commit = repositories::commit(&repo, "Initial commit")?;
-
-        // Create workspace, then add a NEW CSV that doesn't exist in the base commit
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        // Write the new CSV into the workspace directory and stage it
-        let workspace_csv_dir = workspace.dir().join("data");
-        util::fs::create_dir_all(&workspace_csv_dir)?;
-        let workspace_csv_path = workspace_csv_dir.join("new.csv");
-        util::fs::write_to_path(&workspace_csv_path, "x,y\n10,20\n")?;
-        repositories::workspaces::files::add(&workspace, &workspace_csv_path).await?;
-
-        // Request download for the workspace-only file
-        let file_path = "data/new.csv";
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{file_path}"
+            zero_page_size
+                .data_frame
+                .as_ref()
+                .unwrap()
+                .view
+                .pagination
+                .total_entries,
+            25
         );
 
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::download),
-                ),
+        // A client that wants a whole result asks for it as one maximal page. The widest page a
+        // request can name has to mean "all of them" on either branch, rather than overflowing
+        // the slice or exceeding what a SQL `LIMIT` accepts.
+        let widest = || page_query(1, usize::MAX, Some("SELECT * FROM df"));
+        let response = page(widest()).await;
+        assert!(
+            !response.is_indexed,
+            "sql is ignored until the frame is indexed"
+        );
+        assert_eq!(page_row_count(&response), 25);
+
+        repositories::workspaces::data_frames::index(
+            &repo,
+            &workspace,
+            std::path::Path::new(file_path),
         )
-        .await;
+        .await?;
 
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let indexed_expectations: [(usize, Vec<i64>); 3] = [
+            (1, (0..10).collect()),
+            (3, (20..25).collect()),
+            (4, Vec::new()),
+        ];
+        for (page_number, expected_ids) in indexed_expectations {
+            let indexed_page = page(page_query(page_number, 10, None)).await;
+            assert!(indexed_page.is_indexed);
+            assert_eq!(page_row_count(&indexed_page), expected_ids.len());
+            assert_eq!(page_ids(&indexed_page), expected_ids);
+            let pagination = &indexed_page.data_frame.as_ref().unwrap().view.pagination;
+            assert_eq!(pagination.total_pages, 3);
+            assert_eq!(pagination.total_entries, 25);
+        }
 
-        // Parse the response body and verify is_indexed is false
-        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
-        let response: WorkspaceJsonDataFrameViewResponse = serde_json::from_slice(&bytes)?;
-        assert!(!response.is_indexed);
-        assert!(response.data_frame.is_none());
+        let response = page(widest()).await;
+        assert!(response.is_indexed);
+        assert_eq!(page_row_count(&response), 25);
 
-        // cleanup
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
+        // A `sql` query is paginated like any other read, and the pagination the response reports
+        // describes the rows the query selects rather than the whole frame, or a client paging by
+        // `total_pages` walks past the end of the result. 15 of the 25 rows match, so 2 pages of
+        // 10 and nothing after them.
+        let sql = "SELECT * FROM df WHERE id >= 10";
+        let expectations: [(usize, Vec<i64>); 3] = [
+            (1, (10..20).collect()),
+            (2, (20..25).collect()),
+            (3, Vec::new()),
+        ];
+        for (page_number, expected_ids) in expectations {
+            let response = page(page_query(page_number, 10, Some(sql))).await;
+            assert!(response.is_indexed);
+            assert_eq!(
+                page_row_count(&response),
+                expected_ids.len(),
+                "page {page_number} must hold only its own rows"
+            );
+            assert_eq!(page_ids(&response), expected_ids);
+            let pagination = &response.data_frame.as_ref().unwrap().view.pagination;
+            assert_eq!(pagination.total_entries, 15);
+            assert_eq!(pagination.total_pages, 2);
+        }
 
-    /// File doesn't exist in base commit or workspace.
-    /// Expected: 404.
-    #[actix_web::test]
-    async fn test_download_nonexistent_path_returns_404() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // Create a CSV file and commit so we have a valid repo
-        let csv_dir = repo.path.join("data");
-        util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("test.csv");
-        util::fs::write_to_path(&csv_path, "col_a,col_b\n1,2\n3,4\n")?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add CSV")?;
-
-        // Create a workspace
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        // Request download for a file that does not exist
-        let nonexistent_path = "data/this_does_not_exist.csv";
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{nonexistent_path}"
-        );
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::download),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
-
-        // cleanup
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    /// CSV committed, workspace created, NOT indexed.
-    /// Expected: 200 JSON with `is_indexed: false`, `data_frame: None`.
-    #[actix_web::test]
-    async fn test_download_existing_unindexed_returns_200_with_is_indexed_false()
-    -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // Create a CSV file and commit
-        let csv_dir = repo.path.join("data");
-        util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("test.csv");
-        util::fs::write_to_path(&csv_path, "col_a,col_b\n1,2\n3,4\n")?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add CSV")?;
-
-        // Create a workspace but do NOT index the data frame
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-
-        // Request download for the existing-but-unindexed file
-        let file_path = "data/test.csv";
-        let uri = format!(
-            "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{file_path}"
-        );
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/data_frames/download/{path:.*}",
-                    web::get().to(controllers::workspaces::data_frames::download),
-                ),
-        )
-        .await;
-
-        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
-        let resp = actix_web::test::call_service(&app, req).await;
-        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
-
-        // Parse the response body and verify is_indexed is false
-        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
-        let response: WorkspaceJsonDataFrameViewResponse = serde_json::from_slice(&bytes)?;
-        assert!(!response.is_indexed);
-        assert!(response.data_frame.is_none());
-
-        // cleanup
+        drop((app, workspace));
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
         Ok(())
     }
@@ -1222,274 +1068,5 @@ mod tests {
                     .expect("expected an integer id on every row")
             })
             .collect()
-    }
-
-    /// A committed `data/history.csv` and a workspace on that commit, not yet
-    /// indexed. The CSV holds 25 rows — larger than the page_size of 10 the
-    /// pagination tests request, so their pages are real pages.
-    async fn commit_history_csv_workspace(
-        sync_dir: &std::path::Path,
-        namespace: &str,
-        repo_name: &str,
-    ) -> Result<(LocalRepository, Workspace, String), OxenError> {
-        let repo = test::create_local_repo(sync_dir, namespace, repo_name)?;
-
-        let csv_dir = repo.path.join("data");
-        util::fs::create_dir_all(&csv_dir)?;
-        let csv_path = csv_dir.join("history.csv");
-        let mut csv = String::from("id,label\n");
-        for i in 0..25 {
-            csv.push_str(&format!("{i},label_{i}\n"));
-        }
-        util::fs::write_to_path(&csv_path, &csv)?;
-        repositories::add(&repo, &csv_path).await?;
-        let commit = repositories::commit(&repo, "Add 25-row CSV")?;
-
-        let workspace_id = uuid::Uuid::new_v4().to_string();
-        let workspace = repositories::workspaces::create(&repo, &commit, &workspace_id, false)?;
-        Ok((repo, workspace, workspace_id))
-    }
-
-    /// An unindexed workspace data frame larger than the requested `page_size` must paginate:
-    /// each page returns at most `page_size` rows and an out-of-range page returns zero rows so
-    /// pagination terminates. Regression test for the unindexed branch returning the full frame on
-    /// every page. Also asserts the indexed branch paginates identically so the two paths stay in
-    /// lockstep.
-    #[actix_web::test]
-    async fn test_get_unindexed_data_frame_paginates() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        // The workspace starts unindexed, so the GET handler takes the unindexed read path. We
-        // index this same workspace later to exercise the indexed branch (a commit can only have
-        // one non-editable workspace, so we reuse it).
-        let (repo, workspace, workspace_id) =
-            commit_history_csv_workspace(&sync_dir, namespace, repo_name).await?;
-        let file_path = "data/history.csv";
-
-        // Unindexed branch: page 1 of 10 → exactly 10 rows, and total_pages/total_entries
-        // reflect the full frame.
-        let page_1 = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            page_query(1, 10, None),
-        )
-        .await;
-        assert!(!page_1.is_indexed);
-        assert_eq!(page_row_count(&page_1), 10);
-        assert_eq!(page_ids(&page_1), (0..10).collect::<Vec<i64>>());
-        let pagination = &page_1.data_frame.as_ref().unwrap().view.pagination;
-        assert_eq!(pagination.total_pages, 3);
-        assert_eq!(pagination.total_entries, 25);
-
-        // Page 3 → the remaining 5 rows.
-        let page_3 = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            page_query(3, 10, None),
-        )
-        .await;
-        assert_eq!(page_row_count(&page_3), 5);
-        assert_eq!(page_ids(&page_3), (20..25).collect::<Vec<i64>>());
-
-        // Page 4 is past the end → 0 rows. This is the case a pager relies on to terminate.
-        let page_4 = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            page_query(4, 10, None),
-        )
-        .await;
-        assert_eq!(page_row_count(&page_4), 0);
-        let pagination = &page_4.data_frame.as_ref().unwrap().view.pagination;
-        assert_eq!(pagination.total_pages, 3);
-        assert_eq!(pagination.total_entries, 25);
-
-        // Out-of-domain pagination inputs are clamped to the 1-based domain rather than panicking
-        // or returning the whole frame: page 0 is read as page 1 (10 rows)...
-        let page_zero = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            page_query(0, 10, None),
-        )
-        .await;
-        assert_eq!(page_row_count(&page_zero), 10);
-        // ...and page_size 0 is read as page_size 1 (a single row), not the full 25-row frame.
-        let zero_page_size = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            page_query(1, 0, None),
-        )
-        .await;
-        assert_eq!(page_row_count(&zero_page_size), 1);
-        assert_eq!(
-            zero_page_size
-                .data_frame
-                .as_ref()
-                .unwrap()
-                .view
-                .pagination
-                .total_entries,
-            25
-        );
-
-        // Index the same workspace so the GET handler now takes the SQL branch. It must return the
-        // same rows on the same pages so the two paths stay in lockstep (guards against regressing
-        // the SQL pagination).
-        repositories::workspaces::data_frames::index(
-            &repo,
-            &workspace,
-            std::path::Path::new(file_path),
-        )
-        .await?;
-
-        let indexed_expectations: [(usize, Vec<i64>); 3] = [
-            (1, (0..10).collect()),
-            (3, (20..25).collect()),
-            (4, Vec::new()),
-        ];
-        for (page, expected_ids) in indexed_expectations {
-            let indexed_page = get_data_frame_page(
-                &sync_dir,
-                namespace,
-                repo_name,
-                &workspace_id,
-                file_path,
-                page_query(page, 10, None),
-            )
-            .await;
-            assert!(indexed_page.is_indexed);
-            assert_eq!(page_row_count(&indexed_page), expected_ids.len());
-            assert_eq!(page_ids(&indexed_page), expected_ids);
-            let pagination = &indexed_page.data_frame.as_ref().unwrap().view.pagination;
-            assert_eq!(pagination.total_pages, 3);
-            assert_eq!(pagination.total_entries, 25);
-        }
-
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    /// A client that wants a whole result asks for it as one maximal page. The
-    /// widest page a request can name has to read as "all of them" on either
-    /// branch, rather than overflowing the slice or exceeding what a SQL `LIMIT`
-    /// accepts.
-    #[actix_web::test]
-    async fn test_get_data_frame_page_holding_every_row() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Widest-Page";
-        let (repo, workspace, workspace_id) =
-            commit_history_csv_workspace(&sync_dir, namespace, repo_name).await?;
-        let file_path = "data/history.csv";
-
-        let widest = || page_query(1, usize::MAX, Some("SELECT * FROM df"));
-        let response = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            widest(),
-        )
-        .await;
-        assert!(
-            !response.is_indexed,
-            "sql is ignored until the frame is indexed"
-        );
-        assert_eq!(page_row_count(&response), 25);
-
-        repositories::workspaces::data_frames::index(
-            &repo,
-            &workspace,
-            std::path::Path::new(file_path),
-        )
-        .await?;
-        let response = get_data_frame_page(
-            &sync_dir,
-            namespace,
-            repo_name,
-            &workspace_id,
-            file_path,
-            widest(),
-        )
-        .await;
-        assert!(response.is_indexed);
-        assert_eq!(page_row_count(&response), 25);
-
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    /// A `sql` query is paginated like any other read, and the pagination the
-    /// response reports describes the rows the query selects rather than the
-    /// whole frame — otherwise a client paging by `total_pages` walks past the
-    /// end of the result.
-    #[actix_web::test]
-    async fn test_get_data_frame_with_sql_paginates() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-SQL-Pagination";
-        let (repo, workspace, workspace_id) =
-            commit_history_csv_workspace(&sync_dir, namespace, repo_name).await?;
-        let file_path = "data/history.csv";
-        repositories::workspaces::data_frames::index(
-            &repo,
-            &workspace,
-            std::path::Path::new(file_path),
-        )
-        .await?;
-
-        // 15 of the 25 rows match, so 2 pages of 10 and nothing after them.
-        let sql = "SELECT * FROM df WHERE id >= 10";
-        let expectations: [(usize, Vec<i64>); 3] = [
-            (1, (10..20).collect()),
-            (2, (20..25).collect()),
-            (3, Vec::new()),
-        ];
-        for (page, expected_ids) in expectations {
-            let response = get_data_frame_page(
-                &sync_dir,
-                namespace,
-                repo_name,
-                &workspace_id,
-                file_path,
-                page_query(page, 10, Some(sql)),
-            )
-            .await;
-            assert!(response.is_indexed);
-            assert_eq!(
-                page_row_count(&response),
-                expected_ids.len(),
-                "page {page} must hold only its own rows"
-            );
-            assert_eq!(page_ids(&response), expected_ids);
-            let pagination = &response.data_frame.as_ref().unwrap().view.pagination;
-            assert_eq!(pagination.total_entries, 15);
-            assert_eq!(pagination.total_pages, 2);
-        }
-
-        drop(workspace);
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
     }
 }

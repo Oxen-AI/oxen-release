@@ -945,8 +945,8 @@ mod tests {
 
         assert_eq!(resp.status(), http::StatusCode::BAD_REQUEST);
 
-        // The removal runs in a background task, so give it time to do damage before asserting.
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // The removal is spawned only with a directory the segments resolved to, so a rejected
+        // request leaves nothing running that could remove the canary later.
         assert!(
             canary.exists(),
             "traversal escaped the sync dir: {canary:?} was removed"
@@ -1011,7 +1011,7 @@ mod tests {
         })
         .await?;
 
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        // A refused delete returns before it spawns the removal, so the directory has to be here.
         assert!(repo_dir.exists(), "repo dir should survive: {repo_dir:?}");
 
         test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;

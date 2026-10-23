@@ -793,28 +793,30 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_controllers_versions_download() -> Result<(), OxenError> {
+    async fn test_controllers_versions_download_and_batch_upload() -> Result<(), OxenError> {
         liboxen::test::init_test_env();
         let sync_dir = test::get_sync_dir()?;
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
 
-        // create test file and commit
         util::fs::create_dir_all(repo.path.join("data"))?;
         let relative_path = "data/hello.txt";
         let hello_file = repo.path.join(relative_path);
         let file_content = "Hello";
         util::fs::write_to_path(&hello_file, file_content)?;
-        repositories::add(&repo, &hello_file).await?;
+        let image_path = "data/pixel.png";
+        let image_file = repo.path.join(image_path);
+        let png_bytes = [
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+            0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99,
+            0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+        ];
+        AtomicFile::new(&image_file).write(&png_bytes)?;
+        repositories::add(&repo, &repo.path.join("data")).await?;
         repositories::commit(&repo, "First commit")?;
-
-        // test download
-        let uri = format!("/oxen/{namespace}/{repo_name}/versions/main/{relative_path}");
-        let req = actix_web::test::TestRequest::get()
-            .uri(&uri)
-            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
-            .to_request();
 
         let app = actix_web::test::init_service(
             App::new()
@@ -822,11 +824,22 @@ mod tests {
                 .route(
                     "/oxen/{namespace}/{repo_name}/versions/{resource:.*}",
                     web::get().to(controllers::versions::download),
+                )
+                .route(
+                    "/oxen/{namespace}/{repo_name}/versions",
+                    web::post().to(controllers::versions::batch_upload),
                 ),
         )
         .await;
+        let get = |uri: String| {
+            actix_web::test::TestRequest::get()
+                .uri(&uri)
+                .app_data(OxenAppData::new(sync_dir.to_path_buf()))
+                .to_request()
+        };
 
-        let resp = actix_web::test::call_service(&app, req).await;
+        let uri = format!("/oxen/{namespace}/{repo_name}/versions/main/{relative_path}");
+        let resp = actix_web::test::call_service(&app, get(uri)).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         assert_eq!(
             resp.headers().get(header::CONTENT_LENGTH).unwrap(),
@@ -841,52 +854,10 @@ mod tests {
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         assert_eq!(bytes, "Hello");
 
-        // cleanup
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_versions_download_resize_sets_content_length() -> Result<(), OxenError>
-    {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Resize-Content-Length";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        util::fs::create_dir_all(repo.path.join("data"))?;
-        let relative_path = "data/pixel.png";
-        let image_file = repo.path.join(relative_path);
-        let png_bytes = [
-            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48,
-            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
-            0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78,
-            0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99,
-            0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
-        ];
-        AtomicFile::new(&image_file).write(&png_bytes)?;
-        repositories::add(&repo, &image_file).await?;
-        repositories::commit(&repo, "First commit")?;
-
+        // A resized image's Content-Length is the length of the resized body.
         let uri =
-            format!("/oxen/{namespace}/{repo_name}/versions/main/{relative_path}?width=2&height=2");
-        let req = actix_web::test::TestRequest::get()
-            .uri(&uri)
-            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
-            .to_request();
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/versions/{resource:.*}",
-                    web::get().to(controllers::versions::download),
-                ),
-        )
-        .await;
-
-        let resp = actix_web::test::call_service(&app, req).await;
+            format!("/oxen/{namespace}/{repo_name}/versions/main/{image_path}?width=2&height=2");
+        let resp = actix_web::test::call_service(&app, get(uri)).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         assert_eq!(
             resp.headers()
@@ -905,64 +876,12 @@ mod tests {
         let bytes = body::to_bytes(resp.into_body()).await.unwrap();
         assert_eq!(content_length, bytes.len());
 
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_versions_download_bad_commit_returns_404() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        // create test file and commit so we have a valid repo
-        util::fs::create_dir_all(repo.path.join("data"))?;
-        let relative_path = "data/hello.txt";
-        let hello_file = repo.path.join(relative_path);
-        util::fs::write_to_path(&hello_file, "Hello")?;
-        repositories::add(&repo, &hello_file).await?;
-        repositories::commit(&repo, "First commit")?;
-
-        // Request with a nonexistent commit/revision
         let uri =
             format!("/oxen/{namespace}/{repo_name}/versions/nonexistent_commit_id/{relative_path}");
-        let req = actix_web::test::TestRequest::get()
-            .uri(&uri)
-            .app_data(OxenAppData::new(sync_dir.to_path_buf()))
-            .to_request();
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/versions/{resource:.*}",
-                    web::get().to(controllers::versions::download),
-                ),
-        )
-        .await;
-
-        let resp = actix_web::test::call_service(&app, req).await;
+        let resp = actix_web::test::call_service(&app, get(uri)).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::NOT_FOUND);
 
-        // cleanup
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_versions_batch_upload() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
-        repositories::add(&repo, path).await?;
-        repositories::commit(&repo, "first commit")?;
-
+        let uri = format!("/oxen/{namespace}/{repo_name}/versions");
         let file_content = "Test Content";
         let file_hash = util::hasher::hash_str(file_content);
 
@@ -978,27 +897,14 @@ mod tests {
             Some("application/gzip".parse::<mime::Mime>().unwrap()),
             Bytes::from(compressed_bytes),
         );
-        let uri = format!("/oxen/{namespace}/{repo_name}/versions");
-
         let req = actix_web::test::TestRequest::post()
             .uri(&uri)
             .app_data(OxenAppData::new(sync_dir.to_path_buf()));
-
         let req = headers
             .into_iter()
             .fold(req, |req, hdr| req.insert_header(hdr))
             .set_payload(body)
             .to_request();
-
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/versions",
-                    web::post().to(controllers::versions::batch_upload),
-                ),
-        )
-        .await;
 
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
@@ -1011,23 +917,6 @@ mod tests {
         let version_store = repo.version_store();
         let stored_data = version_store.get_version(&file_hash).await?;
         assert_eq!(stored_data, file_content.as_bytes());
-
-        // cleanup
-        test::cleanup_repo_and_sync_dir(repo, &sync_dir)?;
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_versions_batch_upload_multiple_files() -> Result<(), OxenError> {
-        liboxen::test::init_test_env();
-        let sync_dir = test::get_sync_dir()?;
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name-Multi";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-
-        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
-        repositories::add(&repo, path).await?;
-        repositories::commit(&repo, "first commit")?;
 
         // Build one multipart body with several gzipped `file[]` parts sharing a boundary.
         let contents = ["one", "two", "three", "four", "five"];
@@ -1053,7 +942,6 @@ mod tests {
         }
         body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
 
-        let uri = format!("/oxen/{namespace}/{repo_name}/versions");
         let req = actix_web::test::TestRequest::post()
             .uri(&uri)
             .app_data(OxenAppData::new(sync_dir.to_path_buf()))
@@ -1064,16 +952,6 @@ mod tests {
             .set_payload(body)
             .to_request();
 
-        let app = actix_web::test::init_service(
-            App::new()
-                .app_data(OxenAppData::new(sync_dir.clone()))
-                .route(
-                    "/oxen/{namespace}/{repo_name}/versions",
-                    web::post().to(controllers::versions::batch_upload),
-                ),
-        )
-        .await;
-
         let resp = actix_web::test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
@@ -1082,7 +960,6 @@ mod tests {
         assert!(response.err_files.is_empty());
 
         // Every file in the batch is stored, independent of store order/concurrency.
-        let version_store = repo.version_store();
         for (content, hash) in contents.iter().zip(&hashes) {
             let stored = version_store.get_version(hash).await?;
             assert_eq!(stored, content.as_bytes());
