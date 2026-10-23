@@ -362,11 +362,19 @@ mod tests {
                 );
             }
 
-            prune(&repo, false).await?;
-            let all_commits = repositories::commits::list_all(&repo)?;
-            assert_eq!(all_commits, commits_before);
-            assert!(!all_commits.contains(&branch_1_commit));
-            assert!(!all_commits.contains(&branch_2_commit));
+            let stats = prune(&repo, false).await?;
+            assert_eq!(
+                stats.versions_removed, 2,
+                "the two branch-only files' versions are removed"
+            );
+            assert!(stats.nodes_removed > 0);
+            for commit in [&branch_1_commit, &branch_2_commit] {
+                assert!(
+                    repositories::commits::get_by_id(&repo, &commit.id)?.is_none(),
+                    "a commit only a deleted branch reached is removed"
+                );
+            }
+            assert_eq!(repositories::commits::list_all(&repo)?, commits_before);
 
             Ok(())
         })
