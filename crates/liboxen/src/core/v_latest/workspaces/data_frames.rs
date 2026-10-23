@@ -536,6 +536,9 @@ pub async fn rename(
             {
                 return Err(OxenError::PathStagedForRemoval(path.into()));
             }
+            if staged_db_manager.read_from_staged_db(&new_path)?.is_some() {
+                return Err(OxenError::DestinationAlreadyStaged(new_path.into()));
+            }
 
             move_index(&workspace, &path, &new_path)?;
 

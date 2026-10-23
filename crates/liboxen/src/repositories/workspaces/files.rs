@@ -460,6 +460,29 @@ mod tests {
                  staged for removal"
             );
 
+            // Renaming a data frame onto one staged in the workspace is refused, so the staged one
+            // keeps its rows.
+            let workspace = repositories::workspaces::create(&repo, &commit, "df-onto", true)?;
+            let staged_csv = workspace.workspace_repo.path.join("staged.csv");
+            fs::write_to_path(&staged_csv, "x,y\n3,4\n")?;
+            workspaces::files::add(&workspace, &staged_csv).await?;
+            repositories::workspaces::data_frames::index(&repo, &workspace, "table.csv").await?;
+            let result = repositories::workspaces::data_frames::rename(
+                &workspace,
+                "table.csv",
+                "staged.csv",
+            )
+            .await;
+            assert!(
+                matches!(result, Err(OxenError::DestinationAlreadyStaged(_))),
+                "{result:?}"
+            );
+            assert_eq!(
+                staged_status(&workspace, "staged.csv"),
+                Some(StagedEntryStatus::Added)
+            );
+            assert_eq!(staged_status(&workspace, "table.csv"), None);
+
             // A path that exists only in the workspace is unstaged, and only a path with nothing
             // at it fails.
             let workspace = repositories::workspaces::create(&repo, &commit, "rm-staged", true)?;
