@@ -571,6 +571,22 @@ impl error::ResponseError for OxenHttpError {
                         });
                         HttpResponse::BadRequest().json(error_json)
                     }
+                    OxenError::NotADirectory(path) => {
+                        tracing::warn!(
+                            oxen.file_path = %path.display(),
+                            "Refused, a path the request needs as a directory is a file"
+                        );
+                        let error_json = json!({
+                            "error": {
+                                "type": "not_a_directory",
+                                "title": "Not a directory",
+                                "detail": format!("{} is a file, so nothing can be placed beneath it.", path.display()),
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_CONFLICT,
+                        });
+                        HttpResponse::Conflict().json(error_json)
+                    }
                     OxenError::DestinationAlreadyStaged(path) => {
                         log::warn!("Move refused, destination already staged: {path}");
                         let error_json = json!({

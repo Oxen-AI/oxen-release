@@ -1142,6 +1142,7 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     // One guard from the first read to the batch write: `begin_write` doesn't exclude other
     // writers, so a stage landing in between would be overwritten or left behind by the move.
     let db = staged_db_manager.lock_for_write();
+    refuse_move_under_file(workspace, new_path, |p| read_from_db(&db, p))?;
 
     let staged_file = match read_from_db(&db, path)? {
         // Moving it would restore content the workspace already deleted, as edits to removed paths
@@ -1181,6 +1182,33 @@ fn mv_sync(workspace: &Workspace, path: &Path, new_path: &Path) -> Result<(), Ox
     }
 
     mv_dir(workspace, &db, path, new_path)
+}
+
+/// Refuse a destination beneath a file: one the workspace stages, or one in the base commit that
+/// the workspace stages nothing over. `staged` reads the workspace's staged entry at a path.
+pub(super) fn refuse_move_under_file(
+    workspace: &Workspace,
+    new_path: &Path,
+    staged: impl Fn(&Path) -> Result<Option<StagedMerkleTreeNode>, OxenError>,
+) -> Result<(), OxenError> {
+    for ancestor in new_path.ancestors().skip(1) {
+        if ancestor.as_os_str().is_empty() {
+            break;
+        }
+        let is_file = match staged(ancestor)? {
+            Some(entry) => entry.status != StagedEntryStatus::Removed && !entry.node.is_dir(),
+            None => repositories::tree::get_file_by_path(
+                &workspace.base_repo,
+                &workspace.commit,
+                ancestor,
+            )?
+            .is_some(),
+        };
+        if is_file {
+            return Err(OxenError::NotADirectory(ancestor.to_path_buf()));
+        }
+    }
+    Ok(())
 }
 
 /// Stage the move of one file, given its resolved node (staged, or else committed). The caller

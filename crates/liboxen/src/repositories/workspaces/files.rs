@@ -409,7 +409,31 @@ mod tests {
                 matches!(result, Err(OxenError::PathDoesNotExist(_))),
                 "a missing source should be refused, got {result:?}"
             );
+            // Beneath a committed or a staged file, a move would turn that file into a directory.
+            for (source, dest) in [
+                ("data", "other.txt/inner"),
+                ("data/a.txt", "other.txt/a.txt"),
+                ("data", "staged/z.txt/deep/inner"),
+            ] {
+                let result =
+                    workspaces::files::mv(&workspace, Path::new(source), Path::new(dest)).await;
+                assert!(
+                    matches!(result, Err(OxenError::NotADirectory(_))),
+                    "moving {source} to {dest} should be refused, got {result:?}"
+                );
+            }
+            let result = repositories::workspaces::data_frames::rename(
+                &workspace,
+                "table.csv",
+                "other.txt/table.csv",
+            )
+            .await;
+            assert!(
+                matches!(result, Err(OxenError::NotADirectory(_))),
+                "renaming a data frame beneath a file should be refused, got {result:?}"
+            );
             assert_eq!(staged_status(&workspace, "data/a.txt"), None);
+            assert_eq!(staged_status(&workspace, "other.txt"), None);
             assert_eq!(
                 staged_status(&workspace, "staged/z.txt"),
                 Some(StagedEntryStatus::Added)

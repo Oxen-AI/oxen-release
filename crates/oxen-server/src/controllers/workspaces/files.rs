@@ -339,7 +339,7 @@ pub async fn validate(req: HttpRequest, _body: String) -> Result<HttpResponse, O
         (status = 200, description = "File successfully moved/renamed", body = StatusMessage),
         (status = 400, description = "Invalid request (empty new_path, a file's new_path already exists, or new_path is the source or inside it)"),
         (status = 404, description = "Workspace or file not found"),
-        (status = 409, description = "A directory's new_path already exists, something is staged at new_path, or the path is staged for removal (including a directory already moved away)")
+        (status = 409, description = "A directory's new_path already exists, something is staged at new_path, a file is at a parent of new_path, or the path is staged for removal (including a directory already moved away)")
     )
 )]
 pub async fn mv(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -636,19 +636,28 @@ mod tests {
         }
 
         let uri = format!("/oxen/{namespace}/{repo_name}/workspaces/{workspace_id}/files/renamed");
-        let req = TestRequest::patch()
-            .uri(&uri)
-            .set_json(RenameRequest {
-                new_path: "renamed/inner".to_string(),
-            })
-            .to_request();
-        let resp = call_service(&app, req).await;
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
-        assert_eq!(
-            body["error"]["type"], "move_into_itself",
-            "a move into its own subdirectory is refused as such: {body}"
-        );
+        for (new_path, status, error_type) in [
+            ("renamed/inner", StatusCode::BAD_REQUEST, "move_into_itself"),
+            (
+                "fresh_renamed/x.txt/inner",
+                StatusCode::CONFLICT,
+                "not_a_directory",
+            ),
+        ] {
+            let req = TestRequest::patch()
+                .uri(&uri)
+                .set_json(RenameRequest {
+                    new_path: new_path.to_string(),
+                })
+                .to_request();
+            let resp = call_service(&app, req).await;
+            assert_eq!(resp.status(), status, "moving renamed to {new_path}");
+            let body: serde_json::Value = actix_web::test::read_body_json(resp).await;
+            assert_eq!(
+                body["error"]["type"], error_type,
+                "moving renamed to {new_path} is refused as such: {body}"
+            );
+        }
 
         let status = repositories::workspaces::status::status(&workspace)?;
         for path in ["renamed/a.txt", "renamed/b.csv", "fresh_renamed/x.txt"] {
