@@ -47,12 +47,13 @@ use crate::model::merkle_tree::node::{CommitNode, DirNode};
 ///
 /// Keys are canonicalized to forward slashes so a directory is looked up by the same path on
 /// every platform, keeping a Windows client (which writes `\` separators into `PathBuf`) and
-/// a Linux server agreeing on directory keys.
+/// a Linux server agreeing on directory keys. A trailing separator is dropped, so `dir/` and
+/// `dir` are one key rather than two entries a later commit can disagree on.
 fn put_dir_hash(dir_hash_db: &DB, path: &Path, hash: &MerkleHash) -> Result<(), OxenError> {
     match path.to_str() {
         Some(path_str) => str_val_db::put(
             dir_hash_db,
-            util::fs::to_unix_str(path_str),
+            util::fs::to_unix_str(path_str).trim_end_matches('/'),
             &hash.to_string(),
         )?,
         None => log::error!("Failed to convert path to string: {path:?}"),
@@ -889,8 +890,10 @@ fn cache_invalidate_dir_hash_db<'a>(
                 // `child_path` already contains the full relative path
                 // (e.g., "annotations/train"), so use it directly as the key
                 let path_str = util::fs::to_unix_str(&child_path);
+                // Spelled as `put_dir_hash` writes keys, without a trailing separator.
+                let path_str = path_str.trim_end_matches('/');
                 log::debug!("deleting removed dir hash: {path_str}");
-                str_val_db::delete(dir_hash_db, &path_str)?;
+                str_val_db::delete(dir_hash_db, path_str)?;
             }
         }
     }

@@ -311,6 +311,42 @@ mod tests {
             );
             assert!(repositories::tree::has_dir(&repo, &committed, "moved/sub")?);
 
+            // A later commit inside the moved directory reads it as that commit left it, and
+            // the one after builds on that rather than on the directory as the move left it.
+            let workspace = repositories::workspaces::create(&repo, &committed, "nested-2", true)?;
+            workspaces::files::mv(
+                &workspace,
+                Path::new("moved/a.txt"),
+                Path::new("moved/c.txt"),
+            )
+            .await?;
+            let renamed = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Rename a in moved"),
+                "nested",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &renamed,
+                &["moved/c.txt", "moved/sub/b.txt"],
+                &["moved/a.txt"],
+            );
+            let workspace = repositories::workspaces::create(&repo, &renamed, "nested-3", true)?;
+            stage_new_file(&workspace, "moved/d.txt").await?;
+            let added = workspaces::commit(
+                &workspace,
+                &NewCommitBody::from_config(&user, "Add d in moved"),
+                "nested",
+            )
+            .await?;
+            assert_files(
+                &repo,
+                &added,
+                &["moved/c.txt", "moved/d.txt", "moved/sub/b.txt"],
+                &["moved/a.txt"],
+            );
+
             // Files added in the workspace move with the directory, and a file staged for removal
             // stays removed rather than reappearing under the new path.
             let workspace = committing_workspace(&repo, &commit, "mixed")?;
