@@ -257,9 +257,8 @@ impl StagedWriteBatch {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir_from_path(directory_path),
         };
-        // `StagedDBManager::add_directory` keys directories by the raw path, not `normalize_key`.
         self.ops.insert(
-            directory_path.to_str().unwrap().to_string(),
+            normalize_key(directory_path),
             Some(serialize_staged_node(&dir_entry)?),
         );
         Ok(())
